@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -62,7 +61,7 @@ func main() {
 
 	// Connect to database
 	var err error
-	dbContainer, err = sqlstore.New("postgres", dbURI, waLog.Stdout("Database", "DEBUG", true))
+	dbContainer, err = sqlstore.New(context.Background(), "postgres", dbURI, waLog.Stdout("Database", "DEBUG", true))
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
@@ -110,7 +109,7 @@ func corsMiddleware() gin.HandlerFunc {
 }
 
 func restoreSessions() {
-	devices, err := dbContainer.GetLogins()
+	devices, err := dbContainer.GetAllDevices(context.Background())
 	if err != nil {
 		log.Printf("Failed to retrieve logins for restoration: %v", err)
 		return
@@ -124,7 +123,6 @@ func restoreSessions() {
 		// Note: since our system matches whatsmeow session by channel_id, we will lookup channel_id
 		// associated with the JID from our custom mapping if needed, or wait for Rails to query.
 		// To make restoration fully automatic, let's create a metadata lookup or restore client directly.
-		clientStore := dbContainer.DeviceStore
 		client := whatsmeow.NewClient(device, waLog.Stdout("WhatsmeowClient", "INFO", true))
 		
 		// Auto-reconnect
@@ -171,7 +169,7 @@ func handleCreateSession(c *gin.Context) {
 	}
 
 	// Create new client store
-	deviceStore, err := dbContainer.GetFirstDevice()
+	deviceStore, err := dbContainer.GetFirstDevice(context.Background())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get device store: %v", err)})
 		return
@@ -357,7 +355,7 @@ func handleSendMessage(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"id":      resp.ID,
-		"timestamp": resp.DebugTimings.QueueQueueTime,
+		"timestamp": resp.Timestamp.Unix(),
 	})
 }
 
