@@ -13,6 +13,7 @@ import Telegram from './channels/Telegram.vue';
 import Instagram from './channels/Instagram.vue';
 import Tiktok from './channels/Tiktok.vue';
 import Voice from './channels/Voice.vue';
+import Whatsmeow from './channels/Whatsmeow.vue';
 
 const channelViewList = {
   facebook: Facebook,
@@ -28,6 +29,7 @@ const channelViewList = {
   instagram: Instagram,
   tiktok: Tiktok,
   voice: Voice,
+  whatsmeow: Whatsmeow,
 };
 
 export default defineComponent({

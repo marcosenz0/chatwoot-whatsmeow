@@ -102,6 +102,13 @@ const channelList = computed(() => {
     icon: 'i-woot-whatsapp',
   });
 
+  channels.push({
+    key: 'whatsmeow',
+    title: 'WhatsApp Direct (Whatsmeow)',
+    description: 'Conecte seu WhatsApp diretamente em alta performance',
+    icon: 'i-woot-whatsapp',
+  });
+
   return channels;
 });
 

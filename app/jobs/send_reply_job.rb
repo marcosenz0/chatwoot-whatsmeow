@@ -12,7 +12,8 @@ class SendReplyJob < ApplicationJob
     'Channel::Tiktok' => ::Tiktok::SendOnTiktokService,
     'Channel::Email' => ::Email::SendOnEmailService,
     'Channel::WebWidget' => ::Messages::SendEmailNotificationService,
-    'Channel::Api' => ::Messages::SendEmailNotificationService
+    'Channel::Api' => ::Messages::SendEmailNotificationService,
+    'Channel::Whatsmeow' => ::Whatsmeow::SendOnWhatsmeowService
   }.freeze
 
   def perform(message_id)
