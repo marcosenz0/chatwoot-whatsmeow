@@ -1,9 +1,8 @@
 FROM golang:1.21-alpine AS builder
 RUN apk add --no-cache git gcc musl-dev
 WORKDIR /app
-COPY go.mod ./
-RUN go mod tidy
 COPY . .
+RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -o main .
 
 FROM alpine:latest
