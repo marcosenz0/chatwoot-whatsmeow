@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -108,6 +109,35 @@ func corsMiddleware() gin.HandlerFunc {
 	}
 }
 
+func lookupInboxAndAccount(phone string) (string, string, error) {
+	dbURI := os.Getenv("DATABASE_URL")
+	if dbURI == "" {
+		dbURI = "postgres://postgres:StagingPassword123!@chatwoot-staging-db:5432/chatwoot_staging?sslmode=disable"
+	}
+	db, err := sql.Open("postgres", dbURI)
+	if err != nil {
+		return "", "", err
+	}
+	defer db.Close()
+
+	var inboxID int
+	var accountID int
+	query := `
+		SELECT i.id, i.account_id 
+		FROM inboxes i 
+		JOIN channel_whatsmeow c ON i.channel_id = c.id 
+		WHERE i.channel_type = 'Channel::Whatsmeow' 
+		  AND (c.phone_number = $1 OR c.phone_number = '+' || $1)
+		LIMIT 1
+	`
+	err = db.QueryRow(query, phone).Scan(&inboxID, &accountID)
+	if err != nil {
+		return "", "", err
+	}
+
+	return fmt.Sprintf("%d", inboxID), fmt.Sprintf("%d", accountID), nil
+}
+
 func restoreSessions() {
 	devices, err := dbContainer.GetAllDevices(context.Background())
 	if err != nil {
@@ -117,16 +147,20 @@ func restoreSessions() {
 
 	log.Printf("Found %d saved device sessions to restore.", len(devices))
 	for _, device := range devices {
-		log.Printf("Restoring session for JID: %s", device.ID.String())
-		// In whatsmeow, device.ID.User is the user part of JID
-		// We'll store clients using a combination or retrieve channel_id from metadata if possible.
-		// Note: since our system matches whatsmeow session by channel_id, we will lookup channel_id
-		// associated with the JID from our custom mapping if needed, or wait for Rails to query.
-		// To make restoration fully automatic, let's create a metadata lookup or restore client directly.
+		log.Printf("Restoring session for JID: %s JIDUser: %s", device.ID.String(), device.ID.User)
+		
+		inboxID, accountID, err := lookupInboxAndAccount(device.ID.User)
+		if err != nil {
+			log.Printf("Failed to lookup inbox/account for device JID %s: %v. Using fallback.", device.ID.User, err)
+			inboxID = device.ID.User
+			accountID = "1"
+		} else {
+			log.Printf("Found mapped Inbox ID: %s, Account ID: %s for JID: %s", inboxID, accountID, device.ID.User)
+		}
+
 		client := whatsmeow.NewClient(device, waLog.Stdout("WhatsmeowClient", "INFO", true))
 		
-		// Auto-reconnect
-		err := client.Connect()
+		err = client.Connect()
 		if err != nil {
 			log.Printf("Failed to connect restored client %s: %v", device.ID.String(), err)
 			continue
@@ -134,15 +168,15 @@ func restoreSessions() {
 		
 		// Store client mapping
 		clientsMu.Lock()
-		clients[device.ID.User] = client
+		clients[inboxID] = client
 		clientsMu.Unlock()
 
 		// Register event handler
 		client.AddEventHandler(func(evt interface{}) {
-			eventHandler(device.ID.User, "1", evt) // AccountID defaults to "1" for restored connections, or mapping
+			eventHandler(inboxID, accountID, evt)
 		})
 
-		log.Printf("Successfully restored and connected: %s", device.ID.String())
+		log.Printf("Successfully restored and connected: %s (inbox: %s)", device.ID.String(), inboxID)
 	}
 }
 

@@ -1,13 +1,15 @@
 class Webhooks::WhatsmeowController < ActionController::API
   def process_payload
-    channel = Channel::Whatsmeow.find_by(id: params[:channel_id])
-    if channel.blank?
+    inbox = Inbox.find_by(id: params[:channel_id])
+    if inbox.blank? || inbox.channel_type != 'Channel::Whatsmeow'
       render json: { error: 'Channel not found' }, status: :not_found
       return
     end
 
+    channel = inbox.channel
+
     if params[:event] == 'message'
-      Whatsmeow::IncomingMessageService.new(inbox: channel.inbox, params: params.to_unsafe_hash).perform
+      Whatsmeow::IncomingMessageService.new(inbox: inbox, params: params.to_unsafe_hash).perform
     elsif params[:event] == 'paired'
       # Can do logging or additional pairing hooks if needed
       Rails.logger.info("Whatsmeow Channel #{channel.id} paired successfully!")
