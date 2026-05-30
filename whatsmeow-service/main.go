@@ -482,11 +482,11 @@ func eventHandler(channelID string, accountID string, evt interface{}) {
 			client, exists := clients[channelID]
 			clientsMu.RUnlock()
 			if exists {
-				err := client.RejectCall(context.Background(), v.From, v.ID)
+				err := client.RejectCall(context.Background(), v.From, v.CallID)
 				if err != nil {
-					log.Printf("Failed to reject call %s from %s: %v", v.ID, v.From.String(), err)
+					log.Printf("Failed to reject call %s from %s: %v", v.CallID, v.From.String(), err)
 				} else {
-					log.Printf("Successfully rejected incoming call %s from %s", v.ID, v.From.String())
+					log.Printf("Successfully rejected incoming call %s from %s", v.CallID, v.From.String())
 				}
 			}
 		}
