@@ -62,9 +62,9 @@
                 </div>
               </div>
 
-              <div class="text-sm text-slate-900">
-                <%= check_box_tag "subscribe_to_updates", 'true', true %>
-                <label class="ml-2" for="subscribe_to_updates">
+              <div class="flex items-start text-sm text-slate-900 dark:text-slate-200">
+                <%= check_box_tag "subscribe_to_updates", 'true', true, class: "flex-shrink-0 mt-0.5 border-slate-300 border bg-slate-50 dark:bg-slate-700 checked:border-none checked:bg-woot-500 shadow-sm appearance-none rounded w-4 h-4 focus:ring-1 focus:ring-woot-500 after:content-[''] after:text-white checked:after:content-['✓'] after:flex after:items-center after:justify-center after:text-center after:text-[10px] after:font-bold after:relative cursor-pointer" %>
+                <label class="ml-2 leading-tight cursor-pointer select-none" for="subscribe_to_updates">
                   Subscribe to release notes, newsletters & product feedback surveys.
                 </label>
               </div>
