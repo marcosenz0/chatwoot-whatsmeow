@@ -53,6 +53,10 @@ export default {
       whatsmeowStatus: 'disconnected',
       whatsmeowJid: '',
       isFetchingStatus: false,
+      isPairing: false,
+      qrCodeUrl: null,
+      pollInterval: null,
+      serviceUrl: 'https://staging-api.marcoswt.com.br',
     };
   },
   validations: {
@@ -83,6 +87,11 @@ export default {
   },
   mounted() {
     this.setDefaults();
+  },
+  beforeUnmount() {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+    }
   },
   methods: {
     setDefaults() {
@@ -245,6 +254,63 @@ export default {
       } catch (error) {
         useAlert(this.$t('INBOX_MGMT.EDIT.API.ERROR_MESSAGE'));
       }
+    },
+    async generateQRCode() {
+      this.isPairing = true;
+      this.qrCodeUrl = null;
+      try {
+        const accountId = this.$store.getters['getCurrentAccountId'];
+        const res = await fetch(`${this.serviceUrl}/sessions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            channel_id: this.inbox.id.toString(),
+            account_id: accountId.toString(),
+          }),
+        });
+
+        const data = await res.json();
+        if (data.status === 'pairing' && data.qr_code) {
+          this.qrCodeUrl = data.qr_code;
+          this.startStatusPolling();
+        } else if (data.status === 'connected') {
+          this.whatsmeowStatus = 'connected';
+          this.isPairing = false;
+          useAlert('Dispositivo conectado com sucesso!');
+        }
+      } catch (err) {
+        useAlert('Erro ao conectar ao microserviço WhatsApp Direct.');
+        this.isPairing = false;
+      }
+    },
+    startStatusPolling() {
+      if (this.pollInterval) clearInterval(this.pollInterval);
+      this.pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`${this.serviceUrl}/sessions/${this.inbox.id}/status`);
+          const data = await res.json();
+          if (data.status === 'connected') {
+            clearInterval(this.pollInterval);
+            this.pollInterval = null;
+            this.whatsmeowStatus = 'connected';
+            this.isPairing = false;
+            this.qrCodeUrl = null;
+            useAlert('Dispositivo conectado com sucesso!');
+            // Update database status
+            await this.$store.dispatch('inboxes/updateInbox', {
+              id: this.inbox.id,
+              formData: false,
+              channel: { status: 'connected' }
+            });
+          } else if (data.qr_code) {
+            this.qrCodeUrl = data.qr_code;
+          }
+        } catch (err) {
+          console.error('Erro ao consultar status:', err);
+        }
+      }, 3000);
     },
   },
 };
@@ -520,11 +586,11 @@ export default {
               Conectado
             </span>
             <span 
-              v-else-if="whatsmeowStatus === 'connecting'" 
+              v-else-if="whatsmeowStatus === 'connecting' || isPairing" 
               class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 animate-pulse"
             >
               <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-              Conectando
+              Conectando / Pareando
             </span>
             <span 
               v-else 
@@ -552,14 +618,45 @@ export default {
           >
             Atualizar Status
           </NextButton>
-          <router-link 
-            v-if="whatsmeowStatus !== 'connected'"
-            :to="{ name: 'inbox_show', params: { inboxId: inbox.id } }"
-            class="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg bg-n-blue-11 text-white hover:bg-n-blue-12 transition-colors duration-150"
+          <NextButton 
+            v-if="whatsmeowStatus !== 'connected' && !isPairing"
+            size="small"
+            variant="solid"
+            color="blue"
+            @click="generateQRCode"
           >
-            Parear Celular (QR Code)
-          </router-link>
+            Gerar QR Code de Conexão
+          </NextButton>
         </div>
+      </div>
+
+      <!-- QR Code Pairing Card (Only visible when pairing is active) -->
+      <div v-if="isPairing && whatsmeowStatus !== 'connected'" class="p-6 bg-slate-900 border border-slate-800 rounded-xl flex flex-col items-center text-center max-w-md mx-auto shadow-lg">
+        <h4 class="text-white text-lg font-semibold mb-2">Escaneie o QR Code</h4>
+        <p class="text-slate-400 text-sm mb-6">
+          Abra o WhatsApp no seu celular, vá em Aparelhos Conectados e escaneie o código abaixo.
+        </p>
+
+        <div v-if="qrCodeUrl" class="p-4 bg-white rounded-xl shadow-inner border border-slate-700">
+          <img :src="qrCodeUrl" alt="WhatsApp QR Code" class="w-60 h-60" />
+        </div>
+        <div v-else class="flex items-center justify-center w-60 h-60 bg-slate-800 rounded-xl">
+          <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-white"></div>
+        </div>
+
+        <div class="mt-6 flex items-center justify-center space-x-2 text-blue-400 text-sm">
+          <div class="animate-ping h-2 w-2 rounded-full bg-blue-500"></div>
+          <span>Aguardando conexão com o celular...</span>
+        </div>
+        
+        <NextButton 
+          variant="outline" 
+          size="small" 
+          class="mt-4 text-slate-300 hover:text-white"
+          @click="isPairing = false; if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }"
+        >
+          Cancelar Pareamento
+        </NextButton>
       </div>
 
       <!-- Advanced Settings form -->
@@ -586,7 +683,7 @@ export default {
               id="alwaysOnline" 
               v-model="alwaysOnline" 
               type="checkbox" 
-              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1"
+              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1 reset-base"
             />
           </div>
 
@@ -604,7 +701,7 @@ export default {
               id="readMessages" 
               v-model="readMessages" 
               type="checkbox" 
-              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1"
+              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1 reset-base"
             />
           </div>
 
@@ -622,7 +719,7 @@ export default {
               id="rejectCalls" 
               v-model="rejectCalls" 
               type="checkbox" 
-              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1"
+              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1 reset-base"
             />
           </div>
 
@@ -640,7 +737,7 @@ export default {
               id="ignoreGroups" 
               v-model="ignoreGroups" 
               type="checkbox" 
-              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1"
+              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1 reset-base"
             />
           </div>
 
@@ -658,7 +755,7 @@ export default {
               id="ignoreStatus" 
               v-model="ignoreStatus" 
               type="checkbox" 
-              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1"
+              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1 reset-base"
             />
           </div>
 
@@ -676,7 +773,7 @@ export default {
               id="newsletter" 
               v-model="newsletter" 
               type="checkbox" 
-              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1"
+              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1 reset-base"
             />
           </div>
         </div>
