@@ -378,7 +378,7 @@ func handleCreateSession(c *gin.Context) {
 		deviceStore = dbContainer.NewDevice()
 	}
 
-	client := whatsmeow.NewClient(deviceStore, waLog.Stdout("WhatsmeowClient", "DEBUG", true))
+	client = whatsmeow.NewClient(deviceStore, waLog.Stdout("WhatsmeowClient", "DEBUG", true))
 	clientsMu.Lock()
 	clients[req.ChannelID] = client
 	clientsMu.Unlock()
