@@ -111,3 +111,30 @@ Practical checklist for any change impacting core logic or public APIs
 ## Branding / White-labeling note
 
 - For user-facing strings that currently contain "Chatwoot" but should adapt to branded/self-hosted installs, prefer applying `replaceInstallationName` from `shared/composables/useBranding` in the UI layer (for example tooltip and suggestion labels) instead of adding hardcoded brand-specific copy.
+
+## Active Memory / Resume Guidelines
+
+### 🌟 Project Status
+All primary core integrations between Chatwoot Staging and the Go-based `whatsmeow-service` are implemented, deployed, and healthy.
+- **Connection indicators**: Green check / red X badges render correctly overlaying the WhatsApp icon inside `ChannelIcon.vue`.
+- **Advanced settings**: The *Configuration* tab is fully visible and mapped for `Channel::Whatsmeow` channels, enabling toggle-saving of Always Online, Auto Read, Reject Calls, Ignore Groups/Status, and Newsletter. All check input fields use the `reset-base` class to prevent CSS stretching.
+- **Inline QR Code**: QR code generation and pairing are built directly inside the *Configuration* tab status card. It automatically polls the Go status API until pairing succeeds.
+- **Deletes fix**: Staging runs the `:async` adapter for `DeleteObjectJob`, making inbox deletions instant on refresh.
+
+### 🌐 Staging Environments & Credentials
+- **Chatwoot CRM Staging**: [https://staging-crm.marcoswt.com.br](https://staging-crm.marcoswt.com.br)
+- **Whatsmeow API (Health)**: [https://staging-api.marcoswt.com.br/health](https://staging-api.marcoswt.com.br/health)
+- **Test User**: `marcos@staging-crm.marcoswt.com.br` / `StagingPassword123!`
+- **Staging Database URL**: `postgres://postgres:StagingPassword123!@chatwoot-staging-db:5432/chatwoot_staging`
+- **Active Whatsmeow Container**: `marcos-apps_whatsmeow-staging`
+- **Active Chatwoot Container**: `marcos-apps_chatwoot-staging`
+
+### 🚀 Git Branch & Pushing Changes
+- Code is integrated and pushed to the `develop` branch.
+- Publishes are handled via Easypanel API triggers (scratch scripts `redeploy_chatwoot.js` and `redeploy_whatsmeow.js` in the workspace context).
+
+### 📋 Pending Next Steps
+1. **Multi-Inbox Verification**: Verify message routing when two separate Whatsmeow inboxes share the same phone number (the Go event handler should dispatch to all matching inboxes).
+2. **Settings Scenarios**: Run manual tests on call rejection, auto-read, ignore groups/status, and newsletter features.
+3. **Session Reconnection**: Verify session state recovery after restarting/rebooting both the Go service and the Rails server.
+
