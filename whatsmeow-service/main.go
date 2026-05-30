@@ -244,6 +244,58 @@ func lookupAllInboxesAndAccounts(phone string) ([]string, []string, error) {
 	return inboxIDs, accountIDs, nil
 }
 
+func updateAllChannelsStatusByPhone(phone string, status string) {
+	dbURI := os.Getenv("DATABASE_URL")
+	if dbURI == "" {
+		dbURI = "postgres://postgres:StagingPassword123!@chatwoot-staging-db:5432/chatwoot_staging?sslmode=disable"
+	}
+	db, err := sql.Open("postgres", dbURI)
+	if err != nil {
+		log.Printf("Failed to open database to update status: %v", err)
+		return
+	}
+	defer db.Close()
+
+	query := `
+		UPDATE channel_whatsmeow 
+		SET status = $1 
+		WHERE phone_number = $2 OR phone_number = '+' || $2
+	`
+	_, err = db.Exec(query, status, phone)
+	if err != nil {
+		log.Printf("Failed to update status in database for phone %s: %v", phone, err)
+	} else {
+		log.Printf("Updated channels with phone %s status to %s in database", phone, status)
+	}
+}
+
+func updateChannelStatus(channelID string, status string) {
+	dbURI := os.Getenv("DATABASE_URL")
+	if dbURI == "" {
+		dbURI = "postgres://postgres:StagingPassword123!@chatwoot-staging-db:5432/chatwoot_staging?sslmode=disable"
+	}
+	db, err := sql.Open("postgres", dbURI)
+	if err != nil {
+		log.Printf("Failed to open database to update status: %v", err)
+		return
+	}
+	defer db.Close()
+
+	query := `
+		UPDATE channel_whatsmeow c 
+		SET status = $1 
+		FROM inboxes i 
+		WHERE i.channel_id = c.id AND i.id = $2 AND i.channel_type = 'Channel::Whatsmeow'
+	`
+	_, err = db.Exec(query, status, channelID)
+	if err != nil {
+		log.Printf("Failed to update status in database for channel %s: %v", channelID, err)
+	} else {
+		log.Printf("Updated channel %s status to %s in database", channelID, status)
+	}
+}
+
+
 func restoreSessions() {
 	devices, err := dbContainer.GetAllDevices(context.Background())
 	if err != nil {
@@ -270,8 +322,11 @@ func restoreSessions() {
 		err = client.Connect()
 		if err != nil {
 			log.Printf("Failed to connect restored client %s: %v", device.ID.String(), err)
+			updateAllChannelsStatusByPhone(phone, "disconnected")
 			continue
 		}
+		
+		updateAllChannelsStatusByPhone(phone, "connected")
 		
 		// Store client mapping for all associated inboxes
 		clientsMu.Lock()
@@ -368,6 +423,9 @@ func handleCreateSession(c *gin.Context) {
 							clients[ibID] = client
 						}
 						clientsMu.Unlock()
+						updateAllChannelsStatusByPhone(phone, "connected")
+					} else {
+						updateChannelStatus(req.ChannelID, "connected")
 					}
 
 					// Send webhook success to Rails
@@ -396,6 +454,7 @@ func handleCreateSession(c *gin.Context) {
 		err = client.Connect()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to connect: %v", err)})
+			updateChannelStatus(req.ChannelID, "disconnected")
 			return
 		}
 
@@ -407,6 +466,9 @@ func handleCreateSession(c *gin.Context) {
 				clients[ibID] = client
 			}
 			clientsMu.Unlock()
+			updateAllChannelsStatusByPhone(phone, "connected")
+		} else {
+			updateChannelStatus(req.ChannelID, "connected")
 		}
 
 		c.JSON(http.StatusOK, gin.H{
@@ -476,8 +538,13 @@ func handleDisconnectSession(c *gin.Context) {
 			for _, ibID := range inboxIDs {
 				delete(clients, ibID)
 			}
+			updateAllChannelsStatusByPhone(phone, "disconnected")
+		} else {
+			updateChannelStatus(channelID, "disconnected")
 		}
 		delete(clients, channelID)
+	} else {
+		updateChannelStatus(channelID, "disconnected")
 	}
 	clientsMu.Unlock()
 
@@ -548,6 +615,19 @@ func eventHandler(client *whatsmeow.Client, evt interface{}) {
 		return
 	}
 	phone := client.Store.ID.User
+
+	switch evt.(type) {
+	case *events.Connected:
+		log.Printf("Client %s connected. Updating statuses to connected.", phone)
+		updateAllChannelsStatusByPhone(phone, "connected")
+	case *events.Disconnected:
+		log.Printf("Client %s disconnected. Updating statuses to disconnected.", phone)
+		updateAllChannelsStatusByPhone(phone, "disconnected")
+	case *events.LoggedOut:
+		log.Printf("Client %s logged out. Updating statuses to disconnected.", phone)
+		updateAllChannelsStatusByPhone(phone, "disconnected")
+	}
+
 	inboxIDs, accountIDs, err := lookupAllInboxesAndAccounts(phone)
 	if err != nil || len(inboxIDs) == 0 {
 		log.Printf("No inboxes found for phone %s: %v", phone, err)
