@@ -12,6 +12,7 @@ const channelTypeIconMap = {
   'Channel::TwitterProfile': 'i-woot-x',
   'Channel::WebWidget': 'i-woot-website',
   'Channel::Whatsapp': 'i-woot-whatsapp',
+  'Channel::Whatsmeow': 'i-woot-whatsapp',
   'Channel::Instagram': 'i-woot-instagram',
   'Channel::Tiktok': 'i-woot-tiktok',
 };
@@ -30,6 +31,7 @@ const channelTypeBrandIconMap = {
   'Channel::Line': 'i-woot-line-color',
   'Channel::Telegram': 'i-logos-telegram',
   'Channel::Whatsapp': 'i-logos-whatsapp-icon',
+  'Channel::Whatsmeow': 'i-logos-whatsapp-icon',
   'Channel::Instagram': 'i-woot-instagram-color',
   'Channel::Tiktok': 'i-logos-tiktok-icon',
 };

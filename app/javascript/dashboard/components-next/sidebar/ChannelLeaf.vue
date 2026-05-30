@@ -32,11 +32,6 @@ const reauthorizationRequired = computed(() => {
 <template>
   <span class="size-4 grid place-content-center rounded-full relative">
     <ChannelIcon :inbox="inbox" class="size-4" />
-    <span
-      v-if="inbox.channel_type === 'Channel::Whatsmeow'"
-      class="absolute bottom-[-3px] right-[-3px] w-2.5 h-2.5 rounded-full border border-white"
-      :class="inbox.channel?.status === 'connected' ? 'bg-green-500' : 'bg-red-500'"
-    ></span>
   </span>
   <div class="flex-1 truncate min-w-0">{{ label }}</div>
   <SidebarUnreadBadge :count="badgeCount" />
