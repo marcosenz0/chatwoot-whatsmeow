@@ -165,7 +165,7 @@ func startPresenceTicker() {
 				if client.IsConnected() && client.IsLoggedIn() {
 					settings, err := getChannelSettings(channelID)
 					if err == nil && settings.AlwaysOnline {
-						err := client.SendPresence(types.PresenceAvailable)
+						err := client.SendPresence(context.Background(), types.PresenceAvailable)
 						if err != nil {
 							log.Printf("Failed to send presence for channel %s: %v", channelID, err)
 						}
