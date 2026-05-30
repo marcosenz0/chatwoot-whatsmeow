@@ -206,6 +206,44 @@ func lookupInboxAndAccount(phone string) (string, string, error) {
 	return fmt.Sprintf("%d", inboxID), fmt.Sprintf("%d", accountID), nil
 }
 
+func lookupAllInboxesAndAccounts(phone string) ([]string, []string, error) {
+	dbURI := os.Getenv("DATABASE_URL")
+	if dbURI == "" {
+		dbURI = "postgres://postgres:StagingPassword123!@chatwoot-staging-db:5432/chatwoot_staging?sslmode=disable"
+	}
+	db, err := sql.Open("postgres", dbURI)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer db.Close()
+
+	query := `
+		SELECT i.id, i.account_id 
+		FROM inboxes i 
+		JOIN channel_whatsmeow c ON i.channel_id = c.id 
+		WHERE i.channel_type = 'Channel::Whatsmeow' 
+		  AND (c.phone_number = $1 OR c.phone_number = '+' || $1)
+	`
+	rows, err := db.Query(query, phone)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	var inboxIDs []string
+	var accountIDs []string
+	for rows.Next() {
+		var inboxID int
+		var accountID int
+		if err := rows.Scan(&inboxID, &accountID); err == nil {
+			inboxIDs = append(inboxIDs, fmt.Sprintf("%d", inboxID))
+			accountIDs = append(accountIDs, fmt.Sprintf("%d", accountID))
+		}
+	}
+
+	return inboxIDs, accountIDs, nil
+}
+
 func restoreSessions() {
 	devices, err := dbContainer.GetAllDevices(context.Background())
 	if err != nil {
@@ -217,13 +255,14 @@ func restoreSessions() {
 	for _, device := range devices {
 		log.Printf("Restoring session for JID: %s JIDUser: %s", device.ID.String(), device.ID.User)
 		
-		inboxID, accountID, err := lookupInboxAndAccount(device.ID.User)
-		if err != nil {
+		phone := device.ID.User
+		inboxIDs, accountIDs, err := lookupAllInboxesAndAccounts(phone)
+		if err != nil || len(inboxIDs) == 0 {
 			log.Printf("Failed to lookup inbox/account for device JID %s: %v. Using fallback.", device.ID.User, err)
-			inboxID = device.ID.User
-			accountID = "1"
+			inboxIDs = []string{phone}
+			accountIDs = []string{"1"}
 		} else {
-			log.Printf("Found mapped Inbox ID: %s, Account ID: %s for JID: %s", inboxID, accountID, device.ID.User)
+			log.Printf("Found mapped Inbox IDs: %v, Account IDs: %v for JID: %s", inboxIDs, accountIDs, device.ID.User)
 		}
 
 		client := whatsmeow.NewClient(device, waLog.Stdout("WhatsmeowClient", "INFO", true))
@@ -234,17 +273,19 @@ func restoreSessions() {
 			continue
 		}
 		
-		// Store client mapping
+		// Store client mapping for all associated inboxes
 		clientsMu.Lock()
-		clients[inboxID] = client
+		for _, inboxID := range inboxIDs {
+			clients[inboxID] = client
+		}
 		clientsMu.Unlock()
 
 		// Register event handler
 		client.AddEventHandler(func(evt interface{}) {
-			eventHandler(inboxID, accountID, evt)
+			eventHandler(client, evt)
 		})
 
-		log.Printf("Successfully restored and connected: %s (inbox: %s)", device.ID.String(), inboxID)
+		log.Printf("Successfully restored and connected: %s (inboxes: %v)", device.ID.String(), inboxIDs)
 	}
 }
 
@@ -317,6 +358,18 @@ func handleCreateSession(c *gin.Context) {
 					delete(qrCodes, req.ChannelID)
 					qrCodesMu.Unlock()
 					
+					// Wait a brief moment for Client Store ID to populate
+					time.Sleep(1 * time.Second)
+					if client.Store.ID != nil {
+						phone := client.Store.ID.User
+						inboxIDs, _, _ := lookupAllInboxesAndAccounts(phone)
+						clientsMu.Lock()
+						for _, ibID := range inboxIDs {
+							clients[ibID] = client
+						}
+						clientsMu.Unlock()
+					}
+
 					// Send webhook success to Rails
 					sendWebhookNotification(req.AccountID, req.ChannelID, map[string]interface{}{
 						"event": "paired",
@@ -346,6 +399,16 @@ func handleCreateSession(c *gin.Context) {
 			return
 		}
 
+		if client.Store.ID != nil {
+			phone := client.Store.ID.User
+			inboxIDs, _, _ := lookupAllInboxesAndAccounts(phone)
+			clientsMu.Lock()
+			for _, ibID := range inboxIDs {
+				clients[ibID] = client
+			}
+			clientsMu.Unlock()
+		}
+
 		c.JSON(http.StatusOK, gin.H{
 			"status":     "connected",
 			"channel_id": req.ChannelID,
@@ -354,7 +417,7 @@ func handleCreateSession(c *gin.Context) {
 
 	// Register event handler for incoming messages
 	client.AddEventHandler(func(evt interface{}) {
-		eventHandler(req.ChannelID, req.AccountID, evt)
+		eventHandler(client, evt)
 	})
 }
 
@@ -407,6 +470,13 @@ func handleDisconnectSession(c *gin.Context) {
 	client, exists := clients[channelID]
 	if exists {
 		client.Disconnect()
+		if client.Store.ID != nil {
+			phone := client.Store.ID.User
+			inboxIDs, _, _ := lookupAllInboxesAndAccounts(phone)
+			for _, ibID := range inboxIDs {
+				delete(clients, ibID)
+			}
+		}
 		delete(clients, channelID)
 	}
 	clientsMu.Unlock()
@@ -473,21 +543,33 @@ func parseJID(phone string) (types.JID, bool) {
 	return types.NewJID(phone, types.DefaultUserServer), true
 }
 
-func eventHandler(channelID string, accountID string, evt interface{}) {
+func eventHandler(client *whatsmeow.Client, evt interface{}) {
+	if client.Store.ID == nil {
+		return
+	}
+	phone := client.Store.ID.User
+	inboxIDs, accountIDs, err := lookupAllInboxesAndAccounts(phone)
+	if err != nil || len(inboxIDs) == 0 {
+		log.Printf("No inboxes found for phone %s: %v", phone, err)
+		return
+	}
+
+	for idx, inboxID := range inboxIDs {
+		accountID := accountIDs[idx]
+		processEventForInbox(inboxID, accountID, client, evt)
+	}
+}
+
+func processEventForInbox(channelID string, accountID string, client *whatsmeow.Client, evt interface{}) {
 	switch v := evt.(type) {
 	case *events.CallOffer:
 		settings, err := getChannelSettings(channelID)
 		if err == nil && settings.RejectCalls {
-			clientsMu.RLock()
-			client, exists := clients[channelID]
-			clientsMu.RUnlock()
-			if exists {
-				err := client.RejectCall(context.Background(), v.From, v.CallID)
-				if err != nil {
-					log.Printf("Failed to reject call %s from %s: %v", v.CallID, v.From.String(), err)
-				} else {
-					log.Printf("Successfully rejected incoming call %s from %s", v.CallID, v.From.String())
-				}
+			err := client.RejectCall(context.Background(), v.From, v.CallID)
+			if err != nil {
+				log.Printf("Failed to reject call %s from %s: %v", v.CallID, v.From.String(), err)
+			} else {
+				log.Printf("Successfully rejected incoming call %s from %s", v.CallID, v.From.String())
 			}
 		}
 
@@ -523,16 +605,11 @@ func eventHandler(channelID string, accountID string, evt interface{}) {
 			
 			// Mark message as read if auto-read is enabled
 			if err == nil && settings.ReadMessages {
-				clientsMu.RLock()
-				client, exists := clients[channelID]
-				clientsMu.RUnlock()
-				if exists {
-					err := client.MarkRead(context.Background(), []types.MessageID{v.Info.ID}, v.Info.Timestamp, v.Info.Chat, v.Info.Sender)
-					if err != nil {
-						log.Printf("Failed to mark message %s as read: %v", v.Info.ID, err)
-					} else {
-						log.Printf("Automatically marked message %s as read", v.Info.ID)
-					}
+				err := client.MarkRead(context.Background(), []types.MessageID{v.Info.ID}, v.Info.Timestamp, v.Info.Chat, v.Info.Sender)
+				if err != nil {
+					log.Printf("Failed to mark message %s as read: %v", v.Info.ID, err)
+				} else {
+					log.Printf("Automatically marked message %s as read", v.Info.ID)
 				}
 			}
 
