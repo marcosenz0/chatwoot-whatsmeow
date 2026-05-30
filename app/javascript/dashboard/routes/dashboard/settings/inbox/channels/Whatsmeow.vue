@@ -1,239 +1,245 @@
-<script>
-import { mapGetters } from 'vuex';
+<script setup>
+import { computed, onBeforeUnmount, reactive, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useRouter } from 'vue-router';
+import { useStore } from 'vuex';
 import { useVuelidate } from '@vuelidate/core';
-import { useAlert } from 'dashboard/composables';
 import { required } from '@vuelidate/validators';
-import router from '../../../../index';
+import { useAlert } from 'dashboard/composables';
+import InboxesAPI from 'dashboard/api/inboxes';
 import PageHeader from '../../SettingsSubPageHeader.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 
-export default {
-  components: {
-    PageHeader,
-    NextButton,
-  },
-  setup() {
-    return { v$: useVuelidate() };
-  },
-  data() {
-    return {
-      phoneNumber: '',
-      channelName: '',
-      inboxId: null,
-      qrCodeUrl: null,
-      isPairing: false,
-      isPaired: false,
-      pollInterval: null,
-      serviceUrl: 'https://staging-api.marcoswt.com.br',
-    };
-  },
-  computed: {
-    ...mapGetters({
-      uiFlags: 'inboxes/getUIFlags',
-    }),
-  },
-  validations: {
-    phoneNumber: { required },
-    channelName: { required },
-  },
-  beforeUnmount() {
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
-    }
-  },
-  methods: {
-    async createChannel() {
-      this.v$.$touch();
-      if (this.v$.$invalid) {
-        return;
-      }
+const { t } = useI18n();
+const router = useRouter();
+const store = useStore();
 
-      try {
-        // 1. Create Inbox Channel in Chatwoot
-        const whatsmeowChannel = await this.$store.dispatch(
-          'inboxes/createChannel',
-          {
-            channel: {
-              type: 'whatsmeow',
-              phone_number: this.phoneNumber,
-            },
-            name: this.channelName,
-          }
-        );
+const formState = reactive({
+  channelName: '',
+  phoneNumber: '',
+});
 
-        this.inboxId = whatsmeowChannel.id;
-        this.isPairing = true;
-
-        // 2. Start session on Whatsmeow Go API
-        await this.startWhatsmeowSession(whatsmeowChannel.id);
-      } catch (error) {
-        useAlert(error.message || 'Failed to create Whatsmeow direct channel.');
-      }
-    },
-
-    async startWhatsmeowSession(channelId) {
-      try {
-        const accountId = this.$store.getters['getCurrentAccountId'];
-        const res = await fetch(`${this.serviceUrl}/sessions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            channel_id: channelId.toString(),
-            account_id: accountId.toString(),
-          }),
-        });
-
-        const data = await res.json();
-        if (data.status === 'pairing' && data.qr_code) {
-          this.qrCodeUrl = data.qr_code;
-          // Start polling status
-          this.startStatusPolling(channelId);
-        } else if (data.status === 'connected') {
-          this.handlePairingSuccess();
-        }
-      } catch (err) {
-        useAlert('Error connecting to WhatsApp Direct microservice.');
-      }
-    },
-
-    startStatusPolling(channelId) {
-      this.pollInterval = setInterval(async () => {
-        try {
-          const res = await fetch(`${this.serviceUrl}/sessions/${channelId}/status`);
-          const data = await res.json();
-          if (data.status === 'connected') {
-            clearInterval(this.pollInterval);
-            this.handlePairingSuccess();
-          } else if (data.qr_code) {
-            // Update QR code if refreshed
-            this.qrCodeUrl = data.qr_code;
-          }
-        } catch (err) {
-          console.error('Failed to poll status', err);
-        }
-      }, 3000);
-    },
-
-    handlePairingSuccess() {
-      this.isPaired = true;
-      this.qrCodeUrl = null;
-      setTimeout(() => {
-        router.replace({
-          name: 'settings_inboxes_add_agents',
-          params: {
-            page: 'new',
-            inbox_id: this.inboxId,
-          },
-        });
-      }, 2000);
-    },
-  },
+const validationRules = {
+  channelName: { required },
+  phoneNumber: { required },
 };
+
+const v$ = useVuelidate(validationRules, formState);
+const inboxId = ref(null);
+const qrCodeUrl = ref('');
+const isPairing = ref(false);
+const isPaired = ref(false);
+const isStartingSession = ref(false);
+const pollInterval = ref(null);
+
+const uiFlags = computed(() => store.getters['inboxes/getUIFlags']);
+
+const clearPolling = () => {
+  if (pollInterval.value) {
+    clearInterval(pollInterval.value);
+    pollInterval.value = null;
+  }
+};
+
+const redirectToAgents = () => {
+  router.replace({
+    name: 'settings_inboxes_add_agents',
+    params: {
+      page: 'new',
+      inbox_id: inboxId.value,
+    },
+  });
+};
+
+const handlePairingSuccess = () => {
+  isPaired.value = true;
+  isPairing.value = false;
+  qrCodeUrl.value = '';
+  clearPolling();
+  useAlert(t('INBOX_MGMT.ADD.WHATSMEOW.API.CONNECTED'));
+  setTimeout(redirectToAgents, 1200);
+};
+
+const applySessionPayload = payload => {
+  if (payload.qr_code) {
+    qrCodeUrl.value = payload.qr_code;
+  }
+
+  if (payload.status === 'connected') {
+    handlePairingSuccess();
+  }
+};
+
+const pollStatus = async () => {
+  if (!inboxId.value) return;
+
+  try {
+    const { data } = await InboxesAPI.getWhatsmeowStatus(inboxId.value);
+    applySessionPayload(data);
+  } catch (error) {
+    clearPolling();
+    useAlert(t('INBOX_MGMT.ADD.WHATSMEOW.API.STATUS_ERROR'));
+  }
+};
+
+const startStatusPolling = () => {
+  clearPolling();
+  pollInterval.value = setInterval(pollStatus, 3000);
+};
+
+const startWhatsmeowSession = async id => {
+  isStartingSession.value = true;
+
+  try {
+    const { data } = await InboxesAPI.createWhatsmeowSession(id);
+    applySessionPayload(data);
+
+    if (!isPaired.value) {
+      startStatusPolling();
+    }
+  } catch (error) {
+    isPairing.value = false;
+    useAlert(t('INBOX_MGMT.ADD.WHATSMEOW.API.SERVICE_ERROR'));
+  } finally {
+    isStartingSession.value = false;
+  }
+};
+
+const createChannel = async () => {
+  v$.value.$touch();
+  if (v$.value.$invalid) return;
+
+  try {
+    const whatsmeowChannel = await store.dispatch('inboxes/createChannel', {
+      name: formState.channelName.trim(),
+      channel: {
+        type: 'whatsmeow',
+        phone_number: formState.phoneNumber.trim(),
+      },
+    });
+
+    inboxId.value = whatsmeowChannel.id;
+    isPairing.value = true;
+    await startWhatsmeowSession(whatsmeowChannel.id);
+  } catch (error) {
+    useAlert(error.message || t('INBOX_MGMT.ADD.WHATSMEOW.API.ERROR_MESSAGE'));
+  }
+};
+
+onBeforeUnmount(clearPolling);
 </script>
 
 <template>
   <div class="h-full w-full p-6 col-span-6">
     <PageHeader
-      header-title="WhatsApp Direct (Whatsmeow)"
-      header-content="Conecte seu WhatsApp diretamente usando a biblioteca Whatsmeow em alta performance. Sem dependências externas complexas."
+      :header-title="$t('INBOX_MGMT.ADD.WHATSMEOW.TITLE')"
+      :header-content="$t('INBOX_MGMT.ADD.WHATSMEOW.DESC')"
     />
 
-    <!-- Phase 1: Setup Credentials -->
     <form
-      v-if="!isPairing"
+      v-if="!isPairing && !isPaired"
       class="flex flex-wrap flex-col mx-0"
-      @submit.prevent="createChannel()"
+      @submit.prevent="createChannel"
     >
       <div class="flex-shrink-0 flex-grow-0">
         <label :class="{ error: v$.channelName.$error }">
-          Nome do Canal / Inbox
+          {{ $t('INBOX_MGMT.ADD.WHATSMEOW.CHANNEL_NAME.LABEL') }}
           <input
-            v-model="channelName"
+            v-model="formState.channelName"
             type="text"
-            placeholder="Ex: WhatsApp Suporte"
+            :placeholder="
+              $t('INBOX_MGMT.ADD.WHATSMEOW.CHANNEL_NAME.PLACEHOLDER')
+            "
             @blur="v$.channelName.$touch"
           />
+          <span v-if="v$.channelName.$error" class="message">
+            {{ $t('INBOX_MGMT.ADD.WHATSMEOW.CHANNEL_NAME.ERROR') }}
+          </span>
         </label>
       </div>
 
       <div class="flex-shrink-0 flex-grow-0 mt-4">
         <label :class="{ error: v$.phoneNumber.$error }">
-          Número de Telefone (DDI + DDD + Número)
+          {{ $t('INBOX_MGMT.ADD.WHATSMEOW.PHONE_NUMBER.LABEL') }}
           <input
-            v-model="phoneNumber"
+            v-model="formState.phoneNumber"
             type="text"
-            placeholder="Ex: +5511999999999"
+            :placeholder="
+              $t('INBOX_MGMT.ADD.WHATSMEOW.PHONE_NUMBER.PLACEHOLDER')
+            "
             @blur="v$.phoneNumber.$touch"
           />
+          <span v-if="v$.phoneNumber.$error" class="message">
+            {{ $t('INBOX_MGMT.ADD.WHATSMEOW.PHONE_NUMBER.ERROR') }}
+          </span>
         </label>
       </div>
 
       <div class="w-full mt-6">
         <NextButton
-          :is-loading="uiFlags.isCreating"
           type="submit"
           solid
           blue
-          label="Gerar QR Code de Conexão"
+          :is-loading="uiFlags.isCreating"
+          :label="$t('INBOX_MGMT.ADD.WHATSMEOW.SUBMIT_BUTTON')"
         />
       </div>
     </form>
 
-    <!-- Phase 2: Pairing QR Code -->
-    <div v-else-if="isPairing && !isPaired" class="flex flex-col items-center p-8 bg-slate-900 rounded-2xl shadow-xl mt-6 border border-slate-800 max-w-md mx-auto text-center">
-      <h3 class="text-white text-lg font-semibold mb-2">Escaneie o QR Code</h3>
-      <p class="text-slate-400 text-sm mb-6">Abra o WhatsApp no seu celular, vá em Aparelhos Conectados e escaneie o código abaixo.</p>
-      
-      <div v-if="qrCodeUrl" class="p-4 bg-white rounded-xl shadow-inner border border-slate-700 animate-pulse-subtle">
-        <img :src="qrCodeUrl" alt="WhatsApp QR Code" class="w-64 h-64" />
-      </div>
-      <div v-else class="flex items-center justify-center w-64 h-64 bg-slate-800 rounded-xl">
-        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+    <div
+      v-else-if="isPairing && !isPaired"
+      class="mt-6 flex max-w-md flex-col items-center gap-4 rounded-xl bg-n-slate-2 p-6 text-center outline outline-1 -outline-offset-1 outline-n-weak"
+    >
+      <div class="flex flex-col gap-1">
+        <span class="text-heading-2 text-n-slate-12">
+          {{ $t('INBOX_MGMT.ADD.WHATSMEOW.PAIRING.TITLE') }}
+        </span>
+        <span class="text-body-main text-n-slate-11">
+          {{ $t('INBOX_MGMT.ADD.WHATSMEOW.PAIRING.DESCRIPTION') }}
+        </span>
       </div>
 
-      <div class="mt-6 flex items-center justify-center space-x-2 text-blue-400 text-sm">
-        <div class="animate-ping h-2.5 w-2.5 rounded-full bg-blue-500"></div>
-        <span>Aguardando conexão com o celular...</span>
+      <div
+        class="flex size-64 items-center justify-center rounded-xl bg-white p-4 outline outline-1 -outline-offset-1 outline-n-weak"
+      >
+        <img
+          v-if="qrCodeUrl"
+          :src="qrCodeUrl"
+          :alt="$t('INBOX_MGMT.ADD.WHATSMEOW.PAIRING.IMAGE_ALT')"
+          class="size-56"
+        />
+        <span
+          v-else
+          class="i-lucide-loader-circle size-8 animate-spin text-n-slate-11"
+        />
       </div>
+
+      <span class="text-label-small text-n-slate-11">
+        {{ $t('INBOX_MGMT.ADD.WHATSMEOW.PAIRING.WAITING') }}
+      </span>
+
+      <NextButton
+        outline
+        slate
+        size="sm"
+        icon="i-lucide-refresh-cw"
+        :is-loading="isStartingSession"
+        :label="$t('INBOX_MGMT.ADD.WHATSMEOW.PAIRING.REFRESH')"
+        @click="startWhatsmeowSession(inboxId)"
+      />
     </div>
 
-    <!-- Phase 3: Pairing Success -->
-    <div v-else-if="isPaired" class="flex flex-col items-center p-8 bg-slate-900 rounded-2xl shadow-xl mt-6 border border-green-900 max-w-md mx-auto text-center animate-fade-in">
-      <div class="w-20 h-20 bg-green-900/30 rounded-full flex items-center justify-center border-2 border-green-500 mb-6 scale-up-center">
-        <svg class="w-10 h-10 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
-        </svg>
-      </div>
-      <h3 class="text-white text-xl font-bold mb-2">Aparelho Conectado!</h3>
-      <p class="text-slate-300 text-sm mb-2">Seu WhatsApp foi integrado com sucesso ao Chatwoot.</p>
-      <p class="text-green-400 text-xs font-semibold animate-pulse">Redirecionando para a equipe de atendentes...</p>
+    <div
+      v-else-if="isPaired"
+      class="mt-6 flex max-w-md flex-col items-center gap-3 rounded-xl bg-n-teal-2 p-6 text-center outline outline-1 -outline-offset-1 outline-n-teal-5"
+    >
+      <span class="i-lucide-circle-check-big size-10 text-n-teal-10" />
+      <span class="text-heading-2 text-n-slate-12">
+        {{ $t('INBOX_MGMT.ADD.WHATSMEOW.SUCCESS.TITLE') }}
+      </span>
+      <span class="text-body-main text-n-slate-11">
+        {{ $t('INBOX_MGMT.ADD.WHATSMEOW.SUCCESS.DESCRIPTION') }}
+      </span>
     </div>
   </div>
 </template>
-
-<style scoped>
-.animate-pulse-subtle {
-  animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-.animate-fade-in {
-  animation: fadeIn 0.5s ease-out forwards;
-}
-.scale-up-center {
-  animation: scaleUp 0.4s cubic-bezier(0.390, 0.575, 0.565, 1.000) both;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.95; }
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-@keyframes scaleUp {
-  0% { transform: scale(0.5); }
-  100% { transform: scale(1); }
-}
-</style>

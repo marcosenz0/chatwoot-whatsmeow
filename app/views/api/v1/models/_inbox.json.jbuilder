@@ -123,6 +123,17 @@ end
 
 json.provider resource.channel.try(:provider)
 
+## Whatsmeow Attributes
+if resource.channel_type == 'Channel::Whatsmeow'
+  json.status resource.channel.try(:status)
+  json.newsletter resource.channel.try(:newsletter)
+  json.always_online resource.channel.try(:always_online)
+  json.reject_calls resource.channel.try(:reject_calls)
+  json.read_messages resource.channel.try(:read_messages)
+  json.ignore_groups resource.channel.try(:ignore_groups)
+  json.ignore_status resource.channel.try(:ignore_status)
+end
+
 ## Telegram Attributes
 json.bot_name resource.channel.try(:bot_name) if resource.telegram?
 

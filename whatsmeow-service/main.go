@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -519,10 +520,19 @@ func handleGetStatus(c *gin.Context) {
 		status = "connecting"
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	qrCodesMu.RLock()
+	qrCodeBase64 := qrCodes[channelID]
+	qrCodesMu.RUnlock()
+
+	payload := gin.H{
 		"status": status,
 		"jid":    client.Store.ID,
-	})
+	}
+	if qrCodeBase64 != "" {
+		payload["qr_code"] = qrCodeBase64
+	}
+
+	c.JSON(http.StatusOK, payload)
 }
 
 func handleDisconnectSession(c *gin.Context) {
@@ -603,7 +613,7 @@ func parseJID(phone string) (types.JID, bool) {
 		return types.JID{}, false
 	}
 	// Target formats: e.g. "5511999999999" or "5511999999999@s.whatsapp.net"
-	if phone[len(phone)-15:] == "@s.whatsapp.net" {
+	if strings.HasSuffix(phone, "@s.whatsapp.net") {
 		jid, err := types.ParseJID(phone)
 		return jid, err == nil
 	}

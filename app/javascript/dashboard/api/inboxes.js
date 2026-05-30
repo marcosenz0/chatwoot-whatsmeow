@@ -53,6 +53,14 @@ class Inboxes extends CacheEnabledApiClient {
     return axios.post(`${this.url}/${inboxId}/reset_secret`);
   }
 
+  getWhatsmeowStatus(inboxId) {
+    return axios.get(`${this.url}/${inboxId}/whatsmeow_status`);
+  }
+
+  createWhatsmeowSession(inboxId) {
+    return axios.post(`${this.url}/${inboxId}/whatsmeow_session`);
+  }
+
   enableWhatsappCalling(inboxId) {
     return axios.post(`${this.url}/${inboxId}/enable_whatsapp_calling`);
   }

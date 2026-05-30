@@ -449,6 +449,38 @@
           "ERROR_MESSAGE": "We were not able to save the telegram channel"
         }
       },
+      "WHATSMEOW": {
+        "TITLE": "WhatsApp Direct",
+        "DESC": "Connect a WhatsApp phone directly by scanning a QR code, without an external WhatsApp gateway.",
+        "CHANNEL_NAME": {
+          "LABEL": "Inbox name",
+          "PLACEHOLDER": "Support WhatsApp",
+          "ERROR": "Please enter an inbox name"
+        },
+        "PHONE_NUMBER": {
+          "LABEL": "Phone number",
+          "PLACEHOLDER": "+15551234567",
+          "ERROR": "Please enter the phone number with country code"
+        },
+        "SUBMIT_BUTTON": "Generate connection QR code",
+        "PAIRING": {
+          "TITLE": "Scan the QR code",
+          "DESCRIPTION": "Open WhatsApp on your phone, go to Linked devices, and scan this code.",
+          "IMAGE_ALT": "WhatsApp pairing QR code",
+          "WAITING": "Waiting for the phone to finish pairing...",
+          "REFRESH": "Refresh QR code"
+        },
+        "SUCCESS": {
+          "TITLE": "Device connected",
+          "DESCRIPTION": "Your WhatsApp phone is connected. Redirecting to agent assignment..."
+        },
+        "API": {
+          "CONNECTED": "Device connected successfully.",
+          "ERROR_MESSAGE": "We were not able to create the WhatsApp Direct inbox.",
+          "SERVICE_ERROR": "We could not connect to the WhatsApp Direct service.",
+          "STATUS_ERROR": "We could not refresh the WhatsApp Direct connection status."
+        }
+      },
       "AUTH": {
         "TITLE": "Choose a channel",
         "DESC": "Chatwoot supports live-chat widgets, Facebook Messenger, WhatsApp, Emails, etc., as channels. If you want to build a custom channel, you can create it using the API channel. To get started, choose one of the channels below.",
@@ -466,6 +498,10 @@
           "WHATSAPP": {
             "TITLE": "WhatsApp",
             "DESCRIPTION": "Support your customers on WhatsApp"
+          },
+          "WHATSMEOW": {
+            "TITLE": "WhatsApp Direct",
+            "DESCRIPTION": "Connect a WhatsApp phone by scanning a QR code"
           },
           "WHATSAPP_CALL": {
             "TITLE": "WhatsApp Call",
@@ -831,6 +867,59 @@
         "LABEL": "Enable voice calling",
         "DESCRIPTION": "Allow agents to start and receive WhatsApp voice calls on this inbox. Available only on embedded-signup WhatsApp Cloud channels with calling permission granted by Meta."
       },
+      "WHATSMEOW": {
+        "STATUS": {
+          "TITLE": "WhatsApp Direct connection",
+          "CONNECTED": "Connected",
+          "CONNECTING": "Connecting",
+          "DISCONNECTED": "Disconnected",
+          "CONNECTED_DESCRIPTION": "This inbox is paired and ready to receive WhatsApp messages.",
+          "DISCONNECTED_DESCRIPTION": "Pair the phone again to resume receiving WhatsApp messages in this inbox.",
+          "JID": "Device JID:",
+          "REFRESH": "Refresh status"
+        },
+        "QR": {
+          "TITLE": "Scan the QR code",
+          "DESCRIPTION": "Open WhatsApp on your phone, go to Linked devices, and scan this code.",
+          "IMAGE_ALT": "WhatsApp pairing QR code",
+          "WAITING": "Waiting for the phone to finish pairing...",
+          "GENERATE": "Generate connection QR code",
+          "CANCEL": "Cancel pairing"
+        },
+        "SETTINGS": {
+          "TITLE": "Instance behavior",
+          "SAVE": "Save configuration",
+          "ALWAYS_ONLINE": {
+            "LABEL": "Keep always online",
+            "DESCRIPTION": "Keeps the paired phone presence available while the service is connected."
+          },
+          "READ_MESSAGES": {
+            "LABEL": "Auto-read messages",
+            "DESCRIPTION": "Marks incoming WhatsApp messages as read after they are processed."
+          },
+          "REJECT_CALLS": {
+            "LABEL": "Reject calls automatically",
+            "DESCRIPTION": "Rejects incoming audio and video calls to avoid interruptions."
+          },
+          "IGNORE_GROUPS": {
+            "LABEL": "Ignore group messages",
+            "DESCRIPTION": "Prevents WhatsApp group messages from creating conversations in this inbox."
+          },
+          "IGNORE_STATUS": {
+            "LABEL": "Ignore status updates",
+            "DESCRIPTION": "Skips temporary WhatsApp status and story updates."
+          },
+          "NEWSLETTER": {
+            "LABEL": "Enable newsletters and broadcasts",
+            "DESCRIPTION": "Allows this instance to send broadcast-style campaign messages."
+          }
+        },
+        "API": {
+          "CONNECTED": "Device connected successfully.",
+          "STATUS_ERROR": "Could not refresh the WhatsApp Direct status.",
+          "QR_ERROR": "Could not generate the WhatsApp pairing QR code."
+        }
+      },
       "UPDATE_PRE_CHAT_FORM_SETTINGS": "Update Pre Chat Form Settings"
     },
     "HELP_CENTER": {
@@ -1189,6 +1278,7 @@
       "TWITTER_PROFILE": "Twitter",
       "TWILIO_SMS": "Twilio SMS",
       "WHATSAPP": "WhatsApp",
+      "WHATSMEOW": "WhatsApp Direct",
       "SMS": "SMS",
       "EMAIL": "Email",
       "TELEGRAM": "Telegram",

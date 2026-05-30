@@ -104,8 +104,8 @@ const channelList = computed(() => {
 
   channels.push({
     key: 'whatsmeow',
-    title: 'WhatsApp Direct (Whatsmeow)',
-    description: 'Conecte seu WhatsApp diretamente em alta performance',
+    title: t('INBOX_MGMT.ADD.AUTH.CHANNEL.WHATSMEOW.TITLE'),
+    description: t('INBOX_MGMT.ADD.AUTH.CHANNEL.WHATSMEOW.DESCRIPTION'),
     icon: 'i-woot-whatsapp',
   });
 

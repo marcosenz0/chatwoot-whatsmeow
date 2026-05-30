@@ -74,6 +74,26 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
     @inbox.channel.reset_secret!
   end
 
+  def whatsmeow_session
+    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
+
+    payload = Whatsmeow::SessionClient.new(inbox: @inbox).create
+    update_whatsmeow_status(payload)
+    render json: payload
+  rescue Whatsmeow::SessionClient::Error => e
+    render json: { message: e.message }, status: :bad_gateway
+  end
+
+  def whatsmeow_status
+    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
+
+    payload = Whatsmeow::SessionClient.new(inbox: @inbox).status
+    update_whatsmeow_status(payload)
+    render json: payload
+  rescue Whatsmeow::SessionClient::Error => e
+    render json: { message: e.message }, status: :bad_gateway
+  end
+
   def destroy
     ::DeleteObjectJob.perform_later(@inbox, Current.user, request.ip) if @inbox.present?
     render status: :ok, json: { message: I18n.t('messages.inbox_deletetion_response') }
@@ -135,6 +155,11 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
 
     @inbox.channel.selected_feature_flags = permitted_params(Channel::WebWidget::EDITABLE_ATTRS)[:channel][:selected_feature_flags]
     @inbox.channel.save!
+  end
+
+  def update_whatsmeow_status(payload)
+    status = payload['status'].presence
+    @inbox.channel.update!(status: status) if status.present? && @inbox.channel.status != status
   end
 
   def format_csat_config(config)

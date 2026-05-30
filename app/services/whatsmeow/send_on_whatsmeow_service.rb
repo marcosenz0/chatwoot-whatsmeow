@@ -5,7 +5,7 @@ class Whatsmeow::SendOnWhatsmeowService
     return if message.incoming?
     return if message.private?
 
-    channel = message.conversation.inbox.channel
+    inbox = message.conversation.inbox
     target_jid = message.conversation.contact_inbox.source_id
 
     # The Whatsmeow service URL
@@ -13,13 +13,13 @@ class Whatsmeow::SendOnWhatsmeowService
     url = "#{service_url}/messages"
 
     payload = {
-      channel_id: channel.id.to_s,
+      channel_id: inbox.id.to_s,
       to: target_jid,
       body: message.content
     }
 
-    Rails.logger.info("Whatsmeow: Sending outgoing message to #{target_jid} on channel #{channel.id} via Go API...")
-    
+    Rails.logger.info("Whatsmeow: Sending outgoing message to #{target_jid} on inbox #{inbox.id} via Go API...")
+
     response = HTTParty.post(
       url,
       body: payload.to_json,
@@ -34,7 +34,7 @@ class Whatsmeow::SendOnWhatsmeowService
     else
       Rails.logger.error("Whatsmeow: Failed to send message via Go API. Response: #{response.body}")
     end
-  rescue => e
+  rescue StandardError => e
     Rails.logger.error("Whatsmeow: Exception occurred while sending message: #{e.message}")
   end
 end

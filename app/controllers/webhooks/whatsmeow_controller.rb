@@ -11,8 +11,10 @@ class Webhooks::WhatsmeowController < ActionController::API
     if params[:event] == 'message'
       Whatsmeow::IncomingMessageService.new(inbox: inbox, params: params.to_unsafe_hash).perform
     elsif params[:event] == 'paired'
-      # Can do logging or additional pairing hooks if needed
+      channel.update!(status: 'connected')
       Rails.logger.info("Whatsmeow Channel #{channel.id} paired successfully!")
+    elsif params[:status].present?
+      channel.update!(status: params[:status])
     end
 
     head :ok

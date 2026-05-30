@@ -8,9 +8,6 @@
       window.globalConfig = <%= raw @global_config.to_json %>
     </script>
     <%= vite_client_tag %>
-    <% if (style_manifest = ViteRuby.instance.manifest.send(:manifest)['style.css']) %>
-      <link rel="stylesheet" href="<%= style_manifest['file'] %>?v=2">
-    <% end %>
     <%= vite_javascript_tag 'survey' %>
   </head>
   <body>

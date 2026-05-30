@@ -23,9 +23,6 @@ By default, it renders:
   </title>
   <%= render "stylesheet" %>
   <%= vite_client_tag %>
-  <% if (style_manifest = ViteRuby.instance.manifest.send(:manifest)['style.css']) %>
-    <link rel="stylesheet" href="<%= style_manifest['file'] %>?v=2">
-  <% end %>
   <%= vite_javascript_tag 'superadmin' %>
   <%= csrf_meta_tags %>
 </head>

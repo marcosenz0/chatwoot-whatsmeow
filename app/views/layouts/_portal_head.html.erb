@@ -4,9 +4,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <%= vite_client_tag %>
-<% if (style_manifest = ViteRuby.instance.manifest.send(:manifest)['style.css']) %>
-  <link rel="stylesheet" href="<%= style_manifest['file'] %>?v=2">
-<% end %>
 <%= vite_javascript_tag 'portal' %>
 <style>
   .appearance-menu[data-current-theme="system"] .check-mark-icon:is(.light-theme, .dark-theme),

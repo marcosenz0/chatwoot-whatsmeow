@@ -55,7 +55,6 @@ export default defineConfig({
   build: {
     sourcemap: false,
     minify: false,
-    cssCodeSplit: false,
     rollupOptions: {
       cache: false,
       maxParallelFileOps: 2,
