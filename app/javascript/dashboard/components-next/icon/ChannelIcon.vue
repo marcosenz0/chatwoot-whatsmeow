@@ -42,10 +42,16 @@ const icon = computed(() =>
     <span
       v-if="inbox.channel_type === 'Channel::Whatsmeow'"
       class="absolute bottom-[-3px] right-[-3px] w-2.5 h-2.5 rounded-full border border-white flex items-center justify-center"
-      :class="inbox.channel?.status === 'connected' ? 'bg-green-500' : 'bg-red-500'"
+      :class="
+        inbox.channel?.status === 'connected' ? 'bg-green-500' : 'bg-red-500'
+      "
     >
       <Icon
-        :icon="inbox.channel?.status === 'connected' ? 'i-lucide-check' : 'i-lucide-x'"
+        :icon="
+          inbox.channel?.status === 'connected'
+            ? 'i-lucide-check'
+            : 'i-lucide-x'
+        "
         class="size-[6px] text-white stroke-[3px]"
       />
     </span>
