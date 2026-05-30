@@ -35,7 +35,7 @@
     </script>
     <%= vite_client_tag %>
     <% if (style_manifest = ViteRuby.instance.manifest.send(:manifest)['style.css']) %>
-      <link rel="stylesheet" href="<%= style_manifest['file'] %>">
+      <link rel="stylesheet" href="<%= style_manifest['file'] %>?v=2">
     <% end %>
     <%= vite_javascript_tag 'widget' %>
   </head>
