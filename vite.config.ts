@@ -53,7 +53,10 @@ export default defineConfig({
     },
   },
   build: {
+    sourcemap: false,
+    minify: 'esbuild',
     rollupOptions: {
+      maxParallelFileOps: 2,
       output: {
         // [NOTE] when not in library mode, no new keys will be addedd or overwritten
         // setting dir: isLibraryMode ? 'public/packs' : undefined will not work
