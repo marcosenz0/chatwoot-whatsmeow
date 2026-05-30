@@ -54,7 +54,7 @@ export default defineConfig({
   },
   build: {
     sourcemap: false,
-    minify: 'esbuild',
+    minify: false,
     rollupOptions: {
       maxParallelFileOps: 2,
       output: {
