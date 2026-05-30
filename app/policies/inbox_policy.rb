@@ -70,6 +70,14 @@ class InboxPolicy < ApplicationPolicy
     @account_user.administrator?
   end
 
+  def whatsmeow_status?
+    @account_user.administrator?
+  end
+
+  def whatsmeow_session?
+    @account_user.administrator?
+  end
+
   def enable_whatsapp_calling?
     @account_user.administrator?
   end
