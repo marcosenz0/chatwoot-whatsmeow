@@ -55,7 +55,9 @@ export default defineConfig({
   build: {
     sourcemap: false,
     minify: false,
+    cssCodeSplit: false,
     rollupOptions: {
+      cache: false,
       maxParallelFileOps: 2,
       output: {
         // [NOTE] when not in library mode, no new keys will be addedd or overwritten
