@@ -352,11 +352,12 @@ func handleCreateSession(c *gin.Context) {
 		return
 	}
 
-	clientsMu.Lock()
-	defer clientsMu.Unlock()
-
 	// Check if already active
-	if client, exists := clients[req.ChannelID]; exists {
+	clientsMu.RLock()
+	client, exists := clients[req.ChannelID]
+	clientsMu.RUnlock()
+
+	if exists {
 		if client.IsConnected() {
 			c.JSON(http.StatusOK, gin.H{
 				"status":     "connected",
@@ -378,7 +379,9 @@ func handleCreateSession(c *gin.Context) {
 	}
 
 	client := whatsmeow.NewClient(deviceStore, waLog.Stdout("WhatsmeowClient", "DEBUG", true))
+	clientsMu.Lock()
 	clients[req.ChannelID] = client
+	clientsMu.Unlock()
 
 	// Start connection and listen for QR code
 	if client.Store.ID == nil {
