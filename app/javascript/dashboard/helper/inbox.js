@@ -11,6 +11,7 @@ export const INBOX_TYPES = {
   SMS: 'Channel::Sms',
   INSTAGRAM: 'Channel::Instagram',
   TIKTOK: 'Channel::Tiktok',
+  WHATSMEOW: 'Channel::Whatsmeow',
 };
 
 // Add providers here as they gain voice capability (e.g., WhatsApp Cloud, Twilio WhatsApp)
@@ -53,6 +54,7 @@ const INBOX_ICON_MAP_FILL = {
   [INBOX_TYPES.LINE]: 'i-ri-line-fill',
   [INBOX_TYPES.INSTAGRAM]: 'i-ri-instagram-fill',
   [INBOX_TYPES.TIKTOK]: 'i-ri-tiktok-fill',
+  [INBOX_TYPES.WHATSMEOW]: 'i-ri-whatsapp-fill',
 };
 
 const DEFAULT_ICON_FILL = 'i-ri-chat-1-fill';
@@ -68,6 +70,7 @@ const INBOX_ICON_MAP_LINE = {
   [INBOX_TYPES.LINE]: 'i-woot-line',
   [INBOX_TYPES.INSTAGRAM]: 'i-woot-instagram',
   [INBOX_TYPES.TIKTOK]: 'i-woot-tiktok',
+  [INBOX_TYPES.WHATSMEOW]: 'i-woot-whatsapp',
 };
 
 const DEFAULT_ICON_LINE = 'i-ri-chat-1-line';
@@ -79,6 +82,7 @@ export const getInboxSource = (type, phoneNumber, inbox) => {
 
     case INBOX_TYPES.TWILIO:
     case INBOX_TYPES.WHATSAPP:
+    case INBOX_TYPES.WHATSMEOW:
       return phoneNumber || '';
 
     case INBOX_TYPES.EMAIL:
@@ -103,6 +107,7 @@ export const getReadableInboxByType = (type, phoneNumber) => {
       return phoneNumber?.startsWith('whatsapp') ? 'whatsapp' : 'sms';
 
     case INBOX_TYPES.WHATSAPP:
+    case INBOX_TYPES.WHATSMEOW:
       return 'whatsapp';
 
     case INBOX_TYPES.API:
@@ -139,6 +144,7 @@ export const getInboxClassByType = (type, phoneNumber) => {
         : 'brand-sms';
 
     case INBOX_TYPES.WHATSAPP:
+    case INBOX_TYPES.WHATSMEOW:
       return 'brand-whatsapp';
 
     case INBOX_TYPES.API:

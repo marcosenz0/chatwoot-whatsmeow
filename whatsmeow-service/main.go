@@ -70,6 +70,9 @@ func main() {
 	// Auto-restore previous logins
 	go restoreSessions()
 
+	// Start presence ticker for Always Online
+	startPresenceTicker()
+
 	// Initialize Gin
 	r := gin.Default()
 	r.Use(corsMiddleware())
@@ -107,6 +110,71 @@ func corsMiddleware() gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+type WhatsmeowSettings struct {
+	AlwaysOnline bool `json:"always_online"`
+	ReadMessages bool `json:"read_messages"`
+	RejectCalls  bool `json:"reject_calls"`
+	IgnoreGroups bool `json:"ignore_groups"`
+	IgnoreStatus bool `json:"ignore_status"`
+	Newsletter   bool `json:"newsletter"`
+}
+
+func getChannelSettings(inboxID string) (WhatsmeowSettings, error) {
+	var settings WhatsmeowSettings
+	dbURI := os.Getenv("DATABASE_URL")
+	if dbURI == "" {
+		dbURI = "postgres://postgres:StagingPassword123!@chatwoot-staging-db:5432/chatwoot_staging?sslmode=disable"
+	}
+	db, err := sql.Open("postgres", dbURI)
+	if err != nil {
+		return settings, err
+	}
+	defer db.Close()
+
+	query := `
+		SELECT c.always_online, c.read_messages, c.reject_calls, c.ignore_groups, c.ignore_status, c.newsletter
+		FROM inboxes i 
+		JOIN channel_whatsmeow c ON i.channel_id = c.id 
+		WHERE i.id = $1 AND i.channel_type = 'Channel::Whatsmeow'
+		LIMIT 1
+	`
+	var alwaysOnline, readMessages, rejectCalls, ignoreGroups, ignoreStatus, newsletter bool
+	err = db.QueryRow(query, inboxID).Scan(&alwaysOnline, &readMessages, &rejectCalls, &ignoreGroups, &ignoreStatus, &newsletter)
+	if err != nil {
+		return settings, err
+	}
+
+	settings.AlwaysOnline = alwaysOnline
+	settings.ReadMessages = readMessages
+	settings.RejectCalls = rejectCalls
+	settings.IgnoreGroups = ignoreGroups
+	settings.IgnoreStatus = ignoreStatus
+	settings.Newsletter = newsletter
+
+	return settings, nil
+}
+
+func startPresenceTicker() {
+	ticker := time.NewTicker(60 * time.Second)
+	go func() {
+		for range ticker.C {
+			clientsMu.RLock()
+			for channelID, client := range clients {
+				if client.IsConnected() && client.IsLoggedIn() {
+					settings, err := getChannelSettings(channelID)
+					if err == nil && settings.AlwaysOnline {
+						err := client.SendPresence(types.PresenceAvailable)
+						if err != nil {
+							log.Printf("Failed to send presence for channel %s: %v", channelID, err)
+						}
+					}
+				}
+			}
+			clientsMu.RUnlock()
+		}
+	}()
 }
 
 func lookupInboxAndAccount(phone string) (string, string, error) {
@@ -407,12 +475,42 @@ func parseJID(phone string) (types.JID, bool) {
 
 func eventHandler(channelID string, accountID string, evt interface{}) {
 	switch v := evt.(type) {
+	case *events.CallOffer:
+		settings, err := getChannelSettings(channelID)
+		if err == nil && settings.RejectCalls {
+			clientsMu.RLock()
+			client, exists := clients[channelID]
+			clientsMu.RUnlock()
+			if exists {
+				err := client.RejectCall(context.Background(), v.From, v.ID)
+				if err != nil {
+					log.Printf("Failed to reject call %s from %s: %v", v.ID, v.From.String(), err)
+				} else {
+					log.Printf("Successfully rejected incoming call %s from %s", v.ID, v.From.String())
+				}
+			}
+		}
+
 	case *events.Message:
 		// Handle incoming text message
 		if v.Info.IsFromMe {
 			return
 		}
-		
+
+		settings, err := getChannelSettings(channelID)
+		if err == nil {
+			isGroup := v.Info.MessageSource.IsGroup || v.Info.Sender.Server == "g.us" || v.Info.Chat.Server == "g.us"
+			if settings.IgnoreGroups && isGroup {
+				log.Printf("Ignoring group message from %s on channel %s (IgnoreGroups=true)", v.Info.Sender.String(), channelID)
+				return
+			}
+			isStatus := v.Info.Chat.Server == "broadcast" || v.Info.Sender.Server == "broadcast"
+			if settings.IgnoreStatus && isStatus {
+				log.Printf("Ignoring status update from %s on channel %s (IgnoreStatus=true)", v.Info.Sender.String(), channelID)
+				return
+			}
+		}
+
 		var messageText string
 		if v.Message.GetConversation() != "" {
 			messageText = v.Message.GetConversation()
@@ -423,6 +521,21 @@ func eventHandler(channelID string, accountID string, evt interface{}) {
 		if messageText != "" {
 			log.Printf("Received message from %s on channel %s: %s", v.Info.Sender.String(), channelID, messageText)
 			
+			// Mark message as read if auto-read is enabled
+			if err == nil && settings.ReadMessages {
+				clientsMu.RLock()
+				client, exists := clients[channelID]
+				clientsMu.RUnlock()
+				if exists {
+					err := client.MarkRead(context.Background(), []types.MessageID{v.Info.ID}, v.Info.Timestamp, v.Info.Chat, v.Info.Sender)
+					if err != nil {
+						log.Printf("Failed to mark message %s as read: %v", v.Info.ID, err)
+					} else {
+						log.Printf("Automatically marked message %s as read", v.Info.ID)
+					}
+				}
+			}
+
 			// Trigger webhook callback to Rails backend
 			payload := map[string]interface{}{
 				"event":      "message",

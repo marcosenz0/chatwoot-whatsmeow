@@ -44,6 +44,15 @@ export default {
       allowedDomains: '',
       isUpdatingAllowedDomains: false,
       isSettingDefaults: false,
+      alwaysOnline: false,
+      readMessages: false,
+      rejectCalls: false,
+      ignoreGroups: false,
+      ignoreStatus: false,
+      newsletter: false,
+      whatsmeowStatus: 'disconnected',
+      whatsmeowJid: '',
+      isFetchingStatus: false,
     };
   },
   validations: {
@@ -83,6 +92,17 @@ export default {
         this.inbox.selected_feature_flags || []
       ).includes('allow_mobile_webview');
       this.allowedDomains = this.inbox.allowed_domains || '';
+      if (this.isAWhatsmeowChannel) {
+        const channel = this.inbox.channel || {};
+        this.alwaysOnline = channel.always_online || false;
+        this.readMessages = channel.read_messages || false;
+        this.rejectCalls = channel.reject_calls || false;
+        this.ignoreGroups = channel.ignore_groups || false;
+        this.ignoreStatus = channel.ignore_status || false;
+        this.newsletter = channel.newsletter || false;
+        this.whatsmeowStatus = channel.status || 'disconnected';
+        this.fetchWhatsmeowStatus();
+      }
       this.$nextTick(() => {
         this.isSettingDefaults = false;
       });
@@ -182,6 +202,48 @@ export default {
         useAlert(this.$t('INBOX_MGMT.EDIT.API.ERROR_MESSAGE'));
       } finally {
         this.isSyncingTemplates = false;
+      }
+    },
+    async fetchWhatsmeowStatus() {
+      this.isFetchingStatus = true;
+      try {
+        const res = await fetch(`https://staging-api.marcoswt.com.br/sessions/${this.inbox.id}/status`);
+        if (res.ok) {
+          const data = await res.json();
+          this.whatsmeowStatus = data.status || 'disconnected';
+          this.whatsmeowJid = data.jid || '';
+          if (this.whatsmeowStatus !== this.inbox.channel.status) {
+            await this.$store.dispatch('inboxes/updateInbox', {
+              id: this.inbox.id,
+              formData: false,
+              channel: { status: this.whatsmeowStatus }
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch Whatsmeow status:', error);
+      } finally {
+        this.isFetchingStatus = false;
+      }
+    },
+    async updateWhatsmeowSettings() {
+      try {
+        const payload = {
+          id: this.inbox.id,
+          formData: false,
+          channel: {
+            always_online: this.alwaysOnline,
+            read_messages: this.readMessages,
+            reject_calls: this.rejectCalls,
+            ignore_groups: this.ignoreGroups,
+            ignore_status: this.ignoreStatus,
+            newsletter: this.newsletter,
+          },
+        };
+        await this.$store.dispatch('inboxes/updateInbox', payload);
+        useAlert(this.$t('INBOX_MGMT.EDIT.API.SUCCESS_MESSAGE'));
+      } catch (error) {
+        useAlert(this.$t('INBOX_MGMT.EDIT.API.ERROR_MESSAGE'));
       }
     },
   },
@@ -441,6 +503,191 @@ export default {
       :inbox="inbox"
       class="hidden"
     />
+  </div>
+
+  <div v-else-if="isAWhatsmeowChannel">
+    <div class="space-y-6">
+      <!-- Connection Status Card -->
+      <div class="p-4 bg-n-slate-2 border border-n-slate-3 rounded-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h3 class="text-base font-semibold text-n-slate-12 flex items-center gap-2">
+            Status da Conexão
+            <span 
+              v-if="whatsmeowStatus === 'connected'" 
+              class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+              Conectado
+            </span>
+            <span 
+              v-else-if="whatsmeowStatus === 'connecting'" 
+              class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 animate-pulse"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+              Conectando
+            </span>
+            <span 
+              v-else 
+              class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+              Desconectado
+            </span>
+          </h3>
+          <p class="text-sm text-n-slate-11 mt-1 mb-0">
+            <span v-if="whatsmeowStatus === 'connected'">
+              Instância pareada com sucesso. JID: <code class="bg-n-slate-4 px-1.5 py-0.5 rounded font-mono text-xs text-n-slate-12">{{ whatsmeowJid || 'N/A' }}</code>
+            </span>
+            <span v-else>
+              A instância está desconectada do seu dispositivo. Para receber mensagens, você deve parear o seu celular.
+            </span>
+          </p>
+        </div>
+        <div class="flex gap-2">
+          <NextButton 
+            size="small" 
+            variant="outline" 
+            :is-loading="isFetchingStatus" 
+            @click="fetchWhatsmeowStatus"
+          >
+            Atualizar Status
+          </NextButton>
+          <router-link 
+            v-if="whatsmeowStatus !== 'connected'"
+            :to="{ name: 'inbox_show', params: { inboxId: inbox.id } }"
+            class="inline-flex items-center justify-center px-4 py-2 text-sm font-semibold rounded-lg bg-n-blue-11 text-white hover:bg-n-blue-12 transition-colors duration-150"
+          >
+            Parear Celular (QR Code)
+          </router-link>
+        </div>
+      </div>
+
+      <!-- Advanced Settings form -->
+      <div class="p-6 bg-white border border-n-slate-3 rounded-xl">
+        <h3 class="text-lg font-semibold text-n-slate-12 mb-4">
+          Configurações Avançadas da Instância (Whatsmeow)
+        </h3>
+        <p class="text-sm text-n-slate-11 mb-6">
+          Personalize o comportamento do seu robô WhatsApp. Ative ou desative os recursos abaixo e clique em salvar.
+        </p>
+
+        <div class="space-y-4">
+          <!-- Always Online -->
+          <div class="flex items-start justify-between p-3 hover:bg-n-slate-1 rounded-lg transition-colors">
+            <div class="flex-1 pr-4">
+              <label for="alwaysOnline" class="text-sm font-semibold text-n-slate-12 cursor-pointer">
+                Permanecer Sempre Online
+              </label>
+              <p class="text-xs text-n-slate-11 mt-0.5 mb-0">
+                Mantém o status do seu número pareado como "Online" 24 horas por dia, 7 dias por semana.
+              </p>
+            </div>
+            <input 
+              id="alwaysOnline" 
+              v-model="alwaysOnline" 
+              type="checkbox" 
+              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1"
+            />
+          </div>
+
+          <!-- Auto Read Messages -->
+          <div class="flex items-start justify-between p-3 hover:bg-n-slate-1 rounded-lg transition-colors">
+            <div class="flex-1 pr-4">
+              <label for="readMessages" class="text-sm font-semibold text-n-slate-12 cursor-pointer">
+                Auto-Leitura de Mensagens
+              </label>
+              <p class="text-xs text-n-slate-11 mt-0.5 mb-0">
+                Marca todas as mensagens que chegam no seu WhatsApp como visualizadas (lidas) automaticamente.
+              </p>
+            </div>
+            <input 
+              id="readMessages" 
+              v-model="readMessages" 
+              type="checkbox" 
+              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1"
+            />
+          </div>
+
+          <!-- Reject Calls -->
+          <div class="flex items-start justify-between p-3 hover:bg-n-slate-1 rounded-lg transition-colors">
+            <div class="flex-1 pr-4">
+              <label for="rejectCalls" class="text-sm font-semibold text-n-slate-12 cursor-pointer">
+                Rejeitar Chamadas Automaticamente
+              </label>
+              <p class="text-xs text-n-slate-11 mt-0.5 mb-0">
+                Recusa chamadas de áudio e vídeo recebidas no WhatsApp automaticamente para evitar interrupções.
+              </p>
+            </div>
+            <input 
+              id="rejectCalls" 
+              v-model="rejectCalls" 
+              type="checkbox" 
+              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1"
+            />
+          </div>
+
+          <!-- Ignore Groups -->
+          <div class="flex items-start justify-between p-3 hover:bg-n-slate-1 rounded-lg transition-colors">
+            <div class="flex-1 pr-4">
+              <label for="ignoreGroups" class="text-sm font-semibold text-n-slate-12 cursor-pointer">
+                Ignorar Mensagens de Grupos
+              </label>
+              <p class="text-xs text-n-slate-11 mt-0.5 mb-0">
+                Despreza mensagens recebidas em grupos do WhatsApp, não criando conversas ou tickets no painel.
+              </p>
+            </div>
+            <input 
+              id="ignoreGroups" 
+              v-model="ignoreGroups" 
+              type="checkbox" 
+              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1"
+            />
+          </div>
+
+          <!-- Ignore Status -->
+          <div class="flex items-start justify-between p-3 hover:bg-n-slate-1 rounded-lg transition-colors">
+            <div class="flex-1 pr-4">
+              <label for="ignoreStatus" class="text-sm font-semibold text-n-slate-12 cursor-pointer">
+                Ignorar Status / Stories
+              </label>
+              <p class="text-xs text-n-slate-11 mt-0.5 mb-0">
+                Evita processar atualizações de status temporárias dos seus contatos.
+              </p>
+            </div>
+            <input 
+              id="ignoreStatus" 
+              v-model="ignoreStatus" 
+              type="checkbox" 
+              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1"
+            />
+          </div>
+
+          <!-- Newsletter / Broadcasts -->
+          <div class="flex items-start justify-between p-3 hover:bg-n-slate-1 rounded-lg transition-colors">
+            <div class="flex-1 pr-4">
+              <label for="newsletter" class="text-sm font-semibold text-n-slate-12 cursor-pointer">
+                Habilitar Newsletter / Transmissões
+              </label>
+              <p class="text-xs text-n-slate-11 mt-0.5 mb-0">
+                Permite enviar transmissões em massa e formatar mensagens de campanhas.
+              </p>
+            </div>
+            <input 
+              id="newsletter" 
+              v-model="newsletter" 
+              type="checkbox" 
+              class="w-4 h-4 text-n-blue-11 border-n-slate-4 rounded focus:ring-n-blue-11 mt-1"
+            />
+          </div>
+        </div>
+
+        <div class="mt-6 flex justify-end">
+          <NextButton @click="updateWhatsmeowSettings">
+            Salvar Configurações
+          </NextButton>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
