@@ -304,7 +304,7 @@ defineExpose({
           <input
             v-model="backupCodesConfirmed"
             type="checkbox"
-            class="mt-1 rounded border-n-slate-4 text-n-blue-9 focus:ring-n-blue-8"
+            class="reset-base mt-1 rounded border-n-slate-4 text-n-blue-9 focus:ring-n-blue-8"
           />
           <span class="text-sm text-n-slate-11">
             {{ $t('MFA_SETTINGS.BACKUP.CONFIRM') }}
