@@ -28,13 +28,22 @@ import (
 
 // Active clients map
 var (
-	clients      = make(map[string]*whatsmeow.Client)
-	clientsMu    sync.RWMutex
-	qrCodes      = make(map[string]string)
-	qrCodesMu    sync.RWMutex
-	dbContainer  *sqlstore.Container
-	webhookURL   string
+	clients             = make(map[string]*whatsmeow.Client)
+	clientsMu           sync.RWMutex
+	qrCodes             = make(map[string]string)
+	qrCodesMu           sync.RWMutex
+	profilePictureCache = make(map[string]cacheEntry)
+	profilePictureMu    sync.RWMutex
+	groupNameCache      = make(map[string]cacheEntry)
+	groupNameMu         sync.RWMutex
+	dbContainer         *sqlstore.Container
+	webhookURL          string
 )
+
+type cacheEntry struct {
+	Value     string
+	ExpiresAt time.Time
+}
 
 type SessionRequest struct {
 	ChannelID string `json:"channel_id" binding:"required"`
@@ -306,7 +315,6 @@ func updateChannelStatus(channelID string, status string) {
 	}
 }
 
-
 func restoreSessions() {
 	devices, err := dbContainer.GetAllDevices(context.Background())
 	if err != nil {
@@ -317,7 +325,7 @@ func restoreSessions() {
 	log.Printf("Found %d saved device sessions to restore.", len(devices))
 	for _, device := range devices {
 		log.Printf("Restoring session for JID: %s JIDUser: %s", device.ID.String(), device.ID.User)
-		
+
 		phone := device.ID.User
 		inboxIDs, accountIDs, err := lookupAllInboxesAndAccounts(phone)
 		if err != nil || len(inboxIDs) == 0 {
@@ -329,16 +337,16 @@ func restoreSessions() {
 		}
 
 		client := whatsmeow.NewClient(device, waLog.Stdout("WhatsmeowClient", "INFO", true))
-		
+
 		err = client.Connect()
 		if err != nil {
 			log.Printf("Failed to connect restored client %s: %v", device.ID.String(), err)
 			updateAllChannelsStatusByPhone(phone, "disconnected")
 			continue
 		}
-		
+
 		updateAllChannelsStatusByPhone(phone, "connected")
-		
+
 		// Store client mapping for all associated inboxes
 		clientsMu.Lock()
 		for _, inboxID := range inboxIDs {
@@ -426,7 +434,7 @@ func handleCreateSession(c *gin.Context) {
 					qrCodesMu.Lock()
 					delete(qrCodes, req.ChannelID)
 					qrCodesMu.Unlock()
-					
+
 					// Wait a brief moment for Client Store ID to populate
 					time.Sleep(1 * time.Second)
 					if client.Store.ID != nil {
@@ -444,7 +452,7 @@ func handleCreateSession(c *gin.Context) {
 
 					// Send webhook success to Rails
 					sendWebhookNotification(req.AccountID, req.ChannelID, map[string]interface{}{
-						"event": "paired",
+						"event":  "paired",
 						"status": "success",
 					})
 				}
@@ -576,7 +584,7 @@ func handleDisconnectSession(c *gin.Context) {
 	qrCodesMu.Unlock()
 
 	c.JSON(http.StatusOK, gin.H{
-		"status": "disconnected",
+		"status":  "disconnected",
 		"message": "Session terminated",
 	})
 }
@@ -615,8 +623,8 @@ func handleSendMessage(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"id":      resp.ID,
+		"success":   true,
+		"id":        resp.ID,
 		"timestamp": resp.Timestamp.Unix(),
 	})
 }
@@ -679,8 +687,50 @@ func processEventForInbox(channelID string, accountID string, client *whatsmeow.
 	case *events.Message:
 		processMessageForInbox(channelID, accountID, client, v)
 
+	case *events.Receipt:
+		processReceiptForInbox(channelID, accountID, v)
+
 	case *events.HistorySync:
 		processHistorySyncForInbox(channelID, accountID, client, v)
+	}
+}
+
+func processReceiptForInbox(channelID string, accountID string, receipt *events.Receipt) {
+	status := receiptStatus(receipt.Type)
+	if status == "" || len(receipt.MessageIDs) == 0 {
+		return
+	}
+
+	messageIDs := make([]string, 0, len(receipt.MessageIDs))
+	for _, messageID := range receipt.MessageIDs {
+		if messageID != "" {
+			messageIDs = append(messageIDs, string(messageID))
+		}
+	}
+	if len(messageIDs) == 0 {
+		return
+	}
+
+	payload := map[string]interface{}{
+		"event":        "receipt",
+		"status":       status,
+		"message_ids":  messageIDs,
+		"receipt_type": string(receipt.Type),
+		"chat":         jidString(receipt.Chat),
+		"sender":       jidString(receipt.Sender),
+		"timestamp":    receipt.Timestamp.Unix(),
+	}
+	sendWebhookNotification(accountID, channelID, payload)
+}
+
+func receiptStatus(receiptType types.ReceiptType) string {
+	switch receiptType {
+	case types.ReceiptTypeDelivered:
+		return "delivered"
+	case types.ReceiptTypeRead, types.ReceiptTypePlayed:
+		return "read"
+	default:
+		return ""
 	}
 }
 
@@ -761,8 +811,17 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		return
 	}
 
-	senderJID := preferredContactJID(messageEvent.Info)
-	sender := jidString(senderJID)
+	isGroup := isGroupMessage(messageEvent.Info)
+	contactJID := preferredContactJID(messageEvent.Info)
+	participantJID := types.JID{}
+	groupName := ""
+	if isGroup {
+		contactJID = messageEvent.Info.Chat.ToNonAD()
+		participantJID = firstUsableJID(messageEvent.Info.SenderAlt, messageEvent.Info.Sender)
+		groupName = getGroupName(client, contactJID)
+	}
+
+	sender := jidString(contactJID)
 	if sender == "" {
 		sender = jidString(messageEvent.Info.Chat)
 	}
@@ -785,19 +844,34 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		}
 	}
 
+	senderName := messageEvent.Info.PushName
+	if isGroup && groupName != "" {
+		senderName = groupName
+	}
+
 	payload := map[string]interface{}{
-		"event":         "message",
-		"sender":        sender,
-		"sender_alt":    jidString(messageEvent.Info.SenderAlt),
-		"sender_name":   messageEvent.Info.PushName,
-		"sender_phone":  phoneNumberFromJID(senderJID),
-		"chat":          jidString(messageEvent.Info.Chat),
-		"chat_phone":    phoneNumberFromJID(messageEvent.Info.Chat),
-		"recipient_alt": jidString(messageEvent.Info.RecipientAlt),
-		"from_me":       messageEvent.Info.IsFromMe,
-		"message_id":    messageEvent.Info.ID,
-		"content":       messageText,
-		"timestamp":     messageEvent.Info.Timestamp.Unix(),
+		"event":               "message",
+		"sender":              sender,
+		"sender_alt":          jidString(messageEvent.Info.SenderAlt),
+		"sender_name":         senderName,
+		"sender_phone":        phoneNumberFromJID(contactJID),
+		"profile_picture_url": getProfilePictureURL(client, contactJID),
+		"chat":                jidString(messageEvent.Info.Chat),
+		"chat_phone":          phoneNumberFromJID(messageEvent.Info.Chat),
+		"recipient_alt":       jidString(messageEvent.Info.RecipientAlt),
+		"from_me":             messageEvent.Info.IsFromMe,
+		"message_id":          messageEvent.Info.ID,
+		"content":             messageText,
+		"timestamp":           messageEvent.Info.Timestamp.Unix(),
+	}
+	if isGroup {
+		payload["is_group"] = true
+		payload["group_jid"] = jidString(contactJID)
+		payload["group_name"] = groupName
+		payload["participant_jid"] = jidString(participantJID)
+		payload["participant_name"] = messageEvent.Info.PushName
+		payload["participant_phone"] = phoneNumberFromJID(participantJID)
+		payload["participant_profile_picture_url"] = getProfilePictureURL(client, participantJID)
 	}
 	sendWebhookNotification(accountID, channelID, payload)
 }
@@ -846,6 +920,14 @@ func preferredContactJID(info types.MessageInfo) types.JID {
 	return firstUsableJID(info.SenderAlt, info.Sender, info.Chat)
 }
 
+func isGroupMessage(info types.MessageInfo) bool {
+	return info.MessageSource.IsGroup || isGroupJID(info.Sender) || isGroupJID(info.Chat)
+}
+
+func isGroupJID(jid types.JID) bool {
+	return jid.Server == "g.us"
+}
+
 func firstUsableJID(candidates ...types.JID) types.JID {
 	for _, jid := range candidates {
 		if isPhoneJID(jid) {
@@ -889,6 +971,71 @@ func phoneNumberFromJID(jid types.JID) string {
 		return ""
 	}
 	return "+" + strings.Split(jid.User, ":")[0]
+}
+
+func getGroupName(client *whatsmeow.Client, jid types.JID) string {
+	if !isGroupJID(jid) {
+		return ""
+	}
+
+	cacheKey := jidString(jid)
+	groupNameMu.RLock()
+	cached, ok := groupNameCache[cacheKey]
+	groupNameMu.RUnlock()
+	if ok && cached.ExpiresAt.After(time.Now()) {
+		return cached.Value
+	}
+
+	info, err := client.GetGroupInfo(context.Background(), jid.ToNonAD())
+	if err != nil {
+		log.Printf("Failed to fetch group info for %s: %v", cacheKey, err)
+		setCachedGroupName(cacheKey, "", 10*time.Minute)
+		return ""
+	}
+
+	name := strings.TrimSpace(info.Name)
+	setCachedGroupName(cacheKey, name, 24*time.Hour)
+	return name
+}
+
+func setCachedGroupName(key string, value string, ttl time.Duration) {
+	groupNameMu.Lock()
+	groupNameCache[key] = cacheEntry{Value: value, ExpiresAt: time.Now().Add(ttl)}
+	groupNameMu.Unlock()
+}
+
+func getProfilePictureURL(client *whatsmeow.Client, jid types.JID) string {
+	if jid.IsEmpty() {
+		return ""
+	}
+
+	cacheKey := jidString(jid)
+	profilePictureMu.RLock()
+	cached, ok := profilePictureCache[cacheKey]
+	profilePictureMu.RUnlock()
+	if ok && cached.ExpiresAt.After(time.Now()) {
+		return cached.Value
+	}
+
+	info, err := client.GetProfilePictureInfo(context.Background(), jid.ToNonAD(), nil)
+	if err != nil {
+		log.Printf("Failed to fetch profile picture for %s: %v", cacheKey, err)
+		setCachedProfilePicture(cacheKey, "", 30*time.Minute)
+		return ""
+	}
+	if info == nil {
+		setCachedProfilePicture(cacheKey, "", 30*time.Minute)
+		return ""
+	}
+
+	setCachedProfilePicture(cacheKey, info.URL, 24*time.Hour)
+	return info.URL
+}
+
+func setCachedProfilePicture(key string, value string, ttl time.Duration) {
+	profilePictureMu.Lock()
+	profilePictureCache[key] = cacheEntry{Value: value, ExpiresAt: time.Now().Add(ttl)}
+	profilePictureMu.Unlock()
 }
 
 func jidString(jid types.JID) string {

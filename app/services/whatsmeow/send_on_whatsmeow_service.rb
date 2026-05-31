@@ -80,7 +80,9 @@ class Whatsmeow::SendOnWhatsmeowService
 
   def non_phone_jid?(identifier)
     jid = identifier.to_s.downcase
-    jid.include?('@lid') || jid.include?('@newsletter')
+    return false unless jid.include?('@')
+
+    jid.exclude?('@s.whatsapp.net')
   end
 
   def lid_digits(identifier)

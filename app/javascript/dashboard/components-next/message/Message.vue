@@ -490,6 +490,19 @@ const avatarTooltip = computed(() => {
   return `${t('CONVERSATION.SENT_BY')} ${avatarInfo.value.name}`;
 });
 
+const groupParticipantName = computed(
+  () => props.contentAttributes?.participantName || props.sender?.name || ''
+);
+
+const shouldShowGroupParticipant = computed(() => {
+  return (
+    props.contentAttributes?.whatsmeowGroup &&
+    orientation.value === ORIENTATION.LEFT &&
+    variant.value === MESSAGE_VARIANTS.USER &&
+    !!groupParticipantName.value
+  );
+});
+
 const setupHighlightTimer = () => {
   if (Number(route.query.messageId) !== Number(props.id)) {
     return;
@@ -561,7 +574,22 @@ provideMessageContext({
         }"
         @contextmenu="openContextMenu($event)"
       >
-        <Component :is="componentToRender" />
+        <div
+          class="flex min-w-0 flex-col"
+          :class="{
+            'items-end': orientation === ORIENTATION.RIGHT,
+            'items-start': orientation === ORIENTATION.LEFT,
+          }"
+        >
+          <div
+            v-if="shouldShowGroupParticipant"
+            class="mb-1 flex max-w-lg items-center gap-1.5 px-1 text-xs font-medium text-n-slate-11"
+          >
+            <Avatar v-bind="avatarInfo" :size="16" />
+            <span class="truncate">{{ groupParticipantName }}</span>
+          </div>
+          <Component :is="componentToRender" />
+        </div>
       </div>
       <MessageError
         v-if="contentAttributes.externalError"
