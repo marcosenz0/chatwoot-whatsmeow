@@ -119,6 +119,7 @@ type WhatsmeowSettings struct {
 	RejectCalls  bool `json:"reject_calls"`
 	IgnoreGroups bool `json:"ignore_groups"`
 	IgnoreStatus bool `json:"ignore_status"`
+	IgnoreNews   bool `json:"ignore_newsletters"`
 	Newsletter   bool `json:"newsletter"`
 }
 
@@ -135,14 +136,22 @@ func getChannelSettings(inboxID string) (WhatsmeowSettings, error) {
 	defer db.Close()
 
 	query := `
-		SELECT c.always_online, c.read_messages, c.reject_calls, c.ignore_groups, c.ignore_status, c.newsletter
+		SELECT c.always_online, c.read_messages, c.reject_calls, c.ignore_groups, c.ignore_status, c.ignore_newsletters, c.newsletter
 		FROM inboxes i 
 		JOIN channel_whatsmeow c ON i.channel_id = c.id 
 		WHERE i.id = $1 AND i.channel_type = 'Channel::Whatsmeow'
 		LIMIT 1
 	`
-	var alwaysOnline, readMessages, rejectCalls, ignoreGroups, ignoreStatus, newsletter bool
-	err = db.QueryRow(query, inboxID).Scan(&alwaysOnline, &readMessages, &rejectCalls, &ignoreGroups, &ignoreStatus, &newsletter)
+	var alwaysOnline, readMessages, rejectCalls, ignoreGroups, ignoreStatus, ignoreNews, newsletter bool
+	err = db.QueryRow(query, inboxID).Scan(
+		&alwaysOnline,
+		&readMessages,
+		&rejectCalls,
+		&ignoreGroups,
+		&ignoreStatus,
+		&ignoreNews,
+		&newsletter,
+	)
 	if err != nil {
 		return settings, err
 	}
@@ -152,6 +161,7 @@ func getChannelSettings(inboxID string) (WhatsmeowSettings, error) {
 	settings.RejectCalls = rejectCalls
 	settings.IgnoreGroups = ignoreGroups
 	settings.IgnoreStatus = ignoreStatus
+	settings.IgnoreNews = ignoreNews
 	settings.Newsletter = newsletter
 
 	return settings, nil
@@ -615,8 +625,8 @@ func parseJID(phone string) (types.JID, bool) {
 	if phone == "" {
 		return types.JID{}, false
 	}
-	// Target formats: e.g. "5511999999999" or "5511999999999@s.whatsapp.net"
-	if strings.HasSuffix(phone, "@s.whatsapp.net") {
+	// Target formats: e.g. "5511999999999", "5511999999999@s.whatsapp.net", or a platform JID.
+	if strings.Contains(phone, "@") {
 		jid, err := types.ParseJID(phone)
 		return jid, err == nil
 	}
@@ -739,6 +749,11 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 			log.Printf("Ignoring status update from %s on channel %s (IgnoreStatus=true)", messageEvent.Info.Sender.String(), channelID)
 			return
 		}
+		isNewsletter := isNewsletterJID(messageEvent.Info.Chat) || isNewsletterJID(messageEvent.Info.Sender) || isNewsletterJID(messageEvent.Info.SenderAlt)
+		if settings.IgnoreNews && isNewsletter {
+			log.Printf("Ignoring newsletter message from %s on channel %s (IgnoreNewsletters=true)", messageEvent.Info.Sender.String(), channelID)
+			return
+		}
 	}
 
 	messageText := extractMessageText(messageEvent.Message)
@@ -847,6 +862,13 @@ func firstUsableJID(candidates ...types.JID) types.JID {
 
 func isPhoneJID(jid types.JID) bool {
 	return jid.Server == types.DefaultUserServer && isNumericUser(jid.User)
+}
+
+func isNewsletterJID(jid types.JID) bool {
+	if jid.IsEmpty() {
+		return false
+	}
+	return strings.EqualFold(jid.Server, "newsletter") || strings.Contains(strings.ToLower(jid.String()), "@newsletter")
 }
 
 func isNumericUser(user string) bool {

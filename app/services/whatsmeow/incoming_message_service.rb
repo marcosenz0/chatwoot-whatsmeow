@@ -3,6 +3,7 @@ class Whatsmeow::IncomingMessageService
 
   def perform
     return if message_already_imported?
+    return if ignored_newsletter?
 
     set_contact
     set_conversation
@@ -119,7 +120,7 @@ class Whatsmeow::IncomingMessageService
 
   def sync_contact_profile
     attributes = {}
-    attributes[:phone_number] = phone_number if phone_number.present? && @contact.phone_number.blank?
+    attributes[:phone_number] = phone_number if should_update_contact_phone?
     attributes[:name] = contact_attributes[:name] if should_update_contact_name?
 
     @contact.update!(attributes) if attributes.present?
@@ -134,5 +135,19 @@ class Whatsmeow::IncomingMessageService
     return true if @contact.name.include?('@lid') || @contact.name.include?('@s.whatsapp.net')
 
     false
+  end
+
+  def should_update_contact_phone?
+    return false if phone_number.blank?
+
+    @contact.phone_number.blank? || @contact.name == phone_number || @contact.name.to_s.include?('@lid')
+  end
+
+  def ignored_newsletter?
+    @inbox.channel.try(:ignore_newsletters) && source_ids.any? { |source_id| newsletter_source?(source_id) }
+  end
+
+  def newsletter_source?(source_id)
+    source_id.to_s.downcase.include?('@newsletter')
   end
 end

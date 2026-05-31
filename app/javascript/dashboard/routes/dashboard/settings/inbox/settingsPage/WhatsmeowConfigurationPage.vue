@@ -35,6 +35,7 @@ const settings = reactive({
   rejectCalls: false,
   ignoreGroups: false,
   ignoreStatus: false,
+  ignoreNewsletters: true,
   newsletter: false,
 });
 
@@ -43,6 +44,7 @@ const whatsmeowJid = ref('');
 const qrCodeUrl = ref('');
 const isFetchingStatus = ref(false);
 const isPairing = ref(false);
+const isDisconnecting = ref(false);
 const pollInterval = ref(null);
 const statusController = shallowRef(null);
 
@@ -96,6 +98,7 @@ const setDefaults = () => {
   settings.rejectCalls = !!props.inbox.reject_calls;
   settings.ignoreGroups = !!props.inbox.ignore_groups;
   settings.ignoreStatus = !!props.inbox.ignore_status;
+  settings.ignoreNewsletters = props.inbox.ignore_newsletters !== false;
   settings.newsletter = !!props.inbox.newsletter;
   connectionStatus.value = props.inbox.status || 'disconnected';
 };
@@ -194,6 +197,27 @@ const cancelPairing = () => {
   clearPolling();
 };
 
+const disconnectSession = async () => {
+  if (!props.inbox.id) return;
+
+  isDisconnecting.value = true;
+  clearPolling();
+
+  try {
+    const { data } = await InboxesAPI.deleteWhatsmeowSession(props.inbox.id, {
+      timeout: STATUS_REQUEST_TIMEOUT,
+    });
+    applySessionPayload(data);
+    qrCodeUrl.value = '';
+    isPairing.value = false;
+    useAlert(t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.API.DISCONNECTED'));
+  } catch (error) {
+    useAlert(t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.API.DISCONNECT_ERROR'));
+  } finally {
+    isDisconnecting.value = false;
+  }
+};
+
 const updateWhatsmeowSettings = async () => {
   try {
     await store.dispatch('inboxes/updateInbox', {
@@ -205,6 +229,7 @@ const updateWhatsmeowSettings = async () => {
         reject_calls: settings.rejectCalls,
         ignore_groups: settings.ignoreGroups,
         ignore_status: settings.ignoreStatus,
+        ignore_newsletters: settings.ignoreNewsletters,
         newsletter: settings.newsletter,
       },
     });
@@ -299,10 +324,23 @@ onBeforeUnmount(() => {
               @click="fetchWhatsmeowStatus({ showLoader: true })"
             />
             <NextButton
+              v-if="isConnected"
+              outline
+              ruby
+              size="sm"
+              icon="i-lucide-unplug"
+              :label="
+                $t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.STATUS.DISCONNECT')
+              "
+              :is-loading="isDisconnecting"
+              :disabled="isDisconnecting"
+              @click="disconnectSession"
+            />
+            <NextButton
               v-if="!isConnected"
               size="sm"
-              icon="i-lucide-qr-code"
-              :label="$t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.QR.GENERATE')"
+              icon="i-lucide-plug"
+              :label="$t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.STATUS.CONNECT')"
               :is-loading="isPairing && !qrCodeUrl"
               :disabled="isPairing"
               @click="generateQRCode"
@@ -386,6 +424,19 @@ onBeforeUnmount(() => {
           :description="
             $t(
               'INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.SETTINGS.IGNORE_STATUS.DESCRIPTION'
+            )
+          "
+        />
+        <SettingsToggleSection
+          v-model="settings.ignoreNewsletters"
+          :header="
+            $t(
+              'INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.SETTINGS.IGNORE_NEWSLETTERS.LABEL'
+            )
+          "
+          :description="
+            $t(
+              'INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.SETTINGS.IGNORE_NEWSLETTERS.DESCRIPTION'
             )
           "
         />

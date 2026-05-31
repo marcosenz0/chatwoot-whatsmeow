@@ -10,7 +10,8 @@ class Channel::Whatsmeow < ApplicationRecord
     :reject_calls,
     :read_messages,
     :ignore_groups,
-    :ignore_status
+    :ignore_status,
+    :ignore_newsletters
   ].freeze
 
   validates :phone_number, presence: true

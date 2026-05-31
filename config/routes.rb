@@ -259,6 +259,7 @@ Rails.application.routes.draw do
             post :reset_secret, on: :member
             get :whatsmeow_status, on: :member
             post :whatsmeow_session, on: :member
+            delete :whatsmeow_session, on: :member, action: :destroy_whatsmeow_session
             if ChatwootApp.enterprise?
               resource :conference, only: %i[create destroy], controller: 'conference' do
                 get :token, on: :member

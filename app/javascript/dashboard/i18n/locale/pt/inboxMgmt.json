@@ -799,7 +799,68 @@
       "WHATSAPP_TEMPLATES_SYNC_TITLE": "Sync Templates",
       "WHATSAPP_TEMPLATES_SYNC_SUBHEADER": "Manually sync message templates from WhatsApp to update your available templates.",
       "WHATSAPP_TEMPLATES_SYNC_BUTTON": "Sync Templates",
-      "WHATSAPP_TEMPLATES_SYNC_SUCCESS": "Templates sync initiated successfully. It may take a couple of minutes to update.",
+      "WHATSAPP_TEMPLATES_SYNC_SUCCESS": "Sincronização de modelos iniciada com sucesso. Pode demorar alguns minutos para atualizar.",
+      "WHATSMEOW": {
+        "STATUS": {
+          "TITLE": "Conexão direta do WhatsApp",
+          "CONNECTED": "Conectado",
+          "CONNECTING": "Conectando",
+          "DISCONNECTED": "Desconectado",
+          "CONNECTED_DESCRIPTION": "Esta caixa de entrada está pareada e pronta para receber mensagens do WhatsApp.",
+          "DISCONNECTED_DESCRIPTION": "Conecte o telefone novamente para voltar a receber mensagens do WhatsApp nesta caixa de entrada.",
+          "JID": "JID do aparelho:",
+          "REFRESH": "Atualizar status",
+          "CONNECT": "Conectar",
+          "DISCONNECT": "Desconectar"
+        },
+        "QR": {
+          "TITLE": "Escaneie o QR Code",
+          "DESCRIPTION": "Abra o WhatsApp no celular, acesse Aparelhos conectados e escaneie este código.",
+          "IMAGE_ALT": "QR Code de pareamento do WhatsApp",
+          "WAITING": "Aguardando o telefone concluir o pareamento...",
+          "GENERATE": "Gerar QR Code de conexão",
+          "CANCEL": "Cancelar pareamento"
+        },
+        "SETTINGS": {
+          "TITLE": "Comportamento da instância",
+          "SAVE": "Salvar configurações",
+          "ALWAYS_ONLINE": {
+            "LABEL": "Manter sempre online",
+            "DESCRIPTION": "Mantém a presença do telefone pareado disponível enquanto o serviço estiver conectado."
+          },
+          "READ_MESSAGES": {
+            "LABEL": "Marcar mensagens como lidas",
+            "DESCRIPTION": "Marca mensagens recebidas no WhatsApp como lidas depois do processamento."
+          },
+          "REJECT_CALLS": {
+            "LABEL": "Rejeitar chamadas automaticamente",
+            "DESCRIPTION": "Rejeita chamadas de áudio e vídeo recebidas para evitar interrupções."
+          },
+          "IGNORE_GROUPS": {
+            "LABEL": "Ignorar mensagens de grupos",
+            "DESCRIPTION": "Impede que mensagens de grupos do WhatsApp criem conversas nesta caixa de entrada."
+          },
+          "IGNORE_STATUS": {
+            "LABEL": "Ignorar atualizações de status",
+            "DESCRIPTION": "Ignora status e stories temporários do WhatsApp."
+          },
+          "IGNORE_NEWSLETTERS": {
+            "LABEL": "Ignorar newsletters",
+            "DESCRIPTION": "Impede que newsletters e transmissões do WhatsApp criem conversas nesta caixa de entrada."
+          },
+          "NEWSLETTER": {
+            "LABEL": "Habilitar newsletters e transmissões",
+            "DESCRIPTION": "Permite que esta instância envie mensagens em estilo transmissão."
+          }
+        },
+        "API": {
+          "CONNECTED": "Aparelho conectado com sucesso.",
+          "DISCONNECTED": "Aparelho desconectado com sucesso.",
+          "DISCONNECT_ERROR": "Não foi possível desconectar a sessão do WhatsApp Direct.",
+          "STATUS_ERROR": "Não foi possível atualizar o status do WhatsApp Direct.",
+          "QR_ERROR": "Não foi possível gerar o QR Code de pareamento do WhatsApp."
+        }
+      },
       "UPDATE_PRE_CHAT_FORM_SETTINGS": "Atualizar configurações do formulário pré-chat"
     },
     "HELP_CENTER": {

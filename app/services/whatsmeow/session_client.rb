@@ -25,6 +25,10 @@ class Whatsmeow::SessionClient
     request(:get, "/sessions/#{@inbox.id}/status")
   end
 
+  def disconnect
+    request(:delete, "/sessions/#{@inbox.id}")
+  end
+
   def self.request(method, path, body: nil)
     last_error = nil
 

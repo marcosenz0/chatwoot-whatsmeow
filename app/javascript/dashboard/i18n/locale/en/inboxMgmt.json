@@ -876,7 +876,9 @@
           "CONNECTED_DESCRIPTION": "This inbox is paired and ready to receive WhatsApp messages.",
           "DISCONNECTED_DESCRIPTION": "Pair the phone again to resume receiving WhatsApp messages in this inbox.",
           "JID": "Device JID:",
-          "REFRESH": "Refresh status"
+          "REFRESH": "Refresh status",
+          "CONNECT": "Connect",
+          "DISCONNECT": "Disconnect"
         },
         "QR": {
           "TITLE": "Scan the QR code",
@@ -909,6 +911,10 @@
             "LABEL": "Ignore status updates",
             "DESCRIPTION": "Skips temporary WhatsApp status and story updates."
           },
+          "IGNORE_NEWSLETTERS": {
+            "LABEL": "Ignore newsletters",
+            "DESCRIPTION": "Prevents WhatsApp newsletter and broadcast messages from creating conversations in this inbox."
+          },
           "NEWSLETTER": {
             "LABEL": "Enable newsletters and broadcasts",
             "DESCRIPTION": "Allows this instance to send broadcast-style campaign messages."
@@ -916,6 +922,8 @@
         },
         "API": {
           "CONNECTED": "Device connected successfully.",
+          "DISCONNECTED": "Device disconnected successfully.",
+          "DISCONNECT_ERROR": "Could not disconnect the WhatsApp Direct session.",
           "STATUS_ERROR": "Could not refresh the WhatsApp Direct status.",
           "QR_ERROR": "Could not generate the WhatsApp pairing QR code."
         }
