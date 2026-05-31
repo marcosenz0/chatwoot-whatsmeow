@@ -1,5 +1,7 @@
 import types from '../../../mutation-types';
 
+const CONVERSATIONS_PER_PAGE = 25;
+
 export const setPageFilter = ({ dispatch, filter, page, markEndReached }) => {
   dispatch('conversationPage/setCurrentPage', { filter, page }, { root: true });
   if (markEndReached) {
@@ -65,6 +67,6 @@ export const buildConversationList = (
     dispatch: context.dispatch,
     filter: filterType,
     page: requestPayload.page,
-    markEndReached: !conversationList.length,
+    markEndReached: conversationList.length < CONVERSATIONS_PER_PAGE,
   });
 };
