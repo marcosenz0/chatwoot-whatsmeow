@@ -75,33 +75,15 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
   end
 
   def whatsmeow_session
-    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
-
-    payload = Whatsmeow::SessionClient.new(inbox: @inbox).create
-    update_whatsmeow_status(payload)
-    render json: payload
-  rescue Whatsmeow::SessionClient::Error => e
-    render json: { message: e.message }, status: :bad_gateway
+    handle_whatsmeow_session { |client| client.create }
   end
 
   def whatsmeow_status
-    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
-
-    payload = Whatsmeow::SessionClient.new(inbox: @inbox).status
-    update_whatsmeow_status(payload)
-    render json: payload
-  rescue Whatsmeow::SessionClient::Error => e
-    render json: { message: e.message }, status: :bad_gateway
+    handle_whatsmeow_session { |client| client.status }
   end
 
   def destroy_whatsmeow_session
-    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
-
-    payload = Whatsmeow::SessionClient.new(inbox: @inbox).disconnect
-    update_whatsmeow_status(payload)
-    render json: payload
-  rescue Whatsmeow::SessionClient::Error => e
-    render json: { message: e.message }, status: :bad_gateway
+    handle_whatsmeow_session { |client| client.disconnect }
   end
 
   def destroy
@@ -110,6 +92,16 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
   end
 
   private
+
+  def handle_whatsmeow_session
+    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
+
+    payload = yield Whatsmeow::SessionClient.new(inbox: @inbox)
+    update_whatsmeow_status(payload)
+    render json: payload
+  rescue Whatsmeow::SessionClient::Error => e
+    render json: { message: e.message }, status: :bad_gateway
+  end
 
   def fetch_inbox
     @inbox = Current.account.inboxes.find(params[:id])

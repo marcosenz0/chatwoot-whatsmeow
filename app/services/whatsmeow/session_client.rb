@@ -33,15 +33,8 @@ class Whatsmeow::SessionClient
     last_error = nil
 
     service_urls.each do |service_url|
-      response = HTTParty.public_send(
-        method,
-        "#{service_url}#{path}",
-        body: body&.to_json,
-        headers: { 'Content-Type' => 'application/json' },
-        timeout: 10
-      )
-
-      payload = response.body.present? ? JSON.parse(response.body) : {}
+      response = perform_request(method, service_url, path, body)
+      payload = parse_response(response)
       return payload if response.success?
 
       last_error = payload['error'] || response.body
@@ -50,6 +43,20 @@ class Whatsmeow::SessionClient
     end
 
     raise Error, last_error || 'Whatsmeow service request failed'
+  end
+
+  def self.perform_request(method, service_url, path, body)
+    HTTParty.public_send(
+      method,
+      "#{service_url}#{path}",
+      body: body&.to_json,
+      headers: { 'Content-Type' => 'application/json' },
+      timeout: 10
+    )
+  end
+
+  def self.parse_response(response)
+    response.body.present? ? JSON.parse(response.body) : {}
   end
 
   def self.service_urls

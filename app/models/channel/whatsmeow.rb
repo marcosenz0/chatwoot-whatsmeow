@@ -19,8 +19,4 @@ class Channel::Whatsmeow < ApplicationRecord
   def name
     'Whatsmeow'
   end
-
-  def has_failed_delivery?
-    false
-  end
 end

@@ -2,33 +2,44 @@ class Whatsmeow::SendOnWhatsmeowService
   pattr_initialize [:message!]
 
   def perform
-    return if message.incoming?
-    return if message.private?
-    return if message.source_id.present?
+    return unless deliverable_message?
 
-    inbox = message.conversation.inbox
-    target_jid = target_identifier
-    raise "No deliverable WhatsApp target found for conversation #{message.conversation_id}" if target_jid.blank?
-
-    payload = {
-      channel_id: inbox.id.to_s,
-      to: target_jid,
-      body: message.content
-    }
-
-    Rails.logger.info("Whatsmeow: Sending outgoing message to #{target_jid} on inbox #{inbox.id} via Go API...")
-
-    result = Whatsmeow::SessionClient.request(:post, '/messages', body: payload)
-    message.update!(source_id: result['id']) if result['id'].present?
-    Rails.logger.info("Whatsmeow: Message dispatched successfully. External ID: #{result['id']}")
+    dispatch_message
   rescue StandardError => e
-    message.update!(status: :failed, content_attributes: (message.content_attributes || {}).merge(external_error: e.message))
+    mark_failed(e.message)
     Rails.logger.error("Whatsmeow: Exception occurred while sending message: #{e.message}")
   end
 
   private
 
+  def deliverable_message?
+    !message.incoming? && !message.private? && message.source_id.blank?
+  end
+
+  def dispatch_message
+    Rails.logger.info("Whatsmeow: Sending outgoing message to #{target_identifier} on inbox #{inbox.id} via Go API...")
+
+    result = Whatsmeow::SessionClient.request(:post, '/messages', body: payload)
+    update_source_id(result)
+  end
+
+  def payload
+    {
+      channel_id: inbox.id.to_s,
+      to: target_identifier,
+      body: message.content
+    }
+  end
+
+  def inbox
+    @inbox ||= message.conversation.inbox
+  end
+
   def target_identifier
+    @target_identifier ||= resolve_target_identifier
+  end
+
+  def resolve_target_identifier
     source_id = message.conversation.contact_inbox&.source_id
     candidates = [
       message.conversation.contact&.name,
@@ -39,7 +50,10 @@ class Whatsmeow::SendOnWhatsmeowService
     phone_identifier = candidates.find { |identifier| phone_identifier?(identifier, source_id) }
     return phone_jid(phone_identifier) if phone_identifier.present?
 
-    candidates.find { |identifier| deliverable_jid?(identifier) }
+    target_jid = candidates.find { |identifier| deliverable_jid?(identifier) }
+    raise "No deliverable WhatsApp target found for conversation #{message.conversation_id}" if target_jid.blank?
+
+    target_jid
   end
 
   def phone_identifier?(identifier, source_id = nil)
@@ -55,7 +69,7 @@ class Whatsmeow::SendOnWhatsmeowService
 
   def deliverable_jid?(identifier)
     jid = identifier.to_s.downcase
-    jid.include?('@') && !jid.include?('@newsletter')
+    jid.include?('@') && jid.exclude?('@newsletter')
   end
 
   def non_phone_jid?(identifier)
@@ -67,5 +81,14 @@ class Whatsmeow::SendOnWhatsmeowService
     return unless identifier.to_s.downcase.include?('@lid')
 
     identifier.to_s.split('@').first.split(':').first.delete('^0-9')
+  end
+
+  def update_source_id(result)
+    message.update!(source_id: result['id']) if result['id'].present?
+    Rails.logger.info("Whatsmeow: Message dispatched successfully. External ID: #{result['id']}")
+  end
+
+  def mark_failed(error_message)
+    message.update!(status: :failed, content_attributes: (message.content_attributes || {}).merge(external_error: error_message))
   end
 end
