@@ -667,58 +667,213 @@ func processEventForInbox(channelID string, accountID string, client *whatsmeow.
 		}
 
 	case *events.Message:
-		settings, err := getChannelSettings(channelID)
-		if err == nil {
-			isGroup := v.Info.MessageSource.IsGroup || v.Info.Sender.Server == "g.us" || v.Info.Chat.Server == "g.us"
-			if settings.IgnoreGroups && isGroup {
-				log.Printf("Ignoring group message from %s on channel %s (IgnoreGroups=true)", v.Info.Sender.String(), channelID)
-				return
-			}
-			isStatus := v.Info.Chat.Server == "broadcast" || v.Info.Sender.Server == "broadcast"
-			if settings.IgnoreStatus && isStatus {
-				log.Printf("Ignoring status update from %s on channel %s (IgnoreStatus=true)", v.Info.Sender.String(), channelID)
-				return
-			}
+		processMessageForInbox(channelID, accountID, client, v)
+
+	case *events.HistorySync:
+		processHistorySyncForInbox(channelID, accountID, client, v)
+	}
+}
+
+func processHistorySyncForInbox(channelID string, accountID string, client *whatsmeow.Client, historySync *events.HistorySync) {
+	if historySync.Data == nil {
+		return
+	}
+
+	cutoff := time.Now().Add(-72 * time.Hour)
+	processed := 0
+	for _, conversation := range historySync.Data.GetConversations() {
+		chatJID, ok := parseHistoryChatJID(conversation.GetID(), conversation.GetPnJID(), conversation.GetLidJID())
+		if !ok {
+			log.Printf("Skipping history sync conversation with invalid JID on channel %s: %s", channelID, conversation.GetID())
+			continue
 		}
 
-		var messageText string
-		if v.Message.GetConversation() != "" {
-			messageText = v.Message.GetConversation()
-		} else if v.Message.GetExtendedTextMessage().GetText() != "" {
-			messageText = v.Message.GetExtendedTextMessage().GetText()
-		}
-
-		if messageText != "" {
-			sender := v.Info.Sender.String()
-			if v.Info.IsFromMe {
-				sender = v.Info.Chat.String()
+		for _, historyMessage := range conversation.GetMessages() {
+			webMessage := historyMessage.GetMessage()
+			if webMessage == nil {
+				continue
 			}
 
-			log.Printf("Received message from %s on channel %s: %s", sender, channelID, messageText)
-
-			// Mark message as read if auto-read is enabled
-			if !v.Info.IsFromMe && err == nil && settings.ReadMessages {
-				err := client.MarkRead(context.Background(), []types.MessageID{v.Info.ID}, v.Info.Timestamp, v.Info.Chat, v.Info.Sender)
-				if err != nil {
-					log.Printf("Failed to mark message %s as read: %v", v.Info.ID, err)
-				} else {
-					log.Printf("Automatically marked message %s as read", v.Info.ID)
-				}
+			messageEvent, err := client.ParseWebMessage(chatJID, webMessage)
+			if err != nil {
+				log.Printf("Failed to parse history sync message for %s on channel %s: %v", chatJID.String(), channelID, err)
+				continue
+			}
+			if messageEvent == nil || messageEvent.Info.Timestamp.Before(cutoff) {
+				continue
 			}
 
-			// Trigger webhook callback to Rails backend
-			payload := map[string]interface{}{
-				"event":      "message",
-				"sender":     sender,
-				"chat":       v.Info.Chat.String(),
-				"from_me":    v.Info.IsFromMe,
-				"message_id": v.Info.ID,
-				"content":    messageText,
-				"timestamp":  v.Info.Timestamp.Unix(),
-			}
-			sendWebhookNotification(accountID, channelID, payload)
+			processMessageForInbox(channelID, accountID, client, messageEvent)
+			processed++
 		}
 	}
+
+	if processed > 0 {
+		log.Printf("Processed %d recent history sync messages on channel %s", processed, channelID)
+	}
+}
+
+func parseHistoryChatJID(ids ...string) (types.JID, bool) {
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		jid, err := types.ParseJID(id)
+		if err == nil {
+			return jid, true
+		}
+	}
+	return types.JID{}, false
+}
+
+func processMessageForInbox(channelID string, accountID string, client *whatsmeow.Client, messageEvent *events.Message) {
+	settings, err := getChannelSettings(channelID)
+	if err == nil {
+		isGroup := messageEvent.Info.MessageSource.IsGroup || messageEvent.Info.Sender.Server == "g.us" || messageEvent.Info.Chat.Server == "g.us"
+		if settings.IgnoreGroups && isGroup {
+			log.Printf("Ignoring group message from %s on channel %s (IgnoreGroups=true)", messageEvent.Info.Sender.String(), channelID)
+			return
+		}
+		isStatus := messageEvent.Info.Chat.Server == "broadcast" || messageEvent.Info.Sender.Server == "broadcast"
+		if settings.IgnoreStatus && isStatus {
+			log.Printf("Ignoring status update from %s on channel %s (IgnoreStatus=true)", messageEvent.Info.Sender.String(), channelID)
+			return
+		}
+	}
+
+	messageText := extractMessageText(messageEvent.Message)
+	if messageText == "" {
+		return
+	}
+
+	senderJID := preferredContactJID(messageEvent.Info)
+	sender := jidString(senderJID)
+	if sender == "" {
+		sender = jidString(messageEvent.Info.Chat)
+	}
+
+	log.Printf("Received message from %s on channel %s: %s", sender, channelID, messageText)
+
+	// Mark message as read if auto-read is enabled
+	if !messageEvent.Info.IsFromMe && err == nil && settings.ReadMessages {
+		err := client.MarkRead(
+			context.Background(),
+			[]types.MessageID{messageEvent.Info.ID},
+			messageEvent.Info.Timestamp,
+			messageEvent.Info.Chat,
+			messageEvent.Info.Sender,
+		)
+		if err != nil {
+			log.Printf("Failed to mark message %s as read: %v", messageEvent.Info.ID, err)
+		} else {
+			log.Printf("Automatically marked message %s as read", messageEvent.Info.ID)
+		}
+	}
+
+	payload := map[string]interface{}{
+		"event":         "message",
+		"sender":        sender,
+		"sender_alt":    jidString(messageEvent.Info.SenderAlt),
+		"sender_name":   messageEvent.Info.PushName,
+		"sender_phone":  phoneNumberFromJID(senderJID),
+		"chat":          jidString(messageEvent.Info.Chat),
+		"chat_phone":    phoneNumberFromJID(messageEvent.Info.Chat),
+		"recipient_alt": jidString(messageEvent.Info.RecipientAlt),
+		"from_me":       messageEvent.Info.IsFromMe,
+		"message_id":    messageEvent.Info.ID,
+		"content":       messageText,
+		"timestamp":     messageEvent.Info.Timestamp.Unix(),
+	}
+	sendWebhookNotification(accountID, channelID, payload)
+}
+
+func extractMessageText(message *proto.Message) string {
+	if message == nil {
+		return ""
+	}
+	if text := message.GetConversation(); text != "" {
+		return text
+	}
+	if text := message.GetExtendedTextMessage().GetText(); text != "" {
+		return text
+	}
+	if text := message.GetImageMessage().GetCaption(); text != "" {
+		return text
+	}
+	if text := message.GetVideoMessage().GetCaption(); text != "" {
+		return text
+	}
+	if text := message.GetDocumentMessage().GetCaption(); text != "" {
+		return text
+	}
+	if inner := message.GetEphemeralMessage().GetMessage(); inner != nil {
+		return extractMessageText(inner)
+	}
+	if inner := message.GetViewOnceMessage().GetMessage(); inner != nil {
+		return extractMessageText(inner)
+	}
+	if inner := message.GetViewOnceMessageV2().GetMessage(); inner != nil {
+		return extractMessageText(inner)
+	}
+	if inner := message.GetViewOnceMessageV2Extension().GetMessage(); inner != nil {
+		return extractMessageText(inner)
+	}
+	if inner := message.GetDocumentWithCaptionMessage().GetMessage(); inner != nil {
+		return extractMessageText(inner)
+	}
+	return ""
+}
+
+func preferredContactJID(info types.MessageInfo) types.JID {
+	if info.IsFromMe {
+		return firstUsableJID(info.RecipientAlt, info.Chat, info.SenderAlt, info.Sender)
+	}
+	return firstUsableJID(info.SenderAlt, info.Sender, info.Chat)
+}
+
+func firstUsableJID(candidates ...types.JID) types.JID {
+	for _, jid := range candidates {
+		if isPhoneJID(jid) {
+			return jid.ToNonAD()
+		}
+	}
+	for _, jid := range candidates {
+		if !jid.IsEmpty() {
+			return jid.ToNonAD()
+		}
+	}
+	return types.JID{}
+}
+
+func isPhoneJID(jid types.JID) bool {
+	return jid.Server == types.DefaultUserServer && isNumericUser(jid.User)
+}
+
+func isNumericUser(user string) bool {
+	user = strings.Split(user, ":")[0]
+	if user == "" {
+		return false
+	}
+	for _, r := range user {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func phoneNumberFromJID(jid types.JID) string {
+	if !isPhoneJID(jid) {
+		return ""
+	}
+	return "+" + strings.Split(jid.User, ":")[0]
+}
+
+func jidString(jid types.JID) string {
+	if jid.IsEmpty() {
+		return ""
+	}
+	return jid.ToNonAD().String()
 }
 
 func sendWebhookNotification(accountID string, channelID string, payload map[string]interface{}) {

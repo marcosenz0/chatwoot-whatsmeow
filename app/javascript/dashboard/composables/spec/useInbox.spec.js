@@ -53,6 +53,7 @@ const mockStore = createStore({
               voice_enabled: true,
             },
             15: { id: 15, channel_type: INBOX_TYPES.TIKTOK },
+            16: { id: 16, channel_type: INBOX_TYPES.WHATSMEOW },
           };
           return inboxes[id] || null;
         },
@@ -176,6 +177,16 @@ describe('useInbox', () => {
       expect(wrapper.vm.is360DialogWhatsAppChannel).toBe(true);
       expect(wrapper.vm.isAWhatsAppChannel).toBe(true);
       expect(wrapper.vm.isAWhatsAppCloudChannel).toBe(false);
+    });
+
+    it('identifies Whatsmeow channel as WhatsApp-compatible', () => {
+      const wrapper = mount(createTestComponent(16), {
+        global: { plugins: [mockStore] },
+      });
+
+      expect(wrapper.vm.isAWhatsAppChannel).toBe(true);
+      expect(wrapper.vm.isAWhatsAppCloudChannel).toBe(false);
+      expect(wrapper.vm.isATwilioWhatsAppChannel).toBe(false);
     });
 
     it('identifies all other channel types correctly', () => {

@@ -29,25 +29,56 @@ class Whatsmeow::IncomingMessageService
   end
 
   def sender_identifier
-    params[:sender].presence || params[:chat].presence
+    params[:sender].presence || params[:sender_alt].presence || params[:chat].presence || params[:recipient_alt].presence
+  end
+
+  def source_ids
+    @source_ids ||= [
+      phone_source_id,
+      params[:sender],
+      params[:sender_alt],
+      params[:chat],
+      params[:recipient_alt]
+    ].compact_blank.uniq
   end
 
   def phone_number
-    # sender looks like "5511999999999@s.whatsapp.net" or "5511999999999"
-    # phone number needs to be normalized to "+5511999999999"
-    raw_num = sender_identifier.to_s.split('@').first
-    raw_num.start_with?('+') ? raw_num : "+#{raw_num}"
+    @phone_number ||= params[:sender_phone].presence ||
+                      extract_phone_number(params[:sender]) ||
+                      extract_phone_number(params[:sender_alt]) ||
+                      extract_phone_number(params[:chat]) ||
+                      extract_phone_number(params[:recipient_alt])
+  end
+
+  def phone_source_id
+    return if phone_number.blank?
+
+    "#{phone_number.delete('+')}@s.whatsapp.net"
+  end
+
+  def extract_phone_number(identifier)
+    return if identifier.blank?
+
+    server = identifier.to_s.split('@').second
+    return if server == 'lid'
+
+    raw_num = identifier.to_s.split('@').first.split(':').first
+    digits = raw_num.delete('^0-9')
+    return unless digits.match?(/\A[1-9]\d{1,14}\z/)
+
+    "+#{digits}"
   end
 
   def set_contact
-    contact_inbox = ::ContactInboxWithContactBuilder.new(
-      source_id: sender_identifier,
+    contact_inbox = ::ContactInboxSourceIdResolver.new(
+      source_ids: source_ids.presence || [sender_identifier],
       inbox: @inbox,
       contact_attributes: contact_attributes
     ).perform
 
     @contact_inbox = contact_inbox
     @contact = contact_inbox.contact
+    sync_contact_profile
   end
 
   def conversation_params
@@ -81,8 +112,27 @@ class Whatsmeow::IncomingMessageService
 
   def contact_attributes
     {
-      name: phone_number,
+      name: params[:sender_name].presence || phone_number || sender_identifier,
       phone_number: phone_number
     }
+  end
+
+  def sync_contact_profile
+    attributes = {}
+    attributes[:phone_number] = phone_number if phone_number.present? && @contact.phone_number.blank?
+    attributes[:name] = contact_attributes[:name] if should_update_contact_name?
+
+    @contact.update!(attributes) if attributes.present?
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
+    Rails.logger.info("Whatsmeow: skipped contact profile sync for inbox #{@inbox.id} and sender #{sender_identifier}")
+  end
+
+  def should_update_contact_name?
+    return false if contact_attributes[:name].blank?
+    return true if @contact.name.blank?
+    return true if @contact.name == @contact.phone_number
+    return true if @contact.name.include?('@lid') || @contact.name.include?('@s.whatsapp.net')
+
+    false
   end
 end
