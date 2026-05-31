@@ -667,11 +667,6 @@ func processEventForInbox(channelID string, accountID string, client *whatsmeow.
 		}
 
 	case *events.Message:
-		// Handle incoming text message
-		if v.Info.IsFromMe {
-			return
-		}
-
 		settings, err := getChannelSettings(channelID)
 		if err == nil {
 			isGroup := v.Info.MessageSource.IsGroup || v.Info.Sender.Server == "g.us" || v.Info.Chat.Server == "g.us"
@@ -694,10 +689,15 @@ func processEventForInbox(channelID string, accountID string, client *whatsmeow.
 		}
 
 		if messageText != "" {
-			log.Printf("Received message from %s on channel %s: %s", v.Info.Sender.String(), channelID, messageText)
-			
+			sender := v.Info.Sender.String()
+			if v.Info.IsFromMe {
+				sender = v.Info.Chat.String()
+			}
+
+			log.Printf("Received message from %s on channel %s: %s", sender, channelID, messageText)
+
 			// Mark message as read if auto-read is enabled
-			if err == nil && settings.ReadMessages {
+			if !v.Info.IsFromMe && err == nil && settings.ReadMessages {
 				err := client.MarkRead(context.Background(), []types.MessageID{v.Info.ID}, v.Info.Timestamp, v.Info.Chat, v.Info.Sender)
 				if err != nil {
 					log.Printf("Failed to mark message %s as read: %v", v.Info.ID, err)
@@ -709,7 +709,9 @@ func processEventForInbox(channelID string, accountID string, client *whatsmeow.
 			// Trigger webhook callback to Rails backend
 			payload := map[string]interface{}{
 				"event":      "message",
-				"sender":     v.Info.Sender.String(),
+				"sender":     sender,
+				"chat":       v.Info.Chat.String(),
+				"from_me":    v.Info.IsFromMe,
 				"message_id": v.Info.ID,
 				"content":    messageText,
 				"timestamp":  v.Info.Timestamp.Unix(),

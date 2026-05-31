@@ -4,6 +4,7 @@ class Whatsmeow::SendOnWhatsmeowService
   def perform
     return if message.incoming?
     return if message.private?
+    return if message.source_id.present?
 
     inbox = message.conversation.inbox
     target_jid = message.conversation.contact_inbox.source_id
