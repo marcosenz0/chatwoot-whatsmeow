@@ -75,15 +75,15 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
   end
 
   def whatsmeow_session
-    handle_whatsmeow_session { |client| client.create }
+    handle_whatsmeow_session(&:create)
   end
 
   def whatsmeow_status
-    handle_whatsmeow_session { |client| client.status }
+    handle_whatsmeow_session(&:status)
   end
 
   def destroy_whatsmeow_session
-    handle_whatsmeow_session { |client| client.disconnect }
+    handle_whatsmeow_session(&:disconnect)
   end
 
   def destroy

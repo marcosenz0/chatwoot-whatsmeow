@@ -40,20 +40,26 @@ class Whatsmeow::SendOnWhatsmeowService
   end
 
   def resolve_target_identifier
-    source_id = message.conversation.contact_inbox&.source_id
-    candidates = [
+    phone_identifier = target_candidates.find { |identifier| phone_identifier?(identifier, source_id) }
+    return phone_jid(phone_identifier) if phone_identifier.present?
+
+    deliverable_jid || missing_target!
+  end
+
+  def target_candidates
+    [
       message.conversation.contact&.name,
       message.conversation.contact&.phone_number,
       source_id
     ].compact_blank
+  end
 
-    phone_identifier = candidates.find { |identifier| phone_identifier?(identifier, source_id) }
-    return phone_jid(phone_identifier) if phone_identifier.present?
+  def source_id
+    @source_id ||= message.conversation.contact_inbox&.source_id
+  end
 
-    target_jid = candidates.find { |identifier| deliverable_jid?(identifier) }
-    raise "No deliverable WhatsApp target found for conversation #{message.conversation_id}" if target_jid.blank?
-
-    target_jid
+  def deliverable_jid
+    target_candidates.find { |identifier| deliverable_jid?(identifier) }
   end
 
   def phone_identifier?(identifier, source_id = nil)
@@ -90,5 +96,9 @@ class Whatsmeow::SendOnWhatsmeowService
 
   def mark_failed(error_message)
     message.update!(status: :failed, content_attributes: (message.content_attributes || {}).merge(external_error: error_message))
+  end
+
+  def missing_target!
+    raise "No deliverable WhatsApp target found for conversation #{message.conversation_id}"
   end
 end
