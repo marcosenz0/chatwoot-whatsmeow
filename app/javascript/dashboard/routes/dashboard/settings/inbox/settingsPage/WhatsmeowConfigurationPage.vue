@@ -5,6 +5,7 @@ import {
   onMounted,
   reactive,
   ref,
+  shallowRef,
   watch,
 } from 'vue';
 import { useStore } from 'vuex';
@@ -21,6 +22,9 @@ const props = defineProps({
     default: () => ({}),
   },
 });
+
+const STATUS_REQUEST_TIMEOUT = 15000;
+const POLLING_INTERVAL = 3000;
 
 const store = useStore();
 const { t } = useI18n();
@@ -40,6 +44,7 @@ const qrCodeUrl = ref('');
 const isFetchingStatus = ref(false);
 const isPairing = ref(false);
 const pollInterval = ref(null);
+const statusController = shallowRef(null);
 
 const uiFlags = computed(() => store.getters['inboxes/getUIFlags']);
 const isConnected = computed(() => connectionStatus.value === 'connected');
@@ -102,11 +107,15 @@ const clearPolling = () => {
   }
 };
 
+const cancelStatusRequest = () => {
+  if (statusController.value) {
+    statusController.value.abort();
+    statusController.value = null;
+  }
+};
+
 const applySessionPayload = payload => {
   const nextStatus = payload.status || 'disconnected';
-  if (nextStatus !== connectionStatus.value) {
-    store.dispatch('inboxes/get');
-  }
 
   connectionStatus.value = nextStatus;
   whatsmeowJid.value = payload.jid || '';
@@ -122,23 +131,38 @@ const applySessionPayload = payload => {
   }
 };
 
-const fetchWhatsmeowStatus = async () => {
+const fetchWhatsmeowStatus = async ({ showLoader = false } = {}) => {
   if (!props.inbox.id) return;
+  if (statusController.value) {
+    if (!showLoader) return;
+    cancelStatusRequest();
+  }
 
-  isFetchingStatus.value = true;
+  const controller = new AbortController();
+  statusController.value = controller;
+  isFetchingStatus.value = showLoader;
+
   try {
-    const { data } = await InboxesAPI.getWhatsmeowStatus(props.inbox.id);
+    const { data } = await InboxesAPI.getWhatsmeowStatus(props.inbox.id, {
+      signal: controller.signal,
+      timeout: STATUS_REQUEST_TIMEOUT,
+    });
     applySessionPayload(data);
   } catch (error) {
-    useAlert(t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.API.STATUS_ERROR'));
+    if (error.name !== 'CanceledError' && error.code !== 'ERR_CANCELED') {
+      useAlert(t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.API.STATUS_ERROR'));
+    }
   } finally {
-    isFetchingStatus.value = false;
+    if (statusController.value === controller) {
+      statusController.value = null;
+      isFetchingStatus.value = false;
+    }
   }
 };
 
 const startStatusPolling = () => {
   clearPolling();
-  pollInterval.value = setInterval(fetchWhatsmeowStatus, 3000);
+  pollInterval.value = setInterval(fetchWhatsmeowStatus, POLLING_INTERVAL);
 };
 
 const generateQRCode = async () => {
@@ -148,7 +172,9 @@ const generateQRCode = async () => {
   qrCodeUrl.value = '';
 
   try {
-    const { data } = await InboxesAPI.createWhatsmeowSession(props.inbox.id);
+    const { data } = await InboxesAPI.createWhatsmeowSession(props.inbox.id, {
+      timeout: STATUS_REQUEST_TIMEOUT,
+    });
     applySessionPayload(data);
 
     if (!isConnected.value) {
@@ -191,7 +217,10 @@ const updateWhatsmeowSettings = async () => {
 watch(() => props.inbox.id, setDefaults, { immediate: true });
 
 onMounted(fetchWhatsmeowStatus);
-onBeforeUnmount(clearPolling);
+onBeforeUnmount(() => {
+  clearPolling();
+  cancelStatusRequest();
+});
 </script>
 
 <template>
@@ -266,7 +295,8 @@ onBeforeUnmount(clearPolling);
               icon="i-lucide-refresh-cw"
               :label="$t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.STATUS.REFRESH')"
               :is-loading="isFetchingStatus"
-              @click="fetchWhatsmeowStatus"
+              :disabled="isFetchingStatus"
+              @click="fetchWhatsmeowStatus({ showLoader: true })"
             />
             <NextButton
               v-if="!isConnected"
@@ -274,6 +304,7 @@ onBeforeUnmount(clearPolling);
               icon="i-lucide-qr-code"
               :label="$t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.QR.GENERATE')"
               :is-loading="isPairing && !qrCodeUrl"
+              :disabled="isPairing"
               @click="generateQRCode"
             />
             <NextButton
