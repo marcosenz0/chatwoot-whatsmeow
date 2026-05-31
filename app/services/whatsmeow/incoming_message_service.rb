@@ -61,14 +61,22 @@ class Whatsmeow::IncomingMessageService
 
   def set_conversation
     @conversation = if @inbox.lock_to_single_conversation
-                      @contact_inbox.conversations.last
+                      inbox_contact_conversations.last
                     else
-                      @contact_inbox.conversations.where
-                                    .not(status: :resolved).last
+                      inbox_contact_conversations.where
+                                                 .not(status: :resolved).last
                     end
     return if @conversation
 
     @conversation = ::Conversation.create!(conversation_params)
+  end
+
+  def inbox_contact_conversations
+    ::Conversation.where(
+      account_id: @inbox.account_id,
+      inbox_id: @inbox.id,
+      contact_id: @contact.id
+    )
   end
 
   def contact_attributes
