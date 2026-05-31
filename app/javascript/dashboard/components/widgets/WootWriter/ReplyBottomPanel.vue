@@ -213,6 +213,8 @@ export default {
       let channelType = this.channelType || this.inbox?.channel_type;
       if (this.isAnInstagramChannel || this.isInstagramDM) {
         channelType = INBOX_TYPES.INSTAGRAM;
+      } else if (channelType === INBOX_TYPES.WHATSMEOW) {
+        channelType = INBOX_TYPES.WHATSAPP;
       }
 
       return getAllowedFileTypesByChannel({

@@ -1,3 +1,6 @@
+require 'base64'
+require 'stringio'
+
 # rubocop:disable Metrics/ClassLength
 class Whatsmeow::IncomingMessageService
   pattr_initialize [:inbox!, :params!]
@@ -9,7 +12,7 @@ class Whatsmeow::IncomingMessageService
     set_contact
     set_message_sender
     set_conversation
-    @message = @conversation.messages.create!(
+    @message = @conversation.messages.build(
       content: params[:content],
       account_id: @inbox.account_id,
       inbox_id: @inbox.id,
@@ -19,6 +22,8 @@ class Whatsmeow::IncomingMessageService
       source_id: params[:message_id],
       content_attributes: message_content_attributes
     )
+    attach_files
+    @message.save!
   end
 
   private
@@ -276,6 +281,47 @@ class Whatsmeow::IncomingMessageService
       participant_name: params[:participant_name],
       participant_phone: participant_phone_number
     }.compact_blank
+  end
+
+  def attach_files
+    attachment_params.each do |attachment|
+      data = Base64.decode64(attachment[:data_base64].to_s)
+      next if data.blank?
+
+      @message.attachments.new(
+        account_id: @message.account_id,
+        file_type: normalized_file_type(attachment[:file_type]),
+        file: {
+          io: StringIO.new(data),
+          filename: attachment[:file_name].presence || default_file_name(attachment[:file_type]),
+          content_type: attachment[:content_type].presence || 'application/octet-stream'
+        }
+      )
+    end
+  end
+
+  def attachment_params
+    Array(params[:attachments]).filter_map do |attachment|
+      next unless attachment.respond_to?(:with_indifferent_access)
+
+      attachment.with_indifferent_access
+    end
+  end
+
+  def normalized_file_type(file_type)
+    return file_type if Attachment.file_types.key?(file_type.to_s)
+
+    'file'
+  end
+
+  def default_file_name(file_type)
+    extension = {
+      'image' => 'jpg',
+      'audio' => 'ogg',
+      'video' => 'mp4'
+    }.fetch(file_type.to_s, 'bin')
+
+    "whatsapp-attachment.#{extension}"
   end
 
   def ignored_newsletter?

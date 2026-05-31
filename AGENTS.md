@@ -114,6 +114,8 @@ Practical checklist for any change impacting core logic or public APIs
 
 ## Active Memory / Resume Guidelines
 
+Detailed Whatsmeow fork progress is tracked in `docs/whatsmeow-progress.md`. Keep this section short and move implementation notes there when they grow.
+
 ### 🌟 Project Status
 All primary core integrations between Chatwoot Staging and the Go-based `whatsmeow-service` are implemented, deployed, and healthy.
 - **Connection indicators**: Green check / red X badges render correctly overlaying the WhatsApp icon inside `ChannelIcon.vue`.

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"strings"
@@ -51,9 +52,17 @@ type SessionRequest struct {
 }
 
 type MessageRequest struct {
-	ChannelID string `json:"channel_id" binding:"required"`
-	To        string `json:"to" binding:"required"`
-	Body      string `json:"body" binding:"required"`
+	ChannelID   string                `json:"channel_id" binding:"required"`
+	To          string                `json:"to" binding:"required"`
+	Body        string                `json:"body"`
+	Attachments []WhatsmeowAttachment `json:"attachments"`
+}
+
+type WhatsmeowAttachment struct {
+	FileName    string `json:"file_name"`
+	ContentType string `json:"content_type"`
+	FileType    string `json:"file_type"`
+	DataBase64  string `json:"data_base64"`
 }
 
 func main() {
@@ -595,6 +604,10 @@ func handleSendMessage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	if strings.TrimSpace(req.Body) == "" && len(req.Attachments) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Message body or attachment is required"})
+		return
+	}
 
 	clientsMu.RLock()
 	client, exists := clients[req.ChannelID]
@@ -612,9 +625,10 @@ func handleSendMessage(c *gin.Context) {
 		return
 	}
 
-	// Send message
-	msg := &proto.Message{
-		Conversation: &req.Body,
+	msg, err := buildOutgoingMessage(client, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 	resp, err := client.SendMessage(context.Background(), targetJID, msg)
 	if err != nil {
@@ -627,6 +641,110 @@ func handleSendMessage(c *gin.Context) {
 		"id":        resp.ID,
 		"timestamp": resp.Timestamp.Unix(),
 	})
+}
+
+func buildOutgoingMessage(client *whatsmeow.Client, req MessageRequest) (*proto.Message, error) {
+	if len(req.Attachments) > 0 {
+		return buildOutgoingMediaMessage(client, req.Body, req.Attachments[0])
+	}
+
+	return &proto.Message{
+		Conversation: stringPtr(req.Body),
+	}, nil
+}
+
+func buildOutgoingMediaMessage(client *whatsmeow.Client, caption string, attachment WhatsmeowAttachment) (*proto.Message, error) {
+	data, err := base64.StdEncoding.DecodeString(attachment.DataBase64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid attachment data")
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("attachment data is empty")
+	}
+
+	mediaType := outgoingMediaType(attachment)
+	upload, err := client.Upload(context.Background(), data, mediaType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload media: %w", err)
+	}
+
+	contentType := normalizedMIME(attachment.ContentType, fallbackMIME(attachment.FileType))
+	fileName := attachment.FileName
+	if fileName == "" {
+		fileName = defaultFileName(attachment.FileType, contentType)
+	}
+
+	switch mediaType {
+	case whatsmeow.MediaImage:
+		return &proto.Message{
+			ImageMessage: &proto.ImageMessage{
+				Caption:       optionalStringPtr(caption),
+				Mimetype:      stringPtr(contentType),
+				URL:           stringPtr(upload.URL),
+				DirectPath:    stringPtr(upload.DirectPath),
+				MediaKey:      upload.MediaKey,
+				FileEncSHA256: upload.FileEncSHA256,
+				FileSHA256:    upload.FileSHA256,
+				FileLength:    uint64Ptr(upload.FileLength),
+			},
+		}, nil
+	case whatsmeow.MediaVideo:
+		return &proto.Message{
+			VideoMessage: &proto.VideoMessage{
+				Caption:       optionalStringPtr(caption),
+				Mimetype:      stringPtr(contentType),
+				URL:           stringPtr(upload.URL),
+				DirectPath:    stringPtr(upload.DirectPath),
+				MediaKey:      upload.MediaKey,
+				FileEncSHA256: upload.FileEncSHA256,
+				FileSHA256:    upload.FileSHA256,
+				FileLength:    uint64Ptr(upload.FileLength),
+			},
+		}, nil
+	case whatsmeow.MediaAudio:
+		return &proto.Message{
+			AudioMessage: &proto.AudioMessage{
+				Mimetype:      stringPtr(contentType),
+				PTT:           boolPtr(true),
+				URL:           stringPtr(upload.URL),
+				DirectPath:    stringPtr(upload.DirectPath),
+				MediaKey:      upload.MediaKey,
+				FileEncSHA256: upload.FileEncSHA256,
+				FileSHA256:    upload.FileSHA256,
+				FileLength:    uint64Ptr(upload.FileLength),
+			},
+		}, nil
+	default:
+		return &proto.Message{
+			DocumentMessage: &proto.DocumentMessage{
+				Caption:       optionalStringPtr(caption),
+				Mimetype:      stringPtr(contentType),
+				Title:         stringPtr(fileName),
+				FileName:      stringPtr(fileName),
+				URL:           stringPtr(upload.URL),
+				DirectPath:    stringPtr(upload.DirectPath),
+				MediaKey:      upload.MediaKey,
+				FileEncSHA256: upload.FileEncSHA256,
+				FileSHA256:    upload.FileSHA256,
+				FileLength:    uint64Ptr(upload.FileLength),
+			},
+		}, nil
+	}
+}
+
+func outgoingMediaType(attachment WhatsmeowAttachment) whatsmeow.MediaType {
+	fileType := strings.ToLower(attachment.FileType)
+	contentType := strings.ToLower(attachment.ContentType)
+	switch {
+	case fileType == "image" || strings.HasPrefix(contentType, "image/"):
+		return whatsmeow.MediaImage
+	case fileType == "video" || strings.HasPrefix(contentType, "video/"):
+		return whatsmeow.MediaVideo
+	case fileType == "audio" || strings.HasPrefix(contentType, "audio/"):
+		return whatsmeow.MediaAudio
+	default:
+		return whatsmeow.MediaDocument
+	}
 }
 
 func parseJID(phone string) (types.JID, bool) {
@@ -807,8 +925,12 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 	}
 
 	messageText := extractMessageText(messageEvent.Message)
-	if messageText == "" {
-		return
+	attachments := extractMediaAttachments(client, messageEvent.Message)
+	if messageText == "" && len(attachments) == 0 {
+		if !hasMediaMessage(messageEvent.Message) {
+			return
+		}
+		messageText = "Media attachment could not be downloaded."
 	}
 
 	isGroup := isGroupMessage(messageEvent.Info)
@@ -862,6 +984,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		"from_me":             messageEvent.Info.IsFromMe,
 		"message_id":          messageEvent.Info.ID,
 		"content":             messageText,
+		"attachments":         attachments,
 		"timestamp":           messageEvent.Info.Timestamp.Unix(),
 	}
 	if isGroup {
@@ -911,6 +1034,156 @@ func extractMessageText(message *proto.Message) string {
 		return extractMessageText(inner)
 	}
 	return ""
+}
+
+func extractMediaAttachments(client *whatsmeow.Client, message *proto.Message) []WhatsmeowAttachment {
+	message = unwrapMessage(message)
+	if message == nil {
+		return nil
+	}
+
+	if image := message.GetImageMessage(); image != nil {
+		return downloadAttachment(client, image, "image", image.GetMimetype(), defaultFileName("image", image.GetMimetype()))
+	}
+	if video := message.GetVideoMessage(); video != nil {
+		return downloadAttachment(client, video, "video", video.GetMimetype(), defaultFileName("video", video.GetMimetype()))
+	}
+	if audio := message.GetAudioMessage(); audio != nil {
+		return downloadAttachment(client, audio, "audio", audio.GetMimetype(), defaultFileName("audio", audio.GetMimetype()))
+	}
+	if document := message.GetDocumentMessage(); document != nil {
+		fileName := document.GetFileName()
+		if fileName == "" {
+			fileName = document.GetTitle()
+		}
+		if fileName == "" {
+			fileName = defaultFileName("file", document.GetMimetype())
+		}
+		return downloadAttachment(client, document, "file", document.GetMimetype(), fileName)
+	}
+	if sticker := message.GetStickerMessage(); sticker != nil {
+		return downloadAttachment(client, sticker, "image", normalizedMIME(sticker.GetMimetype(), "image/webp"), defaultFileName("sticker", "image/webp"))
+	}
+
+	return nil
+}
+
+func hasMediaMessage(message *proto.Message) bool {
+	message = unwrapMessage(message)
+	return message != nil && (message.GetImageMessage() != nil || message.GetVideoMessage() != nil ||
+		message.GetAudioMessage() != nil || message.GetDocumentMessage() != nil || message.GetStickerMessage() != nil)
+}
+
+func unwrapMessage(message *proto.Message) *proto.Message {
+	if message == nil {
+		return nil
+	}
+	if inner := message.GetEphemeralMessage().GetMessage(); inner != nil {
+		return unwrapMessage(inner)
+	}
+	if inner := message.GetViewOnceMessage().GetMessage(); inner != nil {
+		return unwrapMessage(inner)
+	}
+	if inner := message.GetViewOnceMessageV2().GetMessage(); inner != nil {
+		return unwrapMessage(inner)
+	}
+	if inner := message.GetViewOnceMessageV2Extension().GetMessage(); inner != nil {
+		return unwrapMessage(inner)
+	}
+	if inner := message.GetDocumentWithCaptionMessage().GetMessage(); inner != nil {
+		return unwrapMessage(inner)
+	}
+	return message
+}
+
+func downloadAttachment(client *whatsmeow.Client, media whatsmeow.DownloadableMessage, fileType string, contentType string, fileName string) []WhatsmeowAttachment {
+	data, err := client.Download(context.Background(), media)
+	if err != nil {
+		log.Printf("Failed to download incoming %s attachment: %v", fileType, err)
+		return nil
+	}
+
+	contentType = normalizedMIME(contentType, fallbackMIME(fileType))
+	if fileName == "" {
+		fileName = defaultFileName(fileType, contentType)
+	}
+
+	return []WhatsmeowAttachment{{
+		FileName:    fileName,
+		ContentType: contentType,
+		FileType:    fileType,
+		DataBase64:  base64.StdEncoding.EncodeToString(data),
+	}}
+}
+
+func fallbackMIME(fileType string) string {
+	switch strings.ToLower(fileType) {
+	case "sticker":
+		return "image/webp"
+	case "image":
+		return "image/jpeg"
+	case "audio":
+		return "audio/ogg"
+	case "video":
+		return "video/mp4"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+func normalizedMIME(contentType string, fallback string) string {
+	contentType = strings.TrimSpace(strings.Split(contentType, ";")[0])
+	if contentType == "" {
+		return fallback
+	}
+	return contentType
+}
+
+func defaultFileName(fileType string, contentType string) string {
+	extension := extensionForMIME(contentType)
+	if extension == "" {
+		switch strings.ToLower(fileType) {
+		case "image":
+			extension = ".jpg"
+		case "sticker":
+			extension = ".webp"
+		case "audio":
+			extension = ".ogg"
+		case "video":
+			extension = ".mp4"
+		default:
+			extension = ".bin"
+		}
+	}
+	return fmt.Sprintf("whatsapp-%s-%d%s", strings.ToLower(fileType), time.Now().UnixNano(), extension)
+}
+
+func extensionForMIME(contentType string) string {
+	contentType = normalizedMIME(contentType, "")
+	extensions, err := mime.ExtensionsByType(contentType)
+	if err != nil || len(extensions) == 0 {
+		return ""
+	}
+	return extensions[0]
+}
+
+func stringPtr(value string) *string {
+	return &value
+}
+
+func optionalStringPtr(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+func uint64Ptr(value uint64) *uint64 {
+	return &value
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }
 
 func preferredContactJID(info types.MessageInfo) types.JID {
@@ -1056,7 +1329,7 @@ func sendWebhookNotification(accountID string, channelID string, payload map[str
 	}
 
 	go func() {
-		client := &http.Client{Timeout: 10 * time.Second}
+		client := &http.Client{Timeout: 60 * time.Second}
 		res, err := client.Post(url, "application/json", bytes.NewBuffer(body))
 		if err != nil {
 			log.Printf("Failed to send webhook callback: %v", err)

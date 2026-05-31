@@ -1,3 +1,5 @@
+require 'base64'
+
 class Whatsmeow::SendOnWhatsmeowService
   pattr_initialize [:message!]
 
@@ -27,8 +29,22 @@ class Whatsmeow::SendOnWhatsmeowService
     {
       channel_id: inbox.id.to_s,
       to: target_identifier,
-      body: message.content
+      body: message.content.to_s,
+      attachments: attachments_payload
     }
+  end
+
+  def attachments_payload
+    message.attachments.filter_map do |attachment|
+      next unless attachment.file.attached?
+
+      {
+        file_name: attachment.file.filename.to_s,
+        content_type: attachment.file.content_type,
+        file_type: attachment.file_type,
+        data_base64: Base64.strict_encode64(attachment.file.download)
+      }
+    end
   end
 
   def inbox
