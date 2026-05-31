@@ -112,7 +112,7 @@ class Whatsmeow::IncomingMessageService
 
   def contact_attributes
     {
-      name: params[:sender_name].presence || phone_number || sender_identifier,
+      name: phone_number || params[:sender_name].presence || sender_identifier,
       phone_number: phone_number
     }
   end
