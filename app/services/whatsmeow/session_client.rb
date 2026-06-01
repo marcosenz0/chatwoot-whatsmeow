@@ -1,6 +1,7 @@
 class Whatsmeow::SessionClient
   class Error < StandardError; end
 
+  DEFAULT_TIMEOUT = 60
   DEFAULT_SERVICE_URLS = [
     'http://whatsmeow-staging:8080',
     'http://marcos-apps_whatsmeow-staging:8080'
@@ -51,8 +52,12 @@ class Whatsmeow::SessionClient
       "#{service_url}#{path}",
       body: body&.to_json,
       headers: { 'Content-Type' => 'application/json' },
-      timeout: 10
+      timeout: timeout
     )
+  end
+
+  def self.timeout
+    ENV.fetch('WHATSMEOW_SERVICE_TIMEOUT', DEFAULT_TIMEOUT).to_i
   end
 
   def self.parse_response(response)

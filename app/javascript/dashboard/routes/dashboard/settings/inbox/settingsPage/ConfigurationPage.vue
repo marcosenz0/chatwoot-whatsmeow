@@ -359,6 +359,10 @@ export default {
     <ImapSettings :inbox="inbox" />
     <SmtpSettings v-if="inbox.imap_enabled" :inbox="inbox" />
   </div>
+  <div v-else-if="isAWhatsmeowChannel">
+    <WhatsmeowConfigurationPage :inbox="inbox" />
+  </div>
+
   <div v-else-if="isAWhatsAppChannel && !isATwilioChannel">
     <div v-if="inbox.provider_config">
       <!-- Embedded Signup Section -->
@@ -443,10 +447,6 @@ export default {
       :inbox="inbox"
       class="hidden"
     />
-  </div>
-
-  <div v-else-if="isAWhatsmeowChannel">
-    <WhatsmeowConfigurationPage :inbox="inbox" />
   </div>
 </template>
 

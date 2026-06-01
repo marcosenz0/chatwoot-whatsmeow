@@ -27,6 +27,8 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
+const sendMessageTimeout = 60 * time.Second
+
 // Active clients map
 var (
 	clients             = make(map[string]*whatsmeow.Client)
@@ -625,12 +627,15 @@ func handleSendMessage(c *gin.Context) {
 		return
 	}
 
-	msg, err := buildOutgoingMessage(client, req)
+	sendCtx, cancelSend := context.WithTimeout(context.Background(), sendMessageTimeout)
+	defer cancelSend()
+
+	msg, err := buildOutgoingMessage(sendCtx, client, req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	resp, err := client.SendMessage(context.Background(), targetJID, msg)
+	resp, err := client.SendMessage(sendCtx, targetJID, msg, whatsmeow.SendRequestExtra{Timeout: sendMessageTimeout - 5*time.Second})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to send message: %v", err)})
 		return
@@ -643,9 +648,9 @@ func handleSendMessage(c *gin.Context) {
 	})
 }
 
-func buildOutgoingMessage(client *whatsmeow.Client, req MessageRequest) (*proto.Message, error) {
+func buildOutgoingMessage(ctx context.Context, client *whatsmeow.Client, req MessageRequest) (*proto.Message, error) {
 	if len(req.Attachments) > 0 {
-		return buildOutgoingMediaMessage(client, req.Body, req.Attachments[0])
+		return buildOutgoingMediaMessage(ctx, client, req.Body, req.Attachments[0])
 	}
 
 	return &proto.Message{
@@ -653,7 +658,7 @@ func buildOutgoingMessage(client *whatsmeow.Client, req MessageRequest) (*proto.
 	}, nil
 }
 
-func buildOutgoingMediaMessage(client *whatsmeow.Client, caption string, attachment WhatsmeowAttachment) (*proto.Message, error) {
+func buildOutgoingMediaMessage(ctx context.Context, client *whatsmeow.Client, caption string, attachment WhatsmeowAttachment) (*proto.Message, error) {
 	data, err := base64.StdEncoding.DecodeString(attachment.DataBase64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid attachment data")
@@ -663,7 +668,7 @@ func buildOutgoingMediaMessage(client *whatsmeow.Client, caption string, attachm
 	}
 
 	mediaType := outgoingMediaType(attachment)
-	upload, err := client.Upload(context.Background(), data, mediaType)
+	upload, err := client.Upload(ctx, data, mediaType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload media: %w", err)
 	}
@@ -705,7 +710,7 @@ func buildOutgoingMediaMessage(client *whatsmeow.Client, caption string, attachm
 		return &proto.Message{
 			AudioMessage: &proto.AudioMessage{
 				Mimetype:      stringPtr(contentType),
-				PTT:           boolPtr(true),
+				PTT:           optionalBoolPtr(shouldSendAsPushToTalk(contentType)),
 				URL:           stringPtr(upload.URL),
 				DirectPath:    stringPtr(upload.DirectPath),
 				MediaKey:      upload.MediaKey,
@@ -745,6 +750,11 @@ func outgoingMediaType(attachment WhatsmeowAttachment) whatsmeow.MediaType {
 	default:
 		return whatsmeow.MediaDocument
 	}
+}
+
+func shouldSendAsPushToTalk(contentType string) bool {
+	contentType = strings.ToLower(normalizedMIME(contentType, ""))
+	return strings.Contains(contentType, "audio/ogg") || strings.Contains(contentType, "opus")
 }
 
 func parseJID(phone string) (types.JID, bool) {
@@ -1182,7 +1192,10 @@ func uint64Ptr(value uint64) *uint64 {
 	return &value
 }
 
-func boolPtr(value bool) *bool {
+func optionalBoolPtr(value bool) *bool {
+	if !value {
+		return nil
+	}
 	return &value
 }
 
