@@ -459,7 +459,7 @@
         },
         "PHONE_NUMBER": {
           "LABEL": "Phone number",
-          "PLACEHOLDER": "+15551234567",
+          "PLACEHOLDER": "+5511999999999",
           "ERROR": "Please enter the phone number with country code"
         },
         "SUBMIT_BUTTON": "Generate connection QR code",

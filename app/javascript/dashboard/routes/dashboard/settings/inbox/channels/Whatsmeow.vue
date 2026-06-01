@@ -91,7 +91,9 @@ const startWhatsmeowSession = async id => {
   isStartingSession.value = true;
 
   try {
-    const { data } = await InboxesAPI.createWhatsmeowSession(id);
+    const { data } = await InboxesAPI.createWhatsmeowSession(id, {
+      force_new: true,
+    });
     applySessionPayload(data);
 
     if (!isPaired.value) {

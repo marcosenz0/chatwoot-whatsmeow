@@ -13,13 +13,14 @@ class Whatsmeow::SessionClient
     @inbox = inbox
   end
 
-  def create
+  def create(force_new: false)
     request(
       :post,
       '/sessions',
       body: {
         channel_id: @inbox.id.to_s,
-        account_id: @inbox.account_id.to_s
+        account_id: @inbox.account_id.to_s,
+        force_new: force_new
       }
     )
   end

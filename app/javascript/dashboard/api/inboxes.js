@@ -57,8 +57,12 @@ class Inboxes extends CacheEnabledApiClient {
     return axios.get(`${this.url}/${inboxId}/whatsmeow_status`, config);
   }
 
-  createWhatsmeowSession(inboxId, config = {}) {
-    return axios.post(`${this.url}/${inboxId}/whatsmeow_session`, {}, config);
+  createWhatsmeowSession(inboxId, payload = {}, config = {}) {
+    return axios.post(
+      `${this.url}/${inboxId}/whatsmeow_session`,
+      payload,
+      config
+    );
   }
 
   deleteWhatsmeowSession(inboxId, config = {}) {

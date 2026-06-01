@@ -175,9 +175,11 @@ const generateQRCode = async () => {
   qrCodeUrl.value = '';
 
   try {
-    const { data } = await InboxesAPI.createWhatsmeowSession(props.inbox.id, {
-      timeout: STATUS_REQUEST_TIMEOUT,
-    });
+    const { data } = await InboxesAPI.createWhatsmeowSession(
+      props.inbox.id,
+      {},
+      { timeout: STATUS_REQUEST_TIMEOUT }
+    );
     applySessionPayload(data);
 
     if (!isConnected.value) {

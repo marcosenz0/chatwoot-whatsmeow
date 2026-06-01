@@ -75,7 +75,9 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
   end
 
   def whatsmeow_session
-    handle_whatsmeow_session(&:create)
+    handle_whatsmeow_session do |client|
+      client.create(force_new: force_new_whatsmeow_session?)
+    end
   end
 
   def whatsmeow_status
@@ -228,6 +230,10 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
 
   def whatsmeow_direct_conversation_params
     params.permit(:participant_jid, :participant_lid_jid, :participant_phone, :participant_name, :profile_picture_url)
+  end
+
+  def force_new_whatsmeow_session?
+    ActiveModel::Type::Boolean.new.cast(params[:force_new])
   end
 
   def channel_type_from_params

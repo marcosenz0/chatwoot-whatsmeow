@@ -447,12 +447,48 @@
           "ERROR_MESSAGE": "Não foi possível salvar o canal de e-mail"
         }
       },
+      "WHATSMEOW": {
+        "TITLE": "WhatsApp Direto",
+        "DESC": "Conecte um celular WhatsApp diretamente por QR Code, sem gateway externo.",
+        "CHANNEL_NAME": {
+          "LABEL": "Nome da caixa de entrada",
+          "PLACEHOLDER": "WhatsApp Atendimento",
+          "ERROR": "Informe um nome para a caixa de entrada"
+        },
+        "PHONE_NUMBER": {
+          "LABEL": "Número do WhatsApp",
+          "PLACEHOLDER": "+5511999999999",
+          "ERROR": "Informe o número com DDI e DDD. Exemplo: +5511999999999"
+        },
+        "SUBMIT_BUTTON": "Gerar QR Code de conexão",
+        "PAIRING": {
+          "TITLE": "Escaneie o QR Code",
+          "DESCRIPTION": "Abra o WhatsApp no celular, acesse Aparelhos conectados e escaneie este código.",
+          "IMAGE_ALT": "QR Code de pareamento do WhatsApp",
+          "WAITING": "Aguardando o telefone concluir o pareamento...",
+          "REFRESH": "Atualizar QR Code"
+        },
+        "SUCCESS": {
+          "TITLE": "Aparelho conectado",
+          "DESCRIPTION": "Seu WhatsApp foi conectado. Redirecionando para a atribuição de agentes..."
+        },
+        "API": {
+          "CONNECTED": "Aparelho conectado com sucesso.",
+          "ERROR_MESSAGE": "Não foi possível criar a caixa de entrada do WhatsApp Direto.",
+          "SERVICE_ERROR": "Não foi possível conectar ao serviço do WhatsApp Direto.",
+          "STATUS_ERROR": "Não foi possível atualizar o status da conexão do WhatsApp Direto."
+        }
+      },
       "AUTH": {
         "TITLE": "Escolha um canal",
         "DESC": "O Chatwoot suporta widgets de chats ao vivo, Facebook Messenger, perfis do Twitter, WhatsApp, E-mails, etc., como canais. Se você quiser criar um canal personalizado, você pode criá-lo usando o canal API. Para começar, escolha um dos canais abaixo.",
         "TITLE_NEXT": "Concluir a configuração",
         "TITLE_FINISH": "Então!",
         "CHANNEL": {
+          "WHATSMEOW": {
+            "TITLE": "WhatsApp Direto",
+            "DESCRIPTION": "Conecte um celular WhatsApp escaneando um QR Code"
+          },
           "WEBSITE": {
             "TITLE": "Site",
             "DESCRIPTION": "Criar um widget de chat ao vivo"
@@ -496,6 +532,10 @@
           "VOICE": {
             "TITLE": "Voz",
             "DESCRIPTION": "Integre com o Twilio Voice"
+          },
+          "WHATSAPP_CALL": {
+            "TITLE": "Chamada WhatsApp",
+            "DESCRIPTION": "Receba chamadas de voz no seu número do WhatsApp"
           }
         }
       },
@@ -1219,6 +1259,7 @@
       "TWITTER_PROFILE": "Twitter",
       "TWILIO_SMS": "SMS Twilio",
       "WHATSAPP": "WhatsApp",
+      "WHATSMEOW": "WhatsApp Direto",
       "SMS": "SMS",
       "EMAIL": "E-mail",
       "TELEGRAM": "Telegram",

@@ -66,6 +66,13 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Group member profile pictures are fetched live only for smaller groups; larger groups use cached pictures to avoid timing out while listing hundreds of members.
 - Incoming stickers still try the full media download first. If WhatsApp refuses or expires the download but includes a PNG thumbnail, the service now sends that thumbnail to Chatwoot as an image attachment instead of dropping the sticker entirely.
 
+## June 2026 QR Pairing / Inbox Creation Fix
+
+- New Whatsmeow inbox creation sends `force_new` to the Rails session endpoint, and Rails forwards it to `whatsmeow-service`.
+- `whatsmeow-service` no longer uses `GetFirstDevice()` when starting a QR pairing session. A newly created inbox gets a fresh device store, so it cannot inherit a previously paired phone from another inbox.
+- The session creation endpoint now reports `connected` only when whatsmeow is both connected and logged in. A websocket connection waiting for QR scan returns `pairing` or `connecting` instead of prematurely advancing the Chatwoot setup wizard.
+- The Whatsmeow channel card is first in the inbox channel picker, and the pt-BR inbox creation strings now include the WhatsApp Direct form, QR state, Brazilian phone placeholder, and channel labels.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

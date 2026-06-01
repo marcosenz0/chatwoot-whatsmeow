@@ -58,6 +58,7 @@ type cacheEntry struct {
 type SessionRequest struct {
 	ChannelID string `json:"channel_id" binding:"required"`
 	AccountID string `json:"account_id" binding:"required"`
+	ForceNew  bool   `json:"force_new"`
 }
 
 type MessageRequest struct {
@@ -402,13 +403,12 @@ func handleCreateSession(c *gin.Context) {
 		return
 	}
 
-	// Check if already active
 	clientsMu.RLock()
 	client, exists := clients[req.ChannelID]
 	clientsMu.RUnlock()
 
-	if exists {
-		if client.IsConnected() {
+	if exists && !req.ForceNew {
+		if client.IsConnected() && client.IsLoggedIn() {
 			c.JSON(http.StatusOK, gin.H{
 				"status":     "connected",
 				"channel_id": req.ChannelID,
@@ -416,17 +416,39 @@ func handleCreateSession(c *gin.Context) {
 			})
 			return
 		}
+
+		if client.IsConnected() {
+			qrCodesMu.RLock()
+			qrCodeBase64 := qrCodes[req.ChannelID]
+			qrCodesMu.RUnlock()
+
+			payload := gin.H{
+				"status":     "connecting",
+				"channel_id": req.ChannelID,
+			}
+			if qrCodeBase64 != "" {
+				payload["status"] = "pairing"
+				payload["qr_code"] = qrCodeBase64
+			}
+			c.JSON(http.StatusOK, payload)
+			return
+		}
 	}
 
-	// Create new client store
-	deviceStore, err := dbContainer.GetFirstDevice(context.Background())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get device store: %v", err)})
-		return
+	if req.ForceNew {
+		clientsMu.Lock()
+		if exists && !client.IsLoggedIn() {
+			client.Disconnect()
+		}
+		delete(clients, req.ChannelID)
+		clientsMu.Unlock()
+
+		qrCodesMu.Lock()
+		delete(qrCodes, req.ChannelID)
+		qrCodesMu.Unlock()
 	}
-	if deviceStore == nil {
-		deviceStore = dbContainer.NewDevice()
-	}
+
+	deviceStore := dbContainer.NewDevice()
 
 	client = whatsmeow.NewClient(deviceStore, waLog.Stdout("WhatsmeowClient", "DEBUG", true))
 	clientsMu.Lock()
@@ -505,7 +527,7 @@ func handleCreateSession(c *gin.Context) {
 		})
 	} else {
 		// Restore connection
-		err = client.Connect()
+		err := client.Connect()
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to connect: %v", err)})
 			updateChannelStatus(req.ChannelID, "disconnected")

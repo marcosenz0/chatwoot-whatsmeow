@@ -24,6 +24,12 @@ const channelList = computed(() => {
   const { apiChannelName } = globalConfig.value;
   const channels = [
     {
+      key: 'whatsmeow',
+      title: t('INBOX_MGMT.ADD.AUTH.CHANNEL.WHATSMEOW.TITLE'),
+      description: t('INBOX_MGMT.ADD.AUTH.CHANNEL.WHATSMEOW.DESCRIPTION'),
+      icon: 'i-woot-whatsapp',
+    },
+    {
       key: 'website',
       title: t('INBOX_MGMT.ADD.AUTH.CHANNEL.WEBSITE.TITLE'),
       description: t('INBOX_MGMT.ADD.AUTH.CHANNEL.WEBSITE.DESCRIPTION'),
@@ -99,13 +105,6 @@ const channelList = computed(() => {
     key: 'whatsapp_call',
     title: t('INBOX_MGMT.ADD.AUTH.CHANNEL.WHATSAPP_CALL.TITLE'),
     description: t('INBOX_MGMT.ADD.AUTH.CHANNEL.WHATSAPP_CALL.DESCRIPTION'),
-    icon: 'i-woot-whatsapp',
-  });
-
-  channels.push({
-    key: 'whatsmeow',
-    title: t('INBOX_MGMT.ADD.AUTH.CHANNEL.WHATSMEOW.TITLE'),
-    description: t('INBOX_MGMT.ADD.AUTH.CHANNEL.WHATSMEOW.DESCRIPTION'),
     icon: 'i-woot-whatsapp',
   });
 
