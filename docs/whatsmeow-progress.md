@@ -37,7 +37,7 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Outgoing Chatwoot messages were failing with `Net::ReadTimeout` while waiting for `whatsmeow-service`; the Rails session client timeout was increased and can be overridden with `WHATSMEOW_SERVICE_TIMEOUT`.
 - The Go send endpoint now wraps upload/send work in a 60 second context so slow WhatsApp acknowledgements do not leave HTTP requests hanging indefinitely.
 - Chatwoot-recorded MP3 audio is no longer sent as WhatsApp push-to-talk. Only OGG/Opus audio is marked as PTT; MP3 is sent as normal audio so WhatsApp clients can play it correctly.
-- Staging validation after deploy: Chatwoot returned HTTP 200, Whatsmeow API returned healthy, inbox 12 returned connected, and a real API-created outbound message in conversation 13 reached `delivered` with no external error.
+- Staging validation after deploy: Chatwoot returned HTTP 200, Whatsmeow API returned healthy, inbox 12 returned connected, a real API-created outbound text message in conversation 13 reached `delivered` with no external error, and a real MP3 audio attachment message also reached `delivered` with no external error.
 
 ## Product Decisions
 
