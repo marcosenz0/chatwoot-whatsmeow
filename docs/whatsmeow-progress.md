@@ -15,13 +15,21 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Groups are represented as one Chatwoot conversation per WhatsApp group JID, with the group participant stored on each message through `content_attributes`.
 - Contact and group profile pictures are fetched from WhatsApp and synced into Chatwoot contacts when available.
 
-## Latest Fixes In Progress
+## Latest Fixes Implemented
 
 - Incoming WhatsApp media should no longer be discarded when there is no text caption.
 - Stickers, images, videos, audio, and documents are downloaded by `whatsmeow-service`, sent to Rails as base64 attachments, and saved as real Chatwoot `Attachment` records.
 - Outgoing Chatwoot attachments are sent from Rails to `whatsmeow-service`, uploaded to WhatsApp, and dispatched as media messages.
 - The conversation composer treats `Channel::Whatsmeow` as WhatsApp-compatible, so the official file upload and audio recorder controls can appear.
 - The missing message signature warning is hidden for Whatsmeow conversations, since the operator does not want to configure a profile signature for this channel.
+
+## Latest Staging Validation
+
+- Chatwoot staging returned HTTP 200.
+- Whatsmeow API health returned healthy.
+- Inbox 12 returned Whatsmeow status connected.
+- A synthetic media-only Whatsmeow webhook created a Chatwoot message with one image attachment, proving that non-text media payloads are no longer dropped before Rails.
+- The synthetic validation conversation was resolved after the check to avoid leaving a test conversation open.
 
 ## Product Decisions
 
