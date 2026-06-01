@@ -75,6 +75,7 @@ class Whatsmeow::IncomingMessageService
     [
       participant_phone_source_id,
       params[:participant_jid],
+      params[:participant_lid_jid],
       params[:sender_alt]
     ].compact_blank.reject { |source_id| group_source(source_id) }.uniq
   end
@@ -86,7 +87,8 @@ class Whatsmeow::IncomingMessageService
       params[:chat],
       params[:recipient_alt],
       params[:group_jid],
-      params[:participant_jid]
+      params[:participant_jid],
+      params[:participant_lid_jid]
     ].compact_blank.uniq
   end
 
@@ -256,8 +258,11 @@ class Whatsmeow::IncomingMessageService
       name: params[:participant_name].presence || participant_phone_number || params[:participant_jid].presence || params[:sender].presence,
       phone_number: participant_phone_number,
       additional_attributes: {
-        whatsmeow_group_participant: true
-      }
+        whatsmeow_group_participant: true,
+        whatsmeow_participant_jid: params[:participant_jid],
+        whatsmeow_participant_lid_jid: params[:participant_lid_jid],
+        whatsmeow_participant_phone: participant_phone_number
+      }.compact_blank
     }
   end
 
@@ -332,6 +337,7 @@ class Whatsmeow::IncomingMessageService
       group_jid: group_jid,
       group_name: params[:group_name],
       participant_jid: params[:participant_jid],
+      participant_lid_jid: params[:participant_lid_jid],
       participant_name: params[:participant_name],
       participant_phone: participant_phone_number
     }.compact_blank

@@ -58,6 +58,13 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - `whatsmeow-service` exposes group members for a connected session through `GetGroupInfo`, sorted with owners/admins first, then saved contacts, then the remaining members by name.
 - The contact sidebar shows a group members button for Whatsmeow group contacts. The modal lists members with avatars, total member/admin counts, concise owner/admin badges, search, refresh, and a private-message action.
 
+## June 2026 Group Member Polish / Sticker Fallback
+
+- Group member actions now carry the participant LID JID when WhatsApp provides one. Rails stores that alternate JID on the direct contact and `SendOnWhatsmeowService` can retry a 403 send against the alternate participant JID instead of only the phone JID.
+- The group members button no longer depends only on contact-level attributes. It can infer the Whatsmeow group JID from the selected conversation's recent message attributes, which keeps the button visible across group conversations whose contact panel payload is stale.
+- The group members modal resets its state when switching groups, keeps the refresh control away from the modal close button, and uses logical input padding so the search icon does not overlap the placeholder.
+- Incoming stickers still try the full media download first. If WhatsApp refuses or expires the download but includes a PNG thumbnail, the service now sends that thumbnail to Chatwoot as an image attachment instead of dropping the sticker entirely.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

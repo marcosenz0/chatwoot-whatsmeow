@@ -102,14 +102,56 @@ export default {
         telegram,
       };
     },
+    groupMessageAttributes() {
+      const messages = this.currentChat?.messages || [];
+      const lastMessage =
+        this.currentChat?.last_non_activity_message ||
+        this.currentChat?.lastNonActivityMessage ||
+        {};
+      const contentAttributeList = [
+        lastMessage.content_attributes || lastMessage.contentAttributes || {},
+        ...messages
+          .slice()
+          .reverse()
+          .map(
+            message =>
+              message.content_attributes || message.contentAttributes || {}
+          ),
+      ];
+
+      return (
+        contentAttributeList.find(
+          attributes =>
+            attributes.whatsmeow_group ||
+            attributes.whatsmeowGroup ||
+            attributes.group_jid ||
+            attributes.groupJid
+        ) || {}
+      );
+    },
     groupJid() {
       const senderAttributes =
         this.currentChat?.meta?.sender?.additional_attributes || {};
+      const chatAttributes = this.currentChat?.additional_attributes || {};
+      const groupMessageAttributes = this.groupMessageAttributes;
 
       return (
         this.additionalAttributes.whatsmeow_group_jid ||
-        this.currentChat?.additional_attributes?.whatsmeow_group_jid ||
+        this.additionalAttributes.whatsmeowGroupJid ||
+        chatAttributes.whatsmeow_group_jid ||
+        chatAttributes.whatsmeowGroupJid ||
         senderAttributes.whatsmeow_group_jid ||
+        senderAttributes.whatsmeowGroupJid ||
+        groupMessageAttributes.group_jid ||
+        groupMessageAttributes.groupJid ||
+        ''
+      );
+    },
+    groupName() {
+      return (
+        this.contact.name ||
+        this.groupMessageAttributes.group_name ||
+        this.groupMessageAttributes.groupName ||
         ''
       );
     },
@@ -117,9 +159,16 @@ export default {
       return Number(this.currentChat?.inbox_id || this.currentChat?.inboxId);
     },
     isWhatsmeowGroup() {
+      const groupMessageAttributes = this.groupMessageAttributes;
       return (
         this.channelType === 'Channel::Whatsmeow' &&
-        !!this.additionalAttributes.whatsmeow_group &&
+        !!(
+          this.additionalAttributes.whatsmeow_group ||
+          this.additionalAttributes.whatsmeowGroup ||
+          groupMessageAttributes.whatsmeow_group ||
+          groupMessageAttributes.whatsmeowGroup ||
+          this.groupJid
+        ) &&
         !!this.groupJid &&
         !!this.currentInboxId
       );
@@ -401,7 +450,7 @@ export default {
         :show="showGroupMembersModal"
         :inbox-id="currentInboxId"
         :group-jid="groupJid"
-        :group-name="contact.name"
+        :group-name="groupName"
         @close="showGroupMembersModal = false"
       />
     </div>

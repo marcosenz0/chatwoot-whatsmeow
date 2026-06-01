@@ -39,6 +39,7 @@ const normalizedMembers = computed(() =>
     phoneNumber: member.phone_number || member.phoneNumber || '',
     profilePictureUrl:
       member.profile_picture_url || member.profilePictureUrl || '',
+    lidJid: member.lid_jid || member.lidJid || '',
     isAdmin: member.is_admin || member.isAdmin || false,
     isSuperAdmin: member.is_super_admin || member.isSuperAdmin || false,
     isSavedContact: member.is_saved_contact || member.isSavedContact || false,
@@ -80,7 +81,10 @@ const subtitle = computed(() => props.groupName);
 const close = () => emit('close');
 
 const fetchMembers = async () => {
-  if (!props.show || !props.groupJid || !props.inboxId) return;
+  if (!props.show || !props.groupJid || !props.inboxId) {
+    isFetching.value = false;
+    return;
+  }
 
   isFetching.value = true;
   try {
@@ -128,9 +132,13 @@ const openPrivateConversation = async member => {
 };
 
 watch(
-  () => props.show,
-  show => {
-    if (show) fetchMembers();
+  () => [props.show, props.groupJid],
+  ([show]) => {
+    if (show) {
+      members.value = [];
+      searchQuery.value = '';
+      fetchMembers();
+    }
   }
 );
 </script>
@@ -143,7 +151,7 @@ watch(
     class="!items-start [&>div]:!top-12 [&>div]:sticky"
   >
     <div class="flex w-full flex-col gap-4 px-6 py-6">
-      <div class="flex items-start justify-between gap-3">
+      <div class="flex items-start justify-between gap-3 pr-8">
         <div class="min-w-0 flex-1">
           <h3 class="m-0 truncate text-lg font-semibold text-n-slate-12">
             {{ $t('CONVERSATION.WHATSMEOW_GROUP.MEMBERS_TITLE') }}
@@ -151,7 +159,7 @@ watch(
           <p v-if="subtitle" class="m-0 truncate text-sm text-n-slate-10">
             {{ subtitle }}
           </p>
-          <div class="mt-2 flex flex-wrap gap-2">
+          <div class="mt-2 flex flex-wrap items-center gap-2">
             <span
               class="rounded-md bg-n-alpha-2 px-2 py-1 text-xs font-medium text-n-slate-11"
             >
@@ -162,29 +170,27 @@ watch(
             >
               {{ adminCountLabel }}
             </span>
+            <NextButton
+              v-tooltip.top="$t('CONVERSATION.WHATSMEOW_GROUP.REFRESH_MEMBERS')"
+              ghost
+              slate
+              xs
+              icon="i-lucide-refresh-cw"
+              :is-loading="isFetching"
+              @click="fetchMembers"
+            />
           </div>
-        </div>
-        <div class="flex shrink-0 items-center gap-1">
-          <NextButton
-            v-tooltip.top="$t('CONVERSATION.WHATSMEOW_GROUP.REFRESH_MEMBERS')"
-            ghost
-            slate
-            sm
-            icon="i-lucide-refresh-cw"
-            :is-loading="isFetching"
-            @click="fetchMembers"
-          />
         </div>
       </div>
 
       <div class="relative">
         <span
-          class="i-lucide-search pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-n-slate-9"
+          class="i-lucide-search pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-n-slate-9"
         />
         <input
           v-model="searchQuery"
           type="search"
-          class="h-10 w-full rounded-lg border border-n-weak bg-n-alpha-2 pl-9 pr-3 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-9 focus:border-n-brand"
+          class="h-10 w-full rounded-lg border border-n-weak bg-n-alpha-2 ps-10 pe-3 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-9 focus:border-n-brand"
           :placeholder="$t('CONVERSATION.WHATSMEOW_GROUP.SEARCH_MEMBERS')"
         />
       </div>

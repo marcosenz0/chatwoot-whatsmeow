@@ -74,6 +74,7 @@ type WhatsmeowAttachment struct {
 
 type GroupMemberResponse struct {
 	JID               string `json:"jid"`
+	LIDJID            string `json:"lid_jid"`
 	Name              string `json:"name"`
 	PhoneNumber       string `json:"phone_number"`
 	DisplayName       string `json:"display_name"`
@@ -1267,10 +1268,12 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 	isGroup := isGroupMessage(messageEvent.Info)
 	contactJID := preferredContactJID(messageEvent.Info)
 	participantJID := types.JID{}
+	participantLIDJID := types.JID{}
 	groupName := ""
 	if isGroup {
 		contactJID = messageEvent.Info.Chat.ToNonAD()
 		participantJID = firstUsableJID(messageEvent.Info.SenderAlt, messageEvent.Info.Sender)
+		participantLIDJID = firstLIDJID(messageEvent.Info.SenderAlt, messageEvent.Info.Sender)
 		groupName = getGroupName(client, contactJID)
 	}
 
@@ -1325,6 +1328,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		payload["group_jid"] = jidString(contactJID)
 		payload["group_name"] = groupName
 		payload["participant_jid"] = jidString(participantJID)
+		payload["participant_lid_jid"] = jidString(participantLIDJID)
 		payload["participant_name"] = participantName
 		payload["participant_phone"] = phoneNumberFromJID(participantJID)
 		payload["participant_profile_picture_url"] = getProfilePictureURL(client, participantJID)
@@ -1395,7 +1399,11 @@ func extractMediaAttachments(client *whatsmeow.Client, message *proto.Message) [
 		return downloadAttachment(client, document, "file", document.GetMimetype(), fileName)
 	}
 	if sticker := message.GetStickerMessage(); sticker != nil {
-		return downloadAttachment(client, sticker, "image", normalizedMIME(sticker.GetMimetype(), "image/webp"), defaultFileName("sticker", "image/webp"))
+		attachments := downloadAttachment(client, sticker, "image", normalizedMIME(sticker.GetMimetype(), "image/webp"), defaultFileName("sticker", "image/webp"))
+		if len(attachments) > 0 {
+			return attachments
+		}
+		return stickerThumbnailAttachment(sticker)
 	}
 
 	return nil
@@ -1430,7 +1438,10 @@ func unwrapMessage(message *proto.Message) *proto.Message {
 }
 
 func downloadAttachment(client *whatsmeow.Client, media whatsmeow.DownloadableMessage, fileType string, contentType string, fileName string) []WhatsmeowAttachment {
-	data, err := client.Download(context.Background(), media)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	data, err := client.Download(ctx, media)
 	if err != nil {
 		log.Printf("Failed to download incoming %s attachment: %v", fileType, err)
 		return nil
@@ -1446,6 +1457,20 @@ func downloadAttachment(client *whatsmeow.Client, media whatsmeow.DownloadableMe
 		ContentType: contentType,
 		FileType:    fileType,
 		DataBase64:  base64.StdEncoding.EncodeToString(data),
+	}}
+}
+
+func stickerThumbnailAttachment(sticker *proto.StickerMessage) []WhatsmeowAttachment {
+	thumbnail := sticker.GetPngThumbnail()
+	if len(thumbnail) == 0 {
+		return nil
+	}
+
+	return []WhatsmeowAttachment{{
+		FileName:    defaultFileName("sticker", "image/png"),
+		ContentType: "image/png",
+		FileType:    "image",
+		DataBase64:  base64.StdEncoding.EncodeToString(thumbnail),
 	}}
 }
 
@@ -1562,6 +1587,15 @@ func firstUsableJID(candidates ...types.JID) types.JID {
 	return types.JID{}
 }
 
+func firstLIDJID(candidates ...types.JID) types.JID {
+	for _, jid := range candidates {
+		if jid.Server == "lid" {
+			return jid.ToNonAD()
+		}
+	}
+	return types.JID{}
+}
+
 func isPhoneJID(jid types.JID) bool {
 	return jid.Server == types.DefaultUserServer && isNumericUser(jid.User)
 }
@@ -1596,6 +1630,7 @@ func phoneNumberFromJID(jid types.JID) string {
 func buildGroupMemberResponse(client *whatsmeow.Client, participant types.GroupParticipant) GroupMemberResponse {
 	memberJID := firstUsableJID(participant.PhoneNumber, participant.JID, participant.LID)
 	phoneJID := firstUsableJID(participant.PhoneNumber, participant.JID)
+	lidJID := firstLIDJID(participant.LID, participant.JID)
 	phone := phoneNumberFromJID(phoneJID)
 	savedName, isSaved := getSavedContactDisplayName(client, memberJID)
 	if !isSaved && !phoneJID.IsEmpty() {
@@ -1610,6 +1645,7 @@ func buildGroupMemberResponse(client *whatsmeow.Client, participant types.GroupP
 
 	return GroupMemberResponse{
 		JID:               jidString(memberJID),
+		LIDJID:            jidString(lidJID),
 		Name:              name,
 		PhoneNumber:       phone,
 		DisplayName:       displayName,

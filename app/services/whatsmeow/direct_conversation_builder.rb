@@ -37,7 +37,7 @@ class Whatsmeow::DirectConversationBuilder
     attributes = {}
     attributes[:name] = display_name if should_update_name?(contact)
     attributes[:phone_number] = phone_number if phone_number.present? && contact.phone_number.blank?
-    attributes[:additional_attributes] = (contact.additional_attributes || {}).merge('whatsmeow_group_participant' => true)
+    attributes[:additional_attributes] = (contact.additional_attributes || {}).merge(participant_additional_attributes)
     contact.update!(attributes) if attributes.present?
     ::Avatar::AvatarFromUrlJob.perform_later(contact, profile_picture_url) if profile_picture_url.present? && !contact.avatar.attached?
   end
@@ -102,10 +102,17 @@ class Whatsmeow::DirectConversationBuilder
       name: display_name.presence || phone_number.presence || participant_jid,
       phone_number: phone_number,
       avatar_url: profile_picture_url,
-      additional_attributes: {
-        whatsmeow_group_participant: true
-      }
+      additional_attributes: participant_additional_attributes
     }
+  end
+
+  def participant_additional_attributes
+    {
+      whatsmeow_group_participant: true,
+      whatsmeow_participant_jid: participant_jid,
+      whatsmeow_participant_lid_jid: participant_lid_jid,
+      whatsmeow_participant_phone: phone_number
+    }.compact_blank
   end
 
   def display_name
@@ -124,6 +131,10 @@ class Whatsmeow::DirectConversationBuilder
 
   def participant_jid
     @participant_jid ||= params[:participant_jid].presence
+  end
+
+  def participant_lid_jid
+    @participant_lid_jid ||= params[:participant_lid_jid].presence
   end
 
   def profile_picture_url

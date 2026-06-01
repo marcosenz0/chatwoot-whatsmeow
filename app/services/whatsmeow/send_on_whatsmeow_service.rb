@@ -19,10 +19,24 @@ class Whatsmeow::SendOnWhatsmeowService
   end
 
   def dispatch_message
-    Rails.logger.info("Whatsmeow: Sending outgoing message to #{target_identifier} on inbox #{inbox.id} via Go API...")
+    targets = target_identifiers
 
-    result = Whatsmeow::SessionClient.request(:post, '/messages', body: payload)
-    update_source_id(result)
+    targets.each_with_index do |identifier, index|
+      @target_identifier = identifier
+      begin
+        Rails.logger.info("Whatsmeow: Sending outgoing message to #{target_identifier} on inbox #{inbox.id} via Go API...")
+
+        result = Whatsmeow::SessionClient.request(:post, '/messages', body: payload)
+        update_source_id(result)
+        return
+      rescue Whatsmeow::SessionClient::Error => e
+        raise e unless retryable_target_error?(e) && index < targets.length - 1
+
+        Rails.logger.warn(
+          "Whatsmeow: Send to #{target_identifier} failed with #{e.message}; trying alternate participant JID..."
+        )
+      end
+    end
   end
 
   def payload
@@ -57,32 +71,42 @@ class Whatsmeow::SendOnWhatsmeowService
   end
 
   def target_identifier
-    @target_identifier ||= resolve_target_identifier
+    @target_identifier ||= target_identifiers.first
   end
 
-  def resolve_target_identifier
-    return source_id if group_jid?(source_id)
+  def target_identifiers
+    @target_identifiers ||= resolve_target_identifiers
+  end
 
-    phone_identifier = target_candidates.find { |identifier| phone_identifier?(identifier, source_id) }
-    return phone_jid(phone_identifier) if phone_identifier.present?
+  def resolve_target_identifiers
+    return [source_id] if group_jid?(source_id)
 
-    deliverable_jid || missing_target!
+    targets = target_candidates.filter_map do |identifier|
+      phone_jid(identifier) if phone_identifier?(identifier, source_id)
+    end
+    targets += target_candidates.select { |identifier| deliverable_jid?(identifier) }
+    targets = targets.compact_blank.uniq
+    return targets if targets.present?
+
+    missing_target!
   end
 
   def target_candidates
+    contact = message.conversation.contact
+    additional_attributes = contact&.additional_attributes || {}
+
     [
-      message.conversation.contact&.phone_number,
+      additional_attributes['whatsmeow_participant_jid'],
+      contact&.phone_number,
+      additional_attributes['whatsmeow_participant_phone'],
       source_id,
-      message.conversation.contact&.name
+      additional_attributes['whatsmeow_participant_lid_jid'],
+      contact&.name
     ].compact_blank
   end
 
   def source_id
     @source_id ||= message.conversation.contact_inbox&.source_id
-  end
-
-  def deliverable_jid
-    target_candidates.find { |identifier| deliverable_jid?(identifier) }
   end
 
   def phone_identifier?(identifier, source_id = nil)
@@ -125,6 +149,10 @@ class Whatsmeow::SendOnWhatsmeowService
   def update_source_id(result)
     message.update!(source_id: result['id']) if result['id'].present?
     Rails.logger.info("Whatsmeow: Message dispatched successfully. External ID: #{result['id']}")
+  end
+
+  def retryable_target_error?(error)
+    error.message.include?('server returned error 403')
   end
 
   def mark_failed(error_message)

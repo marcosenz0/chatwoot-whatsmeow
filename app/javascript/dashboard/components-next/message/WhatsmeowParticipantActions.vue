@@ -17,6 +17,8 @@ const props = defineProps({
   name: { type: String, default: '' },
   phoneNumber: { type: String, default: '' },
   jid: { type: String, default: '' },
+  lidJid: { type: String, default: '' },
+  groupJid: { type: String, default: '' },
   avatarUrl: { type: String, default: '' },
 });
 
@@ -27,8 +29,12 @@ const { t } = useI18n();
 const isOpen = ref(false);
 const isOpeningConversation = ref(false);
 
-const hasTarget = computed(() => !!(props.phoneNumber || props.jid));
-const secondaryLabel = computed(() => props.phoneNumber || props.jid);
+const hasTarget = computed(
+  () => !!(props.phoneNumber || props.jid || props.lidJid)
+);
+const secondaryLabel = computed(
+  () => props.phoneNumber || props.jid || props.lidJid
+);
 
 const closeMenu = () => {
   isOpen.value = false;
@@ -40,19 +46,56 @@ const toggleMenu = () => {
   }
 };
 
+const matchesMember = member => {
+  const phoneNumber = member.phone_number || member.phoneNumber || '';
+  const jid = member.jid || '';
+
+  return (
+    (props.phoneNumber && phoneNumber === props.phoneNumber) ||
+    (props.jid && jid === props.jid)
+  );
+};
+
+const participantWithResolvedJid = async () => {
+  const participant = {
+    jid: props.jid,
+    lidJid: props.lidJid,
+    phoneNumber: props.phoneNumber,
+    name: props.name,
+    profilePictureUrl: props.avatarUrl,
+  };
+
+  if (participant.lidJid || !props.groupJid) return participant;
+
+  try {
+    const { data } = await InboxesAPI.getWhatsmeowGroupMembers(
+      props.inboxId,
+      props.groupJid
+    );
+    const member = (data.members || []).find(matchesMember);
+    if (!member) return participant;
+
+    return {
+      ...participant,
+      jid: participant.jid || member.jid,
+      lidJid: member.lid_jid || member.lidJid || '',
+      phoneNumber:
+        participant.phoneNumber || member.phone_number || member.phoneNumber,
+    };
+  } catch {
+    return participant;
+  }
+};
+
 const openPrivateConversation = async () => {
   if (!hasTarget.value || isOpeningConversation.value) return;
 
   isOpeningConversation.value = true;
   try {
+    const participant = await participantWithResolvedJid();
     const { data } = await InboxesAPI.createWhatsmeowDirectConversation(
       props.inboxId,
-      whatsmeowDirectConversationPayload({
-        jid: props.jid,
-        phoneNumber: props.phoneNumber,
-        name: props.name,
-        profilePictureUrl: props.avatarUrl,
-      })
+      whatsmeowDirectConversationPayload(participant)
     );
     const conversationId = data.conversation_id || data.id;
     await router.push({
@@ -74,7 +117,7 @@ const openPrivateConversation = async () => {
 };
 
 const copyPhoneNumber = async () => {
-  const value = props.phoneNumber || props.jid;
+  const value = props.phoneNumber || props.jid || props.lidJid;
   if (!value) return;
 
   await navigator.clipboard.writeText(value);

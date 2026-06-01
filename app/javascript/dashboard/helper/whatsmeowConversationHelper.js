@@ -2,6 +2,12 @@ import { frontendURL, conversationUrl } from './URLHelper';
 
 export const whatsmeowDirectConversationPayload = participant => ({
   participant_jid: participant.jid || participant.participantJid || '',
+  participant_lid_jid:
+    participant.lidJid ||
+    participant.lid_jid ||
+    participant.participantLidJid ||
+    participant.participant_lid_jid ||
+    '',
   participant_phone:
     participant.phoneNumber || participant.participantPhone || '',
   participant_name: participant.name || participant.participantName || '',

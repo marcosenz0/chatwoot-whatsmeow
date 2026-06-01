@@ -227,7 +227,7 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
   end
 
   def whatsmeow_direct_conversation_params
-    params.permit(:participant_jid, :participant_phone, :participant_name, :profile_picture_url)
+    params.permit(:participant_jid, :participant_lid_jid, :participant_phone, :participant_name, :profile_picture_url)
   end
 
   def channel_type_from_params

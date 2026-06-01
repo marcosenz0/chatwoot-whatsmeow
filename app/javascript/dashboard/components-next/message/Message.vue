@@ -504,6 +504,14 @@ const groupParticipantJid = computed(
   () => props.contentAttributes?.participantJid || ''
 );
 
+const groupParticipantLidJid = computed(
+  () => props.contentAttributes?.participantLidJid || ''
+);
+
+const whatsmeowGroupJid = computed(
+  () => props.contentAttributes?.groupJid || ''
+);
+
 const shouldShowGroupParticipant = computed(() => {
   return (
     props.contentAttributes?.whatsmeowGroup &&
@@ -597,6 +605,8 @@ provideMessageContext({
               :name="groupParticipantName"
               :phone-number="groupParticipantPhone"
               :jid="groupParticipantJid"
+              :lid-jid="groupParticipantLidJid"
+              :group-jid="whatsmeowGroupJid"
               :avatar-url="avatarInfo.src"
             />
           </div>
