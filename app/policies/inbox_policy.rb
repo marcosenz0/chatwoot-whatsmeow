@@ -78,6 +78,10 @@ class InboxPolicy < ApplicationPolicy
     @account_user.administrator?
   end
 
+  def destroy_whatsmeow_session?
+    whatsmeow_session?
+  end
+
   def whatsmeow_group_members?
     true
   end
