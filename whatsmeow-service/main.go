@@ -31,7 +31,10 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
-const sendMessageTimeout = 60 * time.Second
+const (
+	sendMessageTimeout         = 60 * time.Second
+	groupMemberProfileFetchMax = 120
+)
 
 // Active clients map
 var (
@@ -610,9 +613,10 @@ func handleGetGroupMembers(c *gin.Context) {
 		return
 	}
 
+	fetchProfilePictures := len(info.Participants) <= groupMemberProfileFetchMax
 	members := make([]GroupMemberResponse, 0, len(info.Participants))
 	for _, participant := range info.Participants {
-		members = append(members, buildGroupMemberResponse(client, participant))
+		members = append(members, buildGroupMemberResponse(client, participant, fetchProfilePictures))
 	}
 	sortGroupMembers(members)
 
@@ -1627,7 +1631,7 @@ func phoneNumberFromJID(jid types.JID) string {
 	return "+" + strings.Split(jid.User, ":")[0]
 }
 
-func buildGroupMemberResponse(client *whatsmeow.Client, participant types.GroupParticipant) GroupMemberResponse {
+func buildGroupMemberResponse(client *whatsmeow.Client, participant types.GroupParticipant, fetchProfilePicture bool) GroupMemberResponse {
 	memberJID := firstUsableJID(participant.PhoneNumber, participant.JID, participant.LID)
 	phoneJID := firstUsableJID(participant.PhoneNumber, participant.JID)
 	lidJID := firstLIDJID(participant.LID, participant.JID)
@@ -1642,6 +1646,10 @@ func buildGroupMemberResponse(client *whatsmeow.Client, participant types.GroupP
 	if isPhoneJID(phoneJID) {
 		profileJID = phoneJID
 	}
+	profilePictureURL := cachedProfilePictureURL(profileJID)
+	if profilePictureURL == "" && fetchProfilePicture {
+		profilePictureURL = getProfilePictureURL(client, profileJID)
+	}
 
 	return GroupMemberResponse{
 		JID:               jidString(memberJID),
@@ -1649,7 +1657,7 @@ func buildGroupMemberResponse(client *whatsmeow.Client, participant types.GroupP
 		Name:              name,
 		PhoneNumber:       phone,
 		DisplayName:       displayName,
-		ProfilePictureURL: getProfilePictureURL(client, profileJID),
+		ProfilePictureURL: profilePictureURL,
 		IsAdmin:           participant.IsAdmin || participant.IsSuperAdmin,
 		IsSuperAdmin:      participant.IsSuperAdmin,
 		IsSavedContact:    isSaved,
@@ -1745,11 +1753,8 @@ func getProfilePictureURL(client *whatsmeow.Client, jid types.JID) string {
 	}
 
 	cacheKey := jidString(jid)
-	profilePictureMu.RLock()
-	cached, ok := profilePictureCache[cacheKey]
-	profilePictureMu.RUnlock()
-	if ok && cached.ExpiresAt.After(time.Now()) {
-		return cached.Value
+	if cachedURL, ok := getCachedProfilePicture(jid); ok {
+		return cachedURL
 	}
 
 	info, err := client.GetProfilePictureInfo(context.Background(), jid.ToNonAD(), nil)
@@ -1765,6 +1770,26 @@ func getProfilePictureURL(client *whatsmeow.Client, jid types.JID) string {
 
 	setCachedProfilePicture(cacheKey, info.URL, 24*time.Hour)
 	return info.URL
+}
+
+func cachedProfilePictureURL(jid types.JID) string {
+	cachedURL, _ := getCachedProfilePicture(jid)
+	return cachedURL
+}
+
+func getCachedProfilePicture(jid types.JID) (string, bool) {
+	if jid.IsEmpty() {
+		return "", false
+	}
+
+	cacheKey := jidString(jid)
+	profilePictureMu.RLock()
+	cached, ok := profilePictureCache[cacheKey]
+	profilePictureMu.RUnlock()
+	if ok && cached.ExpiresAt.After(time.Now()) {
+		return cached.Value, true
+	}
+	return "", false
 }
 
 func setCachedProfilePicture(key string, value string, ttl time.Duration) {
