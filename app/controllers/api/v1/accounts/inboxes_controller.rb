@@ -101,8 +101,9 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
       params: whatsmeow_direct_conversation_params
     ).perform
     render json: {
-      id: conversation.id,
-      conversation_id: conversation.id,
+      id: conversation.display_id,
+      conversation_id: conversation.display_id,
+      display_id: conversation.display_id,
       contact_id: conversation.contact_id
     }
   rescue ArgumentError => e

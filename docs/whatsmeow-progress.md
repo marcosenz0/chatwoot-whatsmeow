@@ -53,7 +53,7 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 ## June 2026 Group Member Actions
 
 - Group participant names in Whatsmeow group messages now open a compact click menu with actions to start/open a private WhatsApp conversation or copy the participant contact. The action only creates/opens the internal Chatwoot conversation; it must not send a WhatsApp message by itself.
-- Rails exposes `whatsmeow_direct_conversation` to find or create a direct conversation for a group participant inside the same Whatsmeow inbox, while keeping the group `contact_inbox_id` isolated.
+- Rails exposes `whatsmeow_direct_conversation` to find or create a direct conversation for a group participant inside the same Whatsmeow inbox, while keeping the group `contact_inbox_id` isolated. It returns the Chatwoot `display_id` because the frontend conversation route uses display IDs, not database IDs.
 - Direct conversation creation now isolates any mistakenly reused group contact before opening the private chat, clears the stale phone from the group profile, and moves empty direct conversations to the cleaned direct contact.
 - `whatsmeow-service` exposes group members for a connected session through `GetGroupInfo`, sorted with owners/admins first, then saved contacts, then the remaining members by name.
 - The contact sidebar shows a group members button for Whatsmeow group contacts. The modal lists members with avatars, total member/admin counts, concise owner/admin badges, search, refresh, and a private-message action.
