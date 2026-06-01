@@ -40,6 +40,7 @@ import LocationBubble from './bubbles/Location.vue';
 import CSATBubble from './bubbles/CSAT.vue';
 import FormBubble from './bubbles/Form.vue';
 import VoiceCallBubble from './bubbles/VoiceCall.vue';
+import WhatsmeowParticipantActions from './WhatsmeowParticipantActions.vue';
 
 import MessageError from './MessageError.vue';
 import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
@@ -494,6 +495,15 @@ const groupParticipantName = computed(
   () => props.contentAttributes?.participantName || props.sender?.name || ''
 );
 
+const groupParticipantPhone = computed(
+  () =>
+    props.contentAttributes?.participantPhone || props.sender?.phoneNumber || ''
+);
+
+const groupParticipantJid = computed(
+  () => props.contentAttributes?.participantJid || ''
+);
+
 const shouldShowGroupParticipant = computed(() => {
   return (
     props.contentAttributes?.whatsmeowGroup &&
@@ -581,12 +591,14 @@ provideMessageContext({
             'items-start': orientation === ORIENTATION.LEFT,
           }"
         >
-          <div
-            v-if="shouldShowGroupParticipant"
-            class="mb-1 flex max-w-lg items-center gap-1.5 px-1 text-xs font-medium text-n-slate-11"
-          >
-            <Avatar v-bind="avatarInfo" :size="16" />
-            <span class="truncate">{{ groupParticipantName }}</span>
+          <div v-if="shouldShowGroupParticipant" class="mb-1 max-w-lg px-1">
+            <WhatsmeowParticipantActions
+              :inbox-id="props.inboxId"
+              :name="groupParticipantName"
+              :phone-number="groupParticipantPhone"
+              :jid="groupParticipantJid"
+              :avatar-url="avatarInfo.src"
+            />
           </div>
           <Component :is="componentToRender" />
         </div>

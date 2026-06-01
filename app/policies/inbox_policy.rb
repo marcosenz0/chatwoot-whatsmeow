@@ -78,6 +78,14 @@ class InboxPolicy < ApplicationPolicy
     @account_user.administrator?
   end
 
+  def whatsmeow_group_members?
+    true
+  end
+
+  def whatsmeow_direct_conversation?
+    true
+  end
+
   def enable_whatsapp_calling?
     @account_user.administrator?
   end

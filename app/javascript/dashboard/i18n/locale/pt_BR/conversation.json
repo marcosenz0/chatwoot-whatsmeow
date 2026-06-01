@@ -430,6 +430,21 @@
     "SUBJECT": "Assunto",
     "EXPAND": "Expandir e-mail"
   },
+  "WHATSMEOW_GROUP": {
+    "OPEN_PRIVATE_CHAT": "Enviar mensagem privada",
+    "OPEN_PRIVATE_CHAT_FAILED": "Nao foi possivel abrir a conversa privada do WhatsApp.",
+    "COPY_CONTACT": "Copiar contato",
+    "COPIED": "Contato copiado para a area de transferencia",
+    "MEMBERS_TITLE": "Membros do grupo",
+    "MEMBERS_COUNT": "{count} membros",
+    "REFRESH_MEMBERS": "Atualizar membros",
+    "SEARCH_MEMBERS": "Pesquisar membros",
+    "LOADING_MEMBERS": "Carregando membros do grupo",
+    "NO_MEMBERS": "Nenhum membro do grupo encontrado.",
+    "MEMBERS_FAILED": "Nao foi possivel carregar os membros do grupo.",
+    "OWNER": "Dono",
+    "ADMIN": "Admin"
+  },
   "CONVERSATION_PARTICIPANTS": {
     "SIDEBAR_MENU_TITLE": "Participantes",
     "SIDEBAR_TITLE": "Participantes da conversa",

@@ -65,6 +65,19 @@ class Inboxes extends CacheEnabledApiClient {
     return axios.delete(`${this.url}/${inboxId}/whatsmeow_session`, config);
   }
 
+  getWhatsmeowGroupMembers(inboxId, groupJid) {
+    return axios.get(`${this.url}/${inboxId}/whatsmeow_group_members`, {
+      params: { group_jid: groupJid },
+    });
+  }
+
+  createWhatsmeowDirectConversation(inboxId, payload) {
+    return axios.post(
+      `${this.url}/${inboxId}/whatsmeow_direct_conversation`,
+      payload
+    );
+  }
+
   enableWhatsappCalling(inboxId) {
     return axios.post(`${this.url}/${inboxId}/enable_whatsapp_calling`);
   }

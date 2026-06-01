@@ -50,6 +50,13 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Outgoing text bodies are stripped before sending to WhatsApp to avoid oversized WhatsApp bubbles caused by trailing newlines.
 - Incoming display names prefer the names cached in the connected WhatsApp account through whatsmeow's contact store, then fall back to push name or phone.
 
+## June 2026 Group Member Actions
+
+- Group participant names in Whatsmeow group messages now open a compact hover menu with actions to start/open a private WhatsApp conversation or copy the participant contact.
+- Rails exposes `whatsmeow_direct_conversation` to find or create a direct conversation for a group participant inside the same Whatsmeow inbox, while keeping the group `contact_inbox_id` isolated.
+- `whatsmeow-service` exposes group members for a connected session through `GetGroupInfo`, sorted with owners/admins first, then saved contacts, then the remaining members by name.
+- The contact sidebar shows a group members button for Whatsmeow group contacts. The modal lists members with avatars, admin badges, search, refresh, and a private-message action.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

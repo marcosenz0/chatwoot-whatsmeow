@@ -17,6 +17,7 @@ import ComposeConversation from 'dashboard/components-next/NewConversation/Compo
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import VoiceCallButton from 'dashboard/components-next/Contacts/VoiceCallButton.vue';
 import InlineInput from 'dashboard/components-next/inline-input/InlineInput.vue';
+import WhatsmeowGroupMembersModal from './WhatsmeowGroupMembersModal.vue';
 
 export default {
   components: {
@@ -30,6 +31,7 @@ export default {
     ContactDeleteModal,
     VoiceCallButton,
     InlineInput,
+    WhatsmeowGroupMembersModal,
   },
   props: {
     contact: {
@@ -39,6 +41,10 @@ export default {
     showAvatar: {
       type: Boolean,
       default: true,
+    },
+    channelType: {
+      type: String,
+      default: '',
     },
   },
   emits: ['panelClose'],
@@ -51,6 +57,7 @@ export default {
   data() {
     return {
       showEditModal: false,
+      showGroupMembersModal: false,
       isEditingName: false,
       editName: '',
     };
@@ -94,6 +101,28 @@ export default {
         twitter,
         telegram,
       };
+    },
+    groupJid() {
+      const senderAttributes =
+        this.currentChat?.meta?.sender?.additional_attributes || {};
+
+      return (
+        this.additionalAttributes.whatsmeow_group_jid ||
+        this.currentChat?.additional_attributes?.whatsmeow_group_jid ||
+        senderAttributes.whatsmeow_group_jid ||
+        ''
+      );
+    },
+    currentInboxId() {
+      return Number(this.currentChat?.inbox_id || this.currentChat?.inboxId);
+    },
+    isWhatsmeowGroup() {
+      return (
+        this.channelType === 'Channel::Whatsmeow' &&
+        !!this.additionalAttributes.whatsmeow_group &&
+        !!this.groupJid &&
+        !!this.currentInboxId
+      );
     },
   },
   watch: {
@@ -335,6 +364,15 @@ export default {
             />
           </template>
         </ContactMergeModal>
+        <NextButton
+          v-if="isWhatsmeowGroup"
+          v-tooltip.top-end="$t('CONTACT_PANEL.VIEW_GROUP_MEMBERS')"
+          icon="i-lucide-users"
+          slate
+          faded
+          sm
+          @click="showGroupMembersModal = true"
+        />
         <ContactDeleteModal
           v-if="isAdmin"
           :contact="contact"
@@ -357,6 +395,14 @@ export default {
         :show="showEditModal"
         :contact="contact"
         @cancel="toggleEditModal"
+      />
+      <WhatsmeowGroupMembersModal
+        v-if="isWhatsmeowGroup"
+        :show="showGroupMembersModal"
+        :inbox-id="currentInboxId"
+        :group-jid="groupJid"
+        :group-name="contact.name"
+        @close="showGroupMembersModal = false"
       />
     </div>
   </div>

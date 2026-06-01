@@ -1,3 +1,5 @@
+require 'cgi'
+
 class Whatsmeow::SessionClient
   class Error < StandardError; end
 
@@ -28,6 +30,10 @@ class Whatsmeow::SessionClient
 
   def disconnect
     request(:delete, "/sessions/#{@inbox.id}")
+  end
+
+  def group_members(group_jid)
+    request(:get, "/sessions/#{@inbox.id}/group_members?group_jid=#{CGI.escape(group_jid)}")
   end
 
   def self.request(method, path, body: nil)

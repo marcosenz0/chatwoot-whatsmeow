@@ -17,6 +17,7 @@
     "IP_ADDRESS": "Endereço IP",
     "CREATED_AT_LABEL": "Criado",
     "NEW_MESSAGE": "Nova Mensagem",
+    "VIEW_GROUP_MEMBERS": "Ver membros do grupo",
     "CALL": "Chamada",
     "CALL_INITIATED": "Efetuando chamada…",
     "CALL_FAILED": "Não foi possível iniciar a chamada. Tente novamente.",

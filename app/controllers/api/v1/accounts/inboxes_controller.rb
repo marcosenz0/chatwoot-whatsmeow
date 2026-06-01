@@ -82,6 +82,33 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
     handle_whatsmeow_session(&:status)
   end
 
+  def whatsmeow_group_members
+    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
+
+    group_jid = params[:group_jid].presence
+    return render json: { message: 'group_jid is required' }, status: :bad_request if group_jid.blank?
+
+    render json: Whatsmeow::SessionClient.new(inbox: @inbox).group_members(group_jid)
+  rescue Whatsmeow::SessionClient::Error => e
+    render json: { message: e.message }, status: :bad_gateway
+  end
+
+  def whatsmeow_direct_conversation
+    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
+
+    conversation = Whatsmeow::DirectConversationBuilder.new(
+      inbox: @inbox,
+      params: whatsmeow_direct_conversation_params
+    ).perform
+    render json: {
+      id: conversation.id,
+      conversation_id: conversation.id,
+      contact_id: conversation.contact_id
+    }
+  rescue ArgumentError => e
+    render json: { message: e.message }, status: :bad_request
+  end
+
   def destroy_whatsmeow_session
     handle_whatsmeow_session(&:disconnect)
   end
@@ -196,6 +223,10 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
     # We will remove this line after fixing https://linear.app/chatwoot/issue/CW-1567/null-value-passed-as-null-string-to-backend
     params.each { |k, v| params[k] = params[k] == 'null' ? nil : v }
     params.permit(*inbox_attributes, channel: [:type, *channel_attributes])
+  end
+
+  def whatsmeow_direct_conversation_params
+    params.permit(:participant_jid, :participant_phone, :participant_name, :profile_picture_url)
   end
 
   def channel_type_from_params
