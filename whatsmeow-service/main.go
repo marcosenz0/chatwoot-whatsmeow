@@ -11,6 +11,7 @@ import (
 	"mime"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -61,10 +62,11 @@ type MessageRequest struct {
 }
 
 type WhatsmeowAttachment struct {
-	FileName    string `json:"file_name"`
-	ContentType string `json:"content_type"`
-	FileType    string `json:"file_type"`
-	DataBase64  string `json:"data_base64"`
+	FileName      string `json:"file_name"`
+	ContentType   string `json:"content_type"`
+	FileType      string `json:"file_type"`
+	RecordedAudio bool   `json:"recorded_audio"`
+	DataBase64    string `json:"data_base64"`
 }
 
 func main() {
@@ -668,15 +670,18 @@ func buildOutgoingMediaMessage(ctx context.Context, client *whatsmeow.Client, ca
 	}
 
 	mediaType := outgoingMediaType(attachment)
-	upload, err := client.Upload(ctx, data, mediaType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to upload media: %w", err)
-	}
-
 	contentType := normalizedMIME(attachment.ContentType, fallbackMIME(attachment.FileType))
 	fileName := attachment.FileName
 	if fileName == "" {
 		fileName = defaultFileName(attachment.FileType, contentType)
+	}
+	if mediaType == whatsmeow.MediaAudio && attachment.RecordedAudio {
+		data, contentType, fileName = prepareRecordedAudio(ctx, data, contentType, fileName)
+	}
+
+	upload, err := client.Upload(ctx, data, mediaType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload media: %w", err)
 	}
 
 	switch mediaType {
@@ -710,7 +715,7 @@ func buildOutgoingMediaMessage(ctx context.Context, client *whatsmeow.Client, ca
 		return &proto.Message{
 			AudioMessage: &proto.AudioMessage{
 				Mimetype:      stringPtr(contentType),
-				PTT:           optionalBoolPtr(shouldSendAsPushToTalk(contentType)),
+				PTT:           optionalBoolPtr(shouldSendAsPushToTalk(contentType, attachment.RecordedAudio)),
 				URL:           stringPtr(upload.URL),
 				DirectPath:    stringPtr(upload.DirectPath),
 				MediaKey:      upload.MediaKey,
@@ -752,7 +757,110 @@ func outgoingMediaType(attachment WhatsmeowAttachment) whatsmeow.MediaType {
 	}
 }
 
-func shouldSendAsPushToTalk(contentType string) bool {
+func prepareRecordedAudio(ctx context.Context, data []byte, contentType string, fileName string) ([]byte, string, string) {
+	if canSendAsPushToTalk(contentType) {
+		return data, contentType, voiceNoteFileName(fileName)
+	}
+
+	converted, err := transcodeAudioToOggOpus(ctx, data, contentType)
+	if err != nil {
+		log.Printf("Failed to transcode recorded audio to OGG/Opus, sending as regular audio: %v", err)
+		return data, contentType, fileName
+	}
+
+	return converted, "audio/ogg", voiceNoteFileName(fileName)
+}
+
+func transcodeAudioToOggOpus(ctx context.Context, data []byte, contentType string) ([]byte, error) {
+	input, err := os.CreateTemp("", "whatsmeow-voice-*"+audioInputExtension(contentType))
+	if err != nil {
+		return nil, err
+	}
+	inputPath := input.Name()
+	defer os.Remove(inputPath)
+
+	if _, err := input.Write(data); err != nil {
+		input.Close()
+		return nil, err
+	}
+	if err := input.Close(); err != nil {
+		return nil, err
+	}
+
+	output, err := os.CreateTemp("", "whatsmeow-voice-*.ogg")
+	if err != nil {
+		return nil, err
+	}
+	outputPath := output.Name()
+	output.Close()
+	defer os.Remove(outputPath)
+
+	cmd := exec.CommandContext(
+		ctx,
+		"ffmpeg",
+		"-hide_banner",
+		"-loglevel",
+		"error",
+		"-y",
+		"-i",
+		inputPath,
+		"-vn",
+		"-ac",
+		"1",
+		"-c:a",
+		"libopus",
+		"-b:a",
+		"32k",
+		"-application",
+		"voip",
+		"-f",
+		"ogg",
+		outputPath,
+	)
+	if outputBytes, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(outputBytes)))
+	}
+
+	return os.ReadFile(outputPath)
+}
+
+func audioInputExtension(contentType string) string {
+	extension := extensionForMIME(contentType)
+	if extension != "" {
+		return extension
+	}
+
+	switch normalizedMIME(contentType, "") {
+	case "audio/mp3", "audio/mpeg":
+		return ".mp3"
+	case "audio/webm":
+		return ".webm"
+	case "audio/wav", "audio/x-wav":
+		return ".wav"
+	case "audio/ogg":
+		return ".ogg"
+	default:
+		return ".audio"
+	}
+}
+
+func voiceNoteFileName(fileName string) string {
+	fileName = strings.TrimSpace(fileName)
+	if fileName == "" {
+		return defaultFileName("audio", "audio/ogg")
+	}
+
+	if extensionStart := strings.LastIndex(fileName, "."); extensionStart > 0 {
+		return fileName[:extensionStart] + ".ogg"
+	}
+	return fileName + ".ogg"
+}
+
+func shouldSendAsPushToTalk(contentType string, recordedAudio bool) bool {
+	return recordedAudio && canSendAsPushToTalk(contentType)
+}
+
+func canSendAsPushToTalk(contentType string) bool {
 	contentType = strings.ToLower(normalizedMIME(contentType, ""))
 	return strings.Contains(contentType, "audio/ogg") || strings.Contains(contentType, "opus")
 }
@@ -976,9 +1084,11 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		}
 	}
 
-	senderName := messageEvent.Info.PushName
+	senderName := getContactDisplayName(client, contactJID, messageEvent.Info.PushName)
+	participantName := ""
 	if isGroup && groupName != "" {
 		senderName = groupName
+		participantName = getContactDisplayName(client, participantJID, messageEvent.Info.PushName)
 	}
 
 	payload := map[string]interface{}{
@@ -1002,7 +1112,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		payload["group_jid"] = jidString(contactJID)
 		payload["group_name"] = groupName
 		payload["participant_jid"] = jidString(participantJID)
-		payload["participant_name"] = messageEvent.Info.PushName
+		payload["participant_name"] = participantName
 		payload["participant_phone"] = phoneNumberFromJID(participantJID)
 		payload["participant_profile_picture_url"] = getProfilePictureURL(client, participantJID)
 	}
@@ -1257,6 +1367,25 @@ func phoneNumberFromJID(jid types.JID) string {
 		return ""
 	}
 	return "+" + strings.Split(jid.User, ":")[0]
+}
+
+func getContactDisplayName(client *whatsmeow.Client, jid types.JID, fallback string) string {
+	fallback = strings.TrimSpace(fallback)
+	if client == nil || client.Store == nil || client.Store.Contacts == nil || jid.IsEmpty() {
+		return fallback
+	}
+
+	contact, err := client.Store.Contacts.GetContact(context.Background(), jid.ToNonAD())
+	if err != nil || !contact.Found {
+		return fallback
+	}
+
+	for _, name := range []string{contact.FullName, contact.FirstName, contact.BusinessName, contact.PushName, fallback} {
+		if strings.TrimSpace(name) != "" {
+			return strings.TrimSpace(name)
+		}
+	}
+	return fallback
 }
 
 func getGroupName(client *whatsmeow.Client, jid types.JID) string {

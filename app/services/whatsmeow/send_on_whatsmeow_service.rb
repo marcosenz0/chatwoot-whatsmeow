@@ -15,7 +15,7 @@ class Whatsmeow::SendOnWhatsmeowService
   private
 
   def deliverable_message?
-    !message.incoming? && !message.private? && message.source_id.blank?
+    message.outgoing? && !message.private? && message.source_id.blank?
   end
 
   def dispatch_message
@@ -29,7 +29,7 @@ class Whatsmeow::SendOnWhatsmeowService
     {
       channel_id: inbox.id.to_s,
       to: target_identifier,
-      body: message.content.to_s,
+      body: body_content,
       attachments: attachments_payload
     }
   end
@@ -42,9 +42,14 @@ class Whatsmeow::SendOnWhatsmeowService
         file_name: attachment.file.filename.to_s,
         content_type: attachment.file.content_type,
         file_type: attachment.file_type,
+        recorded_audio: recorded_audio? && attachment.audio?,
         data_base64: Base64.strict_encode64(attachment.file.download)
       }
     end
+  end
+
+  def body_content
+    message.content.to_s.strip
   end
 
   def inbox
@@ -56,6 +61,8 @@ class Whatsmeow::SendOnWhatsmeowService
   end
 
   def resolve_target_identifier
+    return source_id if group_jid?(source_id)
+
     phone_identifier = target_candidates.find { |identifier| phone_identifier?(identifier, source_id) }
     return phone_jid(phone_identifier) if phone_identifier.present?
 
@@ -64,9 +71,9 @@ class Whatsmeow::SendOnWhatsmeowService
 
   def target_candidates
     [
-      message.conversation.contact&.name,
       message.conversation.contact&.phone_number,
-      source_id
+      source_id,
+      message.conversation.contact&.name
     ].compact_blank
   end
 
@@ -94,6 +101,10 @@ class Whatsmeow::SendOnWhatsmeowService
     jid.include?('@') && jid.exclude?('@newsletter')
   end
 
+  def group_jid?(identifier)
+    identifier.to_s.downcase.include?('@g.us')
+  end
+
   def non_phone_jid?(identifier)
     jid = identifier.to_s.downcase
     return false unless jid.include?('@')
@@ -105,6 +116,10 @@ class Whatsmeow::SendOnWhatsmeowService
     return unless identifier.to_s.downcase.include?('@lid')
 
     identifier.to_s.split('@').first.split(':').first.delete('^0-9')
+  end
+
+  def recorded_audio?
+    ActiveModel::Type::Boolean.new.cast(message.content_attributes&.dig('whatsmeow_recorded_audio'))
   end
 
   def update_source_id(result)

@@ -1074,6 +1074,8 @@ export default {
         let caption =
           this.isAnInstagramChannel || this.isATiktokChannel ? '' : message;
         this.attachedFiles.forEach(attachment => {
+          const isRecordedWhatsmeowAudio =
+            this.isAWhatsmeowChannel && attachment?.isRecordedAudio;
           const attachedFile = this.globalConfig.directUploadsEnabled
             ? attachment.blobSignedId
             : attachment.resource.file;
@@ -1081,24 +1083,36 @@ export default {
             conversationId: this.currentChat.id,
             files: [attachedFile],
             private: false,
-            message: caption,
+            message: isRecordedWhatsmeowAudio ? '' : caption,
             sender: this.sender,
           };
 
           attachmentPayload = this.setReplyToInPayload(attachmentPayload);
+          if (isRecordedWhatsmeowAudio) {
+            attachmentPayload.contentAttributes = {
+              ...attachmentPayload.contentAttributes,
+              whatsmeow_recorded_audio: true,
+            };
+          }
           multipleMessagePayload.push(attachmentPayload);
           // For WhatsApp, only the first attachment gets a caption
-          if (!this.isAnInstagramChannel) caption = '';
+          if (!this.isAnInstagramChannel && !isRecordedWhatsmeowAudio) {
+            caption = '';
+          }
         });
       }
 
       const hasNoAttachments =
         !this.attachedFiles || !this.attachedFiles.length;
+      const hasRecordedWhatsmeowAudio =
+        this.isAWhatsmeowChannel &&
+        this.attachedFiles?.some(file => file?.isRecordedAudio);
       // For Instagram and TikTok, text must always be sent as a separate message (no captions on attachments).
       // For WhatsApp, we only need a text message if there are no attachments.
       if (
         ((this.isAnInstagramChannel || this.isATiktokChannel) &&
           this.message) ||
+        (hasRecordedWhatsmeowAudio && this.message) ||
         (!(this.isAnInstagramChannel || this.isATiktokChannel) &&
           hasNoAttachments)
       ) {

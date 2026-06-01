@@ -39,6 +39,16 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Chatwoot-recorded MP3 audio is no longer sent as WhatsApp push-to-talk. Only OGG/Opus audio is marked as PTT; MP3 is sent as normal audio so WhatsApp clients can play it correctly.
 - Staging validation after deploy: Chatwoot returned HTTP 200, Whatsmeow API returned healthy, inbox 12 returned connected, a real API-created outbound text message in conversation 13 reached `delivered` with no external error, and a real MP3 audio attachment message also reached `delivered` with no external error.
 
+## June 2026 Group / Voice Note Hardening
+
+- `SendOnWhatsmeowService` now sends only real outgoing agent messages. Activity/system messages such as assignment notices must not be delivered to WhatsApp.
+- Group conversations are isolated by `contact_inbox_id`, not just `contact_id`, so a contact that appears in a group and in a direct chat cannot route private replies into the group conversation.
+- Group sends prefer the WhatsApp group JID (`@g.us`) from `contact_inbox.source_id`; the contact phone/name is no longer allowed to override the group target.
+- Group contacts are kept phone-less and group participant metadata is removed from group profiles when future group events refresh them.
+- Chatwoot-recorded audio is marked with `whatsmeow_recorded_audio`; `whatsmeow-service` transcodes recorded audio to OGG/Opus via `ffmpeg` and sends it as WhatsApp PTT/voice note. Uploaded audio files remain normal audio attachments.
+- Outgoing text bodies are stripped before sending to WhatsApp to avoid oversized WhatsApp bubbles caused by trailing newlines.
+- Incoming display names prefer the names cached in the connected WhatsApp account through whatsmeow's contact store, then fall back to push name or phone.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

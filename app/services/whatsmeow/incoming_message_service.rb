@@ -61,7 +61,7 @@ class Whatsmeow::IncomingMessageService
       params[:sender_alt],
       params[:chat],
       params[:recipient_alt]
-    ].compact_blank.uniq
+    ].compact_blank.reject { |source_id| group_source(source_id) }.uniq
   end
 
   def group_source_ids
@@ -75,9 +75,8 @@ class Whatsmeow::IncomingMessageService
     [
       participant_phone_source_id,
       params[:participant_jid],
-      params[:sender_alt],
-      params[:sender]
-    ].compact_blank.uniq
+      params[:sender_alt]
+    ].compact_blank.reject { |source_id| group_source(source_id) }.uniq
   end
 
   def all_payload_source_ids
@@ -148,6 +147,7 @@ class Whatsmeow::IncomingMessageService
       contact_attributes: contact_attributes
     ).perform
 
+    contact_inbox = isolate_contact_inbox(contact_inbox, contact_attributes) if should_isolate_contact_inbox?(contact_inbox)
     @contact_inbox = contact_inbox
     @contact = contact_inbox.contact
     sync_contact_profile(@contact, contact_attributes, params[:profile_picture_url], sender_identifier)
@@ -166,9 +166,39 @@ class Whatsmeow::IncomingMessageService
       inbox: @inbox,
       contact_attributes: participant_contact_attributes
     ).perform
+    contact_inbox = isolate_contact_inbox(contact_inbox, participant_contact_attributes) if should_isolate_contact_inbox?(contact_inbox)
     contact = contact_inbox.contact
     sync_contact_profile(contact, participant_contact_attributes, params[:participant_profile_picture_url], params[:participant_jid])
     contact
+  end
+
+  def should_isolate_contact_inbox?(contact_inbox)
+    group_profile?(contact_inbox.contact) && (!group_message? || contact_inbox.source_id != group_jid)
+  end
+
+  def isolate_contact_inbox(contact_inbox, attributes_for_contact)
+    contact = find_or_create_direct_contact(attributes_for_contact, contact_inbox.contact_id)
+    contact_inbox.update!(contact: contact)
+    contact_inbox
+  end
+
+  def find_or_create_direct_contact(attributes_for_contact, excluded_contact_id)
+    existing_contact = find_existing_direct_contact(attributes_for_contact[:phone_number], excluded_contact_id)
+    return existing_contact if existing_contact
+
+    @inbox.account.contacts.create!(
+      name: attributes_for_contact[:name] || ::Haikunator.haikunate(1000),
+      phone_number: attributes_for_contact[:phone_number],
+      additional_attributes: attributes_for_contact[:additional_attributes]
+    )
+  end
+
+  def find_existing_direct_contact(phone, excluded_contact_id)
+    return if phone.blank?
+
+    @inbox.account.contacts.where(phone_number: phone)
+          .where.not(id: excluded_contact_id)
+          .find { |contact| !group_profile?(contact) }
   end
 
   def conversation_params
@@ -196,7 +226,8 @@ class Whatsmeow::IncomingMessageService
     ::Conversation.where(
       account_id: @inbox.account_id,
       inbox_id: @inbox.id,
-      contact_id: @contact.id
+      contact_id: @contact.id,
+      contact_inbox_id: @contact_inbox.id
     )
   end
 
@@ -244,9 +275,10 @@ class Whatsmeow::IncomingMessageService
     name = attributes_for_contact[:name]
     additional_attributes = attributes_for_contact[:additional_attributes]
 
-    attributes[:phone_number] = number if should_update_contact_phone?(contact, number)
+    attributes[:phone_number] = nil if clear_group_phone?(contact, attributes_for_contact)
+    attributes[:phone_number] = number if should_update_contact_phone?(contact, number, attributes_for_contact)
     attributes[:name] = name if should_update_contact_name?(contact, name)
-    attributes[:additional_attributes] = (contact.additional_attributes || {}).merge(additional_attributes) if additional_attributes.present?
+    attributes[:additional_attributes] = merged_additional_attributes(contact, additional_attributes) if additional_attributes.present?
     attributes
   end
 
@@ -259,10 +291,32 @@ class Whatsmeow::IncomingMessageService
     false
   end
 
-  def should_update_contact_phone?(contact, number)
+  def should_update_contact_phone?(contact, number, attributes_for_contact)
     return false if number.blank?
+    return false if group_profile?(contact) || group_profile_attributes?(attributes_for_contact)
 
     contact.phone_number.blank? || contact.name == number || contact.name.to_s.include?('@lid')
+  end
+
+  def group_profile?(contact)
+    additional_attributes = contact.additional_attributes || {}
+    additional_attributes.fetch('whatsmeow_group', false) || additional_attributes.fetch(:whatsmeow_group, false)
+  end
+
+  def group_profile_attributes?(attributes_for_contact)
+    additional_attributes = attributes_for_contact[:additional_attributes]
+    additional_attributes&.fetch(:whatsmeow_group, false) || additional_attributes&.fetch('whatsmeow_group', false)
+  end
+
+  def clear_group_phone?(contact, attributes_for_contact)
+    group_profile_attributes?(attributes_for_contact) && contact.phone_number.present?
+  end
+
+  def merged_additional_attributes(contact, additional_attributes)
+    new_attributes = additional_attributes.stringify_keys
+    attributes = (contact.additional_attributes || {}).merge(new_attributes)
+    attributes = attributes.except('whatsmeow_group_participant') if new_attributes['whatsmeow_group']
+    attributes
   end
 
   def message_content_attributes
