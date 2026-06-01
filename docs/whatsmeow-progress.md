@@ -46,6 +46,7 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Group sends prefer the WhatsApp group JID (`@g.us`) from `contact_inbox.source_id`; the contact phone/name is no longer allowed to override the group target.
 - Group contacts are kept phone-less and group participant metadata is removed from group profiles when future group events refresh them.
 - Chatwoot-recorded audio is marked with `whatsmeow_recorded_audio`; `whatsmeow-service` transcodes recorded audio to OGG/Opus via `ffmpeg` and sends it as WhatsApp PTT/voice note. Uploaded audio files remain normal audio attachments.
+- Voice notes must include the exact `audio/ogg; codecs=opus` mimetype, a duration, and a 64-byte waveform. Some WhatsApp clients acknowledge PTT media without rendering it when those fields are missing.
 - Outgoing text bodies are stripped before sending to WhatsApp to avoid oversized WhatsApp bubbles caused by trailing newlines.
 - Incoming display names prefer the names cached in the connected WhatsApp account through whatsmeow's contact store, then fall back to push name or phone.
 

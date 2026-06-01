@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"mime"
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -675,8 +677,10 @@ func buildOutgoingMediaMessage(ctx context.Context, client *whatsmeow.Client, ca
 	if fileName == "" {
 		fileName = defaultFileName(attachment.FileType, contentType)
 	}
+	var audioSeconds uint32
+	var audioWaveform []byte
 	if mediaType == whatsmeow.MediaAudio && attachment.RecordedAudio {
-		data, contentType, fileName = prepareRecordedAudio(ctx, data, contentType, fileName)
+		data, contentType, fileName, audioSeconds, audioWaveform = prepareRecordedAudio(ctx, data, contentType, fileName)
 	}
 
 	upload, err := client.Upload(ctx, data, mediaType)
@@ -714,14 +718,17 @@ func buildOutgoingMediaMessage(ctx context.Context, client *whatsmeow.Client, ca
 	case whatsmeow.MediaAudio:
 		return &proto.Message{
 			AudioMessage: &proto.AudioMessage{
-				Mimetype:      stringPtr(contentType),
-				PTT:           optionalBoolPtr(shouldSendAsPushToTalk(contentType, attachment.RecordedAudio)),
-				URL:           stringPtr(upload.URL),
-				DirectPath:    stringPtr(upload.DirectPath),
-				MediaKey:      upload.MediaKey,
-				FileEncSHA256: upload.FileEncSHA256,
-				FileSHA256:    upload.FileSHA256,
-				FileLength:    uint64Ptr(upload.FileLength),
+				Mimetype:          stringPtr(contentType),
+				PTT:               optionalBoolPtr(shouldSendAsPushToTalk(contentType, attachment.RecordedAudio)),
+				Seconds:           optionalUint32Ptr(audioSeconds),
+				URL:               stringPtr(upload.URL),
+				DirectPath:        stringPtr(upload.DirectPath),
+				MediaKey:          upload.MediaKey,
+				FileEncSHA256:     upload.FileEncSHA256,
+				FileSHA256:        upload.FileSHA256,
+				FileLength:        uint64Ptr(upload.FileLength),
+				MediaKeyTimestamp: int64Ptr(time.Now().Unix()),
+				Waveform:          audioWaveform,
 			},
 		}, nil
 	default:
@@ -757,18 +764,34 @@ func outgoingMediaType(attachment WhatsmeowAttachment) whatsmeow.MediaType {
 	}
 }
 
-func prepareRecordedAudio(ctx context.Context, data []byte, contentType string, fileName string) ([]byte, string, string) {
+func prepareRecordedAudio(ctx context.Context, data []byte, contentType string, fileName string) ([]byte, string, string, uint32, []byte) {
 	if canSendAsPushToTalk(contentType) {
-		return data, contentType, voiceNoteFileName(fileName)
+		return prepareVoiceNoteMetadata(ctx, data, "audio/ogg; codecs=opus", voiceNoteFileName(fileName))
 	}
 
 	converted, err := transcodeAudioToOggOpus(ctx, data, contentType)
 	if err != nil {
 		log.Printf("Failed to transcode recorded audio to OGG/Opus, sending as regular audio: %v", err)
-		return data, contentType, fileName
+		return data, contentType, fileName, 0, nil
 	}
 
-	return converted, "audio/ogg", voiceNoteFileName(fileName)
+	return prepareVoiceNoteMetadata(ctx, converted, "audio/ogg; codecs=opus", voiceNoteFileName(fileName))
+}
+
+func prepareVoiceNoteMetadata(ctx context.Context, data []byte, contentType string, fileName string) ([]byte, string, string, uint32, []byte) {
+	seconds, err := probeAudioDuration(ctx, data, contentType)
+	if err != nil {
+		log.Printf("Failed to probe voice note duration: %v", err)
+		seconds = 1
+	}
+
+	waveform, err := generateAudioWaveform(ctx, data, contentType)
+	if err != nil {
+		log.Printf("Failed to generate voice note waveform: %v", err)
+		waveform = defaultAudioWaveform()
+	}
+
+	return data, contentType, fileName, seconds, waveform
 }
 
 func transcodeAudioToOggOpus(ctx context.Context, data []byte, contentType string) ([]byte, error) {
@@ -822,6 +845,144 @@ func transcodeAudioToOggOpus(ctx context.Context, data []byte, contentType strin
 	}
 
 	return os.ReadFile(outputPath)
+}
+
+func probeAudioDuration(ctx context.Context, data []byte, contentType string) (uint32, error) {
+	inputPath, cleanup, err := writeTempAudio(data, contentType)
+	if err != nil {
+		return 0, err
+	}
+	defer cleanup()
+
+	cmd := exec.CommandContext(
+		ctx,
+		"ffprobe",
+		"-v",
+		"error",
+		"-show_entries",
+		"format=duration",
+		"-of",
+		"default=noprint_wrappers=1:nokey=1",
+		inputPath,
+	)
+	output, err := cmd.Output()
+	if err != nil {
+		return 0, err
+	}
+
+	duration, err := strconv.ParseFloat(strings.TrimSpace(string(output)), 64)
+	if err != nil {
+		return 0, err
+	}
+
+	seconds := uint32(math.Ceil(duration))
+	if seconds == 0 {
+		seconds = 1
+	}
+	return seconds, nil
+}
+
+func generateAudioWaveform(ctx context.Context, data []byte, contentType string) ([]byte, error) {
+	inputPath, cleanup, err := writeTempAudio(data, contentType)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+
+	output, err := os.CreateTemp("", "whatsmeow-waveform-*.pcm")
+	if err != nil {
+		return nil, err
+	}
+	outputPath := output.Name()
+	output.Close()
+	defer os.Remove(outputPath)
+
+	cmd := exec.CommandContext(
+		ctx,
+		"ffmpeg",
+		"-hide_banner",
+		"-loglevel",
+		"error",
+		"-y",
+		"-i",
+		inputPath,
+		"-vn",
+		"-ac",
+		"1",
+		"-ar",
+		"8000",
+		"-f",
+		"s16le",
+		outputPath,
+	)
+	if outputBytes, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("%w: %s", err, strings.TrimSpace(string(outputBytes)))
+	}
+
+	pcm, err := os.ReadFile(outputPath)
+	if err != nil {
+		return nil, err
+	}
+	return pcmWaveform(pcm), nil
+}
+
+func writeTempAudio(data []byte, contentType string) (string, func(), error) {
+	input, err := os.CreateTemp("", "whatsmeow-audio-*"+audioInputExtension(contentType))
+	if err != nil {
+		return "", nil, err
+	}
+	inputPath := input.Name()
+	cleanup := func() { os.Remove(inputPath) }
+
+	if _, err := input.Write(data); err != nil {
+		input.Close()
+		cleanup()
+		return "", nil, err
+	}
+	if err := input.Close(); err != nil {
+		cleanup()
+		return "", nil, err
+	}
+	return inputPath, cleanup, nil
+}
+
+func pcmWaveform(pcm []byte) []byte {
+	if len(pcm) < 2 {
+		return defaultAudioWaveform()
+	}
+
+	const waveformSize = 64
+	samples := len(pcm) / 2
+	waveform := make([]byte, waveformSize)
+	for index := range waveform {
+		start := index * samples / waveformSize
+		end := (index + 1) * samples / waveformSize
+		if end <= start {
+			end = start + 1
+		}
+
+		var peak int
+		for sampleIndex := start; sampleIndex < end && sampleIndex < samples; sampleIndex++ {
+			offset := sampleIndex * 2
+			sample := int(int16(uint16(pcm[offset]) | uint16(pcm[offset+1])<<8))
+			if sample < 0 {
+				sample = -sample
+			}
+			if sample > peak {
+				peak = sample
+			}
+		}
+		waveform[index] = byte(min(255, peak*255/32768))
+	}
+	return waveform
+}
+
+func defaultAudioWaveform() []byte {
+	waveform := make([]byte, 64)
+	for index := range waveform {
+		waveform[index] = 32
+	}
+	return waveform
 }
 
 func audioInputExtension(contentType string) string {
@@ -1299,6 +1460,17 @@ func optionalStringPtr(value string) *string {
 }
 
 func uint64Ptr(value uint64) *uint64 {
+	return &value
+}
+
+func optionalUint32Ptr(value uint32) *uint32 {
+	if value == 0 {
+		return nil
+	}
+	return &value
+}
+
+func int64Ptr(value int64) *int64 {
 	return &value
 }
 
