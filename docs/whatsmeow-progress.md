@@ -31,6 +31,14 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - A synthetic media-only Whatsmeow webhook created a Chatwoot message with one image attachment, proving that non-text media payloads are no longer dropped before Rails.
 - The synthetic validation conversation was resolved after the check to avoid leaving a test conversation open.
 
+## June 2026 Regression Fix
+
+- The Whatsmeow configuration page briefly rendered blank because `Channel::Whatsmeow` was added to the generic WhatsApp helper and the settings page matched the official WhatsApp Cloud block first. The Whatsmeow configuration block now renders before the official WhatsApp block.
+- Outgoing Chatwoot messages were failing with `Net::ReadTimeout` while waiting for `whatsmeow-service`; the Rails session client timeout was increased and can be overridden with `WHATSMEOW_SERVICE_TIMEOUT`.
+- The Go send endpoint now wraps upload/send work in a 60 second context so slow WhatsApp acknowledgements do not leave HTTP requests hanging indefinitely.
+- Chatwoot-recorded MP3 audio is no longer sent as WhatsApp push-to-talk. Only OGG/Opus audio is marked as PTT; MP3 is sent as normal audio so WhatsApp clients can play it correctly.
+- Staging validation after deploy: Chatwoot returned HTTP 200, Whatsmeow API returned healthy, inbox 12 returned connected, and a real API-created outbound message in conversation 13 reached `delivered` with no external error.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.
