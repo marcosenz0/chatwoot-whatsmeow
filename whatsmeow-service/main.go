@@ -348,6 +348,32 @@ func updateChannelStatus(channelID string, status string) {
 	}
 }
 
+func updateChannelPhoneAndStatus(channelID string, phone string, status string) {
+	dbURI := os.Getenv("DATABASE_URL")
+	if dbURI == "" {
+		dbURI = "postgres://postgres:StagingPassword123!@chatwoot-staging-db:5432/chatwoot_staging?sslmode=disable"
+	}
+	db, err := sql.Open("postgres", dbURI)
+	if err != nil {
+		log.Printf("Failed to open database to update phone/status: %v", err)
+		return
+	}
+	defer db.Close()
+
+	query := `
+		UPDATE channel_whatsmeow c
+		SET phone_number = $1, status = $2
+		FROM inboxes i
+		WHERE i.channel_id = c.id AND i.id = $3 AND i.channel_type = 'Channel::Whatsmeow'
+	`
+	_, err = db.Exec(query, phone, status, channelID)
+	if err != nil {
+		log.Printf("Failed to update phone/status in database for channel %s: %v", channelID, err)
+	} else {
+		log.Printf("Updated channel %s phone to %s and status to %s in database", channelID, phone, status)
+	}
+}
+
 func restoreSessions() {
 	devices, err := dbContainer.GetAllDevices(context.Background())
 	if err != nil {
@@ -407,13 +433,18 @@ func handleCreateSession(c *gin.Context) {
 	client, exists := clients[req.ChannelID]
 	clientsMu.RUnlock()
 
-	if exists && !req.ForceNew {
+	if exists && client != nil && !req.ForceNew {
 		if client.IsConnected() && client.IsLoggedIn() {
-			c.JSON(http.StatusOK, gin.H{
+			payload := gin.H{
 				"status":     "connected",
 				"channel_id": req.ChannelID,
 				"message":    "Session already connected",
-			})
+			}
+			if client.Store.ID != nil {
+				payload["jid"] = client.Store.ID.String()
+				payload["phone_number"] = client.Store.ID.User
+			}
+			c.JSON(http.StatusOK, payload)
 			return
 		}
 
@@ -436,12 +467,15 @@ func handleCreateSession(c *gin.Context) {
 	}
 
 	if req.ForceNew {
+		var staleClient *whatsmeow.Client
 		clientsMu.Lock()
-		if exists && !client.IsLoggedIn() {
-			client.Disconnect()
+		if exists && client != nil && !client.IsLoggedIn() {
+			staleClient = client
 		}
 		delete(clients, req.ChannelID)
 		clientsMu.Unlock()
+
+		safeDisconnectClient(staleClient)
 
 		qrCodesMu.Lock()
 		delete(qrCodes, req.ChannelID)
@@ -493,8 +527,10 @@ func handleCreateSession(c *gin.Context) {
 					time.Sleep(1 * time.Second)
 					if client.Store.ID != nil {
 						phone := client.Store.ID.User
+						updateChannelPhoneAndStatus(req.ChannelID, phone, "connected")
 						inboxIDs, _, _ := lookupAllInboxesAndAccounts(phone)
 						clientsMu.Lock()
+						clients[req.ChannelID] = client
 						for _, ibID := range inboxIDs {
 							clients[ibID] = client
 						}
@@ -536,8 +572,10 @@ func handleCreateSession(c *gin.Context) {
 
 		if client.Store.ID != nil {
 			phone := client.Store.ID.User
+			updateChannelPhoneAndStatus(req.ChannelID, phone, "connected")
 			inboxIDs, _, _ := lookupAllInboxesAndAccounts(phone)
 			clientsMu.Lock()
+			clients[req.ChannelID] = client
 			for _, ibID := range inboxIDs {
 				clients[ibID] = client
 			}
@@ -547,10 +585,15 @@ func handleCreateSession(c *gin.Context) {
 			updateChannelStatus(req.ChannelID, "connected")
 		}
 
-		c.JSON(http.StatusOK, gin.H{
+		payload := gin.H{
 			"status":     "connected",
 			"channel_id": req.ChannelID,
-		})
+		}
+		if client.Store.ID != nil {
+			payload["jid"] = client.Store.ID.String()
+			payload["phone_number"] = client.Store.ID.User
+		}
+		c.JSON(http.StatusOK, payload)
 	}
 
 	// Register event handler for incoming messages
@@ -601,7 +644,10 @@ func handleGetStatus(c *gin.Context) {
 
 	payload := gin.H{
 		"status": status,
-		"jid":    client.Store.ID,
+	}
+	if client.Store.ID != nil {
+		payload["jid"] = client.Store.ID.String()
+		payload["phone_number"] = client.Store.ID.User
 	}
 	if qrCodeBase64 != "" {
 		payload["qr_code"] = qrCodeBase64
@@ -655,27 +701,35 @@ func handleDisconnectSession(c *gin.Context) {
 
 	clientsMu.Lock()
 	client, exists := clients[channelID]
-	if exists {
-		client.Disconnect()
-		if client.Store.ID != nil {
-			phone := client.Store.ID.User
-			inboxIDs, _, _ := lookupAllInboxesAndAccounts(phone)
-			for _, ibID := range inboxIDs {
-				delete(clients, ibID)
-			}
-			updateAllChannelsStatusByPhone(phone, "disconnected")
-		} else {
-			updateChannelStatus(channelID, "disconnected")
-		}
-		delete(clients, channelID)
-	} else {
-		updateChannelStatus(channelID, "disconnected")
-	}
+	delete(clients, channelID)
 	clientsMu.Unlock()
+
+	phone := ""
+	if exists && client != nil && client.Store.ID != nil {
+		phone = client.Store.ID.User
+		inboxIDs, _, err := lookupAllInboxesAndAccounts(phone)
+		if err != nil {
+			log.Printf("Failed to lookup inboxes for disconnecting phone %s: %v", phone, err)
+		}
+
+		clientsMu.Lock()
+		for _, ibID := range inboxIDs {
+			delete(clients, ibID)
+		}
+		clientsMu.Unlock()
+	}
+
+	safeDisconnectClient(client)
 
 	qrCodesMu.Lock()
 	delete(qrCodes, channelID)
 	qrCodesMu.Unlock()
+
+	if phone != "" {
+		updateAllChannelsStatusByPhone(phone, "disconnected")
+	} else {
+		updateChannelStatus(channelID, "disconnected")
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "disconnected",
@@ -1115,6 +1169,18 @@ func parseJID(phone string) (types.JID, bool) {
 		return jid, err == nil
 	}
 	return types.NewJID(phone, types.DefaultUserServer), true
+}
+
+func safeDisconnectClient(client *whatsmeow.Client) {
+	if client == nil {
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("Recovered from Whatsmeow disconnect panic: %v", r)
+		}
+	}()
+	client.Disconnect()
 }
 
 func eventHandler(client *whatsmeow.Client, evt interface{}) {

@@ -295,6 +295,9 @@ export default {
           this.inbox.messaging_service_sid || this.inbox.phone_number
         })`;
       }
+      if (this.isAWhatsmeowChannel) {
+        return this.inbox.name;
+      }
       if (this.isAWhatsAppChannel) {
         return `${this.inbox.name} (${this.inbox.phone_number})`;
       }

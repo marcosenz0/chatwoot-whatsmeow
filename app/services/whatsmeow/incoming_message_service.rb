@@ -65,10 +65,7 @@ class Whatsmeow::IncomingMessageService
   end
 
   def group_source_ids
-    [
-      group_jid,
-      params[:chat]
-    ].compact_blank.uniq
+    [group_jid].compact_blank.uniq
   end
 
   def participant_source_ids
@@ -122,11 +119,21 @@ class Whatsmeow::IncomingMessageService
   end
 
   def group_jid
-    @group_jid ||= params[:group_jid].presence || group_source(params[:chat]) || group_source(params[:sender])
+    @group_jid ||= canonical_group_source(params[:group_jid]) ||
+                   canonical_group_source(params[:chat]) ||
+                   canonical_group_source(params[:sender])
   end
 
   def group_source(identifier)
     identifier.to_s.include?('@g.us') ? identifier : nil
+  end
+
+  def canonical_group_source(identifier)
+    source = group_source(identifier)
+    return if source.blank?
+
+    user = source.to_s.split('@').first.split(':').first
+    "#{user}@g.us"
   end
 
   def extract_phone_number(identifier)
@@ -213,24 +220,26 @@ class Whatsmeow::IncomingMessageService
   end
 
   def set_conversation
-    @conversation = if @inbox.lock_to_single_conversation
-                      inbox_contact_conversations.last
-                    else
-                      inbox_contact_conversations.where
-                                                 .not(status: :resolved).last
-                    end
-    return if @conversation
-
-    @conversation = ::Conversation.create!(conversation_params)
+    @contact.with_lock do
+      @conversation = if @inbox.lock_to_single_conversation
+                        inbox_contact_conversations.last
+                      else
+                        inbox_contact_conversations.where
+                                                   .not(status: :resolved).last
+                      end
+      @conversation ||= ::Conversation.create!(conversation_params)
+    end
   end
 
   def inbox_contact_conversations
-    ::Conversation.where(
+    conversation_filters = {
       account_id: @inbox.account_id,
       inbox_id: @inbox.id,
-      contact_id: @contact.id,
-      contact_inbox_id: @contact_inbox.id
-    )
+      contact_id: @contact.id
+    }
+    conversation_filters[:contact_inbox_id] = @contact_inbox.id unless group_message?
+
+    ::Conversation.where(conversation_filters)
   end
 
   def contact_attributes

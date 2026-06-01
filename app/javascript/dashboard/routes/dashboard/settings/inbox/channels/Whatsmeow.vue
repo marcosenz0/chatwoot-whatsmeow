@@ -16,12 +16,10 @@ const store = useStore();
 
 const formState = reactive({
   channelName: '',
-  phoneNumber: '',
 });
 
 const validationRules = {
   channelName: { required },
-  phoneNumber: { required },
 };
 
 const v$ = useVuelidate(validationRules, formState);
@@ -116,7 +114,6 @@ const createChannel = async () => {
       name: formState.channelName.trim(),
       channel: {
         type: 'whatsmeow',
-        phone_number: formState.phoneNumber.trim(),
       },
     });
 
@@ -156,23 +153,6 @@ onBeforeUnmount(clearPolling);
           />
           <span v-if="v$.channelName.$error" class="message">
             {{ $t('INBOX_MGMT.ADD.WHATSMEOW.CHANNEL_NAME.ERROR') }}
-          </span>
-        </label>
-      </div>
-
-      <div class="flex-shrink-0 flex-grow-0 mt-4">
-        <label :class="{ error: v$.phoneNumber.$error }">
-          {{ $t('INBOX_MGMT.ADD.WHATSMEOW.PHONE_NUMBER.LABEL') }}
-          <input
-            v-model="formState.phoneNumber"
-            type="text"
-            :placeholder="
-              $t('INBOX_MGMT.ADD.WHATSMEOW.PHONE_NUMBER.PLACEHOLDER')
-            "
-            @blur="v$.phoneNumber.$touch"
-          />
-          <span v-if="v$.phoneNumber.$error" class="message">
-            {{ $t('INBOX_MGMT.ADD.WHATSMEOW.PHONE_NUMBER.ERROR') }}
           </span>
         </label>
       </div>

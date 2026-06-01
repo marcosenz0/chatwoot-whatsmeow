@@ -73,6 +73,14 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - The session creation endpoint now reports `connected` only when whatsmeow is both connected and logged in. A websocket connection waiting for QR scan returns `pairing` or `connecting` instead of prematurely advancing the Chatwoot setup wizard.
 - The Whatsmeow channel card is first in the inbox channel picker, and the pt-BR inbox creation strings now include the WhatsApp Direct form, QR state, Brazilian phone placeholder, and channel labels.
 
+## June 2026 Multi-Inbox Pairing / Disconnect Fix
+
+- Whatsmeow inbox creation no longer asks for a manual WhatsApp number. The setup form only collects the inbox name and then generates a QR Code.
+- `Channel::Whatsmeow#phone_number` is now optional during creation; after pairing, the real phone is saved from the connected device JID returned by `whatsmeow-service`.
+- The Whatsmeow settings title no longer appends the phone number, avoiding stale or manually typed values in the inbox header.
+- Disconnect now removes client mappings and calls whatsmeow outside the global client mutex, then marks the matching phone channels disconnected. This prevents the UI from timing out while disconnecting.
+- Group conversation creation now runs under a contact lock and reuses the open group conversation by group contact, avoiding duplicate open conversations when history/webhook events arrive in parallel.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

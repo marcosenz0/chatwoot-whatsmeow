@@ -191,7 +191,11 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
 
   def update_whatsmeow_status(payload)
     status = payload['status'].presence
-    @inbox.channel.update!(status: status) if status.present? && @inbox.channel.status != status
+    phone_number = payload['phone_number'].presence
+    updates = {}
+    updates[:status] = status if status.present? && @inbox.channel.status != status
+    updates[:phone_number] = phone_number if phone_number.present? && @inbox.channel.phone_number != phone_number
+    @inbox.channel.update!(updates) if updates.present?
   end
 
   def format_csat_config(config)

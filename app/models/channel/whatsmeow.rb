@@ -14,8 +14,6 @@ class Channel::Whatsmeow < ApplicationRecord
     :ignore_newsletters
   ].freeze
 
-  validates :phone_number, presence: true
-
   def name
     'Whatsmeow'
   end
