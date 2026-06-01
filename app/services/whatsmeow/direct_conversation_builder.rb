@@ -48,8 +48,14 @@ class Whatsmeow::DirectConversationBuilder
     direct_contact = find_or_create_direct_contact(group_contact.id)
 
     contact_inbox.update!(contact: direct_contact)
-    contact_inbox.conversations.where(contact_id: group_contact.id).update_all(contact_id: direct_contact.id, updated_at: Time.current)
+    move_direct_conversations(contact_inbox, group_contact, direct_contact)
     contact_inbox.reload
+  end
+
+  def move_direct_conversations(contact_inbox, group_contact, direct_contact)
+    contact_inbox.conversations.where(contact_id: group_contact.id).find_each do |conversation|
+      conversation.update!(contact: direct_contact)
+    end
   end
 
   def clear_group_phone(contact)
