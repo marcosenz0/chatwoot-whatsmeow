@@ -30,14 +30,14 @@ const isOpeningConversation = ref(false);
 const hasTarget = computed(() => !!(props.phoneNumber || props.jid));
 const secondaryLabel = computed(() => props.phoneNumber || props.jid);
 
-const openMenu = () => {
-  if (hasTarget.value) {
-    isOpen.value = true;
-  }
-};
-
 const closeMenu = () => {
   isOpen.value = false;
+};
+
+const toggleMenu = () => {
+  if (hasTarget.value) {
+    isOpen.value = !isOpen.value;
+  }
 };
 
 const openPrivateConversation = async () => {
@@ -84,17 +84,12 @@ const copyPhoneNumber = async () => {
 </script>
 
 <template>
-  <div
-    v-on-clickaway="closeMenu"
-    class="relative"
-    @mouseenter="openMenu"
-    @mouseleave="closeMenu"
-  >
+  <div v-on-clickaway="closeMenu" class="relative inline-flex max-w-full">
     <button
       type="button"
       class="flex min-w-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-left text-xs font-medium text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12"
       :disabled="!hasTarget"
-      @click="isOpen = !isOpen"
+      @click.stop="toggleMenu"
     >
       <Avatar :name="name" :src="avatarUrl" :size="16" />
       <span class="truncate">{{ name }}</span>
@@ -103,7 +98,8 @@ const copyPhoneNumber = async () => {
 
     <div
       v-if="isOpen"
-      class="absolute left-0 top-6 z-[60] w-64 rounded-lg border border-n-weak bg-n-alpha-3 p-2 shadow-lg backdrop-blur-[100px]"
+      class="absolute left-0 top-full z-[60] mt-1 w-64 rounded-lg border border-n-weak bg-n-alpha-3 p-2 shadow-lg backdrop-blur-[100px]"
+      @click.stop
     >
       <div class="flex items-center gap-2 px-2 py-2">
         <Avatar :name="name" :src="avatarUrl" :size="28" />

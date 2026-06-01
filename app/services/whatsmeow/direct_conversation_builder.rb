@@ -10,6 +10,7 @@ class Whatsmeow::DirectConversationBuilder
       contact_attributes: contact_attributes
     ).perform
 
+    contact_inbox = isolate_group_contact_inbox(contact_inbox) if group_profile?(contact_inbox.contact)
     sync_contact_profile(contact_inbox.contact)
     find_or_create_conversation(contact_inbox)
   end
@@ -39,6 +40,47 @@ class Whatsmeow::DirectConversationBuilder
     attributes[:additional_attributes] = (contact.additional_attributes || {}).merge('whatsmeow_group_participant' => true)
     contact.update!(attributes) if attributes.present?
     ::Avatar::AvatarFromUrlJob.perform_later(contact, profile_picture_url) if profile_picture_url.present? && !contact.avatar.attached?
+  end
+
+  def isolate_group_contact_inbox(contact_inbox)
+    group_contact = contact_inbox.contact
+    clear_group_phone(group_contact)
+    direct_contact = find_or_create_direct_contact(group_contact.id)
+
+    contact_inbox.update!(contact: direct_contact)
+    contact_inbox.conversations.where(contact_id: group_contact.id).update_all(contact_id: direct_contact.id, updated_at: Time.current)
+    contact_inbox.reload
+  end
+
+  def clear_group_phone(contact)
+    attributes = {}
+    attributes[:phone_number] = nil if phone_number.present? && contact.phone_number == phone_number
+    attributes[:additional_attributes] = (contact.additional_attributes || {}).except('whatsmeow_group_participant')
+    contact.update!(attributes) if attributes.present?
+  end
+
+  def find_or_create_direct_contact(excluded_contact_id)
+    existing_contact = find_existing_direct_contact(excluded_contact_id)
+    return existing_contact if existing_contact
+
+    inbox.account.contacts.create!(
+      name: contact_attributes[:name] || ::Haikunator.haikunate(1000),
+      phone_number: phone_number,
+      additional_attributes: contact_attributes[:additional_attributes]
+    )
+  end
+
+  def find_existing_direct_contact(excluded_contact_id)
+    return if phone_number.blank?
+
+    inbox.account.contacts.where(phone_number: phone_number)
+         .where.not(id: excluded_contact_id)
+         .find { |contact| !group_profile?(contact) }
+  end
+
+  def group_profile?(contact)
+    additional_attributes = contact.additional_attributes || {}
+    additional_attributes.fetch('whatsmeow_group', false) || additional_attributes.fetch(:whatsmeow_group, false)
   end
 
   def should_update_name?(contact)

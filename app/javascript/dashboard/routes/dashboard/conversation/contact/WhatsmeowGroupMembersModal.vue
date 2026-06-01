@@ -56,15 +56,26 @@ const filteredMembers = computed(() => {
   );
 });
 
+const adminCount = computed(
+  () =>
+    normalizedMembers.value.filter(
+      member => member.isAdmin || member.isSuperAdmin
+    ).length
+);
+
 const memberCountLabel = computed(() =>
   t('CONVERSATION.WHATSMEOW_GROUP.MEMBERS_COUNT', {
     count: normalizedMembers.value.length,
   })
 );
 
-const subtitle = computed(() =>
-  [props.groupName, memberCountLabel.value].filter(Boolean).join(' - ')
+const adminCountLabel = computed(() =>
+  t('CONVERSATION.WHATSMEOW_GROUP.ADMINS_COUNT', {
+    count: adminCount.value,
+  })
 );
+
+const subtitle = computed(() => props.groupName);
 
 const close = () => emit('close');
 
@@ -133,13 +144,25 @@ watch(
   >
     <div class="flex w-full flex-col gap-4 px-6 py-6">
       <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
+        <div class="min-w-0 flex-1">
           <h3 class="m-0 truncate text-lg font-semibold text-n-slate-12">
             {{ $t('CONVERSATION.WHATSMEOW_GROUP.MEMBERS_TITLE') }}
           </h3>
-          <p class="m-0 truncate text-sm text-n-slate-10">
+          <p v-if="subtitle" class="m-0 truncate text-sm text-n-slate-10">
             {{ subtitle }}
           </p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            <span
+              class="rounded-md bg-n-alpha-2 px-2 py-1 text-xs font-medium text-n-slate-11"
+            >
+              {{ memberCountLabel }}
+            </span>
+            <span
+              class="rounded-md bg-n-alpha-2 px-2 py-1 text-xs font-medium text-n-slate-11"
+            >
+              {{ adminCountLabel }}
+            </span>
+          </div>
         </div>
         <div class="flex shrink-0 items-center gap-1">
           <NextButton
@@ -151,7 +174,6 @@ watch(
             :is-loading="isFetching"
             @click="fetchMembers"
           />
-          <NextButton ghost slate sm icon="i-lucide-x" @click="close" />
         </div>
       </div>
 
@@ -162,7 +184,7 @@ watch(
         <input
           v-model="searchQuery"
           type="search"
-          class="h-9 w-full rounded-lg border border-n-weak bg-n-alpha-2 px-9 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-9 focus:border-n-brand"
+          class="h-10 w-full rounded-lg border border-n-weak bg-n-alpha-2 pl-9 pr-3 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-9 focus:border-n-brand"
           :placeholder="$t('CONVERSATION.WHATSMEOW_GROUP.SEARCH_MEMBERS')"
         />
       </div>
@@ -200,7 +222,7 @@ watch(
               </p>
               <span
                 v-if="member.isSuperAdmin || member.isAdmin"
-                class="shrink-0 rounded-md bg-n-alpha-2 px-1.5 py-0.5 text-[11px] font-medium text-n-slate-11"
+                class="shrink-0 rounded-md bg-n-alpha-2 px-1.5 py-0.5 text-[11px] font-semibold uppercase text-n-slate-11"
               >
                 {{
                   member.isSuperAdmin
