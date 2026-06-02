@@ -37,6 +37,13 @@ class Whatsmeow::SessionClient
     request(:get, "/sessions/#{@inbox.id}/group_members?group_jid=#{CGI.escape(group_jid)}")
   end
 
+  def profile_picture(jid, force: false)
+    path = "/sessions/#{@inbox.id}/profile_picture?jid=#{CGI.escape(jid)}"
+    path = "#{path}&force=true" if force
+
+    request(:get, path)
+  end
+
   def self.request(method, path, body: nil)
     last_error = nil
 

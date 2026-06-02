@@ -100,6 +100,14 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Contact cards include a per-contact send action that opens a Whatsmeow-compatible inbox selector and creates/opens an empty Chatwoot conversation without sending a WhatsApp message automatically.
 - Whatsmeow inbox list labels now use the localized channel name (`WhatsApp Direto` in pt-BR) instead of the missing `INBOX_MGMT.CHANNELS.undefined` key.
 
+## June 2026 Profile Picture Refresh
+
+- `whatsmeow-service` exposes `GET /sessions/:channel_id/profile_picture` to fetch a profile picture URL for a WhatsApp JID on demand, with optional forced refresh to bypass the in-memory cache.
+- Rails uses `Whatsmeow::ProfilePictureSyncJob` to refresh missing or stale WhatsApp avatars asynchronously. The job prefers real phone JIDs and group JIDs before falling back to alternate/LID identifiers.
+- Incoming messages and private conversations opened from group participants now enqueue profile picture refresh when the webhook payload does not already include an avatar URL.
+- `Avatar::AvatarFromUrlJob` accepts `force: true` for Whatsmeow refreshes so a changed WhatsApp photo can replace a previously attached avatar instead of being blocked by URL hash/rate-limit metadata.
+- `bundle exec rails whatsmeow:sync_profile_pictures FORCE=true` queues a backfill across all Whatsmeow inbox contacts so old conversations and the Contacts page can receive updated profile photos too.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

@@ -278,9 +278,29 @@ class Whatsmeow::IncomingMessageService
   def sync_contact_profile(contact, attributes_for_contact, avatar_url, source_label)
     attributes = contact_profile_attributes(contact, attributes_for_contact)
     contact.update!(attributes) if attributes.present?
-    ::Avatar::AvatarFromUrlJob.perform_later(contact, avatar_url) if avatar_url.present?
+    sync_contact_avatar(contact, avatar_url, source_label)
   rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique
     Rails.logger.info("Whatsmeow: skipped contact profile sync for inbox #{@inbox.id} and sender #{source_label}")
+  end
+
+  def sync_contact_avatar(contact, avatar_url, source_label)
+    if avatar_url.present?
+      ::Avatar::AvatarFromUrlJob.perform_later(contact, avatar_url)
+      return
+    end
+
+    return unless should_refresh_contact_avatar?(contact)
+
+    ::Whatsmeow::ProfilePictureSyncJob.perform_later(contact.id, @inbox.id, source_label)
+  end
+
+  def should_refresh_contact_avatar?(contact)
+    return true unless contact.avatar.attached?
+
+    checked_at = (contact.additional_attributes || {})['whatsmeow_profile_picture_checked_at']
+    checked_at.blank? || Time.zone.parse(checked_at) < 24.hours.ago
+  rescue ArgumentError
+    true
   end
 
   def contact_profile_attributes(contact, attributes_for_contact)

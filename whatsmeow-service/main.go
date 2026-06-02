@@ -137,6 +137,7 @@ func main() {
 	r.GET("/sessions/:channel_id/qr", handleGetQR)
 	r.GET("/sessions/:channel_id/status", handleGetStatus)
 	r.GET("/sessions/:channel_id/group_members", handleGetGroupMembers)
+	r.GET("/sessions/:channel_id/profile_picture", handleGetProfilePicture)
 	r.DELETE("/sessions/:channel_id", handleDisconnectSession)
 	r.POST("/messages", handleSendMessage)
 
@@ -701,6 +702,33 @@ func handleGetGroupMembers(c *gin.Context) {
 		"group_name": info.Name,
 		"members":    members,
 		"count":      len(members),
+	})
+}
+
+func handleGetProfilePicture(c *gin.Context) {
+	channelID := c.Param("channel_id")
+	jidValue := c.Query("jid")
+	forceRefresh := strings.EqualFold(c.Query("force"), "true")
+
+	jid, ok := parseJID(jidValue)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid WhatsApp JID"})
+		return
+	}
+
+	clientsMu.RLock()
+	client, exists := clients[channelID]
+	clientsMu.RUnlock()
+
+	if !exists || !client.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"jid":                 jid.ToNonAD().String(),
+		"profile_picture_url": getProfilePictureURLWithRefresh(client, jid, forceRefresh),
+		"checked_at":          time.Now().UTC().Format(time.RFC3339),
 	})
 }
 
@@ -1937,12 +1965,16 @@ func setCachedGroupName(key string, value string, ttl time.Duration) {
 }
 
 func getProfilePictureURL(client *whatsmeow.Client, jid types.JID) string {
+	return getProfilePictureURLWithRefresh(client, jid, false)
+}
+
+func getProfilePictureURLWithRefresh(client *whatsmeow.Client, jid types.JID, forceRefresh bool) string {
 	if jid.IsEmpty() {
 		return ""
 	}
 
 	cacheKey := jidString(jid)
-	if cachedURL, ok := getCachedProfilePicture(jid); ok {
+	if cachedURL, ok := getCachedProfilePicture(jid); ok && !forceRefresh {
 		return cachedURL
 	}
 

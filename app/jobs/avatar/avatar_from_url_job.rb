@@ -13,8 +13,8 @@ class Avatar::AvatarFromUrlJob < ApplicationJob
   MAX_DOWNLOAD_SIZE = 15.megabytes
   RATE_LIMIT_WINDOW = 1.minute
 
-  def perform(avatarable, avatar_url)
-    return unless syncable_avatar?(avatarable, avatar_url)
+  def perform(avatarable, avatar_url, force: false)
+    return unless syncable_avatar?(avatarable, avatar_url, force: force)
 
     fetch_and_attach_avatar(avatarable, avatar_url)
   rescue SafeFetch::HttpError => e
@@ -27,10 +27,10 @@ class Avatar::AvatarFromUrlJob < ApplicationJob
 
   private
 
-  def syncable_avatar?(avatarable, avatar_url)
+  def syncable_avatar?(avatarable, avatar_url, force: false)
     avatarable.respond_to?(:avatar) &&
       url_valid?(avatar_url) &&
-      should_sync_avatar?(avatarable, avatar_url)
+      should_sync_avatar?(avatarable, avatar_url, force: force)
   end
 
   def fetch_and_attach_avatar(avatarable, avatar_url)
@@ -62,9 +62,10 @@ class Avatar::AvatarFromUrlJob < ApplicationJob
     end
   end
 
-  def should_sync_avatar?(avatarable, avatar_url)
+  def should_sync_avatar?(avatarable, avatar_url, force: false)
     # Only Contacts are rate-limited and hash-gated.
     return true unless avatarable.is_a?(Contact)
+    return true if force
 
     attrs = avatarable.additional_attributes || {}
 

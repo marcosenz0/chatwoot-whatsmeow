@@ -39,7 +39,11 @@ class Whatsmeow::DirectConversationBuilder
     attributes[:phone_number] = phone_number if phone_number.present? && contact.phone_number.blank?
     attributes[:additional_attributes] = (contact.additional_attributes || {}).merge(participant_additional_attributes)
     contact.update!(attributes) if attributes.present?
-    ::Avatar::AvatarFromUrlJob.perform_later(contact, profile_picture_url) if profile_picture_url.present? && !contact.avatar.attached?
+    if profile_picture_url.present?
+      ::Avatar::AvatarFromUrlJob.perform_later(contact, profile_picture_url)
+    else
+      ::Whatsmeow::ProfilePictureSyncJob.perform_later(contact.id, inbox.id, participant_jid)
+    end
   end
 
   def isolate_group_contact_inbox(contact_inbox)
