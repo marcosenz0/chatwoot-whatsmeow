@@ -8,6 +8,7 @@ import { useAlert } from 'dashboard/composables';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import ChannelIcon from 'dashboard/components-next/icon/ChannelIcon.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import Switch from 'dashboard/components-next/switch/Switch.vue';
 import InboxesAPI from 'dashboard/api/inboxes';
@@ -27,6 +28,7 @@ const searchValue = ref('');
 const groupsByInbox = ref({});
 const loadingInboxIds = ref([]);
 const openingGroupJid = ref('');
+const showInboxDropdown = ref(false);
 const isUpdatingIgnoreGroups = ref(false);
 
 const whatsmeowInboxes = computed(() =>
@@ -79,11 +81,34 @@ const selectedInboxLabel = computed(() => {
   return selectedInbox.value?.name || '';
 });
 
+const inboxMenuItems = computed(() => [
+  {
+    label: t('CONTACTS_LAYOUT.WHATSMEOW_GROUPS.ALL_INBOXES'),
+    value: ALL_INBOXES,
+    icon: selectedInboxId.value === ALL_INBOXES ? 'i-lucide-check' : '',
+    isSelected: selectedInboxId.value === ALL_INBOXES,
+  },
+  ...whatsmeowInboxes.value.map(inbox => {
+    const value = String(inbox.id);
+    return {
+      label: inbox.name,
+      value,
+      icon: selectedInboxId.value === value ? 'i-lucide-check' : '',
+      isSelected: selectedInboxId.value === value,
+    };
+  }),
+]);
+
 const setLoading = (inboxId, value) => {
   const ids = new Set(loadingInboxIds.value);
   if (value) ids.add(inboxId);
   else ids.delete(inboxId);
   loadingInboxIds.value = Array.from(ids);
+};
+
+const selectInbox = ({ value }) => {
+  selectedInboxId.value = value;
+  showInboxDropdown.value = false;
 };
 
 const fetchGroupsForInbox = async inbox => {
@@ -219,24 +244,32 @@ onMounted(async () => {
       </div>
 
       <div class="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <label class="flex flex-col gap-1 text-sm font-medium text-n-slate-12">
+        <div class="flex flex-col gap-1 text-sm font-medium text-n-slate-12">
           {{ t('CONTACTS_LAYOUT.WHATSMEOW_GROUPS.INBOX_LABEL') }}
-          <select
-            v-model="selectedInboxId"
-            class="reset-base h-10 rounded-lg border border-n-weak bg-n-alpha-black2 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+          <div
+            v-on-clickaway="() => (showInboxDropdown = false)"
+            class="relative"
           >
-            <option :value="ALL_INBOXES">
-              {{ t('CONTACTS_LAYOUT.WHATSMEOW_GROUPS.ALL_INBOXES') }}
-            </option>
-            <option
-              v-for="inbox in whatsmeowInboxes"
-              :key="inbox.id"
-              :value="String(inbox.id)"
+            <button
+              type="button"
+              class="reset-base flex h-10 w-full items-center justify-between gap-2 rounded-lg border border-n-weak bg-n-alpha-black2 px-3 text-left text-sm text-n-slate-12 outline-none transition-colors hover:bg-n-alpha-1 focus:border-n-brand"
+              :class="{ 'border-n-brand bg-n-alpha-1': showInboxDropdown }"
+              @click="showInboxDropdown = !showInboxDropdown"
             >
-              {{ inbox.name }}
-            </option>
-          </select>
-        </label>
+              <span class="min-w-0 truncate">{{ selectedInboxLabel }}</span>
+              <span
+                class="i-lucide-chevron-down size-4 shrink-0 text-n-slate-10 transition-transform"
+                :class="{ 'rotate-180': showInboxDropdown }"
+              />
+            </button>
+            <DropdownMenu
+              v-if="showInboxDropdown"
+              :menu-items="inboxMenuItems"
+              class="left-0 right-0 top-11 z-50 max-h-64 min-w-full dark:!outline-n-slate-5"
+              @action="selectInbox"
+            />
+          </div>
+        </div>
 
         <label class="flex flex-col gap-1 text-sm font-medium text-n-slate-12">
           {{ t('CONTACTS_LAYOUT.WHATSMEOW_GROUPS.SEARCH_LABEL') }}
