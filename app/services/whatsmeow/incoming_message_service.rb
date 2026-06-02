@@ -285,13 +285,17 @@ class Whatsmeow::IncomingMessageService
 
   def sync_contact_avatar(contact, avatar_url, source_label)
     if avatar_url.present?
-      ::Avatar::AvatarFromUrlJob.perform_later(contact, avatar_url)
+      ::Avatar::AvatarFromUrlJob.perform_later(contact, avatar_url, force: force_group_avatar_sync?(contact))
       return
     end
 
     return unless should_refresh_contact_avatar?(contact)
 
     ::Whatsmeow::ProfilePictureSyncJob.perform_later(contact.id, @inbox.id, source_label)
+  end
+
+  def force_group_avatar_sync?(contact)
+    group_profile?(contact) && !contact.avatar.attached?
   end
 
   def should_refresh_contact_avatar?(contact)

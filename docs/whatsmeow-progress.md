@@ -105,6 +105,7 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - `whatsmeow-service` exposes `GET /sessions/:channel_id/profile_picture` to fetch a profile picture URL for a WhatsApp JID on demand, with optional forced refresh to bypass the in-memory cache.
 - Rails uses `Whatsmeow::ProfilePictureSyncJob` to refresh missing or stale WhatsApp avatars asynchronously. The job prefers real phone JIDs and group JIDs before falling back to alternate/LID identifiers.
 - Incoming messages and private conversations opened from group participants now enqueue profile picture refresh when the webhook payload does not already include an avatar URL.
+- Group contacts without avatars can retry profile picture lookup on new group activity instead of being blocked by the 24-hour Rails check; blank WhatsApp lookups remain throttled by the Go service cache.
 - `Avatar::AvatarFromUrlJob` accepts `force: true` for Whatsmeow refreshes so a changed WhatsApp photo can replace a previously attached avatar instead of being blocked by URL hash/rate-limit metadata.
 - `bundle exec rails whatsmeow:sync_profile_pictures FORCE=true` backfills all Whatsmeow inbox contacts so old conversations and the Contacts page can receive updated profile photos too. In staging, where the ActiveJob adapter is `async`, the task runs inline; use `INLINE=true` to force the same behavior elsewhere.
 

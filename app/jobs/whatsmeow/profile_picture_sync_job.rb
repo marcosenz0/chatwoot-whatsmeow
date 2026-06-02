@@ -27,6 +27,7 @@ class Whatsmeow::ProfilePictureSyncJob < ApplicationJob
 
   def recently_checked?
     return false if @force
+    return false if group_profile? && !@contact.avatar.attached?
     return false if !@contact.avatar.attached? && stored_profile_picture_url.present?
 
     checked_at = additional_attributes['whatsmeow_profile_picture_checked_at']
