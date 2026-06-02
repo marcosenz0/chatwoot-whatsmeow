@@ -103,6 +103,22 @@ const setDefaults = () => {
   connectionStatus.value = props.inbox.status || 'disconnected';
 };
 
+const syncInboxConnectionStatus = payload => {
+  if (!props.inbox.id) return;
+
+  const nextStatus = payload.status || 'disconnected';
+  const nextChannel = props.inbox.channel
+    ? { ...props.inbox.channel, status: nextStatus }
+    : props.inbox.channel;
+
+  store.commit('inboxes/EDIT_INBOXES', {
+    ...props.inbox,
+    ...(payload.phone_number ? { phone_number: payload.phone_number } : {}),
+    ...(nextChannel ? { channel: nextChannel } : {}),
+    status: nextStatus,
+  });
+};
+
 const clearPolling = () => {
   if (pollInterval.value) {
     clearInterval(pollInterval.value);
@@ -122,6 +138,7 @@ const applySessionPayload = payload => {
 
   connectionStatus.value = nextStatus;
   whatsmeowJid.value = payload.jid || '';
+  syncInboxConnectionStatus(payload);
 
   if (payload.qr_code) {
     qrCodeUrl.value = payload.qr_code;
