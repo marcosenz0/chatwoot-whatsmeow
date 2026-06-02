@@ -81,6 +81,30 @@ const directUploadsEnabled = computed(
 
 const activeContact = computed(() => contactById.value(props.contactId));
 
+const loadContactableInboxesForContact = async contact => {
+  if (!contact?.id) return;
+
+  if (
+    selectedContact.value?.id === contact.id &&
+    selectedContact.value?.contactInboxes?.length
+  ) {
+    return;
+  }
+
+  isFetchingInboxes.value = true;
+  try {
+    const contactableInboxes = await fetchContactableInboxes(contact.id);
+    selectedContact.value = {
+      ...contact,
+      contactInboxes: mergeInboxDetails(contactableInboxes, inboxesList.value),
+    };
+  } catch {
+    // Keep the composer usable; the empty-state will explain if no inboxes load.
+  } finally {
+    isFetchingInboxes.value = false;
+  }
+};
+
 const onContactSearch = debounce(
   async query => {
     isSearching.value = true;
@@ -194,6 +218,9 @@ const onPopoverShow = () => {
   // Flag to prevent triggering drag n drop,
   // When compose modal is active
   emitter.emit(BUS_EVENTS.NEW_CONVERSATION_MODAL, true);
+  if (props.contactId && activeContact.value?.id) {
+    loadContactableInboxesForContact(activeContact.value);
+  }
 };
 
 const onPopoverHide = () => {

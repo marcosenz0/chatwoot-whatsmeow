@@ -16,7 +16,7 @@ import ContactsBulkActionBar from '../components/ContactsBulkActionBar.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import BulkActionsAPI from 'dashboard/api/bulkActions';
 
-const DEFAULT_SORT_FIELD = 'last_activity_at';
+const DEFAULT_SORT_FIELD = 'name';
 const DEBOUNCE_DELAY = 300;
 
 const store = useStore();

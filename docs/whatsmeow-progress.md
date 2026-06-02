@@ -81,6 +81,15 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Disconnect now removes client mappings and calls whatsmeow outside the global client mutex, then marks the matching phone channels disconnected. This prevents the UI from timing out while disconnecting.
 - Group conversation creation now runs under a contact lock and reuses the open group conversation by group contact, avoiding duplicate open conversations when history/webhook events arrive in parallel.
 
+## June 2026 Contacts / Group Audio Fix
+
+- Incoming Whatsmeow audio MIME values are normalized before saving attachments. `audio/opus` becomes `audio/ogg`, filenames use `.ogg`, and codec parameters are stripped so group voice notes can render in the browser like direct voice notes.
+- Group participant resolution now compares the event sender against group metadata. It prefers saved/contact display names, then push names or real phone numbers, and only falls back to technical JIDs such as `@lid` when no friendlier value is available.
+- `Contacts::ContactableInboxesService` includes connected `Channel::Whatsmeow` inboxes, allowing the Contacts page "send message" flow to start a private conversation through a selected Whatsmeow instance.
+- The Contacts list default name sort now ranks human names first, then phone numbers, then technical WhatsApp identifiers, keeping `@lid` contacts lower in the list.
+- Contact cards include a per-contact send action that opens a Whatsmeow-compatible inbox selector and creates/opens an empty Chatwoot conversation without sending a WhatsApp message automatically.
+- Whatsmeow inbox list labels now use the localized channel name (`WhatsApp Direto` in pt-BR) instead of the missing `INBOX_MGMT.CHANNELS.undefined` key.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

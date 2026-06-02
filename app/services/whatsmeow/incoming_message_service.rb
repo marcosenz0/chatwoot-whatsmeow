@@ -363,7 +363,7 @@ class Whatsmeow::IncomingMessageService
         file: {
           io: StringIO.new(data),
           filename: attachment[:file_name].presence || default_file_name(attachment[:file_type]),
-          content_type: attachment[:content_type].presence || 'application/octet-stream'
+          content_type: normalized_content_type(attachment[:content_type])
         }
       )
     end
@@ -381,6 +381,14 @@ class Whatsmeow::IncomingMessageService
     return file_type if Attachment.file_types.key?(file_type.to_s)
 
     'file'
+  end
+
+  def normalized_content_type(content_type)
+    value = content_type.to_s.split(';').first.strip.downcase
+    return 'application/octet-stream' if value.blank?
+    return 'audio/ogg' if value == 'audio/opus'
+
+    value
   end
 
   def default_file_name(file_type)

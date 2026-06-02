@@ -27,6 +27,7 @@ const i18nMap = {
   'Channel::TwitterProfile': 'TWITTER_PROFILE',
   'Channel::TwilioSms': 'TWILIO_SMS',
   'Channel::Whatsapp': 'WHATSAPP',
+  'Channel::Whatsmeow': 'WHATSMEOW',
   'Channel::Sms': 'SMS',
   'Channel::Email': 'EMAIL',
   'Channel::Telegram': 'TELEGRAM',

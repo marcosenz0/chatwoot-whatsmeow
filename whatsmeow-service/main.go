@@ -88,6 +88,14 @@ type GroupMemberResponse struct {
 	IsSavedContact    bool   `json:"is_saved_contact"`
 }
 
+type ResolvedGroupParticipant struct {
+	JID               types.JID
+	LIDJID            types.JID
+	Name              string
+	PhoneNumber       string
+	ProfilePictureURL string
+}
+
 func main() {
 	// Initialize configurations
 	dbURI := os.Getenv("DATABASE_URL")
@@ -1359,14 +1367,18 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 
 	isGroup := isGroupMessage(messageEvent.Info)
 	contactJID := preferredContactJID(messageEvent.Info)
-	participantJID := types.JID{}
-	participantLIDJID := types.JID{}
+	participant := ResolvedGroupParticipant{}
 	groupName := ""
 	if isGroup {
 		contactJID = messageEvent.Info.Chat.ToNonAD()
-		participantJID = firstUsableJID(messageEvent.Info.SenderAlt, messageEvent.Info.Sender)
-		participantLIDJID = firstLIDJID(messageEvent.Info.SenderAlt, messageEvent.Info.Sender)
 		groupName = getGroupName(client, contactJID)
+		participant = resolveGroupParticipant(
+			client,
+			contactJID,
+			messageEvent.Info.PushName,
+			messageEvent.Info.SenderAlt,
+			messageEvent.Info.Sender,
+		)
 	}
 
 	sender := jidString(contactJID)
@@ -1393,10 +1405,8 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 	}
 
 	senderName := getContactDisplayName(client, contactJID, messageEvent.Info.PushName)
-	participantName := ""
 	if isGroup && groupName != "" {
 		senderName = groupName
-		participantName = getContactDisplayName(client, participantJID, messageEvent.Info.PushName)
 	}
 
 	payload := map[string]interface{}{
@@ -1419,11 +1429,11 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		payload["is_group"] = true
 		payload["group_jid"] = jidString(contactJID)
 		payload["group_name"] = groupName
-		payload["participant_jid"] = jidString(participantJID)
-		payload["participant_lid_jid"] = jidString(participantLIDJID)
-		payload["participant_name"] = participantName
-		payload["participant_phone"] = phoneNumberFromJID(participantJID)
-		payload["participant_profile_picture_url"] = getProfilePictureURL(client, participantJID)
+		payload["participant_jid"] = jidString(participant.JID)
+		payload["participant_lid_jid"] = jidString(participant.LIDJID)
+		payload["participant_name"] = participant.Name
+		payload["participant_phone"] = participant.PhoneNumber
+		payload["participant_profile_picture_url"] = participant.ProfilePictureURL
 	}
 	sendWebhookNotification(accountID, channelID, payload)
 }
@@ -1582,9 +1592,12 @@ func fallbackMIME(fileType string) string {
 }
 
 func normalizedMIME(contentType string, fallback string) string {
-	contentType = strings.TrimSpace(strings.Split(contentType, ";")[0])
+	contentType = strings.ToLower(strings.TrimSpace(strings.Split(contentType, ";")[0]))
 	if contentType == "" {
 		return fallback
+	}
+	if contentType == "audio/opus" {
+		return "audio/ogg"
 	}
 	return contentType
 }
@@ -1610,6 +1623,9 @@ func defaultFileName(fileType string, contentType string) string {
 
 func extensionForMIME(contentType string) string {
 	contentType = normalizedMIME(contentType, "")
+	if contentType == "audio/ogg" {
+		return ".ogg"
+	}
 	extensions, err := mime.ExtensionsByType(contentType)
 	if err != nil || len(extensions) == 0 {
 		return ""
@@ -1686,6 +1702,73 @@ func firstLIDJID(candidates ...types.JID) types.JID {
 		}
 	}
 	return types.JID{}
+}
+
+func resolveGroupParticipant(client *whatsmeow.Client, groupJID types.JID, pushName string, candidates ...types.JID) ResolvedGroupParticipant {
+	fallbackJID := firstUsableJID(candidates...)
+	fallbackLIDJID := firstLIDJID(candidates...)
+	resolved := ResolvedGroupParticipant{
+		JID:               fallbackJID,
+		LIDJID:            fallbackLIDJID,
+		Name:              firstFriendlyDisplayName(getContactDisplayName(client, fallbackJID, pushName), phoneNumberFromJID(fallbackJID), jidString(fallbackJID)),
+		PhoneNumber:       phoneNumberFromJID(fallbackJID),
+		ProfilePictureURL: getProfilePictureURL(client, fallbackJID),
+	}
+
+	if groupJID.IsEmpty() || client == nil {
+		return resolved
+	}
+
+	info, err := client.GetGroupInfo(context.Background(), groupJID.ToNonAD())
+	if err != nil {
+		return resolved
+	}
+
+	for _, participant := range info.Participants {
+		if !groupParticipantMatches(participant, candidates...) {
+			continue
+		}
+
+		member := buildGroupMemberResponse(client, participant, false)
+		memberJID := firstUsableJID(participant.PhoneNumber, participant.JID, participant.LID)
+		phoneJID := firstUsableJID(participant.PhoneNumber, participant.JID)
+		profileJID := memberJID
+		if isPhoneJID(phoneJID) {
+			profileJID = phoneJID
+		}
+
+		resolved.JID = memberJID
+		resolved.LIDJID = firstLIDJID(participant.LID, participant.JID, fallbackLIDJID)
+		resolved.Name = firstFriendlyDisplayName(member.Name, pushName, member.PhoneNumber, jidString(memberJID))
+		resolved.PhoneNumber = member.PhoneNumber
+		resolved.ProfilePictureURL = cachedProfilePictureURL(profileJID)
+		if resolved.ProfilePictureURL == "" {
+			resolved.ProfilePictureURL = getProfilePictureURL(client, profileJID)
+		}
+		return resolved
+	}
+
+	return resolved
+}
+
+func groupParticipantMatches(participant types.GroupParticipant, candidates ...types.JID) bool {
+	participantJIDs := []types.JID{
+		participant.PhoneNumber,
+		participant.JID,
+		participant.LID,
+	}
+	for _, candidate := range candidates {
+		for _, participantJID := range participantJIDs {
+			if sameBareJID(candidate, participantJID) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func sameBareJID(left types.JID, right types.JID) bool {
+	return !left.IsEmpty() && !right.IsEmpty() && left.ToNonAD().String() == right.ToNonAD().String()
 }
 
 func isPhoneJID(jid types.JID) bool {
@@ -1776,6 +1859,24 @@ func firstNonBlank(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func firstFriendlyDisplayName(values ...string) string {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value != "" && !isTechnicalJIDString(value) {
+			return value
+		}
+	}
+	return firstNonBlank(values...)
+}
+
+func isTechnicalJIDString(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return strings.Contains(value, "@lid") ||
+		strings.Contains(value, "@s.whatsapp.net") ||
+		strings.Contains(value, "@g.us") ||
+		strings.Contains(value, "@newsletter")
 }
 
 func getContactDisplayName(client *whatsmeow.Client, jid types.JID, fallback string) string {

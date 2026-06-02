@@ -14,6 +14,8 @@ class Contacts::ContactableInboxesService
       twilio_contactable_inbox(inbox)
     when 'Channel::Whatsapp'
       whatsapp_contactable_inbox(inbox)
+    when 'Channel::Whatsmeow'
+      whatsmeow_contactable_inbox(inbox)
     when 'Channel::Sms'
       sms_contactable_inbox(inbox)
     when 'Channel::Email'
@@ -52,6 +54,26 @@ class Contacts::ContactableInboxesService
 
     # Remove the plus since thats the format 360 dialog uses
     { source_id: @contact.phone_number.delete('+'), inbox: inbox }
+  end
+
+  def whatsmeow_contactable_inbox(inbox)
+    return if inbox.channel.status != 'connected'
+
+    source_id = whatsmeow_source_id
+    return if source_id.blank?
+
+    { source_id: source_id, inbox: inbox }
+  end
+
+  def whatsmeow_source_id
+    return "#{@contact.phone_number.delete('+')}@s.whatsapp.net" if @contact.phone_number.present?
+
+    additional_attributes = @contact.additional_attributes || {}
+    [
+      additional_attributes['whatsmeow_participant_jid'],
+      additional_attributes['whatsmeow_participant_lid_jid'],
+      @contact.identifier
+    ].compact_blank.find { |source_id| source_id.to_s.include?('@') }
   end
 
   def sms_contactable_inbox(inbox)

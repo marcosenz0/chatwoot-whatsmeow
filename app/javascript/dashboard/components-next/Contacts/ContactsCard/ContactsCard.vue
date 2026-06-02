@@ -9,6 +9,7 @@ import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Flag from 'dashboard/components-next/flag/Flag.vue';
 import ContactDeleteSection from 'dashboard/components-next/Contacts/ContactsCard/ContactDeleteSection.vue';
 import Checkbox from 'dashboard/components-next/checkbox/Checkbox.vue';
+import ContactStartConversation from 'dashboard/components-next/Contacts/ContactStartConversation.vue';
 import countries from 'shared/constants/countries';
 
 const props = defineProps({
@@ -192,14 +193,27 @@ const handleAvatarHover = isHovered => {
         </div>
       </div>
 
-      <Button
-        icon="i-lucide-chevron-down"
-        variant="ghost"
-        color="slate"
-        size="xs"
-        :class="{ 'rotate-180': isExpanded }"
-        @click="onClickExpand"
-      />
+      <div class="flex items-center gap-1 shrink-0">
+        <ContactStartConversation :contact-id="id" align="end">
+          <template #trigger>
+            <Button
+              :label="t('CONTACTS_LAYOUT.HEADER.SEND_MESSAGE')"
+              icon="i-lucide-message-circle"
+              variant="ghost"
+              color="slate"
+              size="xs"
+            />
+          </template>
+        </ContactStartConversation>
+        <Button
+          icon="i-lucide-chevron-down"
+          variant="ghost"
+          color="slate"
+          size="xs"
+          :class="{ 'rotate-180': isExpanded }"
+          @click="onClickExpand"
+        />
+      </div>
 
       <template #after>
         <div

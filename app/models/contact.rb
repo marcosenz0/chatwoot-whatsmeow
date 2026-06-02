@@ -118,14 +118,30 @@ class Contact < ApplicationRecord
   }
 
   scope :order_on_name, lambda { |direction|
+    display_name = <<~SQL.squish
+      COALESCE(
+        NULLIF("contacts"."name", ''),
+        NULLIF("contacts"."phone_number", ''),
+        NULLIF("contacts"."identifier", ''),
+        ''
+      )
+    SQL
+    technical_identifier_filter = [
+      "#{display_name} ILIKE '%@lid%'",
+      "#{display_name} ILIKE '%@s.whatsapp.net%'",
+      "#{display_name} ILIKE '%@g.us%'"
+    ].join(' OR ')
+
     order(
       Arel::Nodes::SqlLiteral.new(
         sanitize_sql_for_order(
           "CASE
-           WHEN \"contacts\".\"name\" ~~* '^+\d*' THEN 'z'
-           WHEN \"contacts\".\"name\"  ~~*  '^\b*' THEN 'z'
-           ELSE LOWER(\"contacts\".\"name\")
-           END #{direction}"
+           WHEN #{display_name} = '' THEN 3
+           WHEN #{technical_identifier_filter} THEN 2
+           WHEN #{display_name} ~ '^\\+?[0-9[:space:]().-]+$' THEN 1
+           ELSE 0
+           END ASC,
+           LOWER(#{display_name}) #{direction} NULLS LAST"
         )
       )
     )
