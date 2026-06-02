@@ -3,6 +3,19 @@
 
 ___
 
+# Chatwoot Whatsmeow Fork
+
+Este repositorio e um fork pessoal do Chatwoot com WhatsApp Direct via `whatsmeow-service`, pensado para conectar instancias reais de WhatsApp por QR Code diretamente no Chatwoot.
+
+- Guia de instalacao, Docker, Easypanel e Portainer: [docs/whatsmeow-installation.md](docs/whatsmeow-installation.md)
+- Historico tecnico da integracao: [docs/whatsmeow-progress.md](docs/whatsmeow-progress.md)
+- Branch principal de deploy: `develop`
+- Imagem do fork: `ghcr.io/marcosenz0/chatwoot-whatsmeow:develop`
+
+Nao use `chatwoot/chatwoot:latest` para instalar este fork, pois essa imagem e do Chatwoot original e nao inclui o canal WhatsApp Direct com Whatsmeow.
+
+---
+
 # Chatwoot
 
 The modern customer support platform, an open-source alternative to Intercom, Zendesk, Salesforce Service Cloud etc.
