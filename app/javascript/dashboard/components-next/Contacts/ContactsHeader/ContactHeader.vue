@@ -17,6 +17,7 @@ defineProps({
   hasActiveFilters: { type: Boolean, default: false },
   isLabelView: { type: Boolean, default: false },
   isActiveView: { type: Boolean, default: false },
+  hideContactActions: { type: Boolean, default: false },
 });
 
 const emit = defineEmits([
@@ -59,7 +60,10 @@ const emit = defineEmits([
             </template>
           </Input>
         </div>
-        <div class="flex items-center flex-shrink-0 gap-4">
+        <div
+          v-if="!hideContactActions"
+          class="flex items-center flex-shrink-0 gap-4"
+        >
           <div class="flex items-center gap-2">
             <div v-if="!isLabelView && !isActiveView" class="relative">
               <Button

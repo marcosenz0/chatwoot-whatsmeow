@@ -86,6 +86,14 @@ class InboxPolicy < ApplicationPolicy
     true
   end
 
+  def whatsmeow_groups?
+    true
+  end
+
+  def whatsmeow_group_conversation?
+    true
+  end
+
   def whatsmeow_direct_conversation?
     true
   end

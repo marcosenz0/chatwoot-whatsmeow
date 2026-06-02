@@ -12,6 +12,7 @@ import ContactsListLayout from 'dashboard/components-next/Contacts/ContactsListL
 import ContactEmptyState from 'dashboard/components-next/Contacts/EmptyState/ContactEmptyState.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import ContactsList from 'dashboard/components-next/Contacts/Pages/ContactsList.vue';
+import WhatsmeowGroupsList from '../components/WhatsmeowGroupsList.vue';
 import ContactsBulkActionBar from '../components/ContactsBulkActionBar.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import BulkActionsAPI from 'dashboard/api/bulkActions';
@@ -100,6 +101,7 @@ const isContactIndexView = computed(
   () => route.name === 'contacts_dashboard_index' && pageNumber.value === 1
 );
 const isActiveView = computed(() => route.name === 'contacts_dashboard_active');
+const isGroupsView = computed(() => route.name === 'contacts_dashboard_groups');
 const hasAppliedFilters = computed(() => {
   return appliedFilters.value.length > 0;
 });
@@ -122,6 +124,7 @@ const showEmptyText = computed(() => {
 });
 
 const headerTitle = computed(() => {
+  if (isGroupsView.value) return t('CONTACTS_LAYOUT.WHATSMEOW_GROUPS.TITLE');
   if (searchQuery.value) return t('CONTACTS_LAYOUT.HEADER.SEARCH_TITLE');
   if (isActiveView.value) return t('CONTACTS_LAYOUT.HEADER.ACTIVE_TITLE');
   if (activeSegmentId.value) return activeSegment.value?.name;
@@ -287,6 +290,8 @@ const loadMoreSearchResults = async () => {
 };
 
 const fetchContactsBasedOnContext = async (page, options = {}) => {
+  if (isGroupsView.value) return;
+
   const { clearSelection: shouldClearSelection = true } = options;
   if (shouldClearSelection) {
     clearSelection();
@@ -447,7 +452,7 @@ watch(
 );
 
 watch(
-  [activeLabel, activeSegment, isActiveView],
+  [activeLabel, activeSegment, isActiveView, isGroupsView],
   () => {
     fetchContactsBasedOnContext(pageNumber.value);
   },
@@ -471,6 +476,8 @@ watch(searchQuery, value => {
 });
 
 onMounted(async () => {
+  if (isGroupsView.value) return;
+
   if (!activeSegmentId.value) {
     if (searchQuery.value) {
       await searchContacts(searchQuery.value, pageNumber.value, false, {
@@ -501,7 +508,9 @@ onMounted(async () => {
       :header-title="headerTitle"
       :current-page="currentPage"
       :total-items="totalItems"
-      :show-pagination-footer="!isFetchingList && hasContacts && !isSearchView"
+      :show-pagination-footer="
+        !isGroupsView && !isFetchingList && hasContacts && !isSearchView
+      "
       :active-sort="sortState.activeSort"
       :active-ordering="sortState.activeOrdering"
       :active-segment="activeSegment"
@@ -520,8 +529,10 @@ onMounted(async () => {
       @clear-filters="fetchContacts"
       @load-more="loadMoreSearchResults"
     >
+      <WhatsmeowGroupsList v-if="isGroupsView" />
+
       <div
-        v-if="isFetchingList && !(isSearchView && hasContacts)"
+        v-else-if="isFetchingList && !(isSearchView && hasContacts)"
         class="flex items-center justify-center py-10 text-n-slate-11"
       >
         <Spinner />

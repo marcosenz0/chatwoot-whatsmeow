@@ -75,6 +75,17 @@ class Inboxes extends CacheEnabledApiClient {
     });
   }
 
+  getWhatsmeowGroups(inboxId) {
+    return axios.get(`${this.url}/${inboxId}/whatsmeow_groups`);
+  }
+
+  createWhatsmeowGroupConversation(inboxId, payload) {
+    return axios.post(
+      `${this.url}/${inboxId}/whatsmeow_group_conversation`,
+      payload
+    );
+  }
+
   createWhatsmeowDirectConversation(inboxId, payload) {
     return axios.post(
       `${this.url}/${inboxId}/whatsmeow_direct_conversation`,

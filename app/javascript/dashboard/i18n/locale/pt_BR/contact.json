@@ -290,6 +290,26 @@
     }
   },
   "CONTACTS_LAYOUT": {
+    "WHATSMEOW_GROUPS": {
+      "TITLE": "Grupos",
+      "DESCRIPTION": "Lista os grupos de {inbox}. VocÃª pode abrir uma conversa de grupo sem receber mensagens de grupo automaticamente.",
+      "INBOX_LABEL": "InstÃ¢ncia",
+      "SEARCH_LABEL": "Buscar",
+      "SEARCH_PLACEHOLDER": "Buscar grupos",
+      "ALL_INBOXES": "Todas as instÃ¢ncias do WhatsApp",
+      "REFRESH": "Atualizar",
+      "IGNORE_GROUPS_TITLE": "Ignorar mensagens recebidas de grupos",
+      "IGNORE_GROUPS_HINT": "Atualiza a mesma configuraÃ§Ã£o da caixa de entrada.",
+      "IGNORE_GROUPS_UPDATED": "ConfiguraÃ§Ã£o de grupos atualizada.",
+      "IGNORE_GROUPS_ERROR": "NÃ£o foi possÃ­vel atualizar a configuraÃ§Ã£o de grupos.",
+      "LOAD_ERROR": "NÃ£o foi possÃ­vel carregar os grupos de {inbox}.",
+      "OPEN_ERROR": "NÃ£o foi possÃ­vel abrir esta conversa de grupo.",
+      "NO_INBOXES": "Nenhuma instÃ¢ncia de WhatsApp Direct foi encontrada.",
+      "EMPTY": "Nenhum grupo encontrado para este filtro.",
+      "MEMBER_COUNT": "{count} membros",
+      "ADMINS_ONLY": "Somente ADMs",
+      "OPEN_CONVERSATION": "Abrir conversa"
+    },
     "HEADER": {
       "TITLE": "Contatos",
       "SEARCH_TITLE": "Pesquisar contatos",

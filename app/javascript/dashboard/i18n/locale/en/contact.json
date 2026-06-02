@@ -293,6 +293,26 @@
   },
 
   "CONTACTS_LAYOUT": {
+    "WHATSMEOW_GROUPS": {
+      "TITLE": "Groups",
+      "DESCRIPTION": "List groups from {inbox}. You can open a group conversation without receiving group messages automatically.",
+      "INBOX_LABEL": "Instance",
+      "SEARCH_LABEL": "Search",
+      "SEARCH_PLACEHOLDER": "Search groups",
+      "ALL_INBOXES": "All WhatsApp instances",
+      "REFRESH": "Refresh",
+      "IGNORE_GROUPS_TITLE": "Ignore incoming group messages",
+      "IGNORE_GROUPS_HINT": "This updates the same setting from the inbox configuration.",
+      "IGNORE_GROUPS_UPDATED": "Group message setting updated.",
+      "IGNORE_GROUPS_ERROR": "Could not update group message setting.",
+      "LOAD_ERROR": "Could not load groups from {inbox}.",
+      "OPEN_ERROR": "Could not open this group conversation.",
+      "NO_INBOXES": "No WhatsApp Direct instances were found.",
+      "EMPTY": "No groups found for this filter.",
+      "MEMBER_COUNT": "{count} members",
+      "ADMINS_ONLY": "Admins only",
+      "OPEN_CONVERSATION": "Open conversation"
+    },
     "HEADER": {
       "TITLE": "Contacts",
       "SEARCH_TITLE": "Search contacts",

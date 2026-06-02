@@ -109,6 +109,12 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - `Avatar::AvatarFromUrlJob` accepts `force: true` for Whatsmeow refreshes so a changed WhatsApp photo can replace a previously attached avatar instead of being blocked by URL hash/rate-limit metadata.
 - `bundle exec rails whatsmeow:sync_profile_pictures FORCE=true` backfills all Whatsmeow inbox contacts so old conversations and the Contacts page can receive updated profile photos too. In staging, where the ActiveJob adapter is `async`, the task runs inline; use `INLINE=true` to force the same behavior elsewhere.
 
+## June 2026 Groups Directory
+
+- The Contacts area now has a Groups tab for Whatsmeow inboxes. It lists groups directly from the connected WhatsApp session via `GetJoinedGroups`, instead of only showing group conversations Chatwoot already knows.
+- The Groups tab can show a specific Whatsmeow inbox or all Whatsmeow inboxes together, supports group search, and can open/create the Chatwoot group conversation without sending any WhatsApp message automatically.
+- The same `ignore_groups` inbox setting is exposed as a quick toggle in the Groups tab when a specific instance is selected, so group receiving can be enabled or disabled without opening the inbox configuration page.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

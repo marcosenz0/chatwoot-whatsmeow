@@ -46,6 +46,10 @@ const isActiveView = computed(() => {
   return route.name === 'contacts_dashboard_active';
 });
 
+const isGroupsView = computed(() => {
+  return route.name === 'contacts_dashboard_groups';
+});
+
 const isLabelView = computed(
   () => route.name === 'contacts_dashboard_labels_index'
 );
@@ -55,7 +59,8 @@ const showActiveFiltersPreview = computed(() => {
     (props.hasAppliedFilters || !isNotSegmentView.value) &&
     !props.isFetchingList &&
     !isLabelView.value &&
-    !isActiveView.value
+    !isActiveView.value &&
+    !isGroupsView.value
   );
 });
 
@@ -83,7 +88,7 @@ const showPagination = computed(() => {
     <div class="flex flex-col w-full h-full transition-all duration-300">
       <ContactListHeaderWrapper
         ref="contactListHeaderWrapper"
-        :show-search="isNotSegmentView && !isActiveView"
+        :show-search="isNotSegmentView && !isActiveView && !isGroupsView"
         :search-value="searchValue"
         :active-sort="activeSort"
         :active-ordering="activeOrdering"
@@ -93,6 +98,7 @@ const showPagination = computed(() => {
         :has-applied-filters="hasAppliedFilters"
         :is-label-view="isLabelView"
         :is-active-view="isActiveView"
+        :is-groups-view="isGroupsView"
         @update:sort="emit('update:sort', $event)"
         @search="emit('search', $event)"
         @apply-filter="emit('applyFilter', $event)"

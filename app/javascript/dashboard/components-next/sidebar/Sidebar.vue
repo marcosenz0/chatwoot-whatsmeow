@@ -474,6 +474,12 @@ const menuItems = computed(() => {
           activeOn: ['contacts_dashboard_active'],
         },
         {
+          name: 'Groups',
+          label: t('SIDEBAR.GROUPS'),
+          to: accountScopedRoute('contacts_dashboard_groups'),
+          activeOn: ['contacts_dashboard_groups'],
+        },
+        {
           name: 'Segments',
           icon: 'i-lucide-group',
           label: t('SIDEBAR.CUSTOM_VIEWS_SEGMENTS'),

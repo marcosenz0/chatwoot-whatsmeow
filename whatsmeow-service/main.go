@@ -34,6 +34,7 @@ import (
 const (
 	sendMessageTimeout         = 60 * time.Second
 	groupMemberProfileFetchMax = 120
+	groupListProfileFetchMax   = 80
 )
 
 // Active clients map
@@ -88,6 +89,15 @@ type GroupMemberResponse struct {
 	IsSavedContact    bool   `json:"is_saved_contact"`
 }
 
+type GroupResponse struct {
+	JID               string `json:"jid"`
+	Name              string `json:"name"`
+	ProfilePictureURL string `json:"profile_picture_url"`
+	ParticipantCount  int    `json:"participant_count"`
+	IsAnnounce        bool   `json:"is_announce"`
+	IsLocked          bool   `json:"is_locked"`
+}
+
 type ResolvedGroupParticipant struct {
 	JID               types.JID
 	LIDJID            types.JID
@@ -136,6 +146,7 @@ func main() {
 	r.POST("/sessions", handleCreateSession)
 	r.GET("/sessions/:channel_id/qr", handleGetQR)
 	r.GET("/sessions/:channel_id/status", handleGetStatus)
+	r.GET("/sessions/:channel_id/groups", handleGetGroups)
 	r.GET("/sessions/:channel_id/group_members", handleGetGroupMembers)
 	r.GET("/sessions/:channel_id/profile_picture", handleGetProfilePicture)
 	r.DELETE("/sessions/:channel_id", handleDisconnectSession)
@@ -663,6 +674,40 @@ func handleGetStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, payload)
+}
+
+func handleGetGroups(c *gin.Context) {
+	channelID := c.Param("channel_id")
+
+	clientsMu.RLock()
+	client, exists := clients[channelID]
+	clientsMu.RUnlock()
+
+	if !exists || !client.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	groups, err := client.GetJoinedGroups(context.Background())
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("Failed to fetch groups: %v", err)})
+		return
+	}
+
+	fetchProfilePictures := len(groups) <= groupListProfileFetchMax
+	responses := make([]GroupResponse, 0, len(groups))
+	for _, group := range groups {
+		if group == nil || group.JID.IsEmpty() {
+			continue
+		}
+		responses = append(responses, buildGroupResponse(client, group, fetchProfilePictures))
+	}
+	sortGroups(responses)
+
+	c.JSON(http.StatusOK, gin.H{
+		"groups": responses,
+		"count":  len(responses),
+	})
 }
 
 func handleGetGroupMembers(c *gin.Context) {
@@ -1861,6 +1906,35 @@ func buildGroupMemberResponse(client *whatsmeow.Client, participant types.GroupP
 		IsSuperAdmin:      participant.IsSuperAdmin,
 		IsSavedContact:    isSaved,
 	}
+}
+
+func buildGroupResponse(client *whatsmeow.Client, group *types.GroupInfo, fetchProfilePicture bool) GroupResponse {
+	groupJID := group.JID.ToNonAD()
+	name := firstNonBlank(group.Name, groupJID.String())
+	profilePictureURL := cachedProfilePictureURL(groupJID)
+	if profilePictureURL == "" && fetchProfilePicture {
+		profilePictureURL = getProfilePictureURL(client, groupJID)
+	}
+
+	participantCount := group.ParticipantCount
+	if participantCount == 0 {
+		participantCount = len(group.Participants)
+	}
+
+	return GroupResponse{
+		JID:               groupJID.String(),
+		Name:              name,
+		ProfilePictureURL: profilePictureURL,
+		ParticipantCount:  participantCount,
+		IsAnnounce:        group.IsAnnounce,
+		IsLocked:          group.IsLocked,
+	}
+}
+
+func sortGroups(groups []GroupResponse) {
+	sort.SliceStable(groups, func(i, j int) bool {
+		return strings.ToLower(groups[i].Name) < strings.ToLower(groups[j].Name)
+	})
 }
 
 func sortGroupMembers(members []GroupMemberResponse) {

@@ -84,6 +84,14 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
     handle_whatsmeow_session(&:status)
   end
 
+  def whatsmeow_groups
+    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
+
+    render json: Whatsmeow::SessionClient.new(inbox: @inbox).groups
+  rescue Whatsmeow::SessionClient::Error => e
+    render json: { message: e.message }, status: :bad_gateway
+  end
+
   def whatsmeow_group_members
     return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
 
@@ -93,6 +101,23 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
     render json: Whatsmeow::SessionClient.new(inbox: @inbox).group_members(group_jid)
   rescue Whatsmeow::SessionClient::Error => e
     render json: { message: e.message }, status: :bad_gateway
+  end
+
+  def whatsmeow_group_conversation
+    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
+
+    conversation = Whatsmeow::GroupConversationBuilder.new(
+      inbox: @inbox,
+      params: whatsmeow_group_conversation_params
+    ).perform
+    render json: {
+      id: conversation.display_id,
+      conversation_id: conversation.display_id,
+      display_id: conversation.display_id,
+      contact_id: conversation.contact_id
+    }
+  rescue ArgumentError => e
+    render json: { message: e.message }, status: :bad_request
   end
 
   def whatsmeow_direct_conversation
@@ -234,6 +259,10 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
 
   def whatsmeow_direct_conversation_params
     params.permit(:participant_jid, :participant_lid_jid, :participant_phone, :participant_name, :profile_picture_url)
+  end
+
+  def whatsmeow_group_conversation_params
+    params.permit(:group_jid, :group_name, :profile_picture_url, :participant_count)
   end
 
   def force_new_whatsmeow_session?
