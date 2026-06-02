@@ -25,11 +25,21 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 
 ## Latest Staging Validation
 
-- Chatwoot staging returned HTTP 200.
+- Chatwoot fork primary URL `https://chatwoot.marcoswt.com.br` returned HTTP 200.
+- Legacy alias `https://staging-crm.marcoswt.com.br` returned HTTP 200 and remains attached as a safe fallback.
 - Whatsmeow API health returned healthy.
 - Inbox 12 returned Whatsmeow status connected.
 - A synthetic media-only Whatsmeow webhook created a Chatwoot message with one image attachment, proving that non-text media payloads are no longer dropped before Rails.
 - The synthetic validation conversation was resolved after the check to avoid leaving a test conversation open.
+
+## June 2026 Domain Migration
+
+- The Chatwoot fork/staging web service is now the primary app at `https://chatwoot.marcoswt.com.br`.
+- The official upstream Chatwoot instance was moved to `https://chatwootoficial.marcoswt.com.br`.
+- Easypanel domains were moved so `chatwoot.marcoswt.com.br` and `www.chatwoot.marcoswt.com.br` route to `chatwoot-staging`, while `chatwootoficial.marcoswt.com.br` and `www.chatwootoficial.marcoswt.com.br` route to the official `chatwoot` service.
+- The old staging domain `staging-crm.marcoswt.com.br` remains on `chatwoot-staging` as an alias.
+- `FRONTEND_URL` was updated for `chatwoot`, `chatwoot-sidekiq`, and `chatwoot-staging`; all affected services were redeployed.
+- The official `chatwoot` web app needed an explicit Rails server command in Easypanel after redeploy because an empty command produced HTTP 502 on the new domain.
 
 ## June 2026 Regression Fix
 

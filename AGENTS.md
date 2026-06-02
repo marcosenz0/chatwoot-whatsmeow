@@ -124,7 +124,9 @@ All primary core integrations between Chatwoot Staging and the Go-based `whatsme
 - **Deletes fix**: Staging runs the `:async` adapter for `DeleteObjectJob`, making inbox deletions instant on refresh.
 
 ### 🌐 Staging Environments & Credentials
-- **Chatwoot CRM Staging**: [https://staging-crm.marcoswt.com.br](https://staging-crm.marcoswt.com.br)
+- **Chatwoot Fork/Staging Primary**: [https://chatwoot.marcoswt.com.br](https://chatwoot.marcoswt.com.br)
+- **Chatwoot Fork/Staging Legacy Alias**: [https://staging-crm.marcoswt.com.br](https://staging-crm.marcoswt.com.br)
+- **Official Chatwoot**: [https://chatwootoficial.marcoswt.com.br](https://chatwootoficial.marcoswt.com.br)
 - **Whatsmeow API (Health)**: [https://staging-api.marcoswt.com.br/health](https://staging-api.marcoswt.com.br/health)
 - **Test User**: `marcos@staging-crm.marcoswt.com.br` / `StagingPassword123!`
 - **Staging Database URL**: `postgres://postgres:StagingPassword123!@chatwoot-staging-db:5432/chatwoot_staging`
