@@ -29,7 +29,9 @@ export const validateAuthenticateRoutePermission = async (to, next) => {
     return next(frontendURL('no-accounts'));
   }
 
-  const routeAccountId = Number(to.params?.accountId || accountId);
+  const routeAccountId = Number(
+    to.params?.accountId || accountId || accounts[0]?.id
+  );
   const userAccount = accounts.find(a => a.id === routeAccountId);
   const isAdmin = userAccount?.role === 'administrator';
   const isActive = userAccount?.status === 'active';
@@ -41,6 +43,10 @@ export const validateAuthenticateRoutePermission = async (to, next) => {
   if (to.name === 'no_accounts' || !to.name) {
     const target = needsOnboarding ? 'onboarding' : 'dashboard';
     return next(frontendURL(`accounts/${routeAccountId}/${target}`));
+  }
+
+  if (to.name === 'documentation_shortcut') {
+    return next(frontendURL(`accounts/${routeAccountId}/documentacao`));
   }
 
   if (needsOnboarding && !isOnOnboardingView(to)) {

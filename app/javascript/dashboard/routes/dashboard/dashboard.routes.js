@@ -14,12 +14,31 @@ import Suspended from './suspended/Index.vue';
 import NoAccounts from './noAccounts/Index.vue';
 import OnboardingAccountDetails from './onboarding/Index.vue';
 
+const DocumentationPage = () => import('./documentation/DocumentationPage.vue');
+const DocumentationShortcut = { template: '<div />' };
+
 export default {
   routes: [
+    {
+      path: '/documentacao',
+      name: 'documentation_shortcut',
+      meta: {
+        permissions: ['administrator', 'agent', 'custom_role'],
+      },
+      component: DocumentationShortcut,
+    },
     {
       path: frontendURL('accounts/:accountId'),
       component: AppContainer,
       children: [
+        {
+          path: frontendURL('accounts/:accountId/documentacao'),
+          name: 'documentation_index',
+          meta: {
+            permissions: ['administrator', 'agent', 'custom_role'],
+          },
+          component: DocumentationPage,
+        },
         ...captainRoutes,
         ...inboxRoutes,
         ...conversation.routes,

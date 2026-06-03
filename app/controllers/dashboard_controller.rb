@@ -33,14 +33,23 @@ class DashboardController < ActionController::Base
   before_action :ensure_installation_onboarding, only: [:index]
   before_action :render_hc_if_custom_domain, only: [:index]
   before_action :ensure_html_format
+  before_action :redirect_documentation_guests, only: [:documentation]
   layout 'vueapp'
 
   def index; end
+
+  def documentation
+    render :index
+  end
 
   private
 
   def ensure_html_format
     render json: { error: 'Please use API routes instead of dashboard routes for JSON requests' }, status: :not_acceptable if request.format.json?
+  end
+
+  def redirect_documentation_guests
+    redirect_to '/app/login' if cookies[:cw_d_session_info].blank?
   end
 
   def set_global_config
