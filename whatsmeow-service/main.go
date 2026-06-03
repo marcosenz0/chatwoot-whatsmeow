@@ -149,6 +149,7 @@ func main() {
 	r.GET("/sessions/:channel_id/groups", handleGetGroups)
 	r.GET("/sessions/:channel_id/group_members", handleGetGroupMembers)
 	r.GET("/sessions/:channel_id/profile_picture", handleGetProfilePicture)
+	r.GET("/sessions/:channel_id/check_number", handleCheckNumber)
 	r.DELETE("/sessions/:channel_id", handleDisconnectSession)
 	r.POST("/messages", handleSendMessage)
 
@@ -777,6 +778,57 @@ func handleGetProfilePicture(c *gin.Context) {
 	})
 }
 
+func handleCheckNumber(c *gin.Context) {
+	channelID := c.Param("channel_id")
+	rawValue := c.Query("phone")
+	if rawValue == "" {
+		rawValue = c.Query("jid")
+	}
+
+	phone, ok := normalizePhoneForWhatsAppCheck(rawValue)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid WhatsApp phone number / JID"})
+		return
+	}
+
+	clientsMu.RLock()
+	client, exists := clients[channelID]
+	clientsMu.RUnlock()
+
+	if !exists || !client.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	results, err := client.IsOnWhatsApp(ctx, []string{phone})
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("Failed to check WhatsApp number: %v", err)})
+		return
+	}
+
+	isOnWhatsApp := false
+	jid := ""
+	query := strings.TrimPrefix(phone, "+")
+	if len(results) > 0 {
+		isOnWhatsApp = results[0].IsIn
+		query = results[0].Query
+		if results[0].JID.User != "" {
+			jid = results[0].JID.ToNonAD().String()
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"phone":          phone,
+		"query":          query,
+		"jid":            jid,
+		"is_on_whatsapp": isOnWhatsApp,
+		"checked_at":     time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
 func handleDisconnectSession(c *gin.Context) {
 	channelID := c.Param("channel_id")
 
@@ -1250,6 +1302,34 @@ func parseJID(phone string) (types.JID, bool) {
 		return jid, err == nil
 	}
 	return types.NewJID(phone, types.DefaultUserServer), true
+}
+
+func normalizePhoneForWhatsAppCheck(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", false
+	}
+
+	if strings.Contains(value, "@") {
+		jid, ok := parseJID(value)
+		if !ok {
+			return "", false
+		}
+		value = jid.User
+	}
+
+	var digits strings.Builder
+	for _, r := range value {
+		if r >= '0' && r <= '9' {
+			digits.WriteRune(r)
+		}
+	}
+
+	number := digits.String()
+	if len(number) < 10 || len(number) > 15 {
+		return "", false
+	}
+	return "+" + number, true
 }
 
 func safeDisconnectClient(client *whatsmeow.Client) {
