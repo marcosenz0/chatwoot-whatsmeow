@@ -115,6 +115,13 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - The Groups tab can show a specific Whatsmeow inbox or all Whatsmeow inboxes together, supports group search, and can open/create the Chatwoot group conversation without sending any WhatsApp message automatically.
 - The same `ignore_groups` inbox setting is exposed as a quick toggle in the Groups tab when a specific instance is selected, so group receiving can be enabled or disabled without opening the inbox configuration page.
 
+## June 2026 WhatsApp Reactions
+
+- `whatsmeow-service` now exposes `POST /messages/reaction`, using `Client.BuildReaction` to send real WhatsApp emoji reactions against an existing WhatsApp message ID.
+- Incoming WhatsApp reaction events are forwarded to Rails as `event: reaction`, then persisted on the original Chatwoot message through `content_attributes.whatsmeow_reactions`.
+- Chatwoot message bubbles for `Channel::Whatsmeow` show a hover reaction button, a compact quick-reaction picker, a small expanded emoji grid, and a reaction row in the right-click context menu.
+- Reacted messages render the selected emoji below the message bubble in the conversation view. Blank WhatsApp reaction events remove the stored reaction instead of showing an empty marker.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

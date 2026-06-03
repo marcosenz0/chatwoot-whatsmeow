@@ -1,8 +1,9 @@
 <script setup>
 import { onMounted, computed, ref, toRefs } from 'vue';
+import { useStore } from 'vuex';
 import { useTimeoutFn } from '@vueuse/core';
 import { provideMessageContext } from './provider.js';
-import { useTrack } from 'dashboard/composables';
+import { useAlert, useTrack } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
 import { emitter } from 'shared/helpers/mitt';
 import { useI18n } from 'vue-i18n';
@@ -41,6 +42,7 @@ import CSATBubble from './bubbles/CSAT.vue';
 import FormBubble from './bubbles/Form.vue';
 import VoiceCallBubble from './bubbles/VoiceCall.vue';
 import WhatsmeowParticipantActions from './WhatsmeowParticipantActions.vue';
+import MessageReactionButton from './MessageReactionButton.vue';
 
 import MessageError from './MessageError.vue';
 import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
@@ -145,6 +147,7 @@ const showBackgroundHighlight = ref(false);
 const showContextMenu = ref(false);
 const { t } = useI18n();
 const route = useRoute();
+const store = useStore();
 const inboxGetter = useMapGetter('inboxes/getInbox');
 const inbox = computed(() => inboxGetter.value(props.inboxId) || {});
 const { replaceInstallationName } = useBranding();
@@ -363,7 +366,59 @@ const payloadForContextMenu = computed(() => {
     content_attributes: props.contentAttributes,
     content: props.content,
     conversation_id: props.conversationId,
+    source_id: props.sourceId,
   };
+});
+
+const isWhatsmeowInbox = computed(() => {
+  return (
+    inbox.value.channel_type === 'Channel::Whatsmeow' ||
+    inbox.value.channelType === 'Channel::Whatsmeow'
+  );
+});
+
+const isFailedOrProcessing = computed(() => {
+  return (
+    props.status === MESSAGE_STATUS.FAILED ||
+    props.status === MESSAGE_STATUS.PROGRESS
+  );
+});
+
+const canReactToMessage = computed(() => {
+  return (
+    isWhatsmeowInbox.value &&
+    isBubble.value &&
+    !props.private &&
+    !isMessageDeleted.value &&
+    !isFailedOrProcessing.value &&
+    !!props.sourceId
+  );
+});
+
+const whatsmeowReactions = computed(() => {
+  const reactions =
+    props.contentAttributes?.whatsmeowReactions ||
+    props.contentAttributes?.whatsmeow_reactions;
+  const latestReaction =
+    props.contentAttributes?.whatsmeowReaction ||
+    props.contentAttributes?.whatsmeow_reaction;
+
+  if (Array.isArray(reactions) && reactions.length) {
+    return reactions;
+  }
+
+  return latestReaction ? [latestReaction] : [];
+});
+
+const displayedReactionEmojis = computed(() => {
+  const emojis = whatsmeowReactions.value
+    .map(reaction => {
+      if (typeof reaction === 'string') return reaction;
+
+      return reaction?.emoji;
+    })
+    .filter(emoji => typeof emoji === 'string' && emoji.length);
+  return [...new Set(emojis)].slice(-3).join(' ');
 });
 
 const contextMenuEnabledOptions = computed(() => {
@@ -371,23 +426,22 @@ const contextMenuEnabledOptions = computed(() => {
   const hasAttachments = !!(props.attachments && props.attachments.length > 0);
 
   const isOutgoing = props.messageType === MESSAGE_TYPES.OUTGOING;
-  const isFailedOrProcessing =
-    props.status === MESSAGE_STATUS.FAILED ||
-    props.status === MESSAGE_STATUS.PROGRESS;
 
   return {
     copy: hasText,
     delete:
       (hasText || hasAttachments) &&
-      !isFailedOrProcessing &&
+      !isFailedOrProcessing.value &&
       !isMessageDeleted.value,
     cannedResponse: isOutgoing && hasText && !isMessageDeleted.value,
-    copyLink: !isFailedOrProcessing,
-    translate: !isFailedOrProcessing && !isMessageDeleted.value && hasText,
+    copyLink: !isFailedOrProcessing.value,
+    translate:
+      !isFailedOrProcessing.value && !isMessageDeleted.value && hasText,
     replyTo:
       !props.private &&
       props.inboxSupportsReplyTo.outgoing &&
-      !isFailedOrProcessing,
+      !isFailedOrProcessing.value,
+    reaction: canReactToMessage.value,
   };
 });
 
@@ -441,6 +495,18 @@ function handleReplyTo() {
 
   LocalStorage.updateJsonStore(replyStorageKey, conversationId, replyTo);
   emitter.emit(BUS_EVENTS.TOGGLE_REPLY_TO_MESSAGE, props);
+}
+
+async function handleReactToMessage(emoji) {
+  try {
+    await store.dispatch('reactToMessage', {
+      conversationId: props.conversationId,
+      messageId: props.id,
+      emoji,
+    });
+  } catch (error) {
+    useAlert(error?.response?.data?.error || t('CONVERSATION.SEND_FAILED'));
+  }
 }
 
 const avatarInfo = computed(() => {
@@ -550,7 +616,7 @@ provideMessageContext({
   <div
     v-if="shouldRenderMessage"
     :id="`message${props.id}`"
-    class="flex w-full mb-2 message-bubble-container"
+    class="group/message flex w-full mb-2 message-bubble-container"
     :data-message-id="props.id"
     :class="[
       flexOrientationClass,
@@ -585,13 +651,18 @@ provideMessageContext({
         <Avatar v-bind="avatarInfo" :size="24" />
       </div>
       <div
-        class="[grid-area:bubble] flex min-w-0"
+        class="[grid-area:bubble] flex min-w-0 items-end gap-1"
         :class="{
           'ltr:ml-8 rtl:mr-8 justify-end': orientation === ORIENTATION.RIGHT,
           'ltr:mr-8 rtl:ml-8': orientation === ORIENTATION.LEFT,
         }"
         @contextmenu="openContextMenu($event)"
       >
+        <MessageReactionButton
+          v-if="canReactToMessage && orientation === ORIENTATION.RIGHT"
+          :orientation="orientation"
+          @react="handleReactToMessage"
+        />
         <div
           class="flex min-w-0 flex-col"
           :class="{
@@ -611,7 +682,26 @@ provideMessageContext({
             />
           </div>
           <Component :is="componentToRender" />
+          <div
+            v-if="displayedReactionEmojis"
+            class="-mt-1 flex"
+            :class="{
+              'justify-end pr-2': orientation === ORIENTATION.RIGHT,
+              'justify-start pl-2': orientation === ORIENTATION.LEFT,
+            }"
+          >
+            <span
+              class="rounded-full border border-n-weak bg-n-background px-1.5 py-0.5 text-sm leading-none shadow-sm"
+            >
+              {{ displayedReactionEmojis }}
+            </span>
+          </div>
         </div>
+        <MessageReactionButton
+          v-if="canReactToMessage && orientation === ORIENTATION.LEFT"
+          :orientation="orientation"
+          @react="handleReactToMessage"
+        />
       </div>
       <MessageError
         v-if="contentAttributes.externalError"
@@ -632,6 +722,7 @@ provideMessageContext({
         @open="openContextMenu"
         @close="closeContextMenu"
         @reply-to="handleReplyTo"
+        @react="handleReactToMessage"
       />
     </div>
   </div>

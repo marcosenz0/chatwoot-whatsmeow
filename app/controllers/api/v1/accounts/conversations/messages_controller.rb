@@ -36,6 +36,16 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
     render_could_not_create_error(e.message)
   end
 
+  def reaction
+    @message = Whatsmeow::ReactionService.new(
+      message: message,
+      emoji: permitted_params[:emoji],
+      actor: Current.user
+    ).perform
+  rescue StandardError => e
+    render_could_not_create_error(e.message)
+  end
+
   def translate
     return head :ok if already_translated_content_available?
 
@@ -65,7 +75,7 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
   end
 
   def permitted_params
-    params.permit(:id, :target_language, :status, :external_error)
+    params.permit(:id, :target_language, :status, :external_error, :emoji)
   end
 
   def already_translated_content_available?

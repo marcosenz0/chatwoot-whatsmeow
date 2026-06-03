@@ -25,6 +25,8 @@ class Webhooks::WhatsmeowController < ActionController::API
       Whatsmeow::IncomingMessageService.new(inbox: inbox, params: params.to_unsafe_hash).perform
     when 'receipt'
       Whatsmeow::ReceiptService.new(inbox: inbox, params: params.to_unsafe_hash).perform
+    when 'reaction'
+      Whatsmeow::ReactionService.apply_incoming(inbox: inbox, params: params.to_unsafe_hash)
     when 'paired'
       channel.update!(status: 'connected')
       Rails.logger.info("Whatsmeow Channel #{channel.id} paired successfully!")

@@ -363,6 +363,11 @@ const actions = {
     }
   },
 
+  reactToMessage: async ({ commit }, { conversationId, messageId, emoji }) => {
+    const { data } = await MessageApi.react(conversationId, messageId, emoji);
+    commit(types.ADD_MESSAGE, data);
+  },
+
   deleteConversation: async ({ commit, dispatch }, conversationId) => {
     try {
       await ConversationApi.delete(conversationId);

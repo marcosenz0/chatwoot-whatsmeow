@@ -69,6 +69,14 @@ type MessageRequest struct {
 	Attachments []WhatsmeowAttachment `json:"attachments"`
 }
 
+type ReactionRequest struct {
+	ChannelID string `json:"channel_id" binding:"required"`
+	To        string `json:"to" binding:"required"`
+	Sender    string `json:"sender"`
+	MessageID string `json:"message_id" binding:"required"`
+	Emoji     string `json:"emoji" binding:"required"`
+}
+
 type WhatsmeowAttachment struct {
 	FileName      string `json:"file_name"`
 	ContentType   string `json:"content_type"`
@@ -152,6 +160,7 @@ func main() {
 	r.GET("/sessions/:channel_id/check_number", handleCheckNumber)
 	r.DELETE("/sessions/:channel_id", handleDisconnectSession)
 	r.POST("/messages", handleSendMessage)
+	r.POST("/messages/reaction", handleSendReaction)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -918,6 +927,69 @@ func handleSendMessage(c *gin.Context) {
 	})
 }
 
+func handleSendReaction(c *gin.Context) {
+	var req ReactionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if strings.TrimSpace(req.Emoji) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Reaction emoji is required"})
+		return
+	}
+
+	clientsMu.RLock()
+	client, exists := clients[req.ChannelID]
+	clientsMu.RUnlock()
+
+	if !exists || !client.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	targetJID, ok := parseJID(req.To)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid target phone number / JID"})
+		return
+	}
+
+	senderJID := types.EmptyJID
+	if strings.TrimSpace(req.Sender) != "" {
+		parsedSender, senderOK := parseJID(req.Sender)
+		if !senderOK {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid reaction sender JID"})
+			return
+		}
+		senderJID = parsedSender
+	}
+
+	sendCtx, cancelSend := context.WithTimeout(context.Background(), sendMessageTimeout)
+	defer cancelSend()
+
+	reactionMessage := client.BuildReaction(
+		targetJID,
+		senderJID,
+		types.MessageID(req.MessageID),
+		strings.TrimSpace(req.Emoji),
+	)
+	resp, err := client.SendMessage(
+		sendCtx,
+		targetJID,
+		reactionMessage,
+		whatsmeow.SendRequestExtra{Timeout: sendMessageTimeout - 5*time.Second},
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to send reaction: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"id":        resp.ID,
+		"timestamp": resp.Timestamp.Unix(),
+	})
+}
+
 func buildOutgoingMessage(ctx context.Context, client *whatsmeow.Client, req MessageRequest) (*proto.Message, error) {
 	if len(req.Attachments) > 0 {
 		return buildOutgoingMediaMessage(ctx, client, req.Body, req.Attachments[0])
@@ -1509,6 +1581,10 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		}
 	}
 
+	if processReactionForInbox(channelID, accountID, messageEvent) {
+		return
+	}
+
 	messageText := extractMessageText(messageEvent.Message)
 	attachments := extractMediaAttachments(client, messageEvent.Message)
 	if messageText == "" && len(attachments) == 0 {
@@ -1589,6 +1665,35 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		payload["participant_profile_picture_url"] = participant.ProfilePictureURL
 	}
 	sendWebhookNotification(accountID, channelID, payload)
+}
+
+func processReactionForInbox(channelID string, accountID string, messageEvent *events.Message) bool {
+	if messageEvent.Message == nil {
+		return false
+	}
+
+	reaction := messageEvent.Message.GetReactionMessage()
+	if reaction == nil {
+		return false
+	}
+
+	key := reaction.GetKey()
+	if key == nil || key.GetID() == "" {
+		return true
+	}
+
+	payload := map[string]interface{}{
+		"event":      "reaction",
+		"message_id": key.GetID(),
+		"reaction":   reaction.GetText(),
+		"sender":     jidString(messageEvent.Info.Sender),
+		"sender_alt": jidString(messageEvent.Info.SenderAlt),
+		"chat":       key.GetRemoteJID(),
+		"from_me":    messageEvent.Info.IsFromMe,
+		"timestamp":  messageEvent.Info.Timestamp.Unix(),
+	}
+	sendWebhookNotification(accountID, channelID, payload)
+	return true
 }
 
 func extractMessageText(message *proto.Message) string {

@@ -44,7 +44,7 @@ export default {
       default: false,
     },
   },
-  emits: ['open', 'close', 'replyTo'],
+  emits: ['open', 'close', 'replyTo', 'react'],
   setup() {
     const { getPlainText } = useMessageFormatter();
 
@@ -56,6 +56,14 @@ export default {
     return {
       isCannedResponseModalOpen: false,
       showDeleteModal: false,
+      quickReactionEmojis: [
+        '\u{1F44D}',
+        '\u{2764}\u{FE0F}',
+        '\u{1F602}',
+        '\u{1F62E}',
+        '\u{1F622}',
+        '\u{1F64F}',
+      ],
     };
   },
   computed: {
@@ -133,6 +141,10 @@ export default {
       this.$emit('replyTo', this.message);
       this.handleClose();
     },
+    handleReaction(emoji) {
+      this.$emit('react', emoji);
+      this.handleClose();
+    },
     openDeleteModal() {
       this.handleClose();
       this.showDeleteModal = true;
@@ -197,6 +209,21 @@ export default {
       @close="handleClose"
     >
       <div class="menu-container">
+        <div
+          v-if="enabledOptions['reaction']"
+          class="flex items-center gap-1 px-1 py-1"
+        >
+          <button
+            v-for="emoji in quickReactionEmojis"
+            :key="emoji"
+            type="button"
+            class="flex size-7 items-center justify-center rounded-full text-base hover:bg-n-alpha-2"
+            @click.stop="handleReaction(emoji)"
+          >
+            {{ emoji }}
+          </button>
+        </div>
+        <hr v-if="enabledOptions['reaction']" />
         <MenuItem
           v-if="enabledOptions['replyTo']"
           :option="{
