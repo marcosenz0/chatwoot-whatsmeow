@@ -67,6 +67,7 @@ type MessageRequest struct {
 	To          string                `json:"to" binding:"required"`
 	Body        string                `json:"body"`
 	Attachments []WhatsmeowAttachment `json:"attachments"`
+	Quoted      *QuotedMessageRequest `json:"quoted"`
 }
 
 type ReactionRequest struct {
@@ -74,7 +75,22 @@ type ReactionRequest struct {
 	To        string `json:"to" binding:"required"`
 	Sender    string `json:"sender"`
 	MessageID string `json:"message_id" binding:"required"`
-	Emoji     string `json:"emoji" binding:"required"`
+	Emoji     string `json:"emoji"`
+}
+
+type QuotedMessageRequest struct {
+	MessageID   string `json:"message_id"`
+	Participant string `json:"participant"`
+	Text        string `json:"text"`
+	FileType    string `json:"file_type"`
+	FromMe      bool   `json:"from_me"`
+}
+
+type QuotedMessagePayload struct {
+	MessageID   string
+	Participant string
+	Content     string
+	FileType    string
 }
 
 type WhatsmeowAttachment struct {
@@ -933,10 +949,6 @@ func handleSendReaction(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if strings.TrimSpace(req.Emoji) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Reaction emoji is required"})
-		return
-	}
 
 	clientsMu.RLock()
 	client, exists := clients[req.ChannelID]
@@ -991,8 +1003,19 @@ func handleSendReaction(c *gin.Context) {
 }
 
 func buildOutgoingMessage(ctx context.Context, client *whatsmeow.Client, req MessageRequest) (*proto.Message, error) {
+	contextInfo := quotedContextInfo(req.Quoted)
+
 	if len(req.Attachments) > 0 {
-		return buildOutgoingMediaMessage(ctx, client, req.Body, req.Attachments[0])
+		return buildOutgoingMediaMessage(ctx, client, req.Body, req.Attachments[0], contextInfo)
+	}
+
+	if contextInfo != nil {
+		return &proto.Message{
+			ExtendedTextMessage: &proto.ExtendedTextMessage{
+				Text:        stringPtr(req.Body),
+				ContextInfo: contextInfo,
+			},
+		}, nil
 	}
 
 	return &proto.Message{
@@ -1000,7 +1023,13 @@ func buildOutgoingMessage(ctx context.Context, client *whatsmeow.Client, req Mes
 	}, nil
 }
 
-func buildOutgoingMediaMessage(ctx context.Context, client *whatsmeow.Client, caption string, attachment WhatsmeowAttachment) (*proto.Message, error) {
+func buildOutgoingMediaMessage(
+	ctx context.Context,
+	client *whatsmeow.Client,
+	caption string,
+	attachment WhatsmeowAttachment,
+	contextInfo *proto.ContextInfo,
+) (*proto.Message, error) {
 	data, err := base64.StdEncoding.DecodeString(attachment.DataBase64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid attachment data")
@@ -1038,6 +1067,7 @@ func buildOutgoingMediaMessage(ctx context.Context, client *whatsmeow.Client, ca
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
 				FileLength:    uint64Ptr(upload.FileLength),
+				ContextInfo:   contextInfo,
 			},
 		}, nil
 	case whatsmeow.MediaVideo:
@@ -1051,6 +1081,7 @@ func buildOutgoingMediaMessage(ctx context.Context, client *whatsmeow.Client, ca
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
 				FileLength:    uint64Ptr(upload.FileLength),
+				ContextInfo:   contextInfo,
 			},
 		}, nil
 	case whatsmeow.MediaAudio:
@@ -1067,6 +1098,7 @@ func buildOutgoingMediaMessage(ctx context.Context, client *whatsmeow.Client, ca
 				FileLength:        uint64Ptr(upload.FileLength),
 				MediaKeyTimestamp: int64Ptr(time.Now().Unix()),
 				Waveform:          audioWaveform,
+				ContextInfo:       contextInfo,
 			},
 		}, nil
 	default:
@@ -1082,9 +1114,43 @@ func buildOutgoingMediaMessage(ctx context.Context, client *whatsmeow.Client, ca
 				FileEncSHA256: upload.FileEncSHA256,
 				FileSHA256:    upload.FileSHA256,
 				FileLength:    uint64Ptr(upload.FileLength),
+				ContextInfo:   contextInfo,
 			},
 		}, nil
 	}
+}
+
+func quotedContextInfo(quoted *QuotedMessageRequest) *proto.ContextInfo {
+	if quoted == nil {
+		return nil
+	}
+
+	messageID := strings.TrimSpace(quoted.MessageID)
+	if messageID == "" {
+		return nil
+	}
+
+	text := strings.TrimSpace(quoted.Text)
+	if text == "" {
+		text = quotedFileTypeLabel(quoted.FileType)
+	}
+
+	if text == "" {
+		text = "Mensagem"
+	}
+
+	contextInfo := &proto.ContextInfo{
+		StanzaID: stringPtr(messageID),
+		QuotedMessage: &proto.Message{
+			Conversation: stringPtr(text),
+		},
+	}
+
+	if participant := strings.TrimSpace(quoted.Participant); participant != "" {
+		contextInfo.Participant = stringPtr(participant)
+	}
+
+	return contextInfo
 }
 
 func outgoingMediaType(attachment WhatsmeowAttachment) whatsmeow.MediaType {
@@ -1587,6 +1653,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 
 	messageText := extractMessageText(messageEvent.Message)
 	attachments := extractMediaAttachments(client, messageEvent.Message)
+	quotedMessage := extractQuotedMessage(messageEvent.Message)
 	if messageText == "" && len(attachments) == 0 {
 		if !hasMediaMessage(messageEvent.Message) {
 			return
@@ -1664,6 +1731,12 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		payload["participant_phone"] = participant.PhoneNumber
 		payload["participant_profile_picture_url"] = participant.ProfilePictureURL
 	}
+	if quotedMessage.MessageID != "" {
+		payload["quoted_message_id"] = quotedMessage.MessageID
+		payload["quoted_participant"] = quotedMessage.Participant
+		payload["quoted_content"] = quotedMessage.Content
+		payload["quoted_file_type"] = quotedMessage.FileType
+	}
 	sendWebhookNotification(accountID, channelID, payload)
 }
 
@@ -1694,6 +1767,107 @@ func processReactionForInbox(channelID string, accountID string, messageEvent *e
 	}
 	sendWebhookNotification(accountID, channelID, payload)
 	return true
+}
+
+func extractQuotedMessage(message *proto.Message) QuotedMessagePayload {
+	contextInfo := extractContextInfo(message)
+	if contextInfo == nil || contextInfo.GetStanzaID() == "" {
+		return QuotedMessagePayload{}
+	}
+
+	quotedMessage := contextInfo.GetQuotedMessage()
+	fileType := quotedMessageFileType(quotedMessage)
+	content := extractMessageText(quotedMessage)
+	if content == "" {
+		content = quotedFileTypeLabel(fileType)
+	}
+
+	return QuotedMessagePayload{
+		MessageID:   contextInfo.GetStanzaID(),
+		Participant: contextInfo.GetParticipant(),
+		Content:     content,
+		FileType:    fileType,
+	}
+}
+
+func extractContextInfo(message *proto.Message) *proto.ContextInfo {
+	message = unwrapMessage(message)
+	if message == nil {
+		return nil
+	}
+
+	if item := message.GetExtendedTextMessage(); item != nil {
+		return item.GetContextInfo()
+	}
+	if item := message.GetImageMessage(); item != nil {
+		return item.GetContextInfo()
+	}
+	if item := message.GetVideoMessage(); item != nil {
+		return item.GetContextInfo()
+	}
+	if item := message.GetAudioMessage(); item != nil {
+		return item.GetContextInfo()
+	}
+	if item := message.GetDocumentMessage(); item != nil {
+		return item.GetContextInfo()
+	}
+	if item := message.GetStickerMessage(); item != nil {
+		return item.GetContextInfo()
+	}
+	if item := message.GetLocationMessage(); item != nil {
+		return item.GetContextInfo()
+	}
+	if item := message.GetContactMessage(); item != nil {
+		return item.GetContextInfo()
+	}
+	if item := message.GetContactsArrayMessage(); item != nil {
+		return item.GetContextInfo()
+	}
+
+	return nil
+}
+
+func quotedMessageFileType(message *proto.Message) string {
+	message = unwrapMessage(message)
+	if message == nil {
+		return ""
+	}
+
+	switch {
+	case message.GetImageMessage() != nil || message.GetStickerMessage() != nil:
+		return "image"
+	case message.GetVideoMessage() != nil:
+		return "video"
+	case message.GetAudioMessage() != nil:
+		return "audio"
+	case message.GetDocumentMessage() != nil:
+		return "file"
+	case message.GetContactMessage() != nil || message.GetContactsArrayMessage() != nil:
+		return "contact"
+	case message.GetLocationMessage() != nil:
+		return "location"
+	default:
+		return ""
+	}
+}
+
+func quotedFileTypeLabel(fileType string) string {
+	switch strings.ToLower(strings.TrimSpace(fileType)) {
+	case "audio":
+		return "Mensagem de \u00e1udio"
+	case "image":
+		return "Mensagem de imagem"
+	case "video":
+		return "Mensagem de v\u00eddeo"
+	case "file", "document":
+		return "Arquivo"
+	case "contact":
+		return "Contato"
+	case "location":
+		return "Localiza\u00e7\u00e3o"
+	default:
+		return "Mensagem"
+	}
 }
 
 func extractMessageText(message *proto.Message) string {

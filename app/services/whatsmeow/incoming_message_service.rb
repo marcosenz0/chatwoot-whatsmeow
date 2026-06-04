@@ -361,6 +361,7 @@ class Whatsmeow::IncomingMessageService
     attributes = {}
     attributes[:external_echo] = true if outgoing_echo?
     attributes.merge!(group_content_attributes) if group_message?
+    attributes.merge!(quoted_content_attributes) if quoted_message?
     attributes
   end
 
@@ -373,6 +374,24 @@ class Whatsmeow::IncomingMessageService
       participant_lid_jid: params[:participant_lid_jid],
       participant_name: params[:participant_name],
       participant_phone: participant_phone_number
+    }.compact_blank
+  end
+
+  def quoted_message?
+    params[:quoted_message_id].present?
+  end
+
+  def quoted_content_attributes
+    quoted_message = {
+      source_id: params[:quoted_message_id],
+      participant: params[:quoted_participant],
+      content: params[:quoted_content],
+      file_type: params[:quoted_file_type]
+    }.compact_blank
+
+    {
+      in_reply_to_external_id: params[:quoted_message_id],
+      whatsmeow_quoted_message: quoted_message
     }.compact_blank
   end
 

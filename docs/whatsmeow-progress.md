@@ -122,6 +122,15 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Chatwoot message bubbles for `Channel::Whatsmeow` show a hover reaction button, a compact quick-reaction picker, a small expanded emoji grid, and a reaction row in the right-click context menu.
 - Reacted messages render the selected emoji below the message bubble in the conversation view. Blank WhatsApp reaction events remove the stored reaction instead of showing an empty marker.
 
+## June 2026 Reactions / Quoted Replies Hardening
+
+- The hover emoji button and right-click context menu now share the same reaction flow. Context-menu reactions fire on mouse down so the menu close/blur does not swallow the selected emoji.
+- Clicking the same emoji already used by the current Chatwoot user sends `emoji: ""`, which removes that reaction locally and through WhatsApp. Rails and `whatsmeow-service` both preserve the empty emoji value for this removal contract.
+- Reaction badges below message bubbles now open a compact popover showing who reacted. The current user's row shows a removal hint and can remove the reaction directly.
+- Chatwoot replies sent through Whatsmeow now include a `quoted` payload. The Go service converts it into WhatsApp `ContextInfo`, so WhatsApp renders the real reply box instead of receiving a plain message.
+- Incoming WhatsApp quoted replies now forward the quoted message ID, participant, content, and file type to Rails. Rails stores `in_reply_to_external_id` plus `content_attributes.whatsmeow_quoted_message`, and the message bubble shows a fallback preview even when the original message is not loaded in the current Chatwoot page.
+- `Messages::InReplyToMessageBuilder` preserves external quoted message IDs when the original local message cannot be found, keeping old or unloaded WhatsApp replies linkable for future processing.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

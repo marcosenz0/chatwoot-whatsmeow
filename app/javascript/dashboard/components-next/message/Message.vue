@@ -43,6 +43,7 @@ import FormBubble from './bubbles/Form.vue';
 import VoiceCallBubble from './bubbles/VoiceCall.vue';
 import WhatsmeowParticipantActions from './WhatsmeowParticipantActions.vue';
 import MessageReactionButton from './MessageReactionButton.vue';
+import MessageReactionPopover from './MessageReactionPopover.vue';
 
 import MessageError from './MessageError.vue';
 import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
@@ -410,13 +411,29 @@ const whatsmeowReactions = computed(() => {
   return latestReaction ? [latestReaction] : [];
 });
 
+const reactionEmoji = reaction => {
+  if (typeof reaction === 'string') return reaction;
+
+  return reaction?.emoji || reaction?.reaction || '';
+};
+
+const isCurrentUserReaction = reaction => {
+  if (!reaction || typeof reaction === 'string') return false;
+
+  return reaction.from_me || reaction.fromMe || reaction.sender === 'chatwoot';
+};
+
+const currentUserReaction = computed(() =>
+  whatsmeowReactions.value.find(reaction => isCurrentUserReaction(reaction))
+);
+
+const currentUserReactionEmoji = computed(() =>
+  reactionEmoji(currentUserReaction.value)
+);
+
 const displayedReactionEmojis = computed(() => {
   const emojis = whatsmeowReactions.value
-    .map(reaction => {
-      if (typeof reaction === 'string') return reaction;
-
-      return reaction?.emoji;
-    })
+    .map(reactionEmoji)
     .filter(emoji => typeof emoji === 'string' && emoji.length);
   return [...new Set(emojis)].slice(-3).join(' ');
 });
@@ -498,11 +515,31 @@ function handleReplyTo() {
 }
 
 async function handleReactToMessage(emoji) {
+  const selectedEmoji = (emoji || '').toString().trim();
+  const nextEmoji =
+    selectedEmoji && selectedEmoji === currentUserReactionEmoji.value
+      ? ''
+      : selectedEmoji;
+
   try {
     await store.dispatch('reactToMessage', {
       conversationId: props.conversationId,
       messageId: props.id,
-      emoji,
+      emoji: nextEmoji,
+    });
+  } catch (error) {
+    useAlert(error?.response?.data?.error || t('CONVERSATION.SEND_FAILED'));
+  }
+}
+
+async function removeCurrentUserReaction() {
+  if (!currentUserReaction.value) return;
+
+  try {
+    await store.dispatch('reactToMessage', {
+      conversationId: props.conversationId,
+      messageId: props.id,
+      emoji: '',
     });
   } catch (error) {
     useAlert(error?.response?.data?.error || t('CONVERSATION.SEND_FAILED'));
@@ -690,11 +727,13 @@ provideMessageContext({
               'justify-start pl-2': orientation === ORIENTATION.LEFT,
             }"
           >
-            <span
-              class="rounded-full border border-n-weak bg-n-background px-1.5 py-0.5 text-sm leading-none shadow-sm"
-            >
-              {{ displayedReactionEmojis }}
-            </span>
+            <MessageReactionPopover
+              :reactions="whatsmeowReactions"
+              :current-user-reaction="currentUserReaction"
+              :display-label="displayedReactionEmojis"
+              :orientation="orientation"
+              @remove="removeCurrentUserReaction"
+            />
           </div>
         </div>
         <MessageReactionButton

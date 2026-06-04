@@ -44,8 +44,9 @@ class Whatsmeow::SendOnWhatsmeowService
       channel_id: inbox.id.to_s,
       to: target_identifier,
       body: body_content,
-      attachments: attachments_payload
-    }
+      attachments: attachments_payload,
+      quoted: quoted_payload
+    }.compact_blank
   end
 
   def attachments_payload
@@ -64,6 +65,58 @@ class Whatsmeow::SendOnWhatsmeowService
 
   def body_content
     message.content.to_s.strip
+  end
+
+  def quoted_payload
+    quoted_message = reply_to_message
+    return if quoted_message.blank? || quoted_message.source_id.blank?
+
+    {
+      message_id: quoted_message.source_id,
+      participant: quoted_participant(quoted_message),
+      text: quoted_message.content.to_s.strip,
+      file_type: quoted_file_type(quoted_message),
+      from_me: quoted_message.outgoing?
+    }.compact_blank
+  end
+
+  def reply_to_message
+    return @reply_to_message if defined?(@reply_to_message)
+
+    @reply_to_message = begin
+      relation = message.conversation.messages
+      local_id = message_content_attributes[:in_reply_to].presence
+      external_id = message_content_attributes[:in_reply_to_external_id].presence
+
+      local_message = relation.find_by(id: local_id) if local_id
+      external_message = relation.find_by(source_id: external_id) if external_id
+
+      local_message || external_message
+    end
+  end
+
+  def message_content_attributes
+    @message_content_attributes ||= (message.content_attributes || {}).with_indifferent_access
+  end
+
+  def quoted_participant(quoted_message)
+    return unless group_jid?(source_id)
+    return if quoted_message.outgoing?
+
+    content_attributes = (quoted_message.content_attributes || {}).with_indifferent_access
+
+    [
+      content_attributes[:participant_jid],
+      content_attributes[:participant_lid_jid],
+      phone_jid(content_attributes[:participant_phone]),
+      quoted_message.sender&.additional_attributes&.dig('whatsmeow_participant_jid'),
+      quoted_message.sender&.additional_attributes&.dig('whatsmeow_participant_lid_jid'),
+      phone_jid(quoted_message.sender&.phone_number)
+    ].compact_blank.find { |identifier| deliverable_jid?(identifier) }
+  end
+
+  def quoted_file_type(quoted_message)
+    quoted_message.attachments.first&.file_type
   end
 
   def inbox
@@ -117,6 +170,8 @@ class Whatsmeow::SendOnWhatsmeowService
   end
 
   def phone_jid(identifier)
+    return if identifier.blank?
+
     "#{identifier.to_s.split('@').first.split(':').first.delete('^0-9')}@s.whatsapp.net"
   end
 

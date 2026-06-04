@@ -15,8 +15,13 @@ const props = defineProps({
   hideMeta: { type: Boolean, default: false },
 });
 
-const { variant, orientation, inReplyTo, shouldGroupWithNext } =
-  useMessageContext();
+const {
+  variant,
+  orientation,
+  inReplyTo,
+  contentAttributes,
+  shouldGroupWithNext,
+} = useMessageContext();
 const { t } = useI18n();
 
 const varaintBaseMap = {
@@ -64,6 +69,8 @@ const messageClass = computed(() => {
 });
 
 const scrollToMessage = () => {
+  if (!inReplyTo.value?.id) return;
+
   emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE, {
     messageId: inReplyTo.value.id,
   });
@@ -76,10 +83,33 @@ const shouldShowMeta = computed(
     variant.value !== MESSAGE_VARIANTS.ACTIVITY
 );
 
-const replyToPreview = computed(() => {
-  if (!inReplyTo) return '';
+const quotedMessage = computed(
+  () =>
+    contentAttributes.value?.whatsmeowQuotedMessage ||
+    contentAttributes.value?.whatsmeow_quoted_message
+);
 
-  const { content, attachments } = inReplyTo.value;
+const fallbackReplyTo = computed(() => {
+  if (!quotedMessage.value) return null;
+
+  const fileType =
+    quotedMessage.value.fileType || quotedMessage.value.file_type || null;
+
+  return {
+    content: quotedMessage.value.content || '',
+    attachments: fileType ? [{ fileType }] : [],
+  };
+});
+
+const replyToMessage = computed(() => inReplyTo.value || fallbackReplyTo.value);
+
+const hasReplyToPreview = computed(() => !!replyToMessage.value);
+const canScrollToReply = computed(() => !!inReplyTo.value?.id);
+
+const replyToPreview = computed(() => {
+  if (!replyToMessage.value) return '';
+
+  const { content, attachments } = replyToMessage.value;
 
   if (content) return new MessageFormatter(content).formattedMessage;
   if (attachments?.length) {
@@ -104,8 +134,9 @@ const replyToPreview = computed(() => {
     ]"
   >
     <div
-      v-if="inReplyTo"
-      class="p-2 -mx-1 mb-2 rounded-lg cursor-pointer bg-n-alpha-black1"
+      v-if="hasReplyToPreview"
+      class="p-2 -mx-1 mb-2 rounded-lg bg-n-alpha-black1"
+      :class="{ 'cursor-pointer': canScrollToReply }"
       @click="scrollToMessage"
     >
       <div

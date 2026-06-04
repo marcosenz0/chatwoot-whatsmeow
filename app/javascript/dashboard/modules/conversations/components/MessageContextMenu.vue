@@ -218,7 +218,8 @@ export default {
             :key="emoji"
             type="button"
             class="flex size-7 items-center justify-center rounded-full text-base hover:bg-n-alpha-2"
-            @click.stop="handleReaction(emoji)"
+            @mousedown.prevent.stop="handleReaction(emoji)"
+            @click.prevent.stop
           >
             {{ emoji }}
           </button>

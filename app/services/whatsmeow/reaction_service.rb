@@ -45,7 +45,6 @@ class Whatsmeow::ReactionService
 
   def validate_outgoing_reaction!
     raise 'Message not found' if @message.blank?
-    raise 'Reaction emoji is required' if normalized_emoji.blank?
     raise 'Only WhatsApp Direct messages support reactions' unless whatsmeow_message?
     raise 'This message cannot be reacted to yet' if @message.source_id.blank?
   end
@@ -73,9 +72,10 @@ class Whatsmeow::ReactionService
       channel_id: @message.inbox_id.to_s,
       to: @target_identifier,
       sender: target_message_sender,
-      message_id: @message.source_id,
+      message_id: @message.source_id
+    }.compact_blank.merge(
       emoji: normalized_emoji
-    }.compact_blank
+    )
   end
 
   def target_identifiers
@@ -210,6 +210,8 @@ class Whatsmeow::ReactionService
   end
 
   def incoming_sender
+    return 'chatwoot' if ActiveModel::Type::Boolean.new.cast(@params[:from_me])
+
     @params[:sender].presence || @params[:sender_alt].presence || 'whatsapp'
   end
 
