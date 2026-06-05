@@ -356,6 +356,14 @@ const actions = {
   ) {
     try {
       const { data } = await MessageApi.delete(conversationId, messageId);
+      if (data.permanently_deleted) {
+        commit(types.DELETE_MESSAGE, {
+          conversationId,
+          messageId: data.id || messageId,
+        });
+        return;
+      }
+
       commit(types.ADD_MESSAGE, data);
     } catch (error) {
       throw new Error(error);

@@ -56,6 +56,7 @@ export default {
     return {
       isCannedResponseModalOpen: false,
       showDeleteModal: false,
+      showPermanentDeleteModal: false,
       showDeleteForEveryoneModal: false,
       quickReactionEmojis: [
         '\u{1F44D}',
@@ -150,6 +151,10 @@ export default {
       this.handleClose();
       this.showDeleteModal = true;
     },
+    openPermanentDeleteModal() {
+      this.handleClose();
+      this.showPermanentDeleteModal = true;
+    },
     openDeleteForEveryoneModal() {
       this.handleClose();
       this.showDeleteForEveryoneModal = true;
@@ -161,6 +166,18 @@ export default {
           messageId: this.messageId,
         });
         useAlert(this.$t('CONVERSATION.SUCCESS_DELETE_MESSAGE'));
+        this.handleClose();
+      } catch (error) {
+        useAlert(this.$t('CONVERSATION.FAIL_DELETE_MESSSAGE'));
+      }
+    },
+    async confirmPermanentDeletion() {
+      try {
+        await this.$store.dispatch('deleteMessage', {
+          conversationId: this.conversationId,
+          messageId: this.messageId,
+        });
+        useAlert(this.$t('CONVERSATION.SUCCESS_PERMANENT_DELETE_MESSAGE'));
         this.handleClose();
       } catch (error) {
         useAlert(this.$t('CONVERSATION.FAIL_DELETE_MESSSAGE'));
@@ -180,6 +197,9 @@ export default {
     },
     closeDeleteModal() {
       this.showDeleteModal = false;
+    },
+    closePermanentDeleteModal() {
+      this.showPermanentDeleteModal = false;
     },
     closeDeleteForEveryoneModal() {
       this.showDeleteForEveryoneModal = false;
@@ -212,6 +232,25 @@ export default {
       :message="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.MESSAGE')"
       :confirm-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.DELETE')"
       :reject-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.CANCEL')"
+    />
+    <woot-delete-modal
+      v-if="showPermanentDeleteModal && enabledOptions['permanentDelete']"
+      v-model:show="showPermanentDeleteModal"
+      class="context-menu--delete-modal"
+      :on-close="closePermanentDeleteModal"
+      :on-confirm="confirmPermanentDeletion"
+      :title="
+        $t('CONVERSATION.CONTEXT_MENU.PERMANENT_DELETE_CONFIRMATION.TITLE')
+      "
+      :message="
+        $t('CONVERSATION.CONTEXT_MENU.PERMANENT_DELETE_CONFIRMATION.MESSAGE')
+      "
+      :confirm-text="
+        $t('CONVERSATION.CONTEXT_MENU.PERMANENT_DELETE_CONFIRMATION.DELETE')
+      "
+      :reject-text="
+        $t('CONVERSATION.CONTEXT_MENU.PERMANENT_DELETE_CONFIRMATION.CANCEL')
+      "
     />
     <woot-delete-modal
       v-if="showDeleteForEveryoneModal && enabledOptions['deleteForEveryone']"
@@ -311,7 +350,11 @@ export default {
           @click.stop="showCannedResponseModal"
         />
         <hr
-          v-if="enabledOptions['delete'] || enabledOptions['deleteForEveryone']"
+          v-if="
+            enabledOptions['delete'] ||
+            enabledOptions['deleteForEveryone'] ||
+            enabledOptions['permanentDelete']
+          "
         />
         <MenuItem
           v-if="enabledOptions['deleteForEveryone']"
@@ -330,6 +373,15 @@ export default {
           }"
           variant="icon"
           @click.stop="openDeleteModal"
+        />
+        <MenuItem
+          v-if="enabledOptions['permanentDelete']"
+          :option="{
+            icon: 'delete',
+            label: $t('CONVERSATION.CONTEXT_MENU.PERMANENT_DELETE'),
+          }"
+          variant="icon"
+          @click.stop="openPermanentDeleteModal"
         />
       </div>
     </ContextMenu>

@@ -20,6 +20,13 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
 
   def destroy
     @message = message
+    if locally_deleted_message?
+      message_id = @message.id
+      @message.destroy!
+      render json: { id: message_id, conversation_id: @conversation.display_id, permanently_deleted: true }
+      return
+    end
+
     @message.update!(content_attributes: deleted_content_attributes)
   end
 
@@ -92,6 +99,14 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
       deleted_at: Time.current.to_i,
       deleted_by: Current.user&.id
     )
+  end
+
+  def locally_deleted_message?
+    attributes = message.content_attributes || {}
+    deleted = attributes['deleted'] || attributes[:deleted]
+    deleted_by = attributes['deleted_by'] || attributes[:deleted_by]
+
+    ActiveModel::Type::Boolean.new.cast(deleted) && deleted_by.present?
   end
 
   # API inbox check

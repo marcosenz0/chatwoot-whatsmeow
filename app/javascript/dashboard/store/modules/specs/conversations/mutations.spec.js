@@ -210,6 +210,52 @@ describe('#mutations', () => {
     });
   });
 
+  describe('#DELETE_MESSAGE', () => {
+    it('removes the message and matching attachments from the conversation', () => {
+      const state = {
+        allConversations: [
+          {
+            id: 1,
+            messages: [
+              { id: 1, conversation_id: 1, content: 'Deleted message' },
+              { id: 2, conversation_id: 1, content: 'Kept message' },
+            ],
+          },
+        ],
+        attachments: {
+          1: [
+            { id: 1, message_id: 1 },
+            { id: 2, message_id: 2 },
+          ],
+        },
+      };
+
+      mutations[types.DELETE_MESSAGE](state, {
+        conversationId: 1,
+        messageId: 1,
+      });
+
+      expect(state.allConversations[0].messages).toEqual([
+        { id: 2, conversation_id: 1, content: 'Kept message' },
+      ]);
+      expect(state.attachments[1]).toEqual([{ id: 2, message_id: 2 }]);
+    });
+
+    it('does nothing if the conversation does not exist', () => {
+      const state = {
+        allConversations: [{ id: 1, messages: [{ id: 1 }] }],
+        attachments: {},
+      };
+
+      mutations[types.DELETE_MESSAGE](state, {
+        conversationId: 2,
+        messageId: 1,
+      });
+
+      expect(state.allConversations[0].messages).toEqual([{ id: 1 }]);
+    });
+  });
+
   describe('#CHANGE_CONVERSATION_STATUS', () => {
     it('updates the conversation status correctly', () => {
       const state = {

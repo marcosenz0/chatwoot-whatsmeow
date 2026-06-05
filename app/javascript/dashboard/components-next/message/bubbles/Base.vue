@@ -85,6 +85,18 @@ const shouldShowMeta = computed(
 );
 
 const isMessageDeleted = computed(() => !!contentAttributes.value?.deleted);
+const isLocallyDeleted = computed(() => {
+  const attributes = contentAttributes.value || {};
+  const deletedBy = attributes.deletedBy || attributes.deleted_by;
+
+  return !!attributes.deleted && !!deletedBy;
+});
+
+const deletedMessageLabel = computed(() =>
+  isLocallyDeleted.value
+    ? t('CONVERSATION.MESSAGE_DELETED_BY_ME')
+    : t('CONVERSATION.MESSAGE_DELETED')
+);
 
 const deletedIndicatorClass = computed(() => {
   const classes = [
@@ -164,7 +176,7 @@ const replyToPreview = computed(() => {
     <slot />
     <div v-if="isMessageDeleted" :class="deletedIndicatorClass">
       <Icon icon="i-lucide-ban" class="size-3 shrink-0" />
-      <span>{{ t('CONVERSATION.MESSAGE_DELETED') }}</span>
+      <span>{{ deletedMessageLabel }}</span>
     </div>
     <MessageMeta
       v-if="shouldShowMeta"

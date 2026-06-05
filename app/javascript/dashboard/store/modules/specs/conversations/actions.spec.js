@@ -507,6 +507,18 @@ describe('#deleteMessage', () => {
       [types.ADD_MESSAGE, { id: 1, content: 'deleted' }],
     ]);
   });
+
+  it('removes message from store if API permanently deletes it', async () => {
+    const [conversationId, messageId] = [1, 1];
+    axios.delete.mockResolvedValue({
+      data: { id: 1, permanently_deleted: true },
+    });
+    await actions.deleteMessage({ commit }, { conversationId, messageId });
+    expect(commit.mock.calls).toEqual([
+      [types.DELETE_MESSAGE, { conversationId, messageId }],
+    ]);
+  });
+
   it('sends no actions if API is error', async () => {
     const [conversationId, messageId] = [1, 1];
     axios.delete.mockRejectedValue({ message: 'Incorrect header' });

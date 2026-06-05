@@ -63,7 +63,9 @@
     "UNSUPPORTED_MESSAGE_INSTAGRAM": "Esta mensagem não é suportada. Você pode ver esta mensagem no aplicativo do Instagram.",
     "UNSUPPORTED_MESSAGE_TIKTOK": "Esta mensagem não é compatível. Você pode visualizá-la no aplicativo do TikTok.",
     "MESSAGE_DELETED": "Esta mensagem foi excluída",
+    "MESSAGE_DELETED_BY_ME": "Esta mensagem foi excluída por mim",
     "SUCCESS_DELETE_MESSAGE": "Mensagem excluída com sucesso",
+    "SUCCESS_PERMANENT_DELETE_MESSAGE": "Mensagem excluída permanentemente",
     "FAIL_DELETE_MESSSAGE": "Não foi possível excluir a mensagem! Tente novamente",
     "SUCCESS_DELETE_FOR_EVERYONE_MESSAGE": "Mensagem excluída para todos",
     "FAIL_DELETE_FOR_EVERYONE_MESSAGE": "Não foi possível excluir a mensagem para todos! Tente novamente",
@@ -280,6 +282,7 @@
       "COPY": "Copiar",
       "REPLY_TO": "Responder mensagem",
       "DELETE": "Excluir",
+      "PERMANENT_DELETE": "Excluir permanentemente",
       "DELETE_FOR_EVERYONE": "Excluir para todos",
       "CREATE_A_CANNED_RESPONSE": "Adicionar às respostas prontas",
       "TRANSLATE": "Traduzir",
@@ -289,6 +292,12 @@
         "TITLE": "Você tem certeza que deseja excluir esta mensagem?",
         "MESSAGE": "Você não pode desfazer essa ação",
         "DELETE": "Excluir",
+        "CANCEL": "Cancelar"
+      },
+      "PERMANENT_DELETE_CONFIRMATION": {
+        "TITLE": "Excluir permanentemente esta mensagem?",
+        "MESSAGE": "Esta ação removerá a mensagem do Chatwoot.",
+        "DELETE": "Excluir permanentemente",
         "CANCEL": "Cancelar"
       },
       "DELETE_FOR_EVERYONE_CONFIRMATION": {

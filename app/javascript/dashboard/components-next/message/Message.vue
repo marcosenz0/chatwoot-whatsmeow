@@ -361,6 +361,13 @@ const isMessageDeleted = computed(() => {
   return props.contentAttributes?.deleted;
 });
 
+const isLocallyDeleted = computed(() => {
+  const deletedBy =
+    props.contentAttributes?.deletedBy || props.contentAttributes?.deleted_by;
+
+  return !!isMessageDeleted.value && !!deletedBy;
+});
+
 const payloadForContextMenu = computed(() => {
   return {
     id: props.id,
@@ -461,6 +468,10 @@ const contextMenuEnabledOptions = computed(() => {
       (hasText || hasAttachments) &&
       !isFailedOrProcessing.value &&
       !isMessageDeleted.value,
+    permanentDelete:
+      (hasText || hasAttachments) &&
+      !isFailedOrProcessing.value &&
+      isLocallyDeleted.value,
     cannedResponse: isOutgoing && hasText && !isMessageDeleted.value,
     copyLink: !isFailedOrProcessing.value,
     translate:

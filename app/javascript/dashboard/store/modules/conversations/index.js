@@ -227,6 +227,25 @@ export const mutations = {
     }
   },
 
+  [types.DELETE_MESSAGE](_state, { conversationId, messageId }) {
+    const [chat] = getSelectedChatConversation({
+      allConversations: _state.allConversations,
+      selectedChatId: conversationId,
+    });
+    if (!chat?.messages) return;
+
+    chat.messages = chat.messages.filter(message => message.id !== messageId);
+
+    const existingAttachments = _state.attachments?.[conversationId];
+    if (!existingAttachments?.length) return;
+
+    _state.attachments[conversationId] = existingAttachments.filter(
+      attachment =>
+        attachment.message_id !== messageId &&
+        attachment.messageId !== messageId
+    );
+  },
+
   [types.ADD_CONVERSATION](_state, conversation) {
     const exists = _state.allConversations.some(c => c.id === conversation.id);
     if (!exists) {
