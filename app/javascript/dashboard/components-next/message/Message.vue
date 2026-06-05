@@ -438,6 +438,17 @@ const displayedReactionEmojis = computed(() => {
   return [...new Set(emojis)].slice(-3).join(' ');
 });
 
+const canDeleteForEveryone = computed(() => {
+  return (
+    isWhatsmeowInbox.value &&
+    props.messageType === MESSAGE_TYPES.OUTGOING &&
+    !props.private &&
+    !isMessageDeleted.value &&
+    !isFailedOrProcessing.value &&
+    !!props.sourceId
+  );
+});
+
 const contextMenuEnabledOptions = computed(() => {
   const hasText = !!props.content;
   const hasAttachments = !!(props.attachments && props.attachments.length > 0);
@@ -459,6 +470,7 @@ const contextMenuEnabledOptions = computed(() => {
       props.inboxSupportsReplyTo.outgoing &&
       !isFailedOrProcessing.value,
     reaction: canReactToMessage.value,
+    deleteForEveryone: canDeleteForEveryone.value,
   };
 });
 
@@ -474,6 +486,7 @@ const shouldRenderMessage = computed(() => {
   return (
     hasAttachments ||
     props.content ||
+    isMessageDeleted.value ||
     isEmailContentType ||
     isUnsupported ||
     isAnIntegrationMessage ||

@@ -9,6 +9,7 @@ describe('#ConversationAPI', () => {
     expect(messageAPI).toHaveProperty('create');
     expect(messageAPI).toHaveProperty('update');
     expect(messageAPI).toHaveProperty('delete');
+    expect(messageAPI).toHaveProperty('deleteForEveryone');
     expect(messageAPI).toHaveProperty('getPreviousMessages');
   });
 
@@ -41,6 +42,13 @@ describe('#ConversationAPI', () => {
             before: 4573,
           },
         }
+      );
+    });
+
+    it('#deleteForEveryone', () => {
+      messageAPI.deleteForEveryone(12, 34);
+      expect(axiosMock.post).toHaveBeenCalledWith(
+        '/api/v1/conversations/12/messages/34/delete_for_everyone'
       );
     });
   });

@@ -25,6 +25,7 @@ import (
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/binary/proto"
+	waWeb "go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -76,6 +77,13 @@ type ReactionRequest struct {
 	Sender    string `json:"sender"`
 	MessageID string `json:"message_id" binding:"required"`
 	Emoji     string `json:"emoji"`
+}
+
+type MessageDeleteRequest struct {
+	ChannelID string `json:"channel_id" binding:"required"`
+	To        string `json:"to" binding:"required"`
+	Sender    string `json:"sender"`
+	MessageID string `json:"message_id" binding:"required"`
 }
 
 type QuotedMessageRequest struct {
@@ -177,6 +185,7 @@ func main() {
 	r.DELETE("/sessions/:channel_id", handleDisconnectSession)
 	r.POST("/messages", handleSendMessage)
 	r.POST("/messages/reaction", handleSendReaction)
+	r.POST("/messages/delete", handleDeleteMessage)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -1002,6 +1011,60 @@ func handleSendReaction(c *gin.Context) {
 	})
 }
 
+func handleDeleteMessage(c *gin.Context) {
+	var req MessageDeleteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	clientsMu.RLock()
+	client, exists := clients[req.ChannelID]
+	clientsMu.RUnlock()
+
+	if !exists || !client.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	targetJID, ok := parseJID(req.To)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid target phone number / JID"})
+		return
+	}
+
+	senderJID := types.EmptyJID
+	if strings.TrimSpace(req.Sender) != "" {
+		parsedSender, senderOK := parseJID(req.Sender)
+		if !senderOK {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid message sender JID"})
+			return
+		}
+		senderJID = parsedSender
+	}
+
+	sendCtx, cancelSend := context.WithTimeout(context.Background(), sendMessageTimeout)
+	defer cancelSend()
+
+	revokeMessage := client.BuildRevoke(targetJID, senderJID, types.MessageID(req.MessageID))
+	resp, err := client.SendMessage(
+		sendCtx,
+		targetJID,
+		revokeMessage,
+		whatsmeow.SendRequestExtra{Timeout: sendMessageTimeout - 5*time.Second},
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to delete message: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"id":        resp.ID,
+		"timestamp": resp.Timestamp.Unix(),
+	})
+}
+
 func buildOutgoingMessage(ctx context.Context, client *whatsmeow.Client, req MessageRequest) (*proto.Message, error) {
 	contextInfo := quotedContextInfo(req.Quoted)
 
@@ -1647,6 +1710,10 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		}
 	}
 
+	if processDeleteForInbox(channelID, accountID, messageEvent) {
+		return
+	}
+
 	if processReactionForInbox(channelID, accountID, messageEvent) {
 		return
 	}
@@ -1737,6 +1804,106 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		payload["quoted_content"] = quotedMessage.Content
 		payload["quoted_file_type"] = quotedMessage.FileType
 	}
+	sendWebhookNotification(accountID, channelID, payload)
+}
+
+func processDeleteForInbox(channelID string, accountID string, messageEvent *events.Message) bool {
+	message := unwrapMessage(messageEvent.Message)
+	if message != nil {
+		protocolMessage := message.GetProtocolMessage()
+		if protocolMessage != nil && protocolMessage.GetType() == proto.ProtocolMessage_REVOKE {
+			key := protocolMessage.GetKey()
+			if key == nil || key.GetID() == "" {
+				return true
+			}
+
+			chat := key.GetRemoteJID()
+			if chat == "" {
+				chat = jidString(messageEvent.Info.Chat)
+			}
+
+			sendDeleteWebhookNotification(
+				channelID,
+				accountID,
+				messageEvent,
+				key.GetID(),
+				chat,
+				key.GetFromMe(),
+				key.GetParticipant(),
+				messageEvent.Info.Timestamp.Unix(),
+			)
+			return true
+		}
+	}
+
+	sourceWebMsg := messageEvent.SourceWebMsg
+	if sourceWebMsg == nil || !isSourceWebMsgRevoke(sourceWebMsg.GetMessageStubType()) {
+		return false
+	}
+
+	key := sourceWebMsg.GetTargetMessageID()
+	if key == nil || key.GetID() == "" {
+		key = sourceWebMsg.GetKey()
+	}
+	if key == nil || key.GetID() == "" {
+		return true
+	}
+
+	chat := key.GetRemoteJID()
+	if chat == "" {
+		chat = sourceWebMsg.GetKey().GetRemoteJID()
+	}
+	if chat == "" {
+		chat = jidString(messageEvent.Info.Chat)
+	}
+
+	timestamp := messageEvent.Info.Timestamp.Unix()
+	if sourceWebMsg.GetRevokeMessageTimestamp() > 0 {
+		timestamp = int64(sourceWebMsg.GetRevokeMessageTimestamp())
+	}
+
+	sendDeleteWebhookNotification(
+		channelID,
+		accountID,
+		messageEvent,
+		key.GetID(),
+		chat,
+		key.GetFromMe(),
+		key.GetParticipant(),
+		timestamp,
+	)
+	return true
+}
+
+func isSourceWebMsgRevoke(stubType waWeb.WebMessageInfo_StubType) bool {
+	return stubType == waWeb.WebMessageInfo_REVOKE || stubType == waWeb.WebMessageInfo_ADMIN_REVOKE
+}
+
+func sendDeleteWebhookNotification(
+	channelID string,
+	accountID string,
+	messageEvent *events.Message,
+	messageID string,
+	chat string,
+	keyFromMe bool,
+	participant string,
+	timestamp int64,
+) {
+	payload := map[string]interface{}{
+		"event":        "delete",
+		"message_id":   messageID,
+		"sender":       jidString(messageEvent.Info.Sender),
+		"sender_alt":   jidString(messageEvent.Info.SenderAlt),
+		"chat":         chat,
+		"from_me":      messageEvent.Info.IsFromMe,
+		"key_from_me":  keyFromMe,
+		"timestamp":    timestamp,
+		"receipt_type": "revoke",
+	}
+	if participant != "" {
+		payload["participant"] = participant
+	}
+
 	sendWebhookNotification(accountID, channelID, payload)
 }
 

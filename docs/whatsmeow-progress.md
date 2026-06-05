@@ -131,6 +131,13 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Incoming WhatsApp quoted replies now forward the quoted message ID, participant, content, and file type to Rails. Rails stores `in_reply_to_external_id` plus `content_attributes.whatsmeow_quoted_message`, and the message bubble shows a fallback preview even when the original message is not loaded in the current Chatwoot page.
 - `Messages::InReplyToMessageBuilder` preserves external quoted message IDs when the original local message cannot be found, keeping old or unloaded WhatsApp replies linkable for future processing.
 
+## June 2026 Message Deletes
+
+- Incoming WhatsApp revoke/delete events are now forwarded by `whatsmeow-service` as `event: delete` and mark the matching Chatwoot message by `source_id`.
+- Chatwoot keeps the original message content and attachments visible when a message is marked deleted, then shows a compact deleted indicator inside the bubble instead of replacing the text with a deleted-message placeholder.
+- The message context menu exposes "Delete for everyone" for sent Whatsmeow messages that already have a WhatsApp `source_id`. Rails sends the revoke request to `whatsmeow-service`, which uses whatsmeow's native `BuildRevoke`.
+- The existing local "Delete" action now only marks the message as deleted in Chatwoot and preserves the content, matching the operator's preference to keep a local audit trail.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

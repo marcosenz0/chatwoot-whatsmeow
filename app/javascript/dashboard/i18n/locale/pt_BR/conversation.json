@@ -62,8 +62,11 @@
     "UNSUPPORTED_MESSAGE_FACEBOOK": "Esta mensagem não é suportada. Você pode ver esta mensagem no aplicativo Facebook Messenger.",
     "UNSUPPORTED_MESSAGE_INSTAGRAM": "Esta mensagem não é suportada. Você pode ver esta mensagem no aplicativo do Instagram.",
     "UNSUPPORTED_MESSAGE_TIKTOK": "Esta mensagem não é compatível. Você pode visualizá-la no aplicativo do TikTok.",
+    "MESSAGE_DELETED": "Esta mensagem foi excluída",
     "SUCCESS_DELETE_MESSAGE": "Mensagem excluída com sucesso",
     "FAIL_DELETE_MESSSAGE": "Não foi possível excluir a mensagem! Tente novamente",
+    "SUCCESS_DELETE_FOR_EVERYONE_MESSAGE": "Mensagem excluída para todos",
+    "FAIL_DELETE_FOR_EVERYONE_MESSAGE": "Não foi possível excluir a mensagem para todos! Tente novamente",
     "NO_RESPONSE": "Sem resposta",
     "RESPONSE": "Resposta",
     "RATING_TITLE": "Classificação",
@@ -277,6 +280,7 @@
       "COPY": "Copiar",
       "REPLY_TO": "Responder mensagem",
       "DELETE": "Excluir",
+      "DELETE_FOR_EVERYONE": "Excluir para todos",
       "CREATE_A_CANNED_RESPONSE": "Adicionar às respostas prontas",
       "TRANSLATE": "Traduzir",
       "COPY_PERMALINK": "Copiar link para a mensagem",
@@ -285,6 +289,12 @@
         "TITLE": "Você tem certeza que deseja excluir esta mensagem?",
         "MESSAGE": "Você não pode desfazer essa ação",
         "DELETE": "Excluir",
+        "CANCEL": "Cancelar"
+      },
+      "DELETE_FOR_EVERYONE_CONFIRMATION": {
+        "TITLE": "Excluir esta mensagem para todos?",
+        "MESSAGE": "A mensagem será excluída no WhatsApp, mas o conteúdo continuará visível no Chatwoot com o marcador de excluída.",
+        "DELETE": "Excluir para todos",
         "CANCEL": "Cancelar"
       }
     },

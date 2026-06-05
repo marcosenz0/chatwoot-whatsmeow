@@ -143,6 +143,7 @@ Rails.application.routes.draw do
                   post :translate
                   post :retry
                   post :reaction
+                  post :delete_for_everyone
                 end
               end
               resources :assignments, only: [:create]

@@ -505,7 +505,6 @@ describe('#deleteMessage', () => {
     await actions.deleteMessage({ commit }, { conversationId, messageId });
     expect(commit.mock.calls).toEqual([
       [types.ADD_MESSAGE, { id: 1, content: 'deleted' }],
-      [types.DELETE_CONVERSATION_ATTACHMENTS, { id: 1, content: 'deleted' }],
     ]);
   });
   it('sends no actions if API is error', async () => {
@@ -515,6 +514,23 @@ describe('#deleteMessage', () => {
       actions.deleteMessage({ commit }, { conversationId, messageId })
     ).rejects.toThrow(Error);
     expect(commit.mock.calls).toEqual([]);
+  });
+
+  it('sends correct actions when deleting for everyone', async () => {
+    const [conversationId, messageId] = [1, 1];
+    axios.post.mockResolvedValue({
+      data: { id: 1, content: 'kept', content_attributes: { deleted: true } },
+    });
+    await actions.deleteMessageForEveryone(
+      { commit },
+      { conversationId, messageId }
+    );
+    expect(commit.mock.calls).toEqual([
+      [
+        types.ADD_MESSAGE,
+        { id: 1, content: 'kept', content_attributes: { deleted: true } },
+      ],
+    ]);
   });
 
   describe('#deleteConversation', () => {

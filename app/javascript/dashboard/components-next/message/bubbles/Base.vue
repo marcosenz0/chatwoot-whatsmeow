@@ -10,6 +10,7 @@ import { useI18n } from 'vue-i18n';
 import MessageFormatter from 'shared/helpers/MessageFormatter.js';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import { MESSAGE_VARIANTS, ORIENTATION } from '../constants';
+import Icon from 'next/icon/Icon.vue';
 
 const props = defineProps({
   hideMeta: { type: Boolean, default: false },
@@ -83,6 +84,22 @@ const shouldShowMeta = computed(
     variant.value !== MESSAGE_VARIANTS.ACTIVITY
 );
 
+const isMessageDeleted = computed(() => !!contentAttributes.value?.deleted);
+
+const deletedIndicatorClass = computed(() => {
+  const classes = [
+    'mt-2 flex items-center gap-1 text-[11px] font-medium leading-4 opacity-70',
+  ];
+
+  if (orientation.value === ORIENTATION.RIGHT) {
+    classes.push('justify-end');
+  } else {
+    classes.push('justify-start');
+  }
+
+  return classes;
+});
+
 const quotedMessage = computed(
   () =>
     contentAttributes.value?.whatsmeowQuotedMessage ||
@@ -145,6 +162,10 @@ const replyToPreview = computed(() => {
       />
     </div>
     <slot />
+    <div v-if="isMessageDeleted" :class="deletedIndicatorClass">
+      <Icon icon="i-lucide-ban" class="size-3 shrink-0" />
+      <span>{{ t('CONVERSATION.MESSAGE_DELETED') }}</span>
+    </div>
     <MessageMeta
       v-if="shouldShowMeta"
       :class="[

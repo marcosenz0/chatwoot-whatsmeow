@@ -56,6 +56,7 @@ export default {
     return {
       isCannedResponseModalOpen: false,
       showDeleteModal: false,
+      showDeleteForEveryoneModal: false,
       quickReactionEmojis: [
         '\u{1F44D}',
         '\u{2764}\u{FE0F}',
@@ -149,6 +150,10 @@ export default {
       this.handleClose();
       this.showDeleteModal = true;
     },
+    openDeleteForEveryoneModal() {
+      this.handleClose();
+      this.showDeleteForEveryoneModal = true;
+    },
     async confirmDeletion() {
       try {
         await this.$store.dispatch('deleteMessage', {
@@ -161,8 +166,23 @@ export default {
         useAlert(this.$t('CONVERSATION.FAIL_DELETE_MESSSAGE'));
       }
     },
+    async confirmDeleteForEveryone() {
+      try {
+        await this.$store.dispatch('deleteMessageForEveryone', {
+          conversationId: this.conversationId,
+          messageId: this.messageId,
+        });
+        useAlert(this.$t('CONVERSATION.SUCCESS_DELETE_FOR_EVERYONE_MESSAGE'));
+        this.handleClose();
+      } catch (error) {
+        useAlert(this.$t('CONVERSATION.FAIL_DELETE_FOR_EVERYONE_MESSAGE'));
+      }
+    },
     closeDeleteModal() {
       this.showDeleteModal = false;
+    },
+    closeDeleteForEveryoneModal() {
+      this.showDeleteForEveryoneModal = false;
     },
   },
 };
@@ -192,6 +212,25 @@ export default {
       :message="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.MESSAGE')"
       :confirm-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.DELETE')"
       :reject-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.CANCEL')"
+    />
+    <woot-delete-modal
+      v-if="showDeleteForEveryoneModal && enabledOptions['deleteForEveryone']"
+      v-model:show="showDeleteForEveryoneModal"
+      class="context-menu--delete-modal"
+      :on-close="closeDeleteForEveryoneModal"
+      :on-confirm="confirmDeleteForEveryone"
+      :title="
+        $t('CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE_CONFIRMATION.TITLE')
+      "
+      :message="
+        $t('CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE_CONFIRMATION.MESSAGE')
+      "
+      :confirm-text="
+        $t('CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE_CONFIRMATION.DELETE')
+      "
+      :reject-text="
+        $t('CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE_CONFIRMATION.CANCEL')
+      "
     />
     <NextButton
       v-if="!hideButton"
@@ -271,7 +310,18 @@ export default {
           variant="icon"
           @click.stop="showCannedResponseModal"
         />
-        <hr v-if="enabledOptions['delete']" />
+        <hr
+          v-if="enabledOptions['delete'] || enabledOptions['deleteForEveryone']"
+        />
+        <MenuItem
+          v-if="enabledOptions['deleteForEveryone']"
+          :option="{
+            icon: 'delete',
+            label: $t('CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE'),
+          }"
+          variant="icon"
+          @click.stop="openDeleteForEveryoneModal"
+        />
         <MenuItem
           v-if="enabledOptions['delete']"
           :option="{
