@@ -27,7 +27,7 @@ class CreateMarcosxAiCore < ActiveRecord::Migration[7.0]
     create_table :marcosx_ai_inboxes do |t|
       t.references :account, null: false, foreign_key: true
       t.references :assistant, null: false, foreign_key: { to_table: :marcosx_ai_assistants }
-      t.references :inbox, null: false, foreign_key: true
+      t.references :inbox, null: false, foreign_key: true, index: false
 
       t.timestamps
     end
@@ -37,7 +37,7 @@ class CreateMarcosxAiCore < ActiveRecord::Migration[7.0]
     create_table :marcosx_ai_conversation_states do |t|
       t.references :account, null: false, foreign_key: true
       t.references :assistant, foreign_key: { to_table: :marcosx_ai_assistants }
-      t.references :conversation, null: false, foreign_key: true
+      t.references :conversation, null: false, foreign_key: true, index: false
       t.references :inbox, null: false, foreign_key: true
       t.string :status, null: false, default: 'active'
       t.datetime :paused_until
@@ -65,7 +65,7 @@ class CreateMarcosxAiCore < ActiveRecord::Migration[7.0]
     add_index :marcosx_ai_logs, [:account_id, :created_at]
 
     create_table :marcosx_ai_google_connections do |t|
-      t.references :account, null: false, foreign_key: true
+      t.references :account, null: false, foreign_key: true, index: false
       t.string :email
       t.text :access_token
       t.text :refresh_token
