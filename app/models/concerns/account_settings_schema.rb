@@ -39,7 +39,8 @@ module AccountSettingsSchema
             'help_center_search': { 'type': %w[boolean null] }
           },
           'additionalProperties': false
-        }
+        },
+        'marcosx_ai_preferences': { 'type': %w[object null] }
       },
     'required': [],
     'additionalProperties': true

@@ -72,6 +72,8 @@ class Inbox < ApplicationRecord
   has_one :assignment_policy, through: :inbox_assignment_policy
   has_one :agent_bot_inbox, dependent: :destroy_async
   has_one :agent_bot, through: :agent_bot_inbox
+  has_one :marcosx_ai_inbox, dependent: :destroy, class_name: 'MarcosxAi::Inbox'
+  has_one :marcosx_ai_assistant, through: :marcosx_ai_inbox, source: :assistant
   has_many :webhooks, dependent: :destroy_async
   has_many :hooks, dependent: :destroy_async, class_name: 'Integrations::Hook'
 
@@ -171,8 +173,12 @@ class Inbox < ApplicationRecord
   end
 
   def active_bot?
-    agent_bot_inbox&.active? || hooks.where(app_id: %w[dialogflow],
-                                            status: 'enabled').count.positive?
+    agent_bot_inbox&.active? || marcosx_ai_active? || hooks.where(app_id: %w[dialogflow],
+                                                                  status: 'enabled').count.positive?
+  end
+
+  def marcosx_ai_active?
+    marcosx_ai_assistant&.auto_response_enabled? || false
   end
 
   def inbox_type

@@ -51,7 +51,7 @@ class Account < ApplicationRecord
   store_accessor :settings, :auto_resolve_after, :auto_resolve_message, :auto_resolve_ignore_waiting
 
   store_accessor :settings, :audio_transcriptions, :auto_resolve_label
-  store_accessor :settings, :captain_models, :captain_features
+  store_accessor :settings, :captain_models, :captain_features, :marcosx_ai_preferences
   store_accessor :settings, :reporting_timezone
   store_accessor :settings, :keep_pending_on_bot_failure
   store_accessor :settings, :captain_auto_resolve_mode
@@ -100,6 +100,11 @@ class Account < ApplicationRecord
   has_many :whatsapp_channels, dependent: :destroy_async, class_name: '::Channel::Whatsapp'
   has_many :whatsmeow_channels, dependent: :destroy_async, class_name: '::Channel::Whatsmeow'
   has_many :working_hours, dependent: :destroy_async
+  has_many :marcosx_ai_assistants, dependent: :destroy_async, class_name: 'MarcosxAi::Assistant'
+  has_many :marcosx_ai_credentials, dependent: :destroy_async, class_name: 'MarcosxAi::Credential'
+  has_many :marcosx_ai_conversation_states, dependent: :destroy_async, class_name: 'MarcosxAi::ConversationState'
+  has_many :marcosx_ai_logs, dependent: :destroy_async, class_name: 'MarcosxAi::Log'
+  has_one :marcosx_ai_google_connection, dependent: :destroy_async, class_name: 'MarcosxAi::GoogleConnection'
 
   has_one_attached :contacts_export
 
