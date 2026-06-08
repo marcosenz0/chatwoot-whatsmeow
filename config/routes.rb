@@ -39,7 +39,6 @@ Rails.application.routes.draw do
   end
 
   get '/health', to: 'health#show'
-  get '/marcosx_ai/google/callback', to: 'marcosx_ai/google_callbacks#show'
   get '/api', to: 'api#index'
   namespace :api, defaults: { format: 'json' } do
     namespace :v1 do
@@ -88,22 +87,6 @@ Rails.application.routes.draw do
               post :reply_suggestion
               post :label_suggestion
               post :follow_up
-            end
-          end
-          namespace :marcosx_ai do
-            resource :preferences, only: [:show, :update]
-            resources :credentials, only: [:index, :show, :create, :update, :destroy] do
-              post :test, on: :collection
-            end
-            resources :assistants do
-              post :playground, on: :member
-              resources :inboxes, only: [:index, :create, :destroy], param: :inbox_id
-            end
-            resources :conversations, only: [], param: :conversation_id do
-              resource :state, only: [:show, :update], controller: 'conversation_states'
-            end
-            namespace :google do
-              resource :authorizations, only: [:create]
             end
           end
           resource :saml_settings, only: [:show, :create, :update, :destroy]
