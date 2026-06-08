@@ -1,30 +1,30 @@
-<p>Hello,</p>
+<p>Olá,</p>
 
-<p>This is a notification to inform you that an account has been permanently deleted from your Chatwoot instance.</p>
+<p>Esta é uma notificação para informar que uma conta foi excluída permanentemente da sua instância Chatwoot.</p>
 
 <p>
-  <strong>Chatwoot Installation:</strong> {{ meta.instance_url }}<br>
-  <strong>Account ID:</strong> {{ meta.account_id }}<br>
-  <strong>Account Name:</strong> {{ meta.account_name }}<br>
-  <strong>Deletion due at:</strong> {{ meta.marked_for_deletion_at }}<br>
-  <strong>Deleted At:</strong> {{ meta.deleted_at }}<br>
-  <strong>Deletion Reason:</strong> {{ meta.deletion_reason }}
+  <strong>Instalação Chatwoot:</strong> {{ meta.instance_url }}<br>
+  <strong>ID da conta:</strong> {{ meta.account_id }}<br>
+  <strong>Nome da conta:</strong> {{ meta.account_name }}<br>
+  <strong>Exclusão agendada para:</strong> {{ meta.marked_for_deletion_at }}<br>
+  <strong>Excluída em:</strong> {{ meta.deleted_at }}<br>
+  <strong>Motivo da exclusão:</strong> {{ meta.deletion_reason }}
 </p>
 
 {% if meta.deleted_user_count > 0 %}
 <p>
-  <strong>Deleted Users ({{ meta.deleted_user_count }}):</strong><br>
+  <strong>Usuários excluídos ({{ meta.deleted_user_count }}):</strong><br>
   {% for user in meta.soft_deleted_users %}
-    User ID: {{ user.user_id }}, Email: {{ user.user_email }}{% unless forloop.last %}<br>{% endunless %}
+    ID do usuário: {{ user.user_id }}, E-mail: {{ user.user_email }}{% unless forloop.last %}<br>{% endunless %}
   {% endfor %}
 </p>
 {% else %}
 <p>
-  <strong>Deleted Users:</strong> None
+  <strong>Usuários excluídos:</strong> nenhum
 </p>
 {% endif %}
 
-<p>This email serves as a record for compliance purposes.</p>
+<p>Este e-mail serve como registro para fins de conformidade.</p>
 
-<p>Thank you,<br>
-Chatwoot System</p>
+<p>Obrigado,<br>
+Sistema Chatwoot</p>

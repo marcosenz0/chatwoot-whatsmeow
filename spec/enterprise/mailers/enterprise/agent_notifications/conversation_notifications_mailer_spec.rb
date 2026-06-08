@@ -18,7 +18,7 @@ RSpec.describe AgentNotifications::ConversationNotificationsMailer, type: :maile
     let(:mail) { described_class.with(account: account).sla_missed_first_response(conversation, agent, sla_policy).deliver_now }
 
     it 'renders the subject' do
-      expect(mail.subject).to eq("Conversation [ID - #{conversation.display_id}] missed SLA for first response")
+      expect(mail.subject).to eq("A conversa [ID - #{conversation.display_id}] estourou o SLA da primeira resposta")
     end
 
     it 'renders the receiver email' do
@@ -31,7 +31,7 @@ RSpec.describe AgentNotifications::ConversationNotificationsMailer, type: :maile
     let(:mail) { described_class.with(account: account).sla_missed_next_response(conversation, agent, sla_policy).deliver_now }
 
     it 'renders the subject' do
-      expect(mail.subject).to eq("Conversation [ID - #{conversation.display_id}] missed SLA for next response")
+      expect(mail.subject).to eq("A conversa [ID - #{conversation.display_id}] estourou o SLA da próxima resposta")
     end
 
     it 'renders the receiver email' do
@@ -44,7 +44,7 @@ RSpec.describe AgentNotifications::ConversationNotificationsMailer, type: :maile
     let(:mail) { described_class.with(account: account).sla_missed_resolution(conversation, agent, sla_policy).deliver_now }
 
     it 'renders the subject' do
-      expect(mail.subject).to eq("Conversation [ID - #{conversation.display_id}] missed SLA for resolution time")
+      expect(mail.subject).to eq("A conversa [ID - #{conversation.display_id}] estourou o SLA de resolução")
     end
 
     it 'renders the receiver email' do

@@ -7,80 +7,80 @@
   is_saml_account = account_user&.account&.saml_enabled?
   invited_user = inviter.present? && @resource.unconfirmed_email.blank?
 
-  eyebrow = 'Welcome'
-  heading = 'Confirm your email to get started'
+  eyebrow = 'Bem-vindo'
+  heading = 'Confirme seu e-mail para começar'
   intro_text =
-    "Welcome to #{brand_name}. We just need to verify your email address before you can start using your account."
-  supporting_text = 'This only takes a moment.'
-  action_text = 'Confirm my account'
+    "Bem-vindo ao #{brand_name}. Precisamos verificar seu endereço de e-mail antes de você começar a usar sua conta."
+  supporting_text = 'Leva só um instante.'
+  action_text = 'Confirmar minha conta'
   action_url = frontend_url('auth/confirmation', confirmation_token: @token)
   info_title = nil
   info_text = nil
   detail_rows = []
-  detail_rows << ['New email', @resource.unconfirmed_email] if @resource.unconfirmed_email.present?
+  detail_rows << ['Novo e-mail', @resource.unconfirmed_email] if @resource.unconfirmed_email.present?
 
   if @resource.unconfirmed_email.present?
-    eyebrow = 'Email update'
-    heading = 'Confirm your new email address'
-    intro_text = "We received a request to update the email address on your #{brand_name} account."
-    supporting_text = 'Confirm the new address below to finish the change.'
-    action_text = 'Confirm email address'
+    eyebrow = 'Atualização de e-mail'
+    heading = 'Confirme seu novo endereço de e-mail'
+    intro_text = "Recebemos uma solicitação para atualizar o endereço de e-mail da sua conta no #{brand_name}."
+    supporting_text = 'Confirme o novo endereço abaixo para concluir a alteração.'
+    action_text = 'Confirmar endereço de e-mail'
   elsif @resource.confirmed?
-    eyebrow = 'Account ready'
+    eyebrow = 'Conta pronta'
 
     if is_saml_account
-      heading = 'Your access is ready'
-      intro_text = "Your #{brand_name} access is already set up."
-      supporting_text = "Use your organization's Single Sign-On (SSO) portal to access #{brand_name}."
+      heading = 'Seu acesso está pronto'
+      intro_text = "Seu acesso ao #{brand_name} já está configurado."
+      supporting_text = "Use o portal de Single Sign-On (SSO) da sua organização para acessar o #{brand_name}."
       action_text = nil
       action_url = nil
-      info_title = "Sign in with your organization's SSO"
+      info_title = 'Entre com o SSO da sua organização'
       info_text =
-        "You won't need a separate password for #{brand_name}. Start from your company identity provider portal."
+        "Você não precisa de uma senha separada para o #{brand_name}. Comece pelo portal de identidade da sua empresa."
       detail_rows = []
-      detail_rows << ['Workspace', account_name] if account_name.present?
-      detail_rows << ['Sign-in method', 'Single Sign-On (SSO)']
+      detail_rows << ['Espaço', account_name] if account_name.present?
+      detail_rows << ['Método de entrada', 'Single Sign-On (SSO)']
     else
-      heading = 'Your account is ready'
-      intro_text = "Your #{brand_name} account is already active."
-      supporting_text = 'Use the button below to sign in and continue where you left off.'
-      action_text = 'Open my account'
+      heading = 'Sua conta está pronta'
+      intro_text = "Sua conta no #{brand_name} já está ativa."
+      supporting_text = 'Use o botão abaixo para entrar e continuar de onde parou.'
+      action_text = 'Abrir minha conta'
       action_url = frontend_url('auth/sign_in')
       detail_rows = []
     end
   elsif invited_user
-    eyebrow = 'Workspace invitation'
-    heading = account_name.present? ? "You're invited to join #{account_name}" : "You're invited to try #{brand_name}"
+    eyebrow = 'Convite para o espaço'
+    heading = account_name.present? ? "Você foi convidado para participar de #{account_name}" : "Você foi convidado para experimentar #{brand_name}"
 
     if is_saml_account
       intro_text = if account_name.present?
-        "#{inviter.name} invited you to access the #{account_name} workspace on #{brand_name}."
+        "#{inviter.name} convidou você para acessar o espaço #{account_name} no #{brand_name}."
       else
-        "#{inviter.name} invited you to access #{brand_name}."
+        "#{inviter.name} convidou você para acessar o #{brand_name}."
       end
       supporting_text =
-        "Your organization uses Single Sign-On (SSO), so you won't need to create a separate password."
+        'Sua organização usa Single Sign-On (SSO), então você não precisa criar uma senha separada.'
       action_text = nil
       action_url = nil
-      info_title = "Use your organization's SSO portal"
-      info_text = "Continue from your company identity provider portal to access #{brand_name}."
-      detail_rows = [['Invited by', inviter.name]]
-      detail_rows << ['Workspace', account_name] if account_name.present?
-      detail_rows << ['Sign-in method', 'Single Sign-On (SSO)']
+      info_title = 'Use o portal SSO da sua organização'
+      info_text = "Continue pelo portal de identidade da sua empresa para acessar o #{brand_name}."
+      detail_rows = [['Convidado por', inviter.name]]
+      detail_rows << ['Espaço', account_name] if account_name.present?
+      detail_rows << ['Método de entrada', 'Single Sign-On (SSO)']
     else
       intro_text = if account_name.present?
-        "#{inviter.name} invited you to join the #{account_name} workspace on #{brand_name}."
+        "#{inviter.name} convidou você para participar do espaço #{account_name} no #{brand_name}."
       else
-        "#{inviter.name} invited you to try #{brand_name}."
+        "#{inviter.name} convidou você para experimentar #{brand_name}."
       end
-      supporting_text = 'Create your account to start collaborating with your team.'
-      action_text = 'Accept invitation'
+      supporting_text = 'Crie sua conta para começar a colaborar com sua equipe.'
+      action_text = 'Aceitar convite'
       action_url = frontend_url(
         'auth/password/edit',
         reset_password_token: @resource.send(:set_reset_password_token)
       )
-      detail_rows = [['Invited by', inviter.name]]
-      detail_rows << ['Workspace', account_name] if account_name.present?
+      detail_rows = [['Convidado por', inviter.name]]
+      detail_rows << ['Espaço', account_name] if account_name.present?
     end
   end
 %>

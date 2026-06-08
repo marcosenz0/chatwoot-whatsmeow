@@ -8,7 +8,7 @@ RSpec.describe 'Devise::Mailer' do
     let!(:confirmable_user) { create(:user, inviter: inviter_val, account: account) }
     let(:inviter_val) { nil }
     let(:mail) { Devise::Mailer.confirmation_instructions(confirmable_user.reload, nil, {}) }
-    let(:mail_body) { CGI.unescapeHTML(mail.body.to_s) }
+    let(:mail_body) { CGI.unescapeHTML(mail.body.decoded) }
 
     before do
       confirmable_user.update!(confirmed_at: nil)
@@ -32,13 +32,13 @@ RSpec.describe 'Devise::Mailer' do
 
       context 'when user has no inviter' do
         it 'shows standard welcome message without SSO references' do
-          expect(mail_body).to include('Confirm your email to get started')
-          expect(mail_body).to include('We just need to verify your email address before you can start using your account.')
+          expect(mail_body).to include('Confirme seu e-mail para começar')
+          expect(mail_body).to include('Precisamos verificar seu endereço de e-mail antes de você começar a usar sua conta.')
           expect(mail_body).not_to include('Single Sign-On (SSO)')
         end
 
         it 'shows the standard confirmation CTA' do
-          expect(mail_body).to include('Confirm my account')
+          expect(mail_body).to include('Confirmar minha conta')
         end
 
         it 'shows confirmation link' do
@@ -50,21 +50,21 @@ RSpec.describe 'Devise::Mailer' do
         let(:inviter_val) { create(:user, :administrator, skip_confirmation: true, account: account) }
 
         it 'mentions SSO invitation' do
-          expect(mail_body).to include("You're invited to join #{account.name}")
-          expect(mail_body).to include("#{inviter_val.name} invited you to access the #{account.name} workspace on Chatwoot.")
+          expect(mail_body).to include("Você foi convidado para participar de #{account.name}")
+          expect(mail_body).to include("#{inviter_val.name} convidou você para acessar o espaço #{account.name} no Chatwoot.")
         end
 
         it 'explains SSO authentication' do
-          expect(mail_body).to include("Your organization uses Single Sign-On (SSO), so you won't need to create a separate password.")
+          expect(mail_body).to include('Sua organização usa Single Sign-On (SSO), então você não precisa criar uma senha separada.')
         end
 
         it 'does not show standard invitation message' do
-          expect(mail_body).not_to include('invited you to join')
-          expect(mail_body).not_to include('Accept invitation')
+          expect(mail_body).not_to include('convidou você para participar')
+          expect(mail_body).not_to include('Aceitar convite')
         end
 
         it 'directs to SSO portal instead of password reset' do
-          expect(mail_body).to include("Use your organization's SSO portal")
+          expect(mail_body).to include('Use o portal SSO da sua organização')
           expect(mail.body).not_to include('app/auth/password/edit')
         end
       end
@@ -77,9 +77,9 @@ RSpec.describe 'Devise::Mailer' do
         end
 
         it 'shows SSO login instructions' do
-          expect(mail_body).to include('Your access is ready')
-          expect(mail_body).to include("Sign in with your organization's SSO")
-          expect(mail_body).to include("Use your organization's Single Sign-On (SSO) portal to access")
+          expect(mail_body).to include('Seu acesso está pronto')
+          expect(mail_body).to include('Entre com o SSO da sua organização')
+          expect(mail_body).to include('Use o portal de Single Sign-On (SSO) da sua organização para acessar')
           expect(mail.body).not_to include('/auth/sign_in')
         end
       end
@@ -92,7 +92,7 @@ RSpec.describe 'Devise::Mailer' do
         end
 
         it 'still shows confirmation link for email verification' do
-          expect(mail_body).to include('Confirm your new email address')
+          expect(mail_body).to include('Confirme seu novo endereço de e-mail')
           expect(mail.body).to include('app/auth/confirmation?confirmation_token')
           expect(confirmable_user.unconfirmed_email.blank?).to be false
         end
@@ -104,8 +104,8 @@ RSpec.describe 'Devise::Mailer' do
         end
 
         it 'shows SSO login instructions instead of regular login' do
-          expect(mail_body).to include('Your access is ready')
-          expect(mail_body).to include("Sign in with your organization's SSO")
+          expect(mail_body).to include('Seu acesso está pronto')
+          expect(mail_body).to include('Entre com o SSO da sua organização')
           expect(mail.body).not_to include('/auth/sign_in')
         end
       end
@@ -116,10 +116,10 @@ RSpec.describe 'Devise::Mailer' do
         let(:inviter_val) { create(:user, :administrator, skip_confirmation: true, account: account) }
 
         it 'shows standard invitation without SSO references' do
-          expect(mail_body).to include("You're invited to join #{account.name}")
-          expect(mail_body).to include("#{inviter_val.name} invited you to join the #{account.name} workspace on")
+          expect(mail_body).to include("Você foi convidado para participar de #{account.name}")
+          expect(mail_body).to include("#{inviter_val.name} convidou você para participar do espaço #{account.name} no")
           expect(mail_body).not_to include('Single Sign-On (SSO)')
-          expect(mail_body).not_to include("Use your organization's SSO portal")
+          expect(mail_body).not_to include('Use o portal SSO da sua organização')
         end
 
         it 'shows password reset link' do
@@ -129,9 +129,9 @@ RSpec.describe 'Devise::Mailer' do
 
       context 'when user has no inviter' do
         it 'shows the standard confirmation state' do
-          expect(mail_body).to include('Confirm your email to get started')
-          expect(mail_body).to include('We just need to verify your email address before you can start using your account.')
-          expect(mail_body).to include('Confirm my account')
+          expect(mail_body).to include('Confirme seu e-mail para começar')
+          expect(mail_body).to include('Precisamos verificar seu endereço de e-mail antes de você começar a usar sua conta.')
+          expect(mail_body).to include('Confirmar minha conta')
         end
 
         it 'shows confirmation link' do
@@ -147,9 +147,9 @@ RSpec.describe 'Devise::Mailer' do
         end
 
         it 'shows regular login link' do
-          expect(mail_body).to include('Your account is ready')
+          expect(mail_body).to include('Sua conta está pronta')
           expect(mail.body).to include('/auth/sign_in')
-          expect(mail_body).not_to include('SSO portal')
+          expect(mail_body).not_to include('portal SSO')
         end
       end
 
@@ -159,7 +159,7 @@ RSpec.describe 'Devise::Mailer' do
         end
 
         it 'shows confirmation link for email verification' do
-          expect(mail_body).to include('Confirm your new email address')
+          expect(mail_body).to include('Confirme seu novo endereço de e-mail')
           expect(mail.body).to include('app/auth/confirmation?confirmation_token')
           expect(confirmable_user.unconfirmed_email.blank?).to be false
         end

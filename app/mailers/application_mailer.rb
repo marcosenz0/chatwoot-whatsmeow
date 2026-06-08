@@ -69,6 +69,11 @@ class ApplicationMailer < ActionMailer::Base
     I18n.available_locales.map(&:to_s).include?(account.locale) ? account.locale : nil
   end
 
+  def default_mailer_locale
+    locale = ENV.fetch('DEFAULT_LOCALE', 'pt_BR')
+    I18n.available_locales.map(&:to_s).include?(locale) ? locale : I18n.default_locale
+  end
+
   def ensure_current_account(account)
     Current.reset
     Current.account = account if account.present?
@@ -76,7 +81,7 @@ class ApplicationMailer < ActionMailer::Base
 
   def switch_locale(&)
     locale ||= locale_from_account(Current.account)
-    locale ||= I18n.default_locale
+    locale ||= default_mailer_locale
     # ensure locale won't bleed into other requests
     # https://guides.rubyonrails.org/i18n.html#managing-the-locale-across-requests
     I18n.with_locale(locale, &)

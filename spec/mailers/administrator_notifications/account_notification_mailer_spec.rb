@@ -15,14 +15,14 @@ RSpec.describe AdministratorNotifications::AccountNotificationMailer do
   describe '#account_deletion_user_initiated' do
     it 'sets the correct subject for user-initiated deletion' do
       mail = mailer.account_deletion_user_initiated(account, 'manual_deletion')
-      expect(mail.subject).to eq('Your Chatwoot account deletion has been scheduled')
+      expect(mail.subject).to eq('A exclusão da sua conta Chatwoot foi agendada')
     end
   end
 
   describe '#account_deletion_for_inactivity' do
     it 'sets the correct subject for system-initiated deletion' do
       mail = mailer.account_deletion_for_inactivity(account, 'Account Inactive')
-      expect(mail.subject).to eq('Your Chatwoot account is scheduled for deletion due to inactivity')
+      expect(mail.subject).to eq('Sua conta Chatwoot está agendada para exclusão por inatividade')
     end
   end
 
@@ -30,17 +30,17 @@ RSpec.describe AdministratorNotifications::AccountNotificationMailer do
     it 'formats a valid date string' do
       date_str = '2024-12-31T12:00:00Z'
       formatted = described_class.new.send(:format_deletion_date, date_str)
-      expect(formatted).to eq('December 31, 2024')
+      expect(formatted).to eq(I18n.l(Time.zone.parse(date_str).to_date, format: :long))
     end
 
     it 'handles blank dates' do
       formatted = described_class.new.send(:format_deletion_date, nil)
-      expect(formatted).to eq('Unknown')
+      expect(formatted).to eq('Não informado')
     end
 
     it 'handles invalid dates' do
       formatted = described_class.new.send(:format_deletion_date, 'invalid-date')
-      expect(formatted).to eq('Unknown')
+      expect(formatted).to eq('Não informado')
     end
   end
 end
