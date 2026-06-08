@@ -383,71 +383,64 @@ const menuItems = computed(() => {
     },
     {
       name: 'Captain',
-      icon: 'i-woot-captain',
+      icon: 'i-lucide-sparkles',
       label: t('SIDEBAR.CAPTAIN'),
-      activeOn: ['captain_assistants_create_index'],
+      activeOn: ['captain_index', 'captain_assistants_index'],
       children: [
         {
-          name: 'FAQs',
+          name: 'Overview',
           label: t('SIDEBAR.CAPTAIN_RESPONSES'),
-          activeOn: [
-            'captain_assistants_responses_index',
-            'captain_assistants_responses_pending',
-          ],
+          activeOn: ['captain_index', 'captain_assistants_index'],
           to: accountScopedRoute('captain_assistants_index', {
-            navigationPath: 'captain_assistants_responses_index',
+            navigationPath: 'overview',
           }),
         },
         {
-          name: 'Documents',
+          name: 'Assistants',
           label: t('SIDEBAR.CAPTAIN_DOCUMENTS'),
-          activeOn: ['captain_assistants_documents_index'],
+          activeOn: ['captain_assistants_index'],
           to: accountScopedRoute('captain_assistants_index', {
-            navigationPath: 'captain_assistants_documents_index',
+            navigationPath: 'assistants',
           }),
         },
         {
-          name: 'Scenarios',
+          name: 'Credentials',
           label: t('SIDEBAR.CAPTAIN_SCENARIOS'),
-          activeOn: ['captain_assistants_scenarios_index'],
+          activeOn: ['captain_assistants_index'],
           to: accountScopedRoute('captain_assistants_index', {
-            navigationPath: 'captain_assistants_scenarios_index',
+            navigationPath: 'credentials',
           }),
         },
         {
           name: 'Playground',
           label: t('SIDEBAR.CAPTAIN_PLAYGROUND'),
-          activeOn: ['captain_assistants_playground_index'],
+          activeOn: ['captain_assistants_index'],
           to: accountScopedRoute('captain_assistants_index', {
-            navigationPath: 'captain_assistants_playground_index',
+            navigationPath: 'playground',
           }),
         },
         {
           name: 'Inboxes',
           label: t('SIDEBAR.CAPTAIN_INBOXES'),
-          activeOn: ['captain_assistants_inboxes_index'],
+          activeOn: ['captain_assistants_index'],
           to: accountScopedRoute('captain_assistants_index', {
-            navigationPath: 'captain_assistants_inboxes_index',
+            navigationPath: 'inboxes',
           }),
         },
         {
-          name: 'Tools',
+          name: 'Google',
           label: t('SIDEBAR.CAPTAIN_TOOLS'),
-          activeOn: ['captain_tools_index'],
+          activeOn: ['captain_assistants_index'],
           to: accountScopedRoute('captain_assistants_index', {
-            navigationPath: 'captain_tools_index',
+            navigationPath: 'google',
           }),
         },
         {
           name: 'Settings',
           label: t('SIDEBAR.CAPTAIN_SETTINGS'),
-          activeOn: [
-            'captain_assistants_settings_index',
-            'captain_assistants_guidelines_index',
-            'captain_assistants_guardrails_index',
-          ],
+          activeOn: ['captain_assistants_index'],
           to: accountScopedRoute('captain_assistants_index', {
-            navigationPath: 'captain_assistants_settings_index',
+            navigationPath: 'settings',
           }),
         },
       ],
