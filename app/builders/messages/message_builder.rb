@@ -23,6 +23,7 @@ class Messages::MessageBuilder
   def perform
     @message = @conversation.messages.build(message_params)
     process_attachments
+    process_whatsmeow_contacts
     process_emails
     # When the message has no quoted content, it will just be rendered as a regular message
     # The frontend is equipped to handle this case
@@ -64,6 +65,62 @@ class Messages::MessageBuilder
                                file_type(uploaded_attachment&.content_type)
                              end
     end
+  end
+
+  def process_whatsmeow_contacts
+    return unless whatsmeow_contact_message?
+
+    whatsmeow_contact_payloads.each do |contact|
+      @message.attachments.build(
+        account_id: @message.account_id,
+        file_type: :contact,
+        fallback_title: contact_phone_number(contact),
+        meta: contact_attachment_meta(contact)
+      )
+    end
+  end
+
+  def whatsmeow_contact_message?
+    @conversation.inbox&.channel_type == 'Channel::Whatsmeow' &&
+      message_type == 'outgoing' &&
+      whatsmeow_contact_payloads.present?
+  end
+
+  def whatsmeow_contact_payloads
+    attributes = content_attributes.with_indifferent_access
+    contacts = attributes[:whatsmeow_contacts].presence || attributes[:whatsmeow_contact].presence
+
+    Array.wrap(contacts).filter_map do |contact|
+      next unless contact.respond_to?(:with_indifferent_access)
+
+      contact.with_indifferent_access
+    end
+  end
+
+  def contact_phone_number(contact)
+    contact[:phone_number].presence || contact[:whatsapp_id].presence || contact[:jid].to_s.split('@').first.presence
+  end
+
+  def contact_attachment_meta(contact)
+    {
+      display_name: contact[:display_name],
+      full_name: contact[:full_name],
+      first_name: contact[:first_name],
+      last_name: contact[:last_name],
+      phone_number: contact_phone_number(contact),
+      whatsapp_id: contact[:whatsapp_id],
+      jid: contact[:jid],
+      organization: contact[:organization],
+      title: contact[:title],
+      email: contact[:email],
+      website: contact[:website],
+      note: contact[:note],
+      category: contact[:category],
+      avatar_url: contact[:avatar_url],
+      profile_picture_url: contact[:profile_picture_url],
+      business_profile: contact[:business_profile],
+      vcard: contact[:vcard]
+    }.compact_blank
   end
 
   def process_emails

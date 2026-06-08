@@ -357,6 +357,26 @@
       "MEMBERS_FAILED": "Could not load group members.",
       "OWNER": "Owner",
       "ADMIN": "Admin"
+    },
+    "WHATSMEOW_CONTACT": {
+      "SEND_CONTACT": "Send contact",
+      "SEND_CONTACT_HINT": "Share a WhatsApp contact card in this conversation.",
+      "TIP_CONTACT_ICON": "Send contact",
+      "UNKNOWN_CONTACT": "WhatsApp contact",
+      "WHATSAPP_CONTACT": "WhatsApp contact",
+      "BUSINESS_ACCOUNT": "Business account",
+      "VIEW_BUSINESS": "View business",
+      "NO_BUSINESS_DETAILS": "No extra WhatsApp business details were found for this contact.",
+      "NAME": "Name",
+      "PHONE": "Phone",
+      "COMPANY": "Company",
+      "CATEGORY": "Category",
+      "HOURS": "Hours",
+      "WEBSITE": "Website",
+      "EMAIL": "Email",
+      "ADDRESS": "Address",
+      "NOTE": "Note",
+      "CANCEL": "Cancel"
     }
   },
   "EMAIL_TRANSCRIPT": {

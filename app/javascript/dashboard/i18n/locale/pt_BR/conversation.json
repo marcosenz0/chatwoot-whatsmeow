@@ -336,6 +336,26 @@
       "MEMBERS_FAILED": "Nao foi possivel carregar os membros do grupo.",
       "OWNER": "Dono",
       "ADMIN": "ADM"
+    },
+    "WHATSMEOW_CONTACT": {
+      "SEND_CONTACT": "Enviar contato",
+      "SEND_CONTACT_HINT": "Compartilhe um cartao de contato do WhatsApp nesta conversa.",
+      "TIP_CONTACT_ICON": "Enviar contato",
+      "UNKNOWN_CONTACT": "Contato do WhatsApp",
+      "WHATSAPP_CONTACT": "Contato do WhatsApp",
+      "BUSINESS_ACCOUNT": "Conta comercial",
+      "VIEW_BUSINESS": "Ver empresa",
+      "NO_BUSINESS_DETAILS": "Nao encontramos detalhes comerciais extras do WhatsApp para este contato.",
+      "NAME": "Nome",
+      "PHONE": "Telefone",
+      "COMPANY": "Empresa",
+      "CATEGORY": "Categoria",
+      "HOURS": "Horario",
+      "WEBSITE": "Site",
+      "EMAIL": "E-mail",
+      "ADDRESS": "Endereco",
+      "NOTE": "Nota",
+      "CANCEL": "Cancelar"
     }
   },
   "EMAIL_TRANSCRIPT": {

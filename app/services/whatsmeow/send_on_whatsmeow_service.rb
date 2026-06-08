@@ -45,6 +45,7 @@ class Whatsmeow::SendOnWhatsmeowService
       to: target_identifier,
       body: body_content,
       attachments: attachments_payload,
+      contacts: contacts_payload,
       quoted: quoted_payload
     }.compact_blank
   end
@@ -65,6 +66,38 @@ class Whatsmeow::SendOnWhatsmeowService
 
   def body_content
     message.content.to_s.strip
+  end
+
+  def contacts_payload
+    contacts = message_content_attributes[:whatsmeow_contacts].presence || message_content_attributes[:whatsmeow_contact].presence
+
+    Array.wrap(contacts).filter_map do |contact|
+      next unless contact.respond_to?(:with_indifferent_access)
+
+      normalized_contact_payload(contact.with_indifferent_access)
+    end
+  end
+
+  def normalized_contact_payload(contact)
+    {
+      display_name: contact[:display_name],
+      full_name: contact[:full_name],
+      first_name: contact[:first_name],
+      last_name: contact[:last_name],
+      phone_number: contact[:phone_number],
+      whatsapp_id: contact[:whatsapp_id],
+      jid: contact[:jid],
+      organization: contact[:organization],
+      title: contact[:title],
+      email: contact[:email],
+      website: contact[:website],
+      note: contact[:note],
+      category: contact[:category],
+      avatar_url: contact[:avatar_url],
+      profile_picture_url: contact[:profile_picture_url],
+      business_profile: contact[:business_profile],
+      vcard: contact[:vcard]
+    }.compact_blank
   end
 
   def quoted_payload

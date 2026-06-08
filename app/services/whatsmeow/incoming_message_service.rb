@@ -13,7 +13,7 @@ class Whatsmeow::IncomingMessageService
     set_message_sender
     set_conversation
     @message = @conversation.messages.build(
-      content: params[:content],
+      content: message_content,
       account_id: @inbox.account_id,
       inbox_id: @inbox.id,
       message_type: outgoing_echo? ? :outgoing : :incoming,
@@ -23,6 +23,7 @@ class Whatsmeow::IncomingMessageService
       content_attributes: message_content_attributes
     )
     attach_files
+    attach_contacts
     @message.save!
   end
 
@@ -362,7 +363,20 @@ class Whatsmeow::IncomingMessageService
     attributes[:external_echo] = true if outgoing_echo?
     attributes.merge!(group_content_attributes) if group_message?
     attributes.merge!(quoted_content_attributes) if quoted_message?
+    attributes[:whatsmeow_contacts] = contact_params if contact_message?
     attributes
+  end
+
+  def message_content
+    params[:content].presence || contact_message_content
+  end
+
+  def contact_message_content
+    return if contact_params.blank?
+
+    first_contact = contact_params.first
+    name = contact_display_name(first_contact)
+    contact_params.one? ? "Contato: #{name}" : "#{contact_params.size} contatos compartilhados"
   end
 
   def group_content_attributes
@@ -412,12 +426,71 @@ class Whatsmeow::IncomingMessageService
     end
   end
 
+  def attach_contacts
+    contact_params.each do |contact|
+      @message.attachments.new(
+        account_id: @message.account_id,
+        file_type: :contact,
+        fallback_title: contact_phone_number(contact),
+        meta: contact_attachment_meta(contact)
+      )
+    end
+  end
+
   def attachment_params
     Array(params[:attachments]).filter_map do |attachment|
       next unless attachment.respond_to?(:with_indifferent_access)
 
       attachment.with_indifferent_access
     end
+  end
+
+  def contact_params
+    @contact_params ||= Array(params[:contacts]).filter_map do |contact|
+      next unless contact.respond_to?(:with_indifferent_access)
+
+      contact.with_indifferent_access
+    end
+  end
+
+  def contact_message?
+    contact_params.present?
+  end
+
+  def contact_display_name(contact)
+    [
+      contact[:display_name],
+      contact[:full_name],
+      "#{contact[:first_name]} #{contact[:last_name]}".strip,
+      contact[:organization],
+      contact_phone_number(contact)
+    ].compact_blank.first
+  end
+
+  def contact_phone_number(contact)
+    contact[:phone_number].presence || contact[:whatsapp_id].presence || contact[:jid].to_s.split('@').first.presence
+  end
+
+  def contact_attachment_meta(contact)
+    {
+      display_name: contact[:display_name],
+      full_name: contact[:full_name],
+      first_name: contact[:first_name],
+      last_name: contact[:last_name],
+      phone_number: contact_phone_number(contact),
+      whatsapp_id: contact[:whatsapp_id],
+      jid: contact[:jid],
+      organization: contact[:organization],
+      title: contact[:title],
+      email: contact[:email],
+      website: contact[:website],
+      note: contact[:note],
+      category: contact[:category],
+      avatar_url: contact[:avatar_url],
+      profile_picture_url: contact[:profile_picture_url],
+      business_profile: contact[:business_profile],
+      vcard: contact[:vcard]
+    }.compact_blank
   end
 
   def normalized_file_type(file_type)

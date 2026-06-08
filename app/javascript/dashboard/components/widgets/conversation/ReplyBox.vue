@@ -17,6 +17,7 @@ import CopilotEditorSection from './CopilotEditorSection.vue';
 import MessageSignatureMissingAlert from './MessageSignatureMissingAlert.vue';
 import ReplyBoxBanner from './ReplyBoxBanner.vue';
 import QuotedEmailPreview from './QuotedEmailPreview.vue';
+import WhatsmeowContactSendModal from './WhatsmeowContactSendModal.vue';
 import { REPLY_EDITOR_MODES } from 'dashboard/components/widgets/WootWriter/constants';
 import WootMessageEditor from 'dashboard/components/widgets/WootWriter/Editor.vue';
 import AudioRecorder from 'dashboard/components/widgets/WootWriter/AudioRecorder.vue';
@@ -76,6 +77,7 @@ export default {
     WhatsappTemplates,
     WootMessageEditor,
     QuotedEmailPreview,
+    WhatsmeowContactSendModal,
     CopilotEditorSection,
     CopilotReplyBottomPanel,
   },
@@ -124,6 +126,7 @@ export default {
       doAutoSaveDraft: () => {},
       showWhatsAppTemplatesModal: false,
       showContentTemplatesModal: false,
+      showWhatsmeowContactModal: false,
       updateEditorSelectionWith: '',
       undefinedVariableMessage: '',
       showMentions: false,
@@ -168,6 +171,13 @@ export default {
     },
     showContentTemplates() {
       return this.isATwilioWhatsAppChannel && !this.isPrivate;
+    },
+    showWhatsmeowContactButton() {
+      return (
+        this.isAWhatsmeowChannel &&
+        !this.isOnPrivateNote &&
+        !this.isEditorDisabled
+      );
     },
     isPrivate() {
       if (
@@ -768,6 +778,29 @@ export default {
     },
     hideContentTemplatesModal() {
       this.showContentTemplatesModal = false;
+    },
+    openWhatsmeowContactModal() {
+      this.showWhatsmeowContactModal = true;
+    },
+    hideWhatsmeowContactModal() {
+      this.showWhatsmeowContactModal = false;
+    },
+    onSendWhatsmeowContact(contact) {
+      let messagePayload = {
+        conversationId: this.currentChat.id,
+        message: contact.display_name || contact.phone_number,
+        private: false,
+        sender: this.sender,
+        contentAttributes: {
+          whatsmeow_contact: contact,
+        },
+      };
+
+      messagePayload = this.setReplyToInPayload(messagePayload);
+      this.sendMessage(messagePayload, messagePayload.message || '');
+      this.hideWhatsmeowContactModal();
+      this.resetReplyToMessage();
+      this.hideEmojiPicker();
     },
     confirmOnSendReply() {
       if (this.isReplyButtonDisabled) {
@@ -1419,12 +1452,14 @@ export default {
         :recording-audio-state="recordingAudioState"
         :send-button-text="replyButtonLabel"
         :show-audio-recorder="showAudioRecorder"
+        :show-contact-picker="showWhatsmeowContactButton"
         :show-emoji-picker="showEmojiPicker"
         :show-file-upload="showFileUpload"
         :show-quoted-reply-toggle="shouldShowQuotedReplyToggle"
         :quoted-reply-enabled="quotedReplyPreference"
         :toggle-audio-recorder-play-pause="toggleAudioRecorderPlayPause"
         :toggle-audio-recorder="toggleAudioRecorder"
+        :toggle-contact-picker="openWhatsmeowContactModal"
         :toggle-emoji-picker="toggleEmojiPicker"
         :message="message"
         :portal-slug="connectedPortalSlug"
@@ -1450,6 +1485,12 @@ export default {
       @close="hideContentTemplatesModal"
       @on-send="onSendContentTemplateReply"
       @cancel="hideContentTemplatesModal"
+    />
+
+    <WhatsmeowContactSendModal
+      :is-open="showWhatsmeowContactModal"
+      @close="hideWhatsmeowContactModal"
+      @send="onSendWhatsmeowContact"
     />
 
     <woot-confirm-modal

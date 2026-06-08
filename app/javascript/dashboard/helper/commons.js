@@ -43,11 +43,28 @@ export const getTypingUsersText = (users = []) => {
   return ['TYPING.MULTIPLE', { user: firstUser.name, count: count - 1 }];
 };
 
+const pendingContactAttachment = (data, tempMessageId) => {
+  const contact =
+    data.contentAttributes?.whatsmeow_contact ||
+    data.contentAttributes?.whatsmeowContact;
+  if (!contact) return null;
+
+  return [
+    {
+      id: tempMessageId,
+      fileType: 'contact',
+      fallbackTitle: contact.phone_number || contact.phoneNumber || '',
+      meta: contact,
+    },
+  ];
+};
+
 export const createPendingMessage = data => {
   const timestamp = Math.floor(new Date().getTime() / 1000);
   const tempMessageId = getUuid();
   const { message, file } = data;
   const tempAttachments = [{ id: tempMessageId }];
+  const contactAttachment = pendingContactAttachment(data, tempMessageId);
   const pendingMessage = {
     ...data,
     content: message || null,
@@ -57,7 +74,7 @@ export const createPendingMessage = data => {
     created_at: timestamp,
     message_type: MESSAGE_TYPE.OUTGOING,
     conversation_id: data.conversationId,
-    attachments: file ? tempAttachments : null,
+    attachments: file ? tempAttachments : contactAttachment,
   };
 
   return pendingMessage;

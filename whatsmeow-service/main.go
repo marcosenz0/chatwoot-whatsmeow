@@ -68,6 +68,7 @@ type MessageRequest struct {
 	To          string                `json:"to" binding:"required"`
 	Body        string                `json:"body"`
 	Attachments []WhatsmeowAttachment `json:"attachments"`
+	Contacts    []WhatsmeowContact    `json:"contacts"`
 	Quoted      *QuotedMessageRequest `json:"quoted"`
 }
 
@@ -107,6 +108,26 @@ type WhatsmeowAttachment struct {
 	FileType      string `json:"file_type"`
 	RecordedAudio bool   `json:"recorded_audio"`
 	DataBase64    string `json:"data_base64"`
+}
+
+type WhatsmeowContact struct {
+	DisplayName       string                 `json:"display_name"`
+	FullName          string                 `json:"full_name"`
+	FirstName         string                 `json:"first_name"`
+	LastName          string                 `json:"last_name"`
+	PhoneNumber       string                 `json:"phone_number"`
+	WhatsAppID        string                 `json:"whatsapp_id"`
+	JID               string                 `json:"jid"`
+	Organization      string                 `json:"organization"`
+	Title             string                 `json:"title"`
+	Email             string                 `json:"email"`
+	Website           string                 `json:"website"`
+	Note              string                 `json:"note"`
+	Category          string                 `json:"category"`
+	AvatarURL         string                 `json:"avatar_url"`
+	ProfilePictureURL string                 `json:"profile_picture_url"`
+	Vcard             string                 `json:"vcard"`
+	BusinessProfile   map[string]interface{} `json:"business_profile"`
 }
 
 type GroupMemberResponse struct {
@@ -910,8 +931,8 @@ func handleSendMessage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if strings.TrimSpace(req.Body) == "" && len(req.Attachments) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Message body or attachment is required"})
+	if strings.TrimSpace(req.Body) == "" && len(req.Attachments) == 0 && len(req.Contacts) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Message body, attachment or contact is required"})
 		return
 	}
 
@@ -1068,6 +1089,10 @@ func handleDeleteMessage(c *gin.Context) {
 func buildOutgoingMessage(ctx context.Context, client *whatsmeow.Client, req MessageRequest) (*proto.Message, error) {
 	contextInfo := quotedContextInfo(req.Quoted)
 
+	if len(req.Contacts) > 0 {
+		return buildOutgoingContactMessage(req.Contacts, contextInfo)
+	}
+
 	if len(req.Attachments) > 0 {
 		return buildOutgoingMediaMessage(ctx, client, req.Body, req.Attachments[0], contextInfo)
 	}
@@ -1083,6 +1108,37 @@ func buildOutgoingMessage(ctx context.Context, client *whatsmeow.Client, req Mes
 
 	return &proto.Message{
 		Conversation: stringPtr(req.Body),
+	}, nil
+}
+
+func buildOutgoingContactMessage(contacts []WhatsmeowContact, contextInfo *proto.ContextInfo) (*proto.Message, error) {
+	protoContacts := make([]*proto.ContactMessage, 0, len(contacts))
+	for _, contact := range contacts {
+		normalized := normalizeOutgoingContact(contact)
+		if normalized.DisplayName == "" || normalized.Vcard == "" {
+			continue
+		}
+		protoContacts = append(protoContacts, &proto.ContactMessage{
+			DisplayName: stringPtr(normalized.DisplayName),
+			Vcard:       stringPtr(normalized.Vcard),
+			ContextInfo: contextInfo,
+		})
+	}
+
+	if len(protoContacts) == 0 {
+		return nil, fmt.Errorf("contact display name and phone number are required")
+	}
+
+	if len(protoContacts) == 1 {
+		return &proto.Message{ContactMessage: protoContacts[0]}, nil
+	}
+
+	return &proto.Message{
+		ContactsArrayMessage: &proto.ContactsArrayMessage{
+			DisplayName: stringPtr(fmt.Sprintf("%d contatos", len(protoContacts))),
+			Contacts:    protoContacts,
+			ContextInfo: contextInfo,
+		},
 	}, nil
 }
 
@@ -1720,12 +1776,16 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 
 	messageText := extractMessageText(messageEvent.Message)
 	attachments := extractMediaAttachments(client, messageEvent.Message)
+	contacts := extractContactCards(client, messageEvent.Message)
 	quotedMessage := extractQuotedMessage(messageEvent.Message)
-	if messageText == "" && len(attachments) == 0 {
+	if messageText == "" && len(attachments) == 0 && len(contacts) == 0 {
 		if !hasMediaMessage(messageEvent.Message) {
 			return
 		}
 		messageText = "Media attachment could not be downloaded."
+	}
+	if messageText == "" && len(contacts) > 0 {
+		messageText = contactMessageText(contacts)
 	}
 
 	isGroup := isGroupMessage(messageEvent.Info)
@@ -1786,6 +1846,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		"message_id":          messageEvent.Info.ID,
 		"content":             messageText,
 		"attachments":         attachments,
+		"contacts":            contacts,
 		"timestamp":           messageEvent.Info.Timestamp.Unix(),
 	}
 	if isGroup {
@@ -2072,6 +2133,360 @@ func extractMessageText(message *proto.Message) string {
 		return extractMessageText(inner)
 	}
 	return ""
+}
+
+func extractContactCards(client *whatsmeow.Client, message *proto.Message) []WhatsmeowContact {
+	message = unwrapMessage(message)
+	if message == nil {
+		return nil
+	}
+
+	if contact := message.GetContactMessage(); contact != nil {
+		return []WhatsmeowContact{buildContactCard(client, contact)}
+	}
+	if contactsArray := message.GetContactsArrayMessage(); contactsArray != nil {
+		contacts := make([]WhatsmeowContact, 0, len(contactsArray.GetContacts()))
+		for _, contact := range contactsArray.GetContacts() {
+			if contact == nil {
+				continue
+			}
+			contacts = append(contacts, buildContactCard(client, contact))
+		}
+		return contacts
+	}
+
+	return nil
+}
+
+func buildContactCard(client *whatsmeow.Client, contact *proto.ContactMessage) WhatsmeowContact {
+	vcard := contact.GetVcard()
+	card := parseVCardContact(vcard)
+	card.DisplayName = firstNonBlank(contact.GetDisplayName(), card.DisplayName, card.FullName, card.PhoneNumber)
+	card.Vcard = vcard
+	card = enrichContactCard(client, card)
+
+	return card
+}
+
+func parseVCardContact(vcard string) WhatsmeowContact {
+	card := WhatsmeowContact{}
+	for _, line := range unfoldedVCardLines(vcard) {
+		key, params, value, ok := splitVCardLine(line)
+		if !ok {
+			continue
+		}
+
+		switch key {
+		case "FN":
+			card.FullName = firstNonBlank(card.FullName, value)
+			card.DisplayName = firstNonBlank(card.DisplayName, value)
+		case "N":
+			parts := strings.Split(value, ";")
+			if len(parts) > 0 {
+				card.LastName = firstNonBlank(card.LastName, strings.TrimSpace(parts[0]))
+			}
+			if len(parts) > 1 {
+				card.FirstName = firstNonBlank(card.FirstName, strings.TrimSpace(parts[1]))
+			}
+		case "TEL":
+			card.PhoneNumber = firstNonBlank(card.PhoneNumber, normalizeVCardPhone(value))
+			card.WhatsAppID = firstNonBlank(card.WhatsAppID, normalizeWhatsAppID(params))
+		case "EMAIL":
+			card.Email = firstNonBlank(card.Email, value)
+		case "ORG":
+			card.Organization = firstNonBlank(card.Organization, value)
+		case "TITLE":
+			card.Title = firstNonBlank(card.Title, value)
+		case "URL":
+			card.Website = firstNonBlank(card.Website, value)
+		case "NOTE":
+			card.Note = firstNonBlank(card.Note, value)
+		case "X-WA-BIZ-NAME":
+			card.Organization = firstNonBlank(card.Organization, value)
+		case "X-WA-BIZ-DESCRIPTION":
+			card.Note = firstNonBlank(card.Note, value)
+		}
+	}
+
+	card.FullName = firstNonBlank(card.FullName, strings.TrimSpace(strings.Join([]string{card.FirstName, card.LastName}, " ")), card.DisplayName)
+	card.DisplayName = firstNonBlank(card.DisplayName, card.FullName, card.Organization, card.PhoneNumber)
+	if card.PhoneNumber == "" && card.WhatsAppID != "" {
+		card.PhoneNumber = normalizeVCardPhone(card.WhatsAppID)
+	}
+	if card.JID == "" && card.WhatsAppID != "" {
+		card.JID = fmt.Sprintf("%s@%s", digitsOnly(card.WhatsAppID), types.DefaultUserServer)
+	}
+
+	return card
+}
+
+func unfoldedVCardLines(vcard string) []string {
+	rawLines := strings.Split(strings.ReplaceAll(vcard, "\r\n", "\n"), "\n")
+	lines := make([]string, 0, len(rawLines))
+	for _, rawLine := range rawLines {
+		if rawLine == "" {
+			continue
+		}
+		if (strings.HasPrefix(rawLine, " ") || strings.HasPrefix(rawLine, "\t")) && len(lines) > 0 {
+			lines[len(lines)-1] += strings.TrimLeft(rawLine, " \t")
+			continue
+		}
+		lines = append(lines, rawLine)
+	}
+	return lines
+}
+
+func splitVCardLine(line string) (string, string, string, bool) {
+	parts := strings.SplitN(line, ":", 2)
+	if len(parts) != 2 {
+		return "", "", "", false
+	}
+
+	left := strings.TrimSpace(parts[0])
+	value := unescapeVCardValue(strings.TrimSpace(parts[1]))
+	keyParts := strings.Split(left, ";")
+	key := strings.ToUpper(strings.TrimSpace(keyParts[0]))
+	if key == "" || value == "" {
+		return "", "", "", false
+	}
+
+	return key, left, value, true
+}
+
+func unescapeVCardValue(value string) string {
+	replacer := strings.NewReplacer(`\n`, "\n", `\N`, "\n", `\,`, ",", `\;`, ";", `\\`, `\`)
+	return replacer.Replace(value)
+}
+
+func normalizeWhatsAppID(params string) string {
+	for _, part := range strings.Split(params, ";") {
+		lower := strings.ToLower(strings.TrimSpace(part))
+		if !strings.HasPrefix(lower, "waid=") {
+			continue
+		}
+		return digitsOnly(strings.TrimSpace(part[5:]))
+	}
+	return ""
+}
+
+func normalizeVCardPhone(value string) string {
+	digits := digitsOnly(value)
+	if len(digits) < 8 || len(digits) > 15 {
+		return strings.TrimSpace(value)
+	}
+	return "+" + digits
+}
+
+func digitsOnly(value string) string {
+	var digits strings.Builder
+	for _, r := range value {
+		if r >= '0' && r <= '9' {
+			digits.WriteRune(r)
+		}
+	}
+	return digits.String()
+}
+
+func enrichContactCard(client *whatsmeow.Client, card WhatsmeowContact) WhatsmeowContact {
+	jid, ok := contactCardJID(card)
+	if !ok || jid.IsEmpty() {
+		return card
+	}
+
+	card.JID = firstNonBlank(card.JID, jidString(jid.ToNonAD()))
+	card.PhoneNumber = firstNonBlank(card.PhoneNumber, phoneNumberFromJID(jid))
+	card.ProfilePictureURL = firstNonBlank(card.ProfilePictureURL, card.AvatarURL, getProfilePictureURL(client, jid))
+	if name, ok := getSavedContactDisplayName(client, jid); ok {
+		card.DisplayName = firstNonBlank(card.DisplayName, name)
+		card.FullName = firstNonBlank(card.FullName, name)
+	}
+	card.BusinessProfile = businessProfileMap(client, jid)
+	if len(card.BusinessProfile) > 0 {
+		card.Organization = firstNonBlank(card.Organization, stringMapValue(card.BusinessProfile, "business_name"))
+		card.Category = firstNonBlank(card.Category, stringMapValue(card.BusinessProfile, "category"))
+		card.Email = firstNonBlank(card.Email, stringMapValue(card.BusinessProfile, "email"))
+		card.Website = firstNonBlank(card.Website, stringMapValue(card.BusinessProfile, "website"))
+	}
+
+	return card
+}
+
+func contactCardJID(card WhatsmeowContact) (types.JID, bool) {
+	for _, candidate := range []string{card.JID, card.WhatsAppID, card.PhoneNumber} {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "" {
+			continue
+		}
+		if strings.Contains(candidate, "@") {
+			jid, ok := parseJID(candidate)
+			if ok {
+				return jid, true
+			}
+			continue
+		}
+		digits := digitsOnly(candidate)
+		if len(digits) >= 8 && len(digits) <= 15 {
+			return types.NewJID(digits, types.DefaultUserServer), true
+		}
+	}
+	return types.JID{}, false
+}
+
+func businessProfileMap(client *whatsmeow.Client, jid types.JID) map[string]interface{} {
+	if client == nil || jid.IsEmpty() || !isPhoneJID(jid) {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	profile, err := client.GetBusinessProfile(ctx, jid.ToNonAD())
+	if err != nil || profile == nil {
+		if err != nil {
+			log.Printf("Failed to fetch business profile for contact %s: %v", jidString(jid), err)
+		}
+		return nil
+	}
+
+	categories := make([]map[string]string, 0, len(profile.Categories))
+	categoryNames := make([]string, 0, len(profile.Categories))
+	for _, category := range profile.Categories {
+		name := strings.TrimSpace(category.Name)
+		if name != "" {
+			categoryNames = append(categoryNames, name)
+		}
+		categories = append(categories, map[string]string{
+			"id":   category.ID,
+			"name": category.Name,
+		})
+	}
+
+	hours := make([]map[string]string, 0, len(profile.BusinessHours))
+	for _, businessHour := range profile.BusinessHours {
+		hours = append(hours, map[string]string{
+			"day_of_week": businessHour.DayOfWeek,
+			"mode":        businessHour.Mode,
+			"open_time":   businessHour.OpenTime,
+			"close_time":  businessHour.CloseTime,
+		})
+	}
+
+	businessName := firstNonBlank(profile.ProfileOptions["business_name"], profile.ProfileOptions["name"])
+	website := firstNonBlank(
+		profile.ProfileOptions["website"],
+		profile.ProfileOptions["website_url"],
+		profile.ProfileOptions["profile_website"],
+		profile.ProfileOptions["catalog_website"],
+	)
+
+	return map[string]interface{}{
+		"jid":                         jidString(profile.JID),
+		"business_name":               businessName,
+		"address":                     profile.Address,
+		"email":                       profile.Email,
+		"category":                    strings.Join(categoryNames, ", "),
+		"categories":                  categories,
+		"profile_options":             profile.ProfileOptions,
+		"website":                     website,
+		"business_hours_timezone":     profile.BusinessHoursTimeZone,
+		"business_hours":              hours,
+		"business_hours_display_text": businessHoursDisplayText(hours),
+	}
+}
+
+func businessHoursDisplayText(hours []map[string]string) string {
+	if len(hours) == 0 {
+		return ""
+	}
+
+	for _, hour := range hours {
+		if strings.EqualFold(hour["mode"], "open_24h") || strings.EqualFold(hour["mode"], "open") {
+			return "Aberta 24 horas"
+		}
+	}
+	return ""
+}
+
+func stringMapValue(data map[string]interface{}, key string) string {
+	if value, ok := data[key].(string); ok {
+		return strings.TrimSpace(value)
+	}
+	return ""
+}
+
+func contactMessageText(contacts []WhatsmeowContact) string {
+	if len(contacts) == 0 {
+		return ""
+	}
+	if len(contacts) == 1 {
+		return "Contato: " + firstNonBlank(contacts[0].DisplayName, contacts[0].FullName, contacts[0].PhoneNumber)
+	}
+	return fmt.Sprintf("%d contatos compartilhados", len(contacts))
+}
+
+func normalizeOutgoingContact(contact WhatsmeowContact) WhatsmeowContact {
+	if strings.TrimSpace(contact.Vcard) != "" {
+		parsed := parseVCardContact(contact.Vcard)
+		contact.DisplayName = firstNonBlank(contact.DisplayName, parsed.DisplayName)
+		contact.FullName = firstNonBlank(contact.FullName, parsed.FullName)
+		contact.FirstName = firstNonBlank(contact.FirstName, parsed.FirstName)
+		contact.LastName = firstNonBlank(contact.LastName, parsed.LastName)
+		contact.PhoneNumber = firstNonBlank(contact.PhoneNumber, parsed.PhoneNumber)
+		contact.WhatsAppID = firstNonBlank(contact.WhatsAppID, parsed.WhatsAppID)
+		contact.Organization = firstNonBlank(contact.Organization, parsed.Organization)
+		contact.Title = firstNonBlank(contact.Title, parsed.Title)
+		contact.Email = firstNonBlank(contact.Email, parsed.Email)
+		contact.Website = firstNonBlank(contact.Website, parsed.Website)
+		contact.Note = firstNonBlank(contact.Note, parsed.Note)
+	}
+
+	contact.PhoneNumber = normalizeVCardPhone(firstNonBlank(contact.PhoneNumber, contact.WhatsAppID, contact.JID))
+	contact.DisplayName = firstNonBlank(contact.DisplayName, contact.FullName, strings.TrimSpace(strings.Join([]string{contact.FirstName, contact.LastName}, " ")), contact.Organization, contact.PhoneNumber)
+	if strings.TrimSpace(contact.Vcard) == "" {
+		contact.Vcard = buildVCard(contact)
+	}
+	return contact
+}
+
+func buildVCard(contact WhatsmeowContact) string {
+	displayName := firstNonBlank(contact.DisplayName, contact.FullName, strings.TrimSpace(strings.Join([]string{contact.FirstName, contact.LastName}, " ")), contact.PhoneNumber)
+	phone := normalizeVCardPhone(contact.PhoneNumber)
+	if displayName == "" || phone == "" {
+		return ""
+	}
+
+	firstName := firstNonBlank(contact.FirstName, displayName)
+	lastName := contact.LastName
+	waID := digitsOnly(firstNonBlank(contact.WhatsAppID, phone))
+	lines := []string{
+		"BEGIN:VCARD",
+		"VERSION:3.0",
+		fmt.Sprintf("N:%s;%s;;;", escapeVCardValue(lastName), escapeVCardValue(firstName)),
+		"FN:" + escapeVCardValue(displayName),
+		fmt.Sprintf("TEL;type=CELL;type=VOICE;waid=%s:%s", waID, escapeVCardValue(phone)),
+	}
+	if strings.TrimSpace(contact.Organization) != "" {
+		lines = append(lines, "ORG:"+escapeVCardValue(contact.Organization))
+	}
+	if strings.TrimSpace(contact.Title) != "" {
+		lines = append(lines, "TITLE:"+escapeVCardValue(contact.Title))
+	}
+	if strings.TrimSpace(contact.Email) != "" {
+		lines = append(lines, "EMAIL;type=INTERNET:"+escapeVCardValue(contact.Email))
+	}
+	if strings.TrimSpace(contact.Website) != "" {
+		lines = append(lines, "URL:"+escapeVCardValue(contact.Website))
+	}
+	if strings.TrimSpace(contact.Note) != "" {
+		lines = append(lines, "NOTE:"+escapeVCardValue(contact.Note))
+	}
+	lines = append(lines, "END:VCARD")
+	return strings.Join(lines, "\n")
+}
+
+func escapeVCardValue(value string) string {
+	replacer := strings.NewReplacer(`\`, `\\`, "\n", `\n`, ";", `\;`, ",", `\,`)
+	return replacer.Replace(strings.TrimSpace(value))
 }
 
 func extractMediaAttachments(client *whatsmeow.Client, message *proto.Message) []WhatsmeowAttachment {

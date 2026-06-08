@@ -60,6 +60,10 @@ export default {
       type: Function,
       default: () => {},
     },
+    toggleContactPicker: {
+      type: Function,
+      default: () => {},
+    },
     toggleAudioRecorderPlayPause: {
       type: Function,
       default: () => {},
@@ -114,6 +118,10 @@ export default {
       default: '',
     },
     showQuotedReplyToggle: {
+      type: Boolean,
+      default: false,
+    },
+    showContactPicker: {
       type: Boolean,
       default: false,
     },
@@ -262,6 +270,9 @@ export default {
         ? this.$t('CONVERSATION.REPLYBOX.QUOTED_REPLY.DISABLE_TOOLTIP')
         : this.$t('CONVERSATION.REPLYBOX.QUOTED_REPLY.ENABLE_TOOLTIP');
     },
+    contactPickerTooltip() {
+      return this.$t('CONVERSATION.WHATSMEOW_CONTACT.TIP_CONTACT_ICON');
+    },
   },
   mounted() {
     ActiveStorage.start();
@@ -322,6 +333,15 @@ export default {
         faded
         sm
         @click="toggleAudioRecorder"
+      />
+      <NextButton
+        v-if="showContactPicker"
+        v-tooltip.top-end="contactPickerTooltip"
+        icon="i-lucide-contact"
+        slate
+        faded
+        sm
+        @click="toggleContactPicker"
       />
       <NextButton
         v-if="showAudioPlayStopButton"
