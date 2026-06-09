@@ -106,6 +106,9 @@
       "contact": {
         "CONTENT": "Contato compartilhado"
       },
+      "sticker": {
+        "CONTENT": "Figurinha"
+      },
       "embed": {
         "CONTENT": "Conteúdo incorporado"
       }

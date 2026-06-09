@@ -66,6 +66,7 @@ class Attachment < ApplicationRecord
 
   def thumb_url
     return '' unless file.attached? && image?
+    return '' if whatsmeow_sticker?
 
     begin
       url_for(file.representation(resize_to_fill: [250, nil]))
@@ -131,6 +132,7 @@ class Attachment < ApplicationRecord
       width: file.metadata[:width],
       height: file.metadata[:height]
     }
+    metadata[:meta] = meta || {}
 
     metadata[:data_url] = metadata[:thumb_url] = external_url if instagram_incoming_message?
     metadata
@@ -157,7 +159,8 @@ class Attachment < ApplicationRecord
       id: id,
       message_id: message_id,
       file_type: file_type,
-      account_id: account_id
+      account_id: account_id,
+      meta: meta || {}
     }
   end
 
@@ -174,6 +177,10 @@ class Attachment < ApplicationRecord
     return true if message.inbox.instagram_direct?
 
     message.inbox.instagram? && message.conversation&.additional_attributes&.dig('type') == 'instagram_direct_message'
+  end
+
+  def whatsmeow_sticker?
+    meta&.with_indifferent_access&.fetch(:whatsmeow_sticker, false)
   end
 
   def set_extension

@@ -64,6 +64,10 @@ export default {
       type: Function,
       default: () => {},
     },
+    toggleStickerPicker: {
+      type: Function,
+      default: () => {},
+    },
     toggleAudioRecorderPlayPause: {
       type: Function,
       default: () => {},
@@ -122,6 +126,10 @@ export default {
       default: false,
     },
     showContactPicker: {
+      type: Boolean,
+      default: false,
+    },
+    showStickerPicker: {
       type: Boolean,
       default: false,
     },
@@ -273,6 +281,9 @@ export default {
     contactPickerTooltip() {
       return this.$t('CONVERSATION.WHATSMEOW_CONTACT.TIP_CONTACT_ICON');
     },
+    stickerPickerTooltip() {
+      return this.$t('CONVERSATION.WHATSMEOW_STICKER.TIP_STICKER_ICON');
+    },
   },
   mounted() {
     ActiveStorage.start();
@@ -342,6 +353,15 @@ export default {
         faded
         sm
         @click="toggleContactPicker"
+      />
+      <NextButton
+        v-if="showStickerPicker"
+        v-tooltip.top-end="stickerPickerTooltip"
+        icon="i-lucide-sticker"
+        slate
+        faded
+        sm
+        @click="toggleStickerPicker"
       />
       <NextButton
         v-if="showAudioPlayStopButton"

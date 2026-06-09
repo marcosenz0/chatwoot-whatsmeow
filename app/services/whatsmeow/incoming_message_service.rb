@@ -436,6 +436,7 @@ class Whatsmeow::IncomingMessageService
       @message.attachments.new(
         account_id: @message.account_id,
         file_type: normalized_file_type(attachment[:file_type]),
+        meta: attachment_meta(attachment),
         file: {
           io: StringIO.new(data),
           filename: attachment[:file_name].presence || default_file_name(attachment[:file_type]),
@@ -462,6 +463,12 @@ class Whatsmeow::IncomingMessageService
 
       attachment.with_indifferent_access
     end
+  end
+
+  def attachment_meta(attachment)
+    return {} unless attachment[:meta].respond_to?(:to_h)
+
+    attachment[:meta].to_h.compact_blank
   end
 
   def contact_params

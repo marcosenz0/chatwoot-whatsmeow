@@ -103,11 +103,12 @@ type QuotedMessagePayload struct {
 }
 
 type WhatsmeowAttachment struct {
-	FileName      string `json:"file_name"`
-	ContentType   string `json:"content_type"`
-	FileType      string `json:"file_type"`
-	RecordedAudio bool   `json:"recorded_audio"`
-	DataBase64    string `json:"data_base64"`
+	FileName      string                 `json:"file_name"`
+	ContentType   string                 `json:"content_type"`
+	FileType      string                 `json:"file_type"`
+	Meta          map[string]interface{} `json:"meta,omitempty"`
+	RecordedAudio bool                   `json:"recorded_audio"`
+	DataBase64    string                 `json:"data_base64"`
 }
 
 type WhatsmeowContact struct {
@@ -1169,6 +1170,34 @@ func buildOutgoingMediaMessage(
 		data, contentType, fileName, audioSeconds, audioWaveform = prepareRecordedAudio(ctx, data, contentType, fileName)
 	}
 
+	if attachmentIsSticker(attachment) {
+		contentType = normalizedMIME(contentType, "image/webp")
+		upload, err := client.Upload(ctx, data, whatsmeow.MediaImage)
+		if err != nil {
+			return nil, fmt.Errorf("failed to upload sticker: %w", err)
+		}
+
+		return &proto.Message{
+			StickerMessage: &proto.StickerMessage{
+				Mimetype:           stringPtr(contentType),
+				URL:                stringPtr(upload.URL),
+				DirectPath:         stringPtr(upload.DirectPath),
+				MediaKey:           upload.MediaKey,
+				FileEncSHA256:      upload.FileEncSHA256,
+				FileSHA256:         upload.FileSHA256,
+				FileLength:         uint64Ptr(upload.FileLength),
+				MediaKeyTimestamp:  int64Ptr(time.Now().Unix()),
+				IsAnimated:         optionalBoolPtr(metaBool(attachment.Meta, "animated")),
+				IsLottie:           optionalBoolPtr(metaBool(attachment.Meta, "lottie")),
+				Width:              optionalUint32Ptr(metaUint32(attachment.Meta, "width")),
+				Height:             optionalUint32Ptr(metaUint32(attachment.Meta, "height")),
+				AccessibilityLabel: optionalStringPtr(metaString(attachment.Meta, "accessibility_label")),
+				Emojis:             optionalStringPtr(metaString(attachment.Meta, "emojis")),
+				ContextInfo:        contextInfo,
+			},
+		}, nil
+	}
+
 	upload, err := client.Upload(ctx, data, mediaType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upload media: %w", err)
@@ -1273,6 +1302,10 @@ func quotedContextInfo(quoted *QuotedMessageRequest) *proto.ContextInfo {
 }
 
 func outgoingMediaType(attachment WhatsmeowAttachment) whatsmeow.MediaType {
+	if attachmentIsSticker(attachment) {
+		return whatsmeow.MediaImage
+	}
+
 	fileType := strings.ToLower(attachment.FileType)
 	contentType := strings.ToLower(attachment.ContentType)
 	switch {
@@ -1284,6 +1317,75 @@ func outgoingMediaType(attachment WhatsmeowAttachment) whatsmeow.MediaType {
 		return whatsmeow.MediaAudio
 	default:
 		return whatsmeow.MediaDocument
+	}
+}
+
+func attachmentIsSticker(attachment WhatsmeowAttachment) bool {
+	return metaBool(attachment.Meta, "whatsmeow_sticker") ||
+		metaBool(attachment.Meta, "whatsmeowSticker")
+}
+
+func metaBool(meta map[string]interface{}, key string) bool {
+	value, ok := meta[key]
+	if !ok {
+		return false
+	}
+
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case string:
+		return strings.EqualFold(strings.TrimSpace(typed), "true")
+	default:
+		return false
+	}
+}
+
+func metaUint32(meta map[string]interface{}, key string) uint32 {
+	value, ok := meta[key]
+	if !ok {
+		return 0
+	}
+
+	switch typed := value.(type) {
+	case uint32:
+		return typed
+	case uint64:
+		if typed > math.MaxUint32 {
+			return 0
+		}
+		return uint32(typed)
+	case int:
+		if typed <= 0 || typed > math.MaxUint32 {
+			return 0
+		}
+		return uint32(typed)
+	case int64:
+		if typed <= 0 || typed > math.MaxUint32 {
+			return 0
+		}
+		return uint32(typed)
+	case float64:
+		if typed <= 0 || typed > math.MaxUint32 {
+			return 0
+		}
+		return uint32(typed)
+	default:
+		return 0
+	}
+}
+
+func metaString(meta map[string]interface{}, key string) string {
+	value, ok := meta[key]
+	if !ok {
+		return ""
+	}
+
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	default:
+		return ""
 	}
 }
 
@@ -2623,13 +2725,13 @@ func extractMediaAttachments(client *whatsmeow.Client, message *proto.Message) [
 	}
 
 	if image := message.GetImageMessage(); image != nil {
-		return downloadAttachment(client, image, "image", image.GetMimetype(), defaultFileName("image", image.GetMimetype()))
+		return downloadAttachment(client, image, "image", image.GetMimetype(), defaultFileName("image", image.GetMimetype()), nil)
 	}
 	if video := message.GetVideoMessage(); video != nil {
-		return downloadAttachment(client, video, "video", video.GetMimetype(), defaultFileName("video", video.GetMimetype()))
+		return downloadAttachment(client, video, "video", video.GetMimetype(), defaultFileName("video", video.GetMimetype()), nil)
 	}
 	if audio := message.GetAudioMessage(); audio != nil {
-		return downloadAttachment(client, audio, "audio", audio.GetMimetype(), defaultFileName("audio", audio.GetMimetype()))
+		return downloadAttachment(client, audio, "audio", audio.GetMimetype(), defaultFileName("audio", audio.GetMimetype()), nil)
 	}
 	if document := message.GetDocumentMessage(); document != nil {
 		fileName := document.GetFileName()
@@ -2639,10 +2741,17 @@ func extractMediaAttachments(client *whatsmeow.Client, message *proto.Message) [
 		if fileName == "" {
 			fileName = defaultFileName("file", document.GetMimetype())
 		}
-		return downloadAttachment(client, document, "file", document.GetMimetype(), fileName)
+		return downloadAttachment(client, document, "file", document.GetMimetype(), fileName, nil)
 	}
 	if sticker := message.GetStickerMessage(); sticker != nil {
-		attachments := downloadAttachment(client, sticker, "image", normalizedMIME(sticker.GetMimetype(), "image/webp"), defaultFileName("sticker", "image/webp"))
+		attachments := downloadAttachment(
+			client,
+			sticker,
+			"image",
+			normalizedMIME(sticker.GetMimetype(), "image/webp"),
+			defaultFileName("sticker", "image/webp"),
+			stickerAttachmentMeta(sticker),
+		)
 		if len(attachments) > 0 {
 			return attachments
 		}
@@ -2677,10 +2786,13 @@ func unwrapMessage(message *proto.Message) *proto.Message {
 	if inner := message.GetDocumentWithCaptionMessage().GetMessage(); inner != nil {
 		return unwrapMessage(inner)
 	}
+	if inner := message.GetLottieStickerMessage().GetMessage(); inner != nil {
+		return unwrapMessage(inner)
+	}
 	return message
 }
 
-func downloadAttachment(client *whatsmeow.Client, media whatsmeow.DownloadableMessage, fileType string, contentType string, fileName string) []WhatsmeowAttachment {
+func downloadAttachment(client *whatsmeow.Client, media whatsmeow.DownloadableMessage, fileType string, contentType string, fileName string, meta map[string]interface{}) []WhatsmeowAttachment {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
@@ -2699,6 +2811,7 @@ func downloadAttachment(client *whatsmeow.Client, media whatsmeow.DownloadableMe
 		FileName:    fileName,
 		ContentType: contentType,
 		FileType:    fileType,
+		Meta:        meta,
 		DataBase64:  base64.StdEncoding.EncodeToString(data),
 	}}
 }
@@ -2713,8 +2826,32 @@ func stickerThumbnailAttachment(sticker *proto.StickerMessage) []WhatsmeowAttach
 		FileName:    defaultFileName("sticker", "image/png"),
 		ContentType: "image/png",
 		FileType:    "image",
+		Meta:        stickerAttachmentMeta(sticker),
 		DataBase64:  base64.StdEncoding.EncodeToString(thumbnail),
 	}}
+}
+
+func stickerAttachmentMeta(sticker *proto.StickerMessage) map[string]interface{} {
+	meta := map[string]interface{}{
+		"whatsmeow_sticker": true,
+		"animated":          sticker.GetIsAnimated(),
+		"lottie":            sticker.GetIsLottie(),
+	}
+
+	if width := sticker.GetWidth(); width > 0 {
+		meta["width"] = width
+	}
+	if height := sticker.GetHeight(); height > 0 {
+		meta["height"] = height
+	}
+	if label := strings.TrimSpace(sticker.GetAccessibilityLabel()); label != "" {
+		meta["accessibility_label"] = label
+	}
+	if emojis := strings.TrimSpace(sticker.GetEmojis()); emojis != "" {
+		meta["emojis"] = emojis
+	}
+
+	return meta
 }
 
 func fallbackMIME(fileType string) string {

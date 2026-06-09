@@ -28,6 +28,7 @@ import Avatar from 'next/avatar/Avatar.vue';
 import TextBubble from './bubbles/Text/Index.vue';
 import ActivityBubble from './bubbles/Activity.vue';
 import ImageBubble from './bubbles/Image.vue';
+import StickerBubble from './bubbles/Sticker.vue';
 import FileBubble from './bubbles/File.vue';
 import AudioBubble from './bubbles/Audio.vue';
 import VideoBubble from './bubbles/Video.vue';
@@ -48,6 +49,7 @@ import MessageReactionPopover from './MessageReactionPopover.vue';
 import MessageError from './MessageError.vue';
 import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
 import { useBranding } from 'shared/composables/useBranding';
+import { isWhatsmeowSticker } from 'dashboard/helper/whatsmeowStickerHelper';
 
 /**
  * @typedef {Object} Attachment
@@ -331,9 +333,12 @@ const componentToRender = computed(() => {
   }
 
   if (Array.isArray(props.attachments) && props.attachments.length === 1) {
-    const fileType = props.attachments[0].fileType;
+    const attachment = props.attachments[0];
+    const fileType = attachment.fileType;
 
     if (!props.content) {
+      if (fileType === ATTACHMENT_TYPES.IMAGE && isWhatsmeowSticker(attachment))
+        return StickerBubble;
       if (fileType === ATTACHMENT_TYPES.IMAGE) return ImageBubble;
       if (fileType === ATTACHMENT_TYPES.FILE) return FileBubble;
       if (fileType === ATTACHMENT_TYPES.AUDIO) return AudioBubble;

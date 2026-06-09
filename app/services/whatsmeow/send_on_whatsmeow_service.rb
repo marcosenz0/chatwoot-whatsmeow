@@ -58,6 +58,7 @@ class Whatsmeow::SendOnWhatsmeowService
         file_name: attachment.file.filename.to_s,
         content_type: attachment.file.content_type,
         file_type: attachment.file_type,
+        meta: attachment.meta || {},
         recorded_audio: recorded_audio? && attachment.audio?,
         data_base64: Base64.strict_encode64(attachment.file.download)
       }

@@ -85,6 +85,7 @@ class User < ApplicationRecord
   encrypts :otp_backup_codes
 
   has_many :account_users, dependent: :destroy_async
+  has_many :whatsmeow_stickers, dependent: :destroy_async
   has_many :accounts, through: :account_users
   accepts_nested_attributes_for :account_users
 

@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { MESSAGE_TYPE } from 'widget/helpers/constants';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import { isWhatsmeowSticker } from 'dashboard/helper/whatsmeowStickerHelper';
 
 const props = defineProps({
   message: {
@@ -55,12 +56,16 @@ const parsedLastMessage = computed(() => {
   return getPlainText(subject || props.message.content);
 });
 
-const lastMessageFileType = computed(() => {
-  const [{ file_type: fileType } = {}] = props.message.attachments;
-  return fileType;
-});
+const lastAttachment = computed(() => props.message.attachments?.[0] || {});
+
+const lastMessageFileType = computed(() =>
+  isWhatsmeowSticker(lastAttachment.value)
+    ? 'sticker'
+    : lastAttachment.value.file_type
+);
 
 const attachmentIcon = computed(() => {
+  if (lastMessageFileType.value === 'sticker') return 'i-lucide-sticker';
   return attachmentIcons[lastMessageFileType.value];
 });
 
@@ -69,7 +74,10 @@ const attachmentMessageContent = computed(() => {
 });
 
 const isMessageSticker = computed(() => {
-  return props.message && props.message.content_type === 'sticker';
+  return (
+    (props.message && props.message.content_type === 'sticker') ||
+    isWhatsmeowSticker(lastAttachment.value)
+  );
 });
 </script>
 
@@ -126,8 +134,8 @@ const isMessageSticker = computed(() => {
         v-if="message.content && isMessageSticker"
         class="inline-grid grid-flow-col auto-cols-max items-center gap-1"
       >
-        <Icon icon="i-lucide-image" class="size-3.5" />
-        {{ $t('CHAT_LIST.ATTACHMENTS.image.CONTENT') }}
+        <Icon icon="i-lucide-sticker" class="size-3.5" />
+        {{ $t('CHAT_LIST.ATTACHMENTS.sticker.CONTENT') }}
       </span>
 
       <template v-else-if="message.content">

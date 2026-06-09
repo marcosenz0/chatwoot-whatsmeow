@@ -368,6 +368,24 @@
       "NO_PHONE": "Sem telefone",
       "CUSTOM_CONTACT": "Contato personalizado",
       "CONTACT_SAVED": "Contato salvo"
+    },
+    "WHATSMEOW_STICKER": {
+      "TIP_STICKER_ICON": "Enviar figurinha",
+      "PICKER_TITLE": "Figurinhas",
+      "PICKER_SUBTITLE": "Favoritas salvas no Chatwoot",
+      "REFRESH": "Atualizar figurinhas",
+      "LOADING": "Carregando figurinhas...",
+      "NO_STICKERS": "Nenhuma figurinha salva",
+      "NO_STICKERS_HINT": "Abra uma figurinha recebida e adicione aos favoritos.",
+      "PREVIEW_TITLE": "Figurinha",
+      "UNKNOWN_SENDER": "Contato",
+      "ADD_FAVORITE": "Adicionar as favoritas",
+      "REMOVE_FAVORITE": "Remover das favoritas",
+      "ADDED": "Figurinha adicionada as favoritas",
+      "REMOVED": "Figurinha removida das favoritas",
+      "LOAD_FAILED": "Nao foi possivel carregar as figurinhas.",
+      "SAVE_FAILED": "Nao foi possivel salvar a figurinha.",
+      "SEND_FAILED": "Nao foi possivel enviar a figurinha."
     }
   },
   "EMAIL_TRANSCRIPT": {

@@ -389,6 +389,24 @@
       "NO_PHONE": "No phone number",
       "CUSTOM_CONTACT": "Custom contact",
       "CONTACT_SAVED": "Contact saved"
+    },
+    "WHATSMEOW_STICKER": {
+      "TIP_STICKER_ICON": "Send sticker",
+      "PICKER_TITLE": "Stickers",
+      "PICKER_SUBTITLE": "Saved WhatsApp favorites",
+      "REFRESH": "Refresh stickers",
+      "LOADING": "Loading stickers...",
+      "NO_STICKERS": "No saved stickers",
+      "NO_STICKERS_HINT": "Open a received sticker and add it to favorites.",
+      "PREVIEW_TITLE": "Sticker",
+      "UNKNOWN_SENDER": "Contact",
+      "ADD_FAVORITE": "Add to favorites",
+      "REMOVE_FAVORITE": "Remove from favorites",
+      "ADDED": "Sticker added to favorites",
+      "REMOVED": "Sticker removed from favorites",
+      "LOAD_FAILED": "Could not load stickers.",
+      "SAVE_FAILED": "Could not save sticker.",
+      "SEND_FAILED": "Could not send sticker."
     }
   },
   "EMAIL_TRANSCRIPT": {

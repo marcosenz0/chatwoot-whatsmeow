@@ -105,6 +105,7 @@ class Account < ApplicationRecord
   has_many :marcosx_ai_conversation_states, dependent: :destroy_async, class_name: 'MarcosxAi::ConversationState'
   has_many :marcosx_ai_logs, dependent: :destroy_async, class_name: 'MarcosxAi::Log'
   has_one :marcosx_ai_google_connection, dependent: :destroy_async, class_name: 'MarcosxAi::GoogleConnection'
+  has_many :whatsmeow_stickers, dependent: :destroy_async
 
   has_one_attached :contacts_export
 

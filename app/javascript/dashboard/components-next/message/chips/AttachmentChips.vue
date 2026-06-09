@@ -2,10 +2,12 @@
 import { computed, useAttrs } from 'vue';
 
 import ImageChip from 'next/message/chips/Image.vue';
+import StickerChip from 'next/message/chips/Sticker.vue';
 import VideoChip from 'next/message/chips/Video.vue';
 import AudioChip from 'next/message/chips/Audio.vue';
 import FileChip from 'next/message/chips/File.vue';
 import { useMessageContext } from '../provider.js';
+import { isWhatsmeowSticker } from 'dashboard/helper/whatsmeowStickerHelper';
 
 import { ATTACHMENT_TYPES } from '../constants';
 
@@ -79,7 +81,17 @@ const files = computed(() => {
   <div v-if="mediaAttachments.length" :class="classToApply">
     <template v-for="attachment in mediaAttachments" :key="attachment.id">
       <ImageChip
-        v-if="attachment.fileType === ATTACHMENT_TYPES.IMAGE"
+        v-if="
+          attachment.fileType === ATTACHMENT_TYPES.IMAGE &&
+          !isWhatsmeowSticker(attachment)
+        "
+        :attachment="attachment"
+      />
+      <StickerChip
+        v-else-if="
+          attachment.fileType === ATTACHMENT_TYPES.IMAGE &&
+          isWhatsmeowSticker(attachment)
+        "
         :attachment="attachment"
       />
       <VideoChip

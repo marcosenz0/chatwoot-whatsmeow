@@ -18,6 +18,7 @@ import MessageSignatureMissingAlert from './MessageSignatureMissingAlert.vue';
 import ReplyBoxBanner from './ReplyBoxBanner.vue';
 import QuotedEmailPreview from './QuotedEmailPreview.vue';
 import WhatsmeowContactSendModal from './WhatsmeowContactSendModal.vue';
+import WhatsmeowStickerPicker from './WhatsmeowStickerPicker.vue';
 import { REPLY_EDITOR_MODES } from 'dashboard/components/widgets/WootWriter/constants';
 import WootMessageEditor from 'dashboard/components/widgets/WootWriter/Editor.vue';
 import AudioRecorder from 'dashboard/components/widgets/WootWriter/AudioRecorder.vue';
@@ -78,6 +79,7 @@ export default {
     WootMessageEditor,
     QuotedEmailPreview,
     WhatsmeowContactSendModal,
+    WhatsmeowStickerPicker,
     CopilotEditorSection,
     CopilotReplyBottomPanel,
   },
@@ -127,6 +129,7 @@ export default {
       showWhatsAppTemplatesModal: false,
       showContentTemplatesModal: false,
       showWhatsmeowContactModal: false,
+      showWhatsmeowStickerPicker: false,
       updateEditorSelectionWith: '',
       undefinedVariableMessage: '',
       showMentions: false,
@@ -173,6 +176,13 @@ export default {
       return this.isATwilioWhatsAppChannel && !this.isPrivate;
     },
     showWhatsmeowContactButton() {
+      return (
+        this.isAWhatsmeowChannel &&
+        !this.isOnPrivateNote &&
+        !this.isEditorDisabled
+      );
+    },
+    showWhatsmeowStickerButton() {
       return (
         this.isAWhatsmeowChannel &&
         !this.isOnPrivateNote &&
@@ -784,6 +794,19 @@ export default {
     },
     hideWhatsmeowContactModal() {
       this.showWhatsmeowContactModal = false;
+    },
+    toggleWhatsmeowStickerPicker() {
+      this.showWhatsmeowStickerPicker = !this.showWhatsmeowStickerPicker;
+    },
+    hideWhatsmeowStickerPicker() {
+      this.showWhatsmeowStickerPicker = false;
+    },
+    onSendWhatsmeowSticker() {
+      this.hideWhatsmeowStickerPicker();
+      this.resetReplyToMessage();
+      this.hideEmojiPicker();
+      emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
+      emitter.emit(BUS_EVENTS.MESSAGE_SENT);
     },
     onSendWhatsmeowContact(contact) {
       let messagePayload = {
@@ -1456,11 +1479,13 @@ export default {
         :show-emoji-picker="showEmojiPicker"
         :show-file-upload="showFileUpload"
         :show-quoted-reply-toggle="shouldShowQuotedReplyToggle"
+        :show-sticker-picker="showWhatsmeowStickerButton"
         :quoted-reply-enabled="quotedReplyPreference"
         :toggle-audio-recorder-play-pause="toggleAudioRecorderPlayPause"
         :toggle-audio-recorder="toggleAudioRecorder"
         :toggle-contact-picker="openWhatsmeowContactModal"
         :toggle-emoji-picker="toggleEmojiPicker"
+        :toggle-sticker-picker="toggleWhatsmeowStickerPicker"
         :message="message"
         :portal-slug="connectedPortalSlug"
         :new-conversation-modal-active="newConversationModalActive"
@@ -1491,6 +1516,13 @@ export default {
       :is-open="showWhatsmeowContactModal"
       @close="hideWhatsmeowContactModal"
       @send="onSendWhatsmeowContact"
+    />
+
+    <WhatsmeowStickerPicker
+      :is-open="showWhatsmeowStickerPicker"
+      :conversation-id="conversationId"
+      @close="hideWhatsmeowStickerPicker"
+      @sent="onSendWhatsmeowSticker"
     />
 
     <woot-confirm-modal

@@ -2,6 +2,7 @@
 import { MESSAGE_TYPE } from 'widget/helpers/constants';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import { ATTACHMENT_ICONS } from 'shared/constants/messages';
+import { isWhatsmeowSticker } from 'dashboard/helper/whatsmeowStickerHelper';
 
 export default {
   name: 'MessagePreview',
@@ -44,17 +45,22 @@ export default {
       return this.getPlainText(subject || this.message.content);
     },
     lastMessageFileType() {
-      const [{ file_type: fileType } = {}] = this.message.attachments;
-      return fileType;
+      const [attachment = {}] = this.message.attachments || [];
+      return isWhatsmeowSticker(attachment) ? 'sticker' : attachment.file_type;
     },
     attachmentIcon() {
+      if (this.lastMessageFileType === 'sticker') return 'image';
       return ATTACHMENT_ICONS[this.lastMessageFileType];
     },
     attachmentMessageContent() {
       return `CHAT_LIST.ATTACHMENTS.${this.lastMessageFileType}.CONTENT`;
     },
     isMessageSticker() {
-      return this.message && this.message.content_type === 'sticker';
+      const [attachment = {}] = this.message.attachments || [];
+      return (
+        (this.message && this.message.content_type === 'sticker') ||
+        isWhatsmeowSticker(attachment)
+      );
     },
   },
 };
@@ -88,7 +94,7 @@ export default {
         class="-mt-0.5 align-middle inline-block text-n-slate-11"
         icon="image"
       />
-      {{ $t('CHAT_LIST.ATTACHMENTS.image.CONTENT') }}
+      {{ $t('CHAT_LIST.ATTACHMENTS.sticker.CONTENT') }}
     </span>
     <span v-else-if="message.content">
       {{ parsedLastMessage }}
