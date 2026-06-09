@@ -6,7 +6,7 @@ class Whatsmeow::IncomingMessageService
   pattr_initialize [:inbox!, :params!]
 
   def perform
-    return if message_already_imported?
+    return if handle_already_imported_message
     return if ignored_newsletter?
 
     set_contact
@@ -42,7 +42,26 @@ class Whatsmeow::IncomingMessageService
   end
 
   def message_already_imported?
-    params[:message_id].present? && Message.exists?(inbox_id: @inbox.id, source_id: params[:message_id])
+    imported_message.present?
+  end
+
+  def handle_already_imported_message
+    return false unless message_already_imported?
+
+    edited_content = message_content.to_s
+    return true if edited_content.blank? || imported_message.content.to_s == edited_content
+
+    Whatsmeow::EditMessageService.apply_incoming(
+      inbox: @inbox,
+      params: params.merge(edited_content: edited_content)
+    )
+    true
+  end
+
+  def imported_message
+    return if params[:message_id].blank?
+
+    @imported_message ||= @inbox.messages.find_by(source_id: params[:message_id])
   end
 
   def sender_identifier

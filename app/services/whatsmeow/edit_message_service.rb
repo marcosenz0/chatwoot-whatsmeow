@@ -12,7 +12,10 @@ class Whatsmeow::EditMessageService
     return if @params.blank?
 
     @message = @inbox.messages.find_by(source_id: @params[:message_id])
-    return if @message.blank?
+    if @message.blank?
+      Rails.logger.info("Whatsmeow edit skipped: source_id=#{@params[:message_id]} inbox_id=#{@inbox.id}")
+      return
+    end
 
     edited_content = @params[:edited_content].to_s
     return if edited_content.blank?
@@ -21,6 +24,7 @@ class Whatsmeow::EditMessageService
       content: edited_content,
       content_attributes: edited_content_attributes(edited_content)
     )
+    Rails.logger.info("Whatsmeow edit applied: message_id=#{@message.id} source_id=#{@message.source_id}")
   end
 
   private
