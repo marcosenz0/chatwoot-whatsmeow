@@ -11,6 +11,7 @@ import {
 } from 'dashboard/helper/whatsmeowConversationHelper';
 import { useMessageContext } from '../provider.js';
 import BaseBubble from './Base.vue';
+import MessageMeta from '../MessageMeta.vue';
 import Avatar from 'next/avatar/Avatar.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Icon from 'next/icon/Icon.vue';
@@ -29,6 +30,7 @@ const { t } = useI18n();
 const showDetails = ref(false);
 const isSavingContact = ref(false);
 const isOpeningConversation = ref(false);
+const savedContactId = ref(null);
 
 const valueFrom = (source, keys) => {
   if (!source) return '';
@@ -43,6 +45,51 @@ const compactValue = value => {
   return String(value || '').trim();
 };
 
+const digitsOnly = value => compactValue(value).replace(/\D/g, '');
+
+const normalizePhoneNumber = value => {
+  const digits = digitsOnly(value);
+  return digits.length >= 8 ? `+${digits}` : compactValue(value);
+};
+
+const vcardLines = value => {
+  const lines = [];
+  compactValue(value)
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .forEach(line => {
+      if (!line) return;
+      if (/^[ \t]/.test(line) && lines.length) {
+        lines[lines.length - 1] += line.trim();
+      } else {
+        lines.push(line.trim());
+      }
+    });
+  return lines;
+};
+
+const vcardField = (vcard, field) => {
+  const prefix = field.toUpperCase();
+  const line = vcardLines(vcard).find(item =>
+    item.toUpperCase().startsWith(prefix)
+  );
+  if (!line) return '';
+  return compactValue(line.slice(line.indexOf(':') + 1));
+};
+
+const vcardPhone = vcard => {
+  const line = vcardLines(vcard).find(item =>
+    item.toUpperCase().startsWith('TEL')
+  );
+  if (!line) return '';
+
+  const waid = line.match(/waid=([^;:]+)/i)?.[1];
+  const value = line.slice(line.indexOf(':') + 1);
+  return normalizePhoneNumber(waid || value);
+};
+
+const arrayValue = value => (Array.isArray(value) ? value : []);
+
 const externalUrl = value => {
   const url = compactValue(value);
   if (!url) return '';
@@ -51,6 +98,7 @@ const externalUrl = value => {
 
 const attachment = computed(() => attachments.value[0] || {});
 const meta = computed(() => attachment.value.meta || {});
+const vcard = computed(() => compactValue(valueFrom(meta.value, ['vcard'])));
 const businessProfile = computed(
   () => valueFrom(meta.value, ['businessProfile', 'business_profile']) || {}
 );
@@ -61,15 +109,19 @@ const profileOptions = computed(
 );
 
 const rawPhoneNumber = computed(() =>
-  compactValue(
+  digitsOnly(
     attachment.value.fallbackTitle ||
       valueFrom(meta.value, [
         'phoneNumber',
         'phone_number',
         'whatsappId',
         'whatsapp_id',
-      ])
-  ).replace(/\D/g, '')
+        'waid',
+        'phone',
+      ]) ||
+      vcardPhone(vcard.value) ||
+      valueFrom(businessProfile.value, ['jid'])
+  )
 );
 
 const phoneNumber = computed(() => {
@@ -81,6 +133,7 @@ const fullName = computed(() =>
   compactValue(
     valueFrom(meta.value, ['displayName', 'display_name']) ||
       valueFrom(meta.value, ['fullName', 'full_name']) ||
+      vcardField(vcard.value, 'FN') ||
       `${valueFrom(meta.value, ['firstName', 'first_name'])} ${valueFrom(meta.value, ['lastName', 'last_name'])}`
   )
 );
@@ -96,6 +149,7 @@ const contactName = computed(
 const contactJid = computed(
   () =>
     compactValue(valueFrom(meta.value, ['jid'])) ||
+    compactValue(valueFrom(businessProfile.value, ['jid'])) ||
     (rawPhoneNumber.value ? `${rawPhoneNumber.value}@s.whatsapp.net` : '')
 );
 
@@ -113,14 +167,18 @@ const avatarUrl = computed(() =>
 const organization = computed(() =>
   compactValue(
     valueFrom(meta.value, ['organization']) ||
-      valueFrom(businessProfile.value, ['businessName', 'business_name'])
+      valueFrom(businessProfile.value, ['businessName', 'business_name']) ||
+      vcardField(vcard.value, 'ORG')
   )
 );
 
 const category = computed(() =>
   compactValue(
     valueFrom(meta.value, ['category']) ||
-      valueFrom(businessProfile.value, ['category'])
+      valueFrom(businessProfile.value, ['category']) ||
+      arrayValue(valueFrom(businessProfile.value, ['categories']))
+        .map(item => compactValue(item.name || item.label))
+        .filter(Boolean)
   )
 );
 
@@ -143,7 +201,8 @@ const websiteHref = computed(() => externalUrl(website.value));
 const email = computed(() =>
   compactValue(
     valueFrom(meta.value, ['email']) ||
-      valueFrom(businessProfile.value, ['email'])
+      valueFrom(businessProfile.value, ['email']) ||
+      vcardField(vcard.value, 'EMAIL')
   )
 );
 
@@ -160,7 +219,33 @@ const address = computed(() =>
   compactValue(valueFrom(businessProfile.value, ['address']))
 );
 
-const note = computed(() => compactValue(valueFrom(meta.value, ['note'])));
+const note = computed(() =>
+  compactValue(
+    valueFrom(meta.value, ['note']) || vcardField(vcard.value, 'NOTE')
+  )
+);
+
+const coverUrl = computed(() =>
+  compactValue(
+    valueFrom(businessProfile.value, [
+      'coverPhotoUrl',
+      'cover_photo_url',
+      'coverUrl',
+      'cover_url',
+      'headerImageUrl',
+      'header_image_url',
+      'profileCoverPhoto',
+      'profile_cover_photo',
+    ]) ||
+      valueFrom(profileOptions.value, [
+        'coverPhotoUrl',
+        'cover_photo_url',
+        'cover_url',
+      ])
+  )
+);
+
+const isContactSaved = computed(() => !!savedContactId.value);
 
 const hasBusinessDetails = computed(
   () =>
@@ -232,9 +317,9 @@ const detailsRows = computed(() =>
   ].filter(row => row.value)
 );
 
-async function filterContactByNumber(searchCandidate) {
+async function filterContact(attributeKey, searchCandidate) {
   const query = {
-    attribute_key: 'phone_number',
+    attribute_key: attributeKey,
     filter_operator: 'equal_to',
     values: [searchCandidate],
     attribute_model: 'standard',
@@ -249,10 +334,17 @@ async function filterContactByNumber(searchCandidate) {
   return contacts.shift();
 }
 
-function openContactNewTab(contactId) {
-  const accountId = window.location.pathname.split('/')[3];
-  const url = `/app/accounts/${accountId}/contacts/${contactId}`;
-  window.open(url, '_blank');
+async function findExistingContact() {
+  if (phoneNumber.value) {
+    const contact = await filterContact('phone_number', phoneNumber.value);
+    if (contact) return contact;
+  }
+
+  if (email.value) {
+    return filterContact('email', email.value);
+  }
+
+  return null;
 }
 
 function getContactObject() {
@@ -272,16 +364,20 @@ function getContactObject() {
 }
 
 async function addContact() {
-  if (!phoneNumber.value || isSavingContact.value) return;
+  if (
+    (!contactName.value && !phoneNumber.value && !email.value) ||
+    isSavingContact.value
+  )
+    return;
 
   isSavingContact.value = true;
   try {
-    let contact = await filterContactByNumber(phoneNumber.value);
+    let contact = await findExistingContact();
     if (!contact) {
       contact = await $store.dispatch('contacts/create', getContactObject());
-      useAlert(t('CONTACT_FORM.SUCCESS_MESSAGE'));
     }
-    openContactNewTab(contact.id);
+    savedContactId.value = contact.id;
+    useAlert(t('CONTACT_FORM.SUCCESS_MESSAGE'));
   } catch (error) {
     if (error instanceof DuplicateContactException) {
       if (error.data.includes('phone_number')) {
@@ -316,7 +412,15 @@ async function openPrivateConversation() {
         profilePictureUrl: avatarUrl.value,
       })
     );
-    const conversationId = data.conversation_id || data.id;
+    const conversationId =
+      data.conversation_id ||
+      data.display_id ||
+      data.id ||
+      data.payload?.conversation_id ||
+      data.payload?.display_id ||
+      data.payload?.id;
+    if (!conversationId) throw new Error('Missing conversation id');
+
     await router.push({
       path: whatsmeowConversationPath({
         route,
@@ -336,7 +440,10 @@ async function openPrivateConversation() {
 </script>
 
 <template>
-  <BaseBubble class="w-80 max-w-[min(20rem,calc(100vw-5rem))] overflow-hidden">
+  <BaseBubble
+    hide-meta
+    class="w-80 max-w-[min(20rem,calc(100vw-5rem))] overflow-hidden"
+  >
     <div class="flex items-start gap-3 p-3">
       <Avatar :name="contactName" :src="avatarUrl" :size="40" />
       <div class="min-w-0 flex-1">
@@ -391,12 +498,25 @@ async function openPrivateConversation() {
       <button
         type="button"
         class="flex items-center justify-center gap-2 border-t border-n-weak px-3 py-2 text-sm font-semibold text-n-teal-11 hover:bg-n-alpha-2"
-        :disabled="!phoneNumber || isSavingContact"
+        :disabled="isContactSaved || isSavingContact"
         @click.stop="addContact"
       >
-        <Icon icon="i-lucide-user-plus" class="size-4" />
-        <span>{{ $t('CONVERSATION.SAVE_CONTACT') }}</span>
+        <Icon
+          :icon="isContactSaved ? 'i-lucide-check' : 'i-lucide-user-plus'"
+          class="size-4"
+        />
+        <span>
+          {{
+            isContactSaved
+              ? $t('CONVERSATION.WHATSMEOW_CONTACT.CONTACT_SAVED')
+              : $t('CONVERSATION.SAVE_CONTACT')
+          }}
+        </span>
       </button>
+    </div>
+
+    <div class="flex px-3 pb-2 pt-1">
+      <MessageMeta class="text-n-slate-11" />
     </div>
 
     <div
@@ -407,35 +527,82 @@ async function openPrivateConversation() {
       <section
         class="max-h-[88vh] w-full max-w-lg overflow-hidden rounded-xl border border-n-weak bg-n-solid-1 shadow-xl"
       >
-        <header
-          class="flex items-start justify-between gap-3 border-b border-n-weak p-4"
-        >
-          <div class="flex min-w-0 items-center gap-3">
-            <Avatar :name="contactName" :src="avatarUrl" :size="48" />
-            <div class="min-w-0">
-              <h3 class="m-0 truncate text-base font-semibold text-n-slate-12">
-                {{ contactName }}
-              </h3>
-              <p class="m-0 truncate text-sm text-n-slate-11">
-                {{ subtitle }}
-              </p>
-            </div>
+        <header class="relative border-b border-n-weak">
+          <div class="h-28 bg-n-slate-5" :class="{ 'bg-n-teal-5': !coverUrl }">
+            <img
+              v-if="coverUrl"
+              :src="coverUrl"
+              :alt="contactName"
+              class="size-full object-cover"
+            />
           </div>
           <NextButton
             icon="i-lucide-x"
             slate
             ghost
             sm
+            class="absolute right-3 top-3 bg-n-solid-1/80"
             @click="showDetails = false"
           />
+          <div class="-mt-9 flex flex-col items-center px-4 pb-4 text-center">
+            <Avatar
+              :name="contactName"
+              :src="avatarUrl"
+              :size="72"
+              rounded-full
+            />
+            <h3
+              class="m-0 mt-3 max-w-full truncate text-lg font-semibold text-n-slate-12"
+            >
+              {{ contactName }}
+            </h3>
+            <p v-if="organization" class="m-0 text-sm text-n-slate-12">
+              {{ organization }}
+            </p>
+            <p class="m-0 text-sm text-n-slate-11">
+              {{ subtitle }}
+            </p>
+          </div>
         </header>
 
         <div class="max-h-[58vh] overflow-y-auto p-4">
-          <div v-if="hasBusinessDetails" class="grid gap-3">
+          <div class="mb-4 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              class="flex items-center justify-center gap-2 rounded-lg border border-n-weak px-3 py-3 text-sm font-semibold text-n-slate-12 hover:bg-n-alpha-2"
+              :disabled="isOpeningConversation"
+              @click.stop="openPrivateConversation"
+            >
+              <Icon icon="i-lucide-message-circle" class="size-4" />
+              <span>{{
+                $t('CONVERSATION.WHATSMEOW_GROUP.OPEN_PRIVATE_CHAT')
+              }}</span>
+            </button>
+            <button
+              type="button"
+              class="flex items-center justify-center gap-2 rounded-lg border border-n-weak px-3 py-3 text-sm font-semibold text-n-slate-12 hover:bg-n-alpha-2 disabled:opacity-60"
+              :disabled="isContactSaved || isSavingContact"
+              @click.stop="addContact"
+            >
+              <Icon
+                :icon="isContactSaved ? 'i-lucide-check' : 'i-lucide-user-plus'"
+                class="size-4"
+              />
+              <span>
+                {{
+                  isContactSaved
+                    ? $t('CONVERSATION.WHATSMEOW_CONTACT.CONTACT_SAVED')
+                    : $t('CONVERSATION.SAVE_CONTACT')
+                }}
+              </span>
+            </button>
+          </div>
+
+          <div v-if="detailsRows.length" class="grid gap-3">
             <div
               v-for="row in detailsRows"
               :key="row.label"
-              class="flex items-start gap-3 rounded-lg border border-n-weak bg-n-alpha-1 p-3"
+              class="flex items-start gap-3 rounded-lg bg-n-alpha-1 p-3"
             >
               <Icon
                 :icon="row.icon"
@@ -480,9 +647,13 @@ async function openPrivateConversation() {
             @click="openPrivateConversation"
           />
           <NextButton
-            :label="$t('CONVERSATION.SAVE_CONTACT')"
-            icon="i-lucide-user-plus"
-            :disabled="!phoneNumber"
+            :label="
+              isContactSaved
+                ? $t('CONVERSATION.WHATSMEOW_CONTACT.CONTACT_SAVED')
+                : $t('CONVERSATION.SAVE_CONTACT')
+            "
+            :icon="isContactSaved ? 'i-lucide-check' : 'i-lucide-user-plus'"
+            :disabled="isContactSaved"
             :is-loading="isSavingContact"
             @click="addContact"
           />

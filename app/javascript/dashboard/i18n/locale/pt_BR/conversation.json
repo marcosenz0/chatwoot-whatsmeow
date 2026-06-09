@@ -355,7 +355,15 @@
       "EMAIL": "E-mail",
       "ADDRESS": "Endereco",
       "NOTE": "Nota",
-      "CANCEL": "Cancelar"
+      "CANCEL": "Cancelar",
+      "SELECT_CONTACT_HINT": "Escolha um contato do Chatwoot ou pesquise por nome, telefone ou e-mail.",
+      "CUSTOM_CONTACT_HINT": "Preencha um contato que ainda nao esta salvo no Chatwoot.",
+      "SEARCH_CONTACTS": "Pesquisar contatos...",
+      "LOADING_CONTACTS": "Carregando contatos...",
+      "NO_CONTACTS_FOUND": "Nenhum contato encontrado.",
+      "NO_PHONE": "Sem telefone",
+      "CUSTOM_CONTACT": "Contato personalizado",
+      "CONTACT_SAVED": "Contato salvo"
     }
   },
   "EMAIL_TRANSCRIPT": {

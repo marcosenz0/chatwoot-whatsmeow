@@ -376,7 +376,15 @@
       "EMAIL": "Email",
       "ADDRESS": "Address",
       "NOTE": "Note",
-      "CANCEL": "Cancel"
+      "CANCEL": "Cancel",
+      "SELECT_CONTACT_HINT": "Choose one of your Chatwoot contacts or search by name, phone or email.",
+      "CUSTOM_CONTACT_HINT": "Fill in a contact that is not saved in Chatwoot yet.",
+      "SEARCH_CONTACTS": "Search contacts...",
+      "LOADING_CONTACTS": "Loading contacts...",
+      "NO_CONTACTS_FOUND": "No contacts found.",
+      "NO_PHONE": "No phone number",
+      "CUSTOM_CONTACT": "Custom contact",
+      "CONTACT_SAVED": "Contact saved"
     }
   },
   "EMAIL_TRANSCRIPT": {
