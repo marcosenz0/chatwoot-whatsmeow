@@ -68,25 +68,32 @@ const vcardLines = value => {
   return lines;
 };
 
+const normalizedVcardLine = line =>
+  line.toUpperCase().replace(/^ITEM\d+\./, '');
+
 const vcardField = (vcard, field) => {
   const prefix = field.toUpperCase();
   const line = vcardLines(vcard).find(item =>
-    item.toUpperCase().startsWith(prefix)
+    normalizedVcardLine(item).startsWith(prefix)
   );
   if (!line) return '';
   return compactValue(line.slice(line.indexOf(':') + 1));
 };
 
 const vcardPhone = vcard => {
-  const line = vcardLines(vcard).find(item =>
-    item.toUpperCase().startsWith('TEL')
-  );
+  const line = vcardLines(vcard).find(item => {
+    const normalizedLine = normalizedVcardLine(item);
+    return normalizedLine.startsWith('TEL') || normalizedLine.includes('.TEL');
+  });
   if (!line) return '';
 
   const waid = line.match(/waid=([^;:]+)/i)?.[1];
   const value = line.slice(line.indexOf(':') + 1);
   return normalizePhoneNumber(waid || value);
 };
+
+const firstPhoneDigits = values =>
+  values.map(value => digitsOnly(value)).find(value => value.length >= 8) || '';
 
 const arrayValue = value => (Array.isArray(value) ? value : []);
 
@@ -98,6 +105,11 @@ const externalUrl = value => {
 
 const attachment = computed(() => attachments.value[0] || {});
 const meta = computed(() => attachment.value.meta || {});
+const attachmentFallbackTitle = computed(() =>
+  compactValue(
+    attachment.value.fallbackTitle || attachment.value.fallback_title
+  )
+);
 const vcard = computed(() => compactValue(valueFrom(meta.value, ['vcard'])));
 const businessProfile = computed(
   () => valueFrom(meta.value, ['businessProfile', 'business_profile']) || {}
@@ -109,19 +121,19 @@ const profileOptions = computed(
 );
 
 const rawPhoneNumber = computed(() =>
-  digitsOnly(
-    attachment.value.fallbackTitle ||
-      valueFrom(meta.value, [
-        'phoneNumber',
-        'phone_number',
-        'whatsappId',
-        'whatsapp_id',
-        'waid',
-        'phone',
-      ]) ||
-      vcardPhone(vcard.value) ||
-      valueFrom(businessProfile.value, ['jid'])
-  )
+  firstPhoneDigits([
+    valueFrom(meta.value, [
+      'phoneNumber',
+      'phone_number',
+      'whatsappId',
+      'whatsapp_id',
+      'waid',
+      'phone',
+    ]),
+    vcardPhone(vcard.value),
+    valueFrom(businessProfile.value, ['jid']),
+    attachmentFallbackTitle.value,
+  ])
 );
 
 const phoneNumber = computed(() => {
@@ -151,6 +163,10 @@ const contactJid = computed(
     compactValue(valueFrom(meta.value, ['jid'])) ||
     compactValue(valueFrom(businessProfile.value, ['jid'])) ||
     (rawPhoneNumber.value ? `${rawPhoneNumber.value}@s.whatsapp.net` : '')
+);
+
+const hasConversationTarget = computed(
+  () => !!(phoneNumber.value || contactJid.value)
 );
 
 const avatarUrl = computed(() =>
@@ -394,17 +410,20 @@ async function addContact() {
 }
 
 async function openPrivateConversation() {
-  if (
-    (!phoneNumber.value && !contactJid.value) ||
-    isOpeningConversation.value
-  ) {
+  if (isOpeningConversation.value) {
+    return;
+  }
+
+  if (!hasConversationTarget.value) {
+    useAlert(t('CONVERSATION.WHATSMEOW_GROUP.OPEN_PRIVATE_CHAT_FAILED'));
     return;
   }
 
   isOpeningConversation.value = true;
   try {
+    const activeInboxId = inboxId.value || route.params.inbox_id;
     const { data } = await InboxesAPI.createWhatsmeowDirectConversation(
-      inboxId.value,
+      activeInboxId,
       whatsmeowDirectConversationPayload({
         jid: contactJid.value,
         phoneNumber: phoneNumber.value,
@@ -424,10 +443,11 @@ async function openPrivateConversation() {
     await router.push({
       path: whatsmeowConversationPath({
         route,
-        inboxId: inboxId.value,
+        inboxId: activeInboxId,
         conversationId,
       }),
     });
+    showDetails.value = false;
   } catch (error) {
     useAlert(
       error?.response?.data?.message ||
@@ -480,8 +500,8 @@ async function openPrivateConversation() {
     <div class="grid border-t border-n-weak">
       <button
         type="button"
-        class="flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold text-n-teal-11 hover:bg-n-alpha-2"
-        :disabled="isOpeningConversation"
+        class="flex items-center justify-center gap-2 px-3 py-2 text-sm font-semibold text-n-teal-11 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+        :disabled="!hasConversationTarget || isOpeningConversation"
         @click.stop="openPrivateConversation"
       >
         <Icon icon="i-lucide-message-circle" class="size-4" />
@@ -569,8 +589,8 @@ async function openPrivateConversation() {
           <div class="mb-4 grid grid-cols-2 gap-2">
             <button
               type="button"
-              class="flex items-center justify-center gap-2 rounded-lg border border-n-weak px-3 py-3 text-sm font-semibold text-n-slate-12 hover:bg-n-alpha-2"
-              :disabled="isOpeningConversation"
+              class="flex items-center justify-center gap-2 rounded-lg border border-n-weak px-3 py-3 text-sm font-semibold text-n-slate-12 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="!hasConversationTarget || isOpeningConversation"
               @click.stop="openPrivateConversation"
             >
               <Icon icon="i-lucide-message-circle" class="size-4" />
@@ -634,30 +654,6 @@ async function openPrivateConversation() {
             {{ $t('CONVERSATION.WHATSMEOW_CONTACT.NO_BUSINESS_DETAILS') }}
           </div>
         </div>
-
-        <footer
-          class="flex flex-wrap justify-end gap-2 border-t border-n-weak p-4"
-        >
-          <NextButton
-            :label="$t('CONVERSATION.WHATSMEOW_GROUP.OPEN_PRIVATE_CHAT')"
-            icon="i-lucide-message-circle"
-            slate
-            faded
-            :is-loading="isOpeningConversation"
-            @click="openPrivateConversation"
-          />
-          <NextButton
-            :label="
-              isContactSaved
-                ? $t('CONVERSATION.WHATSMEOW_CONTACT.CONTACT_SAVED')
-                : $t('CONVERSATION.SAVE_CONTACT')
-            "
-            :icon="isContactSaved ? 'i-lucide-check' : 'i-lucide-user-plus'"
-            :disabled="isContactSaved"
-            :is-loading="isSavingContact"
-            @click="addContact"
-          />
-        </footer>
       </section>
     </div>
   </BaseBubble>
