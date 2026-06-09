@@ -1873,23 +1873,27 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 }
 
 func processEditForInbox(channelID string, accountID string, messageEvent *events.Message) bool {
-	if !messageEvent.IsEdit {
+	protocolMessage := rawEditedProtocolMessage(messageEvent.RawMessage)
+	if !messageEvent.IsEdit && protocolMessage == nil {
 		return false
 	}
 
-	messageID := editedMessageID(messageEvent)
+	messageID := editedMessageID(messageEvent, protocolMessage)
 	if messageID == "" {
 		return true
 	}
 
 	editedContent := extractMessageText(messageEvent.Message)
+	if editedContent == "" && protocolMessage != nil {
+		editedContent = extractMessageText(protocolMessage.GetEditedMessage())
+	}
 	if editedContent == "" {
 		return true
 	}
 
 	chat := jidString(messageEvent.Info.Chat)
 	timestamp := messageEvent.Info.Timestamp.Unix()
-	if editTimestamp := editedMessageTimestamp(messageEvent.RawMessage); editTimestamp > 0 {
+	if editTimestamp := editedMessageTimestamp(protocolMessage); editTimestamp > 0 {
 		timestamp = editTimestamp
 	}
 
@@ -1907,12 +1911,11 @@ func processEditForInbox(channelID string, accountID string, messageEvent *event
 	return true
 }
 
-func editedMessageID(messageEvent *events.Message) string {
+func editedMessageID(messageEvent *events.Message, protocolMessage *proto.ProtocolMessage) string {
 	if messageEvent.Info.ID != "" {
 		return messageEvent.Info.ID
 	}
 
-	protocolMessage := rawEditedProtocolMessage(messageEvent.RawMessage)
 	if protocolMessage == nil {
 		return ""
 	}
@@ -1920,8 +1923,7 @@ func editedMessageID(messageEvent *events.Message) string {
 	return protocolMessage.GetKey().GetID()
 }
 
-func editedMessageTimestamp(message *proto.Message) int64 {
-	protocolMessage := rawEditedProtocolMessage(message)
+func editedMessageTimestamp(protocolMessage *proto.ProtocolMessage) int64 {
 	if protocolMessage == nil {
 		return 0
 	}
@@ -1939,16 +1941,34 @@ func rawEditedProtocolMessage(message *proto.Message) *proto.ProtocolMessage {
 		return nil
 	}
 
-	if editedMessage := message.GetEditedMessage().GetMessage(); editedMessage != nil {
-		message = editedMessage
-	}
-
 	protocolMessage := message.GetProtocolMessage()
-	if protocolMessage == nil || protocolMessage.GetType() != proto.ProtocolMessage_MESSAGE_EDIT {
-		return nil
+	if protocolMessage != nil && protocolMessage.GetType() == proto.ProtocolMessage_MESSAGE_EDIT {
+		return protocolMessage
 	}
 
-	return protocolMessage
+	if editedMessage := message.GetEditedMessage().GetMessage(); editedMessage != nil {
+		return rawEditedProtocolMessage(editedMessage)
+	}
+	if inner := message.GetDeviceSentMessage().GetMessage(); inner != nil {
+		return rawEditedProtocolMessage(inner)
+	}
+	if inner := message.GetEphemeralMessage().GetMessage(); inner != nil {
+		return rawEditedProtocolMessage(inner)
+	}
+	if inner := message.GetViewOnceMessage().GetMessage(); inner != nil {
+		return rawEditedProtocolMessage(inner)
+	}
+	if inner := message.GetViewOnceMessageV2().GetMessage(); inner != nil {
+		return rawEditedProtocolMessage(inner)
+	}
+	if inner := message.GetViewOnceMessageV2Extension().GetMessage(); inner != nil {
+		return rawEditedProtocolMessage(inner)
+	}
+	if inner := message.GetDocumentWithCaptionMessage().GetMessage(); inner != nil {
+		return rawEditedProtocolMessage(inner)
+	}
+
+	return nil
 }
 
 func processDeleteForInbox(channelID string, accountID string, messageEvent *events.Message) bool {
