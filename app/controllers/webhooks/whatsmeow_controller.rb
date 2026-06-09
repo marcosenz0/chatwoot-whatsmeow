@@ -27,6 +27,8 @@ class Webhooks::WhatsmeowController < ActionController::API
       Whatsmeow::ReceiptService.new(inbox: inbox, params: params.to_unsafe_hash).perform
     when 'reaction'
       Whatsmeow::ReactionService.apply_incoming(inbox: inbox, params: params.to_unsafe_hash)
+    when 'edit'
+      Whatsmeow::EditMessageService.apply_incoming(inbox: inbox, params: params.to_unsafe_hash)
     when 'delete'
       Whatsmeow::DeleteMessageService.apply_incoming(inbox: inbox, params: params.to_unsafe_hash)
     when 'paired'

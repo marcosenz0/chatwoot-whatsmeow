@@ -139,6 +139,12 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - The existing local "Delete" action now only marks the message as deleted in Chatwoot and preserves the content, matching the operator's preference to keep a local audit trail.
 - Local deletes are labelled "deleted by me" in the bubble so they are visually distinct from WhatsApp revoke/delete events initiated by the contact. A second context-menu action can permanently remove that locally deleted message from Chatwoot.
 
+## June 2026 Message Edits
+
+- Incoming WhatsApp edit events from whatsmeow are intercepted before normal message import and forwarded to Rails as `event: edit`, preserving the original WhatsApp `message_id`.
+- Rails updates the matching Chatwoot message by `source_id`, stores the first message body in `content_attributes.whatsmeow_original_content`, stores the latest edited body in `whatsmeow_edited_content`, and keeps the message content synced to the latest version for previews/search.
+- The Chatwoot text bubble renders edited Whatsmeow messages as one message with the original version and the edited version together. Long edited histories are collapsed behind "show more/show less" controls.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

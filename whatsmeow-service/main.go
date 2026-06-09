@@ -1770,6 +1770,10 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		return
 	}
 
+	if processEditForInbox(channelID, accountID, messageEvent) {
+		return
+	}
+
 	if processReactionForInbox(channelID, accountID, messageEvent) {
 		return
 	}
@@ -1866,6 +1870,85 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		payload["quoted_file_type"] = quotedMessage.FileType
 	}
 	sendWebhookNotification(accountID, channelID, payload)
+}
+
+func processEditForInbox(channelID string, accountID string, messageEvent *events.Message) bool {
+	if !messageEvent.IsEdit {
+		return false
+	}
+
+	messageID := editedMessageID(messageEvent)
+	if messageID == "" {
+		return true
+	}
+
+	editedContent := extractMessageText(messageEvent.Message)
+	if editedContent == "" {
+		return true
+	}
+
+	chat := jidString(messageEvent.Info.Chat)
+	timestamp := messageEvent.Info.Timestamp.Unix()
+	if editTimestamp := editedMessageTimestamp(messageEvent.RawMessage); editTimestamp > 0 {
+		timestamp = editTimestamp
+	}
+
+	payload := map[string]interface{}{
+		"event":          "edit",
+		"message_id":     messageID,
+		"edited_content": editedContent,
+		"sender":         jidString(messageEvent.Info.Sender),
+		"sender_alt":     jidString(messageEvent.Info.SenderAlt),
+		"chat":           chat,
+		"from_me":        messageEvent.Info.IsFromMe,
+		"timestamp":      timestamp,
+	}
+	sendWebhookNotification(accountID, channelID, payload)
+	return true
+}
+
+func editedMessageID(messageEvent *events.Message) string {
+	if messageEvent.Info.ID != "" {
+		return messageEvent.Info.ID
+	}
+
+	protocolMessage := rawEditedProtocolMessage(messageEvent.RawMessage)
+	if protocolMessage == nil {
+		return ""
+	}
+
+	return protocolMessage.GetKey().GetID()
+}
+
+func editedMessageTimestamp(message *proto.Message) int64 {
+	protocolMessage := rawEditedProtocolMessage(message)
+	if protocolMessage == nil {
+		return 0
+	}
+
+	timestampMS := protocolMessage.GetTimestampMS()
+	if timestampMS <= 0 {
+		return 0
+	}
+
+	return timestampMS / 1000
+}
+
+func rawEditedProtocolMessage(message *proto.Message) *proto.ProtocolMessage {
+	if message == nil {
+		return nil
+	}
+
+	if editedMessage := message.GetEditedMessage().GetMessage(); editedMessage != nil {
+		message = editedMessage
+	}
+
+	protocolMessage := message.GetProtocolMessage()
+	if protocolMessage == nil || protocolMessage.GetType() != proto.ProtocolMessage_MESSAGE_EDIT {
+		return nil
+	}
+
+	return protocolMessage
 }
 
 func processDeleteForInbox(channelID string, accountID string, messageEvent *events.Message) bool {
