@@ -1874,7 +1874,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 
 func processEditForInbox(channelID string, accountID string, messageEvent *events.Message) bool {
 	protocolMessage := rawEditedProtocolMessage(messageEvent.RawMessage)
-	if !messageEvent.IsEdit && protocolMessage == nil {
+	if !isEditedMessageEvent(messageEvent, protocolMessage) {
 		return false
 	}
 
@@ -1907,8 +1907,21 @@ func processEditForInbox(channelID string, accountID string, messageEvent *event
 		"from_me":        messageEvent.Info.IsFromMe,
 		"timestamp":      timestamp,
 	}
+	log.Printf("Forwarding edited WhatsApp message %s on channel %s", messageID, channelID)
 	sendWebhookNotification(accountID, channelID, payload)
 	return true
+}
+
+func isEditedMessageEvent(messageEvent *events.Message, protocolMessage *proto.ProtocolMessage) bool {
+	if messageEvent.IsEdit || protocolMessage != nil {
+		return true
+	}
+
+	if messageEvent.Info.Edit == types.EditAttributeMessageEdit || messageEvent.Info.Edit == types.EditAttributeAdminEdit {
+		return true
+	}
+
+	return messageEvent.NewsletterMeta != nil && !messageEvent.NewsletterMeta.EditTS.IsZero()
 }
 
 func editedMessageID(messageEvent *events.Message, protocolMessage *proto.ProtocolMessage) string {
