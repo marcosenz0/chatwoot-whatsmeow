@@ -1,5 +1,5 @@
 class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseController
-  before_action :set_sticker, only: [:destroy, :send]
+  before_action :set_sticker, only: [:destroy, :send_sticker]
 
   def index
     authorize WhatsmeowSticker
@@ -35,8 +35,8 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
     head :ok
   end
 
-  def send
-    authorize @sticker
+  def send_sticker
+    authorize @sticker, :send?
 
     conversation = Current.account.conversations.find(sticker_params[:conversation_id])
     authorize conversation, :show?

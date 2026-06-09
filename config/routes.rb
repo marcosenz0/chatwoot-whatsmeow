@@ -118,7 +118,7 @@ Rails.application.routes.draw do
             end
           end
           resources :whatsmeow_stickers, path: 'whatsmeow/stickers', only: [:index, :create, :destroy] do
-            post :send, on: :member
+            post :send, on: :member, action: :send_sticker
           end
           resources :assignable_agents, only: [:index]
           resource :audit_logs, only: [:show]
