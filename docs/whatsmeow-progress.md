@@ -143,6 +143,7 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 
 - Incoming WhatsApp edit events from whatsmeow are intercepted before normal message import and forwarded to Rails as `event: edit`, preserving the original WhatsApp `message_id`.
 - Realtime WhatsApp Web edits can arrive as a normal message stanza with `Info.Edit = "1"` and the original message ID instead of the edited protocol wrapper, so `whatsmeow-service` treats that flag as an edit before the duplicate-message guard runs.
+- Protocol edit events must prefer `ProtocolMessage.key.id` over the outer event ID when selecting the Chatwoot `source_id`; otherwise Rails can receive a valid edit webhook but look up the wrong message.
 - Rails also treats an incoming Whatsmeow message with an already imported `source_id` and different text content as an edit fallback, which covers WhatsApp edit stanzas that arrive looking like ordinary duplicate messages.
 - Rails updates the matching Chatwoot message by `source_id`, stores the first message body in `content_attributes.whatsmeow_original_content`, stores the latest edited body in `whatsmeow_edited_content`, and keeps the message content synced to the latest version for previews/search.
 - The Chatwoot text bubble renders edited Whatsmeow messages as one message with the original version and the edited version together. Long edited histories are collapsed behind "show more/show less" controls.

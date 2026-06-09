@@ -1907,7 +1907,15 @@ func processEditForInbox(channelID string, accountID string, messageEvent *event
 		"from_me":        messageEvent.Info.IsFromMe,
 		"timestamp":      timestamp,
 	}
-	log.Printf("Forwarding edited WhatsApp message %s on channel %s", messageID, channelID)
+	log.Printf(
+		"Forwarding edited WhatsApp message %s on channel %s (event_id=%s protocol_id=%s edit_attr=%s is_edit=%t)",
+		messageID,
+		channelID,
+		messageEvent.Info.ID,
+		protocolMessageID(protocolMessage),
+		messageEvent.Info.Edit,
+		messageEvent.IsEdit,
+	)
 	sendWebhookNotification(accountID, channelID, payload)
 	return true
 }
@@ -1925,14 +1933,17 @@ func isEditedMessageEvent(messageEvent *events.Message, protocolMessage *proto.P
 }
 
 func editedMessageID(messageEvent *events.Message, protocolMessage *proto.ProtocolMessage) string {
-	if messageEvent.Info.ID != "" {
-		return messageEvent.Info.ID
+	if id := protocolMessageID(protocolMessage); id != "" {
+		return id
 	}
 
+	return messageEvent.Info.ID
+}
+
+func protocolMessageID(protocolMessage *proto.ProtocolMessage) string {
 	if protocolMessage == nil {
 		return ""
 	}
-
 	return protocolMessage.GetKey().GetID()
 }
 
