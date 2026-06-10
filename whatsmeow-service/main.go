@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -1888,6 +1889,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		if !hasMediaMessage(messageEvent.Message) {
 			return
 		}
+		log.Printf("Incoming media message had no downloadable attachments; media_type=%s message_id=%s", detectedMediaType(messageEvent.Message), messageEvent.Info.ID)
 		messageText = "Media attachment could not be downloaded."
 	}
 	if messageText == "" && len(contacts) > 0 {
@@ -2744,6 +2746,18 @@ func extractMediaAttachments(client *whatsmeow.Client, message *proto.Message) [
 		return downloadAttachment(client, document, "file", document.GetMimetype(), fileName, nil)
 	}
 	if sticker := message.GetStickerMessage(); sticker != nil {
+		log.Printf(
+			"Incoming sticker metadata: mimetype=%q animated=%t lottie=%t direct_path=%t url=%t media_key=%t file_length=%d png_thumbnail=%d first_frame=%d",
+			sticker.GetMimetype(),
+			sticker.GetIsAnimated(),
+			sticker.GetIsLottie(),
+			sticker.GetDirectPath() != "",
+			sticker.GetURL() != "",
+			len(sticker.GetMediaKey()) > 0,
+			sticker.GetFileLength(),
+			len(sticker.GetPngThumbnail()),
+			len(sticker.GetFirstFrameSidecar()),
+		)
 		attachments := downloadAttachment(
 			client,
 			sticker,
@@ -2765,6 +2779,28 @@ func hasMediaMessage(message *proto.Message) bool {
 	message = unwrapMessage(message)
 	return message != nil && (message.GetImageMessage() != nil || message.GetVideoMessage() != nil ||
 		message.GetAudioMessage() != nil || message.GetDocumentMessage() != nil || message.GetStickerMessage() != nil)
+}
+
+func detectedMediaType(message *proto.Message) string {
+	message = unwrapMessage(message)
+	if message == nil {
+		return "unknown"
+	}
+
+	switch {
+	case message.GetStickerMessage() != nil:
+		return "sticker"
+	case message.GetImageMessage() != nil:
+		return "image"
+	case message.GetVideoMessage() != nil:
+		return "video"
+	case message.GetAudioMessage() != nil:
+		return "audio"
+	case message.GetDocumentMessage() != nil:
+		return "document"
+	default:
+		return "unknown"
+	}
 }
 
 func unwrapMessage(message *proto.Message) *proto.Message {
@@ -2798,7 +2834,14 @@ func downloadAttachment(client *whatsmeow.Client, media whatsmeow.DownloadableMe
 
 	data, err := client.Download(ctx, media)
 	if err != nil {
-		log.Printf("Failed to download incoming %s attachment: %v", fileType, err)
+		if len(data) == 0 || !isNonFatalDownloadWarning(err) {
+			log.Printf("Failed to download incoming %s attachment: %v", fileType, err)
+			return nil
+		}
+		log.Printf("Downloaded incoming %s attachment with non-fatal warning: %v", fileType, err)
+	}
+	if len(data) == 0 {
+		log.Printf("Downloaded incoming %s attachment is empty", fileType)
 		return nil
 	}
 
@@ -2814,6 +2857,10 @@ func downloadAttachment(client *whatsmeow.Client, media whatsmeow.DownloadableMe
 		Meta:        meta,
 		DataBase64:  base64.StdEncoding.EncodeToString(data),
 	}}
+}
+
+func isNonFatalDownloadWarning(err error) bool {
+	return errors.Is(err, whatsmeow.ErrFileLengthMismatch) || errors.Is(err, whatsmeow.ErrInvalidMediaSHA256)
 }
 
 func stickerThumbnailAttachment(sticker *proto.StickerMessage) []WhatsmeowAttachment {
