@@ -406,7 +406,8 @@
       "REMOVED": "Sticker removed from favorites",
       "LOAD_FAILED": "Could not load stickers.",
       "SAVE_FAILED": "Could not save sticker.",
-      "SEND_FAILED": "Could not send sticker."
+      "SEND_FAILED": "Could not send sticker.",
+      "UNAVAILABLE": "This saved sticker is unavailable. Remove it from favorites and save it again."
     }
   },
   "EMAIL_TRANSCRIPT": {

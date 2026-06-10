@@ -24,14 +24,39 @@ const { t } = useI18n();
 const stickers = ref([]);
 const isLoading = ref(false);
 const sendingStickerId = ref(null);
+const deletingStickerId = ref(null);
+const failedStickerIds = ref(new Set());
+const activeMenuStickerId = ref(null);
 
 const hasStickers = computed(() => stickers.value.length > 0);
+
+const stickerImageUrl = sticker =>
+  stickerDataUrl(sticker) || sticker?.thumbUrl || sticker?.thumb_url || '';
+
+const stickerHasFailed = sticker => failedStickerIds.value.has(sticker.id);
+
+const stickerIsAvailable = sticker =>
+  sticker?.available !== false &&
+  !!stickerImageUrl(sticker) &&
+  !stickerHasFailed(sticker);
+
+const setStickerFailed = sticker => {
+  failedStickerIds.value = new Set([...failedStickerIds.value, sticker.id]);
+};
+
+const clearStickerFailed = sticker => {
+  const nextFailedIds = new Set(failedStickerIds.value);
+  nextFailedIds.delete(sticker.id);
+  failedStickerIds.value = nextFailedIds;
+};
 
 const loadStickers = async () => {
   isLoading.value = true;
   try {
     const { data } = await WhatsmeowStickersAPI.get();
     stickers.value = data.payload || [];
+    failedStickerIds.value = new Set();
+    activeMenuStickerId.value = null;
   } catch (error) {
     useAlert(t('CONVERSATION.WHATSMEOW_STICKER.LOAD_FAILED'));
   } finally {
@@ -40,6 +65,12 @@ const loadStickers = async () => {
 };
 
 const sendSticker = async sticker => {
+  if (!stickerIsAvailable(sticker)) {
+    useAlert(t('CONVERSATION.WHATSMEOW_STICKER.UNAVAILABLE'));
+    return;
+  }
+
+  activeMenuStickerId.value = null;
   sendingStickerId.value = sticker.id;
   try {
     const { data } = await WhatsmeowStickersAPI.send(
@@ -48,9 +79,37 @@ const sendSticker = async sticker => {
     );
     emit('sent', data.payload);
   } catch (error) {
-    useAlert(t('CONVERSATION.WHATSMEOW_STICKER.SEND_FAILED'));
+    useAlert(
+      error?.response?.status === 422
+        ? t('CONVERSATION.WHATSMEOW_STICKER.UNAVAILABLE')
+        : t('CONVERSATION.WHATSMEOW_STICKER.SEND_FAILED')
+    );
   } finally {
     sendingStickerId.value = null;
+  }
+};
+
+const openStickerMenu = (event, sticker) => {
+  event.preventDefault();
+  event.stopPropagation();
+  activeMenuStickerId.value = sticker.id;
+};
+
+const closeStickerMenu = () => {
+  activeMenuStickerId.value = null;
+};
+
+const removeSticker = async sticker => {
+  deletingStickerId.value = sticker.id;
+  try {
+    await WhatsmeowStickersAPI.delete(sticker.id);
+    stickers.value = stickers.value.filter(item => item.id !== sticker.id);
+    closeStickerMenu();
+    useAlert(t('CONVERSATION.WHATSMEOW_STICKER.REMOVED'));
+  } catch (error) {
+    useAlert(t('CONVERSATION.WHATSMEOW_STICKER.SAVE_FAILED'));
+  } finally {
+    deletingStickerId.value = null;
   }
 };
 
@@ -114,26 +173,59 @@ watch(
           </p>
         </div>
         <div v-else class="grid grid-cols-4 gap-2">
-          <button
+          <div
             v-for="sticker in stickers"
             :key="sticker.id"
-            type="button"
-            class="grid aspect-square place-items-center rounded-xl border border-transparent p-1 hover:border-n-weak hover:bg-n-alpha-1 disabled:opacity-50"
-            :disabled="!!sendingStickerId"
-            @click="sendSticker(sticker)"
+            class="relative"
+            @contextmenu.prevent.stop="openStickerMenu($event, sticker)"
           >
-            <Icon
-              v-if="sendingStickerId === sticker.id"
-              icon="i-lucide-loader-circle"
-              class="size-5 animate-spin text-n-slate-11"
-            />
-            <img
-              v-else
-              class="max-h-20 max-w-20 object-contain skip-context-menu"
-              :src="stickerDataUrl(sticker)"
-              :alt="$t('CONVERSATION.WHATSMEOW_STICKER.PREVIEW_TITLE')"
-            />
-          </button>
+            <button
+              type="button"
+              class="grid aspect-square w-full place-items-center rounded-xl border border-transparent p-1 hover:border-n-weak hover:bg-n-alpha-1 disabled:opacity-50"
+              :disabled="!!sendingStickerId || deletingStickerId === sticker.id"
+              @click="sendSticker(sticker)"
+            >
+              <Icon
+                v-if="
+                  sendingStickerId === sticker.id ||
+                  deletingStickerId === sticker.id
+                "
+                icon="i-lucide-loader-circle"
+                class="size-5 animate-spin text-n-slate-11"
+              />
+              <span
+                v-else-if="!stickerIsAvailable(sticker)"
+                class="flex size-20 flex-col items-center justify-center gap-1 rounded-lg bg-n-alpha-1 p-2 text-center text-[0.6875rem] leading-tight text-n-slate-11"
+              >
+                <Icon icon="i-lucide-circle-off" class="size-4" />
+                {{ $t('COMPONENTS.MEDIA.LOADING_FAILED') }}
+              </span>
+              <img
+                v-else
+                class="max-h-20 max-w-20 object-contain"
+                :src="stickerImageUrl(sticker)"
+                :alt="$t('CONVERSATION.WHATSMEOW_STICKER.PREVIEW_TITLE')"
+                draggable="false"
+                @load="clearStickerFailed(sticker)"
+                @error="setStickerFailed(sticker)"
+              />
+            </button>
+            <div
+              v-if="activeMenuStickerId === sticker.id"
+              v-on-clickaway="closeStickerMenu"
+              class="absolute left-1 top-1 z-[90] w-52 overflow-hidden rounded-xl border border-n-weak bg-n-solid-3 p-1 shadow-xl"
+            >
+              <button
+                type="button"
+                class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-n-ruby-11 hover:bg-n-alpha-2 disabled:opacity-50"
+                :disabled="deletingStickerId === sticker.id"
+                @click.stop="removeSticker(sticker)"
+              >
+                <Icon icon="i-lucide-star-off" class="size-4" />
+                {{ $t('CONVERSATION.WHATSMEOW_STICKER.REMOVE_FAVORITE') }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

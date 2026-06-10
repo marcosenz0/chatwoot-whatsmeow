@@ -385,7 +385,8 @@
       "REMOVED": "Figurinha removida das favoritas",
       "LOAD_FAILED": "Nao foi possivel carregar as figurinhas.",
       "SAVE_FAILED": "Nao foi possivel salvar a figurinha.",
-      "SEND_FAILED": "Nao foi possivel enviar a figurinha."
+      "SEND_FAILED": "Nao foi possivel enviar a figurinha.",
+      "UNAVAILABLE": "Esta figurinha salva esta indisponivel. Remova dos favoritos e salve novamente."
     }
   },
   "EMAIL_TRANSCRIPT": {
