@@ -801,7 +801,10 @@ export default {
     hideWhatsmeowStickerPicker() {
       this.showWhatsmeowStickerPicker = false;
     },
-    onSendWhatsmeowSticker() {
+    onSendWhatsmeowSticker(message) {
+      if (message) {
+        this.$store.dispatch('addMessage', message);
+      }
       this.hideWhatsmeowStickerPicker();
       this.resetReplyToMessage();
       this.hideEmojiPicker();

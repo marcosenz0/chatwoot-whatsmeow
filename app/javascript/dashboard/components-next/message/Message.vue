@@ -512,9 +512,14 @@ const shouldRenderMessage = computed(() => {
 });
 
 function openContextMenu(e) {
+  const target = e.target;
+  const isWhatsmeowStickerContextTarget = target?.closest?.(
+    '[data-whatsmeow-sticker-context]'
+  );
   const shouldSkipContextMenu =
-    e.target?.classList.contains('skip-context-menu') ||
-    ['a', 'img'].includes(e.target?.tagName.toLowerCase());
+    !isWhatsmeowStickerContextTarget &&
+    (target?.classList.contains('skip-context-menu') ||
+      ['a', 'img'].includes(target?.tagName.toLowerCase()));
   if (shouldSkipContextMenu || getSelection().toString()) {
     return;
   }

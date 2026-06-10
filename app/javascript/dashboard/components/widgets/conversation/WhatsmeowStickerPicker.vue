@@ -42,8 +42,11 @@ const loadStickers = async () => {
 const sendSticker = async sticker => {
   sendingStickerId.value = sticker.id;
   try {
-    await WhatsmeowStickersAPI.send(sticker.id, props.conversationId);
-    emit('sent');
+    const { data } = await WhatsmeowStickersAPI.send(
+      sticker.id,
+      props.conversationId
+    );
+    emit('sent', data.payload);
   } catch (error) {
     useAlert(t('CONVERSATION.WHATSMEOW_STICKER.SEND_FAILED'));
   } finally {

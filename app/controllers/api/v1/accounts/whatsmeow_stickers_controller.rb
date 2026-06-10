@@ -42,7 +42,9 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
     authorize conversation, :show?
 
     message = build_sticker_message(conversation, @sticker.attachment)
-    render json: { payload: message.push_event_data }
+    deliver_sticker_message(message)
+
+    render json: { payload: message.reload.push_event_data }
   end
 
   private
@@ -70,7 +72,7 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
       message_type: :outgoing,
       status: :sent,
       sender: current_user,
-      content_attributes: { whatsmeow_sticker: true }
+      content_attributes: { whatsmeow_sticker: true, skip_send_reply_job: true }
     )
 
     attachment = message.attachments.build(
@@ -81,6 +83,12 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
     attachment.file.attach(source_attachment.file.blob)
     message.save!
     message
+  end
+
+  def deliver_sticker_message(message)
+    return unless message.conversation.inbox.channel_type == 'Channel::Whatsmeow'
+
+    Whatsmeow::SendOnWhatsmeowService.new(message: message).perform
   end
 
   def sticker_payload(sticker)

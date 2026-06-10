@@ -108,6 +108,7 @@ watch(sourceUrl, () => {
 <template>
   <button
     type="button"
+    data-whatsmeow-sticker-context="true"
     class="group relative grid size-28 shrink-0 place-items-center overflow-hidden rounded-xl bg-transparent p-1 enabled:hover:bg-n-alpha-1 disabled:cursor-default"
     :disabled="!canOpenPreview"
     @click="openPreview"
@@ -121,7 +122,7 @@ watch(sourceUrl, () => {
     </span>
     <img
       v-else
-      class="max-h-28 max-w-28 object-contain skip-context-menu"
+      class="max-h-28 max-w-28 object-contain"
       :src="sourceUrl"
       :alt="$t('CONVERSATION.WHATSMEOW_STICKER.PREVIEW_TITLE')"
       @error="handleThumbnailError"
@@ -132,9 +133,9 @@ watch(sourceUrl, () => {
     <div
       v-if="showPreview"
       class="fixed inset-0 z-[9999] flex flex-col bg-slate-900 text-white"
-      @click.self="showPreview = false"
+      @click="showPreview = false"
     >
-      <div class="flex items-center justify-between px-6 py-5">
+      <div class="flex items-center justify-between px-6 py-5" @click.stop>
         <div class="flex min-w-0 items-center gap-3">
           <div
             class="grid size-10 shrink-0 place-items-center rounded-full bg-white/10 font-semibold text-white"
@@ -166,11 +167,13 @@ watch(sourceUrl, () => {
           class="max-h-[62vh] max-w-[min(28rem,80vw)] object-contain"
           :src="sourceUrl"
           :alt="$t('CONVERSATION.WHATSMEOW_STICKER.PREVIEW_TITLE')"
+          @click.stop
           @error="handlePreviewError"
         />
         <div
           v-else
           class="flex flex-col items-center gap-2 rounded-xl bg-white/10 p-6 text-white/70"
+          @click.stop
         >
           <Icon icon="i-lucide-circle-off" class="size-6" />
           {{ $t('COMPONENTS.MEDIA.LOADING_FAILED') }}
@@ -183,7 +186,7 @@ watch(sourceUrl, () => {
           :disabled="isLoadingFavorite"
           slate
           faded
-          @click="toggleFavorite"
+          @click.stop="toggleFavorite"
         />
       </div>
     </div>
