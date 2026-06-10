@@ -2760,7 +2760,7 @@ func extractMediaAttachments(client *whatsmeow.Client, message *proto.Message) [
 		)
 		attachments := downloadAttachment(
 			client,
-			sticker,
+			stickerMessageForDownload(sticker),
 			"image",
 			normalizedMIME(sticker.GetMimetype(), "image/webp"),
 			defaultFileName("sticker", "image/webp"),
@@ -2857,6 +2857,27 @@ func downloadAttachment(client *whatsmeow.Client, media whatsmeow.DownloadableMe
 		Meta:        meta,
 		DataBase64:  base64.StdEncoding.EncodeToString(data),
 	}}
+}
+
+func stickerMessageForDownload(sticker *proto.StickerMessage) *proto.StickerMessage {
+	if sticker == nil || sticker.GetDirectPath() == "" || mediaURLHasPath(sticker.GetURL()) {
+		return sticker
+	}
+
+	stickerCopy := *sticker
+	stickerCopy.URL = nil
+	return &stickerCopy
+}
+
+func mediaURLHasPath(rawURL string) bool {
+	trimmedURL := strings.TrimSpace(rawURL)
+	if trimmedURL == "" {
+		return false
+	}
+
+	withoutScheme := strings.TrimPrefix(strings.TrimPrefix(trimmedURL, "https://"), "http://")
+	slashIndex := strings.Index(withoutScheme, "/")
+	return slashIndex >= 0 && slashIndex < len(withoutScheme)-1
 }
 
 func isNonFatalDownloadWarning(err error) bool {
