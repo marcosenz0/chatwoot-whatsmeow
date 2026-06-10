@@ -26,14 +26,22 @@ const previewHasError = ref(false);
 const showPreview = ref(false);
 const isLoadingFavorite = ref(false);
 const favorite = ref(null);
+const reloadAttempt = ref(0);
 
-const sourceUrl = computed(
+const rawSourceUrl = computed(
   () =>
     stickerDataUrl(props.attachment) ||
     props.attachment?.thumbUrl ||
     props.attachment?.thumb_url ||
     ''
 );
+const sourceUrl = computed(() => {
+  const url = rawSourceUrl.value;
+  if (!url || url.startsWith('data:') || !reloadAttempt.value) return url;
+
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}sticker_reload=${reloadAttempt.value}`;
+});
 const senderName = computed(
   () => sender.value?.name || t('CONVERSATION.WHATSMEOW_STICKER.UNKNOWN_SENDER')
 );
@@ -43,7 +51,7 @@ const favoriteLabel = computed(() =>
     : t('CONVERSATION.WHATSMEOW_STICKER.ADD_FAVORITE')
 );
 const canOpenPreview = computed(
-  () => !!sourceUrl.value && !thumbnailHasError.value
+  () => !!rawSourceUrl.value && !thumbnailHasError.value
 );
 
 const openPreview = () => {
@@ -56,6 +64,14 @@ const handleThumbnailError = () => {
 
 const handlePreviewError = () => {
   previewHasError.value = true;
+};
+
+const retryStickerLoad = event => {
+  event?.preventDefault();
+  event?.stopPropagation();
+  thumbnailHasError.value = false;
+  previewHasError.value = false;
+  reloadAttempt.value += 1;
 };
 
 const findFavorite = async () => {
@@ -99,7 +115,8 @@ watch(showPreview, value => {
   }
 });
 
-watch(sourceUrl, () => {
+watch(rawSourceUrl, () => {
+  reloadAttempt.value = 0;
   thumbnailHasError.value = false;
   previewHasError.value = false;
 });
@@ -110,15 +127,22 @@ watch(sourceUrl, () => {
     type="button"
     data-whatsmeow-sticker-context="true"
     class="group relative grid size-28 shrink-0 place-items-center overflow-hidden rounded-xl bg-transparent p-1 enabled:hover:bg-n-alpha-1 disabled:cursor-default"
-    :disabled="!canOpenPreview"
-    @click="openPreview"
+    :disabled="!rawSourceUrl"
+    @click="thumbnailHasError ? retryStickerLoad($event) : openPreview()"
   >
     <span
-      v-if="thumbnailHasError || !sourceUrl"
+      v-if="thumbnailHasError || !rawSourceUrl"
       class="flex size-full flex-col items-center justify-center gap-1 rounded-lg bg-n-alpha-1 p-2 text-center text-xs text-n-slate-11"
     >
       <Icon icon="i-lucide-circle-off" class="text-n-slate-11" />
-      {{ $t('COMPONENTS.MEDIA.LOADING_FAILED') }}
+      <span>{{ $t('COMPONENTS.MEDIA.LOADING_FAILED') }}</span>
+      <span
+        v-if="rawSourceUrl"
+        class="inline-flex items-center gap-1 rounded-md bg-n-alpha-2 px-2 py-1 text-[0.6875rem] font-medium text-n-slate-12 group-hover:bg-n-alpha-3"
+      >
+        <Icon icon="i-lucide-refresh-cw" class="size-3" />
+        {{ $t('CONVERSATION.WHATSMEOW_STICKER.RELOAD') }}
+      </span>
     </span>
     <img
       v-else
@@ -177,6 +201,15 @@ watch(sourceUrl, () => {
         >
           <Icon icon="i-lucide-circle-off" class="size-6" />
           {{ $t('COMPONENTS.MEDIA.LOADING_FAILED') }}
+          <button
+            v-if="rawSourceUrl"
+            type="button"
+            class="mt-2 inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/15"
+            @click="retryStickerLoad"
+          >
+            <Icon icon="i-lucide-refresh-cw" class="size-4" />
+            {{ $t('CONVERSATION.WHATSMEOW_STICKER.RELOAD') }}
+          </button>
         </div>
         <Button
           class="mt-8"

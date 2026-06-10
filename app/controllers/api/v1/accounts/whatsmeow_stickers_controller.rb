@@ -117,13 +117,17 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
       message_type: :outgoing,
       status: :sent,
       sender: current_user,
-      content_attributes: { whatsmeow_sticker: true, skip_send_reply_job: true }
+      content_attributes: {
+        whatsmeow_sticker: true,
+        whatsmeow_sticker_id: sticker.id,
+        skip_send_reply_job: true
+      }
     )
 
     attachment = message.attachments.build(
       account: Current.account,
       file_type: :image,
-      meta: public_sticker_metadata(metadata).merge(whatsmeow_sticker: true).stringify_keys
+      meta: sticker_attachment_metadata(metadata).merge(whatsmeow_sticker: true).stringify_keys
     )
     attachment.file.attach(
       io: sticker_file_io(metadata),
@@ -142,6 +146,12 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
 
   def public_sticker_metadata(metadata)
     metadata.except(:data_base64, 'data_base64')
+  end
+
+  def sticker_attachment_metadata(metadata)
+    metadata.with_indifferent_access
+            .slice(:data_base64, :file_name, :content_type, :file_size)
+            .compact_blank
   end
 
   def sticker_data_url(metadata)

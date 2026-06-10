@@ -395,6 +395,7 @@
       "PICKER_TITLE": "Stickers",
       "PICKER_SUBTITLE": "Saved WhatsApp favorites",
       "REFRESH": "Refresh stickers",
+      "RELOAD": "Reload",
       "LOADING": "Loading stickers...",
       "NO_STICKERS": "No saved stickers",
       "NO_STICKERS_HINT": "Open a received sticker and add it to favorites.",

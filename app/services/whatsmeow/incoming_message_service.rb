@@ -466,9 +466,26 @@ class Whatsmeow::IncomingMessageService
   end
 
   def attachment_meta(attachment)
-    return {} unless attachment[:meta].respond_to?(:to_h)
+    meta = attachment[:meta].respond_to?(:to_h) ? attachment[:meta].to_h.with_indifferent_access.compact_blank : {}
+    return meta unless whatsmeow_sticker_meta?(meta)
 
-    attachment[:meta].to_h.compact_blank
+    meta.merge(sticker_attachment_meta(attachment))
+  end
+
+  def whatsmeow_sticker_meta?(meta)
+    ActiveModel::Type::Boolean.new.cast(meta[:whatsmeow_sticker] || meta[:whatsmeowSticker])
+  end
+
+  def sticker_attachment_meta(attachment)
+    content_type = normalized_content_type(attachment[:content_type])
+    content_type = 'image/webp' if content_type == 'application/octet-stream'
+
+    {
+      data_base64: attachment[:data_base64],
+      file_name: attachment[:file_name],
+      content_type: content_type,
+      file_size: attachment[:file_size]
+    }.compact_blank
   end
 
   def contact_params
