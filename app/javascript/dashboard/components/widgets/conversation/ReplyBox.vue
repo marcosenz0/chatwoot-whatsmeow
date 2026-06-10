@@ -394,7 +394,13 @@ export default {
       return this.fetchSignatureFlagFromUISettings(this.channelType);
     },
     conversationId() {
-      return this.currentChat.id;
+      return this.routeConversationId || this.currentChat.id;
+    },
+    routeConversationId() {
+      const routeParams = this.$route.params || {};
+      return Number(
+        routeParams.conversation_id || routeParams.conversationId || 0
+      );
     },
     conversationIdByRoute() {
       return this.conversationId;
@@ -508,6 +514,7 @@ export default {
     },
     conversationIdByRoute(conversationId, oldConversationId) {
       if (conversationId !== oldConversationId) {
+        this.hideWhatsmeowStickerPicker();
         this.setToDraft(oldConversationId, this.replyType);
         this.getFromDraft();
         this.resetRecorderAndClearAttachments();
@@ -803,6 +810,16 @@ export default {
     },
     onSendWhatsmeowSticker(message) {
       if (message) {
+        const messageConversationId = Number(
+          message.conversation_id || message.conversationId || 0
+        );
+        if (messageConversationId !== Number(this.conversationId)) {
+          useAlert(
+            this.$t('CONVERSATION.WHATSMEOW_STICKER.CONVERSATION_CHANGED')
+          );
+          this.hideWhatsmeowStickerPicker();
+          return;
+        }
         this.$store.dispatch('addMessage', message);
       }
       this.hideWhatsmeowStickerPicker();

@@ -386,6 +386,7 @@
       "LOAD_FAILED": "Nao foi possivel carregar as figurinhas.",
       "SAVE_FAILED": "Nao foi possivel salvar a figurinha.",
       "SEND_FAILED": "Nao foi possivel enviar a figurinha.",
+      "CONVERSATION_CHANGED": "A conversa mudou. Reabra o painel de figurinhas e tente novamente.",
       "UNAVAILABLE": "Esta figurinha salva esta indisponivel. Remova dos favoritos e salve novamente."
     }
   },

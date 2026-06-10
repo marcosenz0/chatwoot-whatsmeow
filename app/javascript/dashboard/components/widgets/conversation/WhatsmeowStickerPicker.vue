@@ -27,8 +27,10 @@ const sendingStickerId = ref(null);
 const deletingStickerId = ref(null);
 const failedStickerIds = ref(new Set());
 const activeMenuStickerId = ref(null);
+const openedConversationId = ref(null);
 
 const hasStickers = computed(() => stickers.value.length > 0);
+const activeConversationId = computed(() => Number(props.conversationId || 0));
 
 const stickerImageUrl = sticker =>
   stickerDataUrl(sticker) || sticker?.thumbUrl || sticker?.thumb_url || '';
@@ -64,7 +66,29 @@ const loadStickers = async () => {
   }
 };
 
+const stickerSendErrorMessage = error => {
+  if (error?.response?.status === 409) {
+    return t('CONVERSATION.WHATSMEOW_STICKER.CONVERSATION_CHANGED');
+  }
+
+  if (error?.response?.status === 422) {
+    return t('CONVERSATION.WHATSMEOW_STICKER.UNAVAILABLE');
+  }
+
+  return t('CONVERSATION.WHATSMEOW_STICKER.SEND_FAILED');
+};
+
 const sendSticker = async sticker => {
+  const targetConversationId = activeConversationId.value;
+  if (
+    !targetConversationId ||
+    openedConversationId.value !== targetConversationId
+  ) {
+    emit('close');
+    useAlert(t('CONVERSATION.WHATSMEOW_STICKER.CONVERSATION_CHANGED'));
+    return;
+  }
+
   if (!stickerIsAvailable(sticker)) {
     useAlert(t('CONVERSATION.WHATSMEOW_STICKER.UNAVAILABLE'));
     return;
@@ -75,15 +99,12 @@ const sendSticker = async sticker => {
   try {
     const { data } = await WhatsmeowStickersAPI.send(
       sticker.id,
-      props.conversationId
+      targetConversationId,
+      openedConversationId.value
     );
     emit('sent', data.payload);
   } catch (error) {
-    useAlert(
-      error?.response?.status === 422
-        ? t('CONVERSATION.WHATSMEOW_STICKER.UNAVAILABLE')
-        : t('CONVERSATION.WHATSMEOW_STICKER.SEND_FAILED')
-    );
+    useAlert(stickerSendErrorMessage(error));
   } finally {
     sendingStickerId.value = null;
   }
@@ -116,9 +137,25 @@ const removeSticker = async sticker => {
 watch(
   () => props.isOpen,
   value => {
-    if (value) loadStickers();
+    if (value) {
+      openedConversationId.value = activeConversationId.value;
+      loadStickers();
+    } else {
+      openedConversationId.value = null;
+      closeStickerMenu();
+    }
   }
 );
+
+watch(activeConversationId, conversationId => {
+  if (
+    props.isOpen &&
+    openedConversationId.value &&
+    openedConversationId.value !== conversationId
+  ) {
+    emit('close');
+  }
+});
 </script>
 
 <template>

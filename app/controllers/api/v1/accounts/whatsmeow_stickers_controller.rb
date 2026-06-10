@@ -41,7 +41,9 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
   def send_sticker
     authorize @sticker, :send?
 
-    conversation = Current.account.conversations.find(sticker_params[:conversation_id])
+    return render_conversation_mismatch unless matching_conversation_request?
+
+    conversation = Current.account.conversations.find_by!(display_id: sticker_params[:conversation_id])
     authorize conversation, :show?
 
     metadata = persisted_sticker_metadata(@sticker)
@@ -60,7 +62,21 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
   end
 
   def sticker_params
-    params.permit(:attachment_id, :conversation_id)
+    params.permit(:attachment_id, :conversation_id, :conversation_context_id)
+  end
+
+  def matching_conversation_request?
+    conversation_display_id = integer_param(:conversation_id)
+    context_display_id = integer_param(:conversation_context_id)
+
+    conversation_display_id.present? && context_display_id.present? && conversation_display_id == context_display_id
+  end
+
+  def integer_param(key)
+    value = sticker_params[key]
+    return if value.blank?
+
+    Integer(value, exception: false)
   end
 
   def sticker_attachment?(attachment)
@@ -136,6 +152,10 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
 
   def render_unavailable_sticker
     render json: { error: 'Sticker file is unavailable. Remove it from favorites and save it again.' }, status: :unprocessable_entity
+  end
+
+  def render_conversation_mismatch
+    render json: { error: 'Sticker target conversation changed. Reopen the sticker panel and try again.' }, status: :conflict
   end
 
   def deliver_sticker_message(message)

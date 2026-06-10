@@ -407,6 +407,7 @@
       "LOAD_FAILED": "Could not load stickers.",
       "SAVE_FAILED": "Could not save sticker.",
       "SEND_FAILED": "Could not send sticker.",
+      "CONVERSATION_CHANGED": "The conversation changed. Reopen the sticker panel and try again.",
       "UNAVAILABLE": "This saved sticker is unavailable. Remove it from favorites and save it again."
     }
   },
