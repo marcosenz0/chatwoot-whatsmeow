@@ -104,12 +104,12 @@ watch(showPreview, value => {
   <Teleport to="body">
     <div
       v-if="showPreview"
-      class="fixed inset-0 z-[9999] flex flex-col bg-n-slate-12/95 text-white"
+      class="fixed inset-0 z-[9999] flex flex-col bg-black/95 text-white"
     >
       <div class="flex items-center justify-between px-6 py-5">
         <div class="flex min-w-0 items-center gap-3">
           <div
-            class="grid size-10 shrink-0 place-items-center rounded-full bg-n-slate-11/20 font-semibold text-white"
+            class="grid size-10 shrink-0 place-items-center rounded-full bg-white/10 font-semibold text-white"
           >
             {{ senderName.slice(0, 1).toUpperCase() }}
           </div>
@@ -120,7 +120,14 @@ watch(showPreview, value => {
             </p>
           </div>
         </div>
-        <Button icon="i-lucide-x" slate faded sm @click="showPreview = false" />
+        <Button
+          class="text-white"
+          icon="i-lucide-x"
+          slate
+          faded
+          sm
+          @click="showPreview = false"
+        />
       </div>
 
       <div
@@ -141,7 +148,7 @@ watch(showPreview, value => {
           {{ $t('COMPONENTS.MEDIA.LOADING_FAILED') }}
         </div>
         <Button
-          class="mt-8"
+          class="mt-8 border border-white/10 bg-white/5 text-white hover:bg-white/10"
           :label="favoriteLabel"
           :icon="favorite ? 'i-lucide-star-off' : 'i-lucide-star'"
           :is-loading="isLoadingFavorite"
