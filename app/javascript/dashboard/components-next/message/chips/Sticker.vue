@@ -21,12 +21,19 @@ const props = defineProps({
 const { sender } = useMessageContext();
 const { t } = useI18n();
 
-const hasError = ref(false);
+const thumbnailHasError = ref(false);
+const previewHasError = ref(false);
 const showPreview = ref(false);
 const isLoadingFavorite = ref(false);
 const favorite = ref(null);
 
-const sourceUrl = computed(() => stickerDataUrl(props.attachment));
+const sourceUrl = computed(
+  () =>
+    stickerDataUrl(props.attachment) ||
+    props.attachment?.thumbUrl ||
+    props.attachment?.thumb_url ||
+    ''
+);
 const senderName = computed(
   () => sender.value?.name || t('CONVERSATION.WHATSMEOW_STICKER.UNKNOWN_SENDER')
 );
@@ -35,9 +42,20 @@ const favoriteLabel = computed(() =>
     ? t('CONVERSATION.WHATSMEOW_STICKER.REMOVE_FAVORITE')
     : t('CONVERSATION.WHATSMEOW_STICKER.ADD_FAVORITE')
 );
+const canOpenPreview = computed(
+  () => !!sourceUrl.value && !thumbnailHasError.value
+);
 
-const handleError = () => {
-  hasError.value = true;
+const openPreview = () => {
+  if (canOpenPreview.value) showPreview.value = true;
+};
+
+const handleThumbnailError = () => {
+  thumbnailHasError.value = true;
+};
+
+const handlePreviewError = () => {
+  previewHasError.value = true;
 };
 
 const findFavorite = async () => {
@@ -75,18 +93,27 @@ const toggleFavorite = async () => {
 };
 
 watch(showPreview, value => {
-  if (value) findFavorite();
+  if (value) {
+    previewHasError.value = false;
+    findFavorite();
+  }
+});
+
+watch(sourceUrl, () => {
+  thumbnailHasError.value = false;
+  previewHasError.value = false;
 });
 </script>
 
 <template>
   <button
     type="button"
-    class="group relative grid size-28 shrink-0 place-items-center overflow-hidden rounded-xl bg-transparent p-1 hover:bg-n-alpha-1"
-    @click="showPreview = true"
+    class="group relative grid size-28 shrink-0 place-items-center overflow-hidden rounded-xl bg-transparent p-1 enabled:hover:bg-n-alpha-1 disabled:cursor-default"
+    :disabled="!canOpenPreview"
+    @click="openPreview"
   >
     <span
-      v-if="hasError"
+      v-if="thumbnailHasError || !sourceUrl"
       class="flex size-full flex-col items-center justify-center gap-1 rounded-lg bg-n-alpha-1 p-2 text-center text-xs text-n-slate-11"
     >
       <Icon icon="i-lucide-circle-off" class="text-n-slate-11" />
@@ -97,14 +124,15 @@ watch(showPreview, value => {
       class="max-h-28 max-w-28 object-contain skip-context-menu"
       :src="sourceUrl"
       :alt="$t('CONVERSATION.WHATSMEOW_STICKER.PREVIEW_TITLE')"
-      @error="handleError"
+      @error="handleThumbnailError"
     />
   </button>
 
   <Teleport to="body">
     <div
       v-if="showPreview"
-      class="fixed inset-0 z-[9999] flex flex-col bg-black/95 text-white"
+      class="fixed inset-0 z-[9999] flex flex-col bg-slate-900 text-white"
+      @click.self="showPreview = false"
     >
       <div class="flex items-center justify-between px-6 py-5">
         <div class="flex min-w-0 items-center gap-3">
@@ -120,25 +148,25 @@ watch(showPreview, value => {
             </p>
           </div>
         </div>
-        <Button
-          class="text-white"
-          icon="i-lucide-x"
-          slate
-          faded
-          sm
+        <button
+          type="button"
+          class="grid size-9 place-items-center rounded-lg bg-white/10 text-white hover:bg-white/15"
+          :aria-label="$t('GENERAL.CLOSE')"
           @click="showPreview = false"
-        />
+        >
+          <Icon icon="i-lucide-x" class="size-5" />
+        </button>
       </div>
 
       <div
         class="flex min-h-0 flex-1 flex-col items-center justify-center px-6"
       >
         <img
-          v-if="!hasError"
+          v-if="sourceUrl && !previewHasError"
           class="max-h-[62vh] max-w-[min(28rem,80vw)] object-contain"
           :src="sourceUrl"
           :alt="$t('CONVERSATION.WHATSMEOW_STICKER.PREVIEW_TITLE')"
-          @error="handleError"
+          @error="handlePreviewError"
         />
         <div
           v-else
@@ -148,7 +176,7 @@ watch(showPreview, value => {
           {{ $t('COMPONENTS.MEDIA.LOADING_FAILED') }}
         </div>
         <Button
-          class="mt-8 border border-white/10 bg-white/5 text-white hover:bg-white/10"
+          class="mt-8"
           :label="favoriteLabel"
           :icon="favorite ? 'i-lucide-star-off' : 'i-lucide-star'"
           :is-loading="isLoadingFavorite"
