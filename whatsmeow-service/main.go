@@ -2859,12 +2859,17 @@ func unwrapMessage(message *proto.Message) *proto.Message {
 }
 
 func downloadAttachment(client *whatsmeow.Client, media whatsmeow.DownloadableMessage, fileType string, contentType string, fileName string, meta map[string]interface{}) []WhatsmeowAttachment {
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	timeout := 45 * time.Second
+	if strings.EqualFold(fileType, "audio") || strings.EqualFold(fileType, "video") {
+		timeout = 90 * time.Second
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	data, err := client.Download(ctx, media)
 	if err != nil {
-		if len(data) == 0 || !isNonFatalDownloadWarning(err) {
+		if len(data) == 0 || !shouldUseDownloadedDataWithWarning(fileType, meta, err) {
 			log.Printf("Failed to download incoming %s attachment: %v", fileType, err)
 			return nil
 		}
@@ -2878,6 +2883,9 @@ func downloadAttachment(client *whatsmeow.Client, media whatsmeow.DownloadableMe
 	contentType = normalizedMIME(contentType, fallbackMIME(fileType))
 	if fileName == "" {
 		fileName = defaultFileName(fileType, contentType)
+	}
+	if strings.EqualFold(fileType, "audio") {
+		meta = enrichDownloadedAudioMeta(meta, data, contentType)
 	}
 
 	return []WhatsmeowAttachment{{
@@ -2912,6 +2920,45 @@ func mediaURLHasPath(rawURL string) bool {
 
 func isNonFatalDownloadWarning(err error) bool {
 	return errors.Is(err, whatsmeow.ErrFileLengthMismatch) || errors.Is(err, whatsmeow.ErrInvalidMediaSHA256)
+}
+
+func shouldUseDownloadedDataWithWarning(fileType string, meta map[string]interface{}, err error) bool {
+	if !isNonFatalDownloadWarning(err) {
+		return false
+	}
+
+	return strings.EqualFold(fileType, "image") && (metaBool(meta, "whatsmeow_sticker") || metaBool(meta, "whatsmeowSticker"))
+}
+
+func enrichDownloadedAudioMeta(meta map[string]interface{}, data []byte, contentType string) map[string]interface{} {
+	enriched := cloneAttachmentMeta(meta)
+	probeCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	seconds, err := probeAudioDuration(probeCtx, data, contentType)
+	if err != nil {
+		log.Printf("Failed to probe incoming audio duration: %v", err)
+		return compactAttachmentMeta(enriched)
+	}
+
+	enriched["duration_seconds"] = seconds
+	enriched["duration_source"] = "probe"
+	return compactAttachmentMeta(enriched)
+}
+
+func cloneAttachmentMeta(meta map[string]interface{}) map[string]interface{} {
+	cloned := map[string]interface{}{}
+	for key, value := range meta {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func compactAttachmentMeta(meta map[string]interface{}) map[string]interface{} {
+	if len(meta) == 0 {
+		return nil
+	}
+	return meta
 }
 
 func stickerThumbnailAttachment(sticker *proto.StickerMessage) []WhatsmeowAttachment {

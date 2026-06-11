@@ -159,6 +159,8 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 
 - Audio message UI now uses a WhatsApp-like compact player. Recorded/voice-note audio shows sender avatar, waveform bars, and a playback speed pill only while playing; uploaded audio files show a headphones icon and a flat progress line.
 - Incoming WhatsApp audio metadata now preserves PTT, duration, and waveform from `whatsmeow-service`, allowing received voice notes to render differently from normal audio files.
+- Incoming audio downloads now reject partial file-length/hash warning payloads instead of saving truncated clips; complete audio files are probed with `ffprobe` so Chatwoot stores the real duration from the downloaded media.
+- The audio player preloads browser metadata, falls back to stored duration when needed, and keeps the waveform row visually aligned with the play control.
 
 - Send and receive direct text messages.
 - Send and receive group text messages.

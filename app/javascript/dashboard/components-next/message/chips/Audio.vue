@@ -32,6 +32,7 @@ defineOptions({
 const { contentAttributes, orientation, sender } = useMessageContext();
 
 const timeStampURL = computed(() => {
+  if (!props.attachment.dataUrl) return '';
   return timeStampAppendedURL(props.attachment.dataUrl);
 });
 
@@ -99,8 +100,13 @@ const isPlaying = ref(false);
 const currentTime = ref(0);
 const duration = ref(0);
 const playbackSpeed = ref(1);
+const hasPlayableSource = computed(() => Boolean(timeStampURL.value));
 
 const { uid } = getCurrentInstance();
+
+const setDuration = value => {
+  if (Number.isFinite(value) && value > 0) duration.value = value;
+};
 
 const resolveStreamingDuration = () => {
   const el = audioPlayer.value;
@@ -108,7 +114,7 @@ const resolveStreamingDuration = () => {
   const onTimeUpdate = () => {
     el.removeEventListener('timeupdate', onTimeUpdate);
     el.currentTime = 0;
-    duration.value = el.duration;
+    setDuration(el.duration);
   };
   el.addEventListener('timeupdate', onTimeUpdate);
   try {
@@ -118,13 +124,18 @@ const resolveStreamingDuration = () => {
   }
 };
 
+const syncDuration = () => {
+  const d = audioPlayer.value?.duration;
+  setDuration(d);
+};
+
 const onLoadedMetadata = () => {
   const d = audioPlayer.value?.duration;
-  if (!Number.isFinite(d)) {
+  if (!Number.isFinite(d) || d <= 0) {
     resolveStreamingDuration();
     return;
   }
-  duration.value = d;
+  setDuration(d);
 };
 
 const effectiveDuration = computed(() => duration.value || metaDuration.value);
@@ -137,9 +148,11 @@ const formatTime = time => {
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 };
 
-const displayTime = computed(() =>
-  formatTime(currentTime.value || effectiveDuration.value)
-);
+const displayTime = computed(() => {
+  if (isPlaying.value || currentTime.value > 0)
+    return formatTime(currentTime.value);
+  return formatTime(effectiveDuration.value);
+});
 
 const DEFAULT_VOICE_WAVEFORM = [
   1, 2, 1, 3, 2, 4, 2, 5, 3, 6, 4, 3, 5, 2, 4, 6, 3, 2, 5, 4, 6, 3, 2, 4, 5, 2,
@@ -207,7 +220,7 @@ const barColorClass = index =>
 
 onMounted(() => {
   const d = audioPlayer.value?.duration;
-  if (Number.isFinite(d)) duration.value = d;
+  setDuration(d);
   if (metaDuration.value && !duration.value)
     duration.value = metaDuration.value;
   if (audioPlayer.value) audioPlayer.value.playbackRate = playbackSpeed.value;
@@ -234,7 +247,9 @@ const seek = event => {
   currentTime.value = time;
 };
 
-const playOrPause = () => {
+const playOrPause = async () => {
+  if (!audioPlayer.value || !hasPlayableSource.value) return;
+
   if (isPlaying.value) {
     audioPlayer.value.pause();
     isPlaying.value = false;
@@ -242,8 +257,13 @@ const playOrPause = () => {
   }
 
   emitter.emit('pause_playing_audio', uid);
-  audioPlayer.value.play();
-  isPlaying.value = true;
+  try {
+    await audioPlayer.value.play();
+    syncDuration();
+    isPlaying.value = true;
+  } catch {
+    isPlaying.value = false;
+  }
 };
 
 const onEnd = () => {
@@ -265,15 +285,17 @@ const changePlaybackSpeed = () => {
 <template>
   <audio
     ref="audioPlayer"
-    controls
     class="hidden"
     playsinline
+    preload="metadata"
+    :src="timeStampURL"
     @loadedmetadata="onLoadedMetadata"
+    @loadeddata="syncDuration"
+    @durationchange="syncDuration"
+    @canplay="syncDuration"
     @timeupdate="onTimeUpdate"
     @ended="onEnd"
-  >
-    <source :src="timeStampURL" />
-  </audio>
+  />
   <div v-bind="$attrs" class="flex w-full max-w-96 flex-col gap-2">
     <div :class="playerClass">
       <div v-if="isRecordedAudio && isOutgoing" class="relative shrink-0">
@@ -302,6 +324,8 @@ const changePlaybackSpeed = () => {
 
       <button
         class="grid size-8 shrink-0 place-items-center border-0 p-0 text-n-slate-12"
+        :class="{ 'cursor-not-allowed opacity-50': !hasPlayableSource }"
+        :disabled="!hasPlayableSource"
         @click="playOrPause"
       >
         <Icon
@@ -312,9 +336,9 @@ const changePlaybackSpeed = () => {
         <Icon v-else class="size-8" icon="i-teenyicons-play-small-solid" />
       </button>
 
-      <div class="flex min-w-0 flex-1 flex-col">
-        <div class="relative flex h-8 min-w-32 items-center">
-          <div class="flex w-full items-center gap-0.5">
+      <div class="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
+        <div class="relative flex h-5 min-w-32 items-center">
+          <div class="flex h-5 w-full items-center gap-0.5">
             <span
               v-for="(height, index) in waveformBars"
               :key="`${height}-${index}`"
@@ -331,7 +355,9 @@ const changePlaybackSpeed = () => {
             @input="seek"
           />
         </div>
-        <span class="tabular-nums text-[11px] font-medium text-n-slate-11">
+        <span
+          class="tabular-nums text-[11px] font-medium leading-none text-n-slate-11"
+        >
           {{ displayTime }}
         </span>
       </div>
