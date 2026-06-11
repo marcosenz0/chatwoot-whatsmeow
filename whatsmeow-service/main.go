@@ -2733,7 +2733,14 @@ func extractMediaAttachments(client *whatsmeow.Client, message *proto.Message) [
 		return downloadAttachment(client, video, "video", video.GetMimetype(), defaultFileName("video", video.GetMimetype()), nil)
 	}
 	if audio := message.GetAudioMessage(); audio != nil {
-		return downloadAttachment(client, audio, "audio", audio.GetMimetype(), defaultFileName("audio", audio.GetMimetype()), nil)
+		return downloadAttachment(
+			client,
+			audio,
+			"audio",
+			audio.GetMimetype(),
+			defaultFileName("audio", audio.GetMimetype()),
+			audioAttachmentMeta(audio),
+		)
 	}
 	if document := message.GetDocumentMessage(); document != nil {
 		fileName := document.GetFileName()
@@ -2773,6 +2780,29 @@ func extractMediaAttachments(client *whatsmeow.Client, message *proto.Message) [
 	}
 
 	return nil
+}
+
+func audioAttachmentMeta(audio *proto.AudioMessage) map[string]interface{} {
+	if audio == nil {
+		return nil
+	}
+
+	meta := map[string]interface{}{}
+	if audio.GetPTT() {
+		meta["recorded_audio"] = true
+		meta["ptt"] = true
+	}
+	if audio.GetSeconds() > 0 {
+		meta["duration_seconds"] = audio.GetSeconds()
+	}
+	if waveform := audio.GetWaveform(); len(waveform) > 0 {
+		meta["waveform"] = base64.StdEncoding.EncodeToString(waveform)
+	}
+	if len(meta) == 0 {
+		return nil
+	}
+
+	return meta
 }
 
 func hasMediaMessage(message *proto.Message) bool {
