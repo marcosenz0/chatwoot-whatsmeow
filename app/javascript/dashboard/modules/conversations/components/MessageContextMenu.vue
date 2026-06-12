@@ -15,6 +15,17 @@ import MenuItem from '../../../components/widgets/conversation/contextMenu/menuI
 import { useTrack } from 'dashboard/composables';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 
+const AUDIO_FILE_EXTENSIONS = [
+  'aac',
+  'm4a',
+  'mp3',
+  'oga',
+  'ogg',
+  'opus',
+  'wav',
+  'webm',
+];
+
 export default {
   components: {
     AddCannedModal,
@@ -94,6 +105,52 @@ export default {
         this.message.content_attributes ?? this.message.contentAttributes
       );
     },
+    attachments() {
+      return this.message.attachments || [];
+    },
+    audioAttachment() {
+      return this.attachments.find(attachment => {
+        const fileType = attachment.file_type || attachment.fileType;
+        const dataUrl = attachment.data_url || attachment.dataUrl;
+        const contentType = (
+          attachment.content_type ||
+          attachment.contentType ||
+          ''
+        ).toLowerCase();
+        const extension = (attachment.extension || '').toLowerCase();
+
+        return (
+          dataUrl &&
+          (fileType === 'audio' ||
+            contentType.startsWith('audio/') ||
+            AUDIO_FILE_EXTENSIONS.includes(extension))
+        );
+      });
+    },
+    audioDownloadUrl() {
+      return this.audioAttachment?.data_url || this.audioAttachment?.dataUrl;
+    },
+    audioDownloadFileName() {
+      const attachment = this.audioAttachment || {};
+      const configuredName =
+        attachment.file_name ||
+        attachment.fileName ||
+        attachment.filename ||
+        attachment.name;
+      if (configuredName) return configuredName;
+
+      const extension = attachment.extension || 'ogg';
+      try {
+        const url = new URL(this.audioDownloadUrl, window.location.origin);
+        const pathName = decodeURIComponent(url.pathname);
+        const fileName = pathName.split('/').filter(Boolean).pop();
+        if (fileName && fileName.includes('.')) return fileName;
+      } catch {
+        // Ignore URL parse errors and use the fallback filename below.
+      }
+
+      return `audio-${this.messageId}.${extension}`;
+    },
     canSubmitEdit() {
       return this.editableContent.trim().length > 0 && !this.isEditingMessage;
     },
@@ -152,6 +209,37 @@ export default {
     handleReaction(emoji) {
       this.$emit('react', emoji);
       this.handleClose();
+    },
+    triggerFileDownload(url, fileName) {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.rel = 'noreferrer noopener nofollow';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    },
+    async downloadAudio() {
+      const url = this.audioDownloadUrl;
+      if (!url) return;
+
+      this.handleClose();
+
+      try {
+        const response = await fetch(url, { credentials: 'include' });
+        if (!response.ok) throw new Error('Could not download audio');
+
+        const blobUrl = URL.createObjectURL(await response.blob());
+        this.triggerFileDownload(blobUrl, this.audioDownloadFileName);
+        window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      } catch {
+        try {
+          this.triggerFileDownload(url, this.audioDownloadFileName);
+        } catch {
+          useAlert(this.$t('CONVERSATION.CONTEXT_MENU.DOWNLOAD_AUDIO_ERROR'));
+        }
+      }
     },
     openDeleteModal() {
       this.handleClose();
@@ -359,9 +447,9 @@ export default {
       v-if="!hideButton"
       ghost
       slate
-      sm
+      xs
       icon="i-lucide-chevron-down"
-      class="invisible rounded-full bg-n-alpha-2 group-hover/message:visible focus:visible"
+      class="invisible rounded-full bg-n-alpha-2 shadow-sm group-hover/message:visible focus:visible"
       @click="handleOpen"
     />
     <ContextMenu
@@ -395,6 +483,15 @@ export default {
           }"
           variant="icon"
           @click.stop="handleReplyTo"
+        />
+        <MenuItem
+          v-if="enabledOptions['downloadAudio']"
+          :option="{
+            icon: 'arrow-download-outline',
+            label: $t('CONVERSATION.CONTEXT_MENU.DOWNLOAD_AUDIO'),
+          }"
+          variant="icon"
+          @click.stop="downloadAudio"
         />
         <MenuItem
           v-if="enabledOptions['copy']"

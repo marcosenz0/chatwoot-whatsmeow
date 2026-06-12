@@ -313,6 +313,8 @@
       "PERMANENT_DELETE": "Delete permanently",
       "DELETE_FOR_EVERYONE": "Delete for everyone",
       "EDIT": "Edit",
+      "DOWNLOAD_AUDIO": "Download audio",
+      "DOWNLOAD_AUDIO_ERROR": "Could not download the audio. Please try again.",
       "CREATE_A_CANNED_RESPONSE": "Add to canned responses",
       "TRANSLATE": "Translate",
       "COPY_PERMALINK": "Copy link to the message",

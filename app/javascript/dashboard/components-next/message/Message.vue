@@ -145,6 +145,17 @@ const props = defineProps({
 
 const emit = defineEmits(['retry']);
 
+const AUDIO_FILE_EXTENSIONS = [
+  'aac',
+  'm4a',
+  'mp3',
+  'oga',
+  'ogg',
+  'opus',
+  'wav',
+  'webm',
+];
+
 const contextMenuPosition = ref({});
 const showBackgroundHighlight = ref(false);
 const showContextMenu = ref(false);
@@ -376,6 +387,7 @@ const isLocallyDeleted = computed(() => {
 const payloadForContextMenu = computed(() => {
   return {
     id: props.id,
+    attachments: props.attachments,
     content_attributes: props.contentAttributes,
     content: props.content,
     conversation_id: props.conversationId,
@@ -476,6 +488,26 @@ const canEditMessage = computed(() => {
   );
 });
 
+const isAudioAttachment = attachment => {
+  const fileType = attachment.fileType || attachment.file_type;
+  const contentType = (
+    attachment.contentType ||
+    attachment.content_type ||
+    ''
+  ).toLowerCase();
+  const extension = (attachment.extension || '').toLowerCase();
+
+  return (
+    fileType === ATTACHMENT_TYPES.AUDIO ||
+    contentType.startsWith('audio/') ||
+    AUDIO_FILE_EXTENSIONS.includes(extension)
+  );
+};
+
+const hasAudioAttachment = computed(() =>
+  props.attachments?.some(attachment => isAudioAttachment(attachment))
+);
+
 const contextMenuEnabledOptions = computed(() => {
   const hasText = !!props.content;
   const hasAttachments = !!(props.attachments && props.attachments.length > 0);
@@ -500,6 +532,10 @@ const contextMenuEnabledOptions = computed(() => {
       !props.private &&
       props.inboxSupportsReplyTo.outgoing &&
       !isFailedOrProcessing.value,
+    downloadAudio:
+      hasAudioAttachment.value &&
+      !isFailedOrProcessing.value &&
+      !isMessageDeleted.value,
     reaction: canReactToMessage.value,
     edit: canEditMessage.value,
     deleteForEveryone: canDeleteForEveryone.value,
@@ -532,7 +568,9 @@ function openContextMenu(e) {
   const isWhatsmeowStickerContextTarget = target?.closest?.(
     '[data-whatsmeow-sticker-context]'
   );
+  const isAudioContextTarget = target?.closest?.('[data-bubble-name="audio"]');
   const shouldSkipContextMenu =
+    !isAudioContextTarget &&
     !isWhatsmeowStickerContextTarget &&
     (target?.classList.contains('skip-context-menu') ||
       ['a', 'img'].includes(target?.tagName.toLowerCase()));
@@ -738,7 +776,7 @@ provideMessageContext({
         <Avatar v-bind="avatarInfo" :size="24" />
       </div>
       <div
-        class="[grid-area:bubble] flex min-w-0 items-end gap-1"
+        class="[grid-area:bubble] relative flex min-w-0 items-end gap-1"
         :class="{
           'ltr:ml-8 rtl:mr-8 justify-end': orientation === ORIENTATION.RIGHT,
           'ltr:mr-8 rtl:ml-8': orientation === ORIENTATION.LEFT,
@@ -793,6 +831,13 @@ provideMessageContext({
         />
         <ContextMenu
           v-if="shouldShowContextMenu && isBubble"
+          class="absolute top-1 z-20"
+          :class="{
+            'right-0 translate-x-[calc(100%+0.25rem)]':
+              orientation === ORIENTATION.RIGHT,
+            'left-0 -translate-x-[calc(100%+0.25rem)]':
+              orientation === ORIENTATION.LEFT,
+          }"
           :context-menu-position="contextMenuPosition"
           :is-open="showContextMenu"
           :enabled-options="contextMenuEnabledOptions"

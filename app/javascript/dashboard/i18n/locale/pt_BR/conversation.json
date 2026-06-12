@@ -297,6 +297,8 @@
       "PERMANENT_DELETE": "Excluir permanentemente",
       "DELETE_FOR_EVERYONE": "Excluir para todos",
       "EDIT": "Editar",
+      "DOWNLOAD_AUDIO": "Baixar áudio",
+      "DOWNLOAD_AUDIO_ERROR": "Não foi possível baixar o áudio. Tente novamente.",
       "CREATE_A_CANNED_RESPONSE": "Adicionar às respostas prontas",
       "TRANSLATE": "Traduzir",
       "COPY_PERMALINK": "Copiar link para a mensagem",
