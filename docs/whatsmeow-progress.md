@@ -161,6 +161,7 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Incoming WhatsApp audio metadata now preserves PTT, duration, and waveform from `whatsmeow-service`, allowing received voice notes to render differently from normal audio files.
 - Incoming audio downloads now reject partial file-length/hash warning payloads instead of saving truncated clips; complete audio files are probed with `ffprobe` so Chatwoot stores the real duration from the downloaded media.
 - The audio player preloads browser metadata, falls back to stored duration when needed, and keeps the waveform row visually aligned with the play control.
+- Audio bubbles render the message timestamp/status inside the player chip, resample low-detail waveforms to a consistent visual width, and hint OGG/Opus sources as `audio/ogg; codecs=opus` for better playback of older saved attachments.
 
 - Send and receive direct text messages.
 - Send and receive group text messages.

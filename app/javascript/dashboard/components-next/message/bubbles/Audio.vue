@@ -12,10 +12,11 @@ const attachment = computed(() => {
 </script>
 
 <template>
-  <BaseBubble class="bg-transparent" data-bubble-name="audio">
+  <BaseBubble class="bg-transparent" data-bubble-name="audio" hide-meta>
     <AudioChip
       :attachment="attachment"
       class="p-2 text-n-slate-12 skip-context-menu"
+      show-message-meta
     />
   </BaseBubble>
 </template>

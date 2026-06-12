@@ -11,6 +11,7 @@ import Avatar from 'next/avatar/Avatar.vue';
 import { timeStampAppendedURL } from 'dashboard/helper/URLHelper';
 import { useEmitter } from 'dashboard/composables/emitter';
 import { emitter } from 'shared/helpers/mitt';
+import MessageMeta from '../MessageMeta.vue';
 import { ORIENTATION } from '../constants';
 import { useMessageContext } from '../provider.js';
 
@@ -22,6 +23,10 @@ const props = defineProps({
   showTranscribedText: {
     type: Boolean,
     default: true,
+  },
+  showMessageMeta: {
+    type: Boolean,
+    default: false,
   },
 });
 
@@ -58,6 +63,18 @@ const contentType = computed(() => {
 const extension = computed(() =>
   String(props.attachment.extension || '').toLowerCase()
 );
+const playableContentType = computed(() => {
+  if (
+    ['audio/ogg', 'audio/opus', 'application/ogg'].includes(
+      contentType.value
+    ) ||
+    ['ogg', 'opus'].includes(extension.value)
+  ) {
+    return 'audio/ogg; codecs=opus';
+  }
+
+  return contentType.value || undefined;
+});
 const isOutgoing = computed(() => orientation.value === ORIENTATION.RIGHT);
 const isRecordedAudio = computed(() => {
   const meta = audioMeta.value;
@@ -158,23 +175,49 @@ const DEFAULT_VOICE_WAVEFORM = [
   1, 2, 1, 3, 2, 4, 2, 5, 3, 6, 4, 3, 5, 2, 4, 6, 3, 2, 5, 4, 6, 3, 2, 4, 5, 2,
   3, 6, 4, 2, 5, 3, 2, 4, 6, 5, 3, 1, 4, 2, 5, 3, 2, 1,
 ];
-const FLAT_WAVEFORM = Array.from({ length: 36 }, () => 1);
+const WAVEFORM_BAR_COUNT = 48;
+const FLAT_WAVEFORM = Array.from({ length: WAVEFORM_BAR_COUNT }, () => 1);
+
+const clampWaveformHeight = value =>
+  Math.max(1, Math.min(6, Math.round(Number(value) || 1)));
+
+const resampleWaveform = values => {
+  if (!values.length) return [];
+
+  return Array.from({ length: WAVEFORM_BAR_COUNT }, (_, index) => {
+    if (values.length === 1) return values[0];
+
+    const sourceIndex = Math.round(
+      (index / (WAVEFORM_BAR_COUNT - 1)) * (values.length - 1)
+    );
+    return values[sourceIndex];
+  });
+};
+
+const normalizeWaveform = values => {
+  const heights = resampleWaveform(values.map(clampWaveformHeight));
+  const maxHeight = Math.max(...heights, 1);
+
+  if (maxHeight >= 5) return heights;
+
+  return heights.map(value =>
+    clampWaveformHeight(Math.max(1, (value / maxHeight) * 6))
+  );
+};
+
 const decodedWaveform = computed(() => {
   const rawWaveform = audioMeta.value.waveform;
   if (Array.isArray(rawWaveform)) {
-    return rawWaveform
-      .map(value => Math.max(1, Math.min(6, Math.round(Number(value) || 1))))
-      .slice(0, 48);
+    return normalizeWaveform(rawWaveform);
   }
   if (!rawWaveform || typeof rawWaveform !== 'string') return [];
 
   try {
     const binary = atob(rawWaveform);
-    return Array.from(binary)
-      .map(value =>
-        Math.max(1, Math.min(6, Math.round((value.charCodeAt(0) / 255) * 6)))
-      )
-      .slice(0, 48);
+    const heights = Array.from(binary).map(value =>
+      clampWaveformHeight((value.charCodeAt(0) / 255) * 6)
+    );
+    return normalizeWaveform(heights);
   } catch {
     return [];
   }
@@ -288,14 +331,15 @@ const changePlaybackSpeed = () => {
     class="hidden"
     playsinline
     preload="metadata"
-    :src="timeStampURL"
     @loadedmetadata="onLoadedMetadata"
     @loadeddata="syncDuration"
     @durationchange="syncDuration"
     @canplay="syncDuration"
     @timeupdate="onTimeUpdate"
     @ended="onEnd"
-  />
+  >
+    <source :src="timeStampURL" :type="playableContentType" />
+  </audio>
   <div v-bind="$attrs" class="flex w-full max-w-96 flex-col gap-2">
     <div :class="playerClass">
       <div v-if="isRecordedAudio && isOutgoing" class="relative shrink-0">
@@ -336,9 +380,9 @@ const changePlaybackSpeed = () => {
         <Icon v-else class="size-8" icon="i-teenyicons-play-small-solid" />
       </button>
 
-      <div class="flex min-w-0 flex-1 flex-col justify-center gap-0.5">
-        <div class="relative flex h-5 min-w-32 items-center">
-          <div class="flex h-5 w-full items-center gap-0.5">
+      <div class="flex min-w-0 flex-1 flex-col justify-center gap-1">
+        <div class="relative flex h-6 min-w-44 items-center">
+          <div class="flex h-6 w-full items-center gap-px">
             <span
               v-for="(height, index) in waveformBars"
               :key="`${height}-${index}`"
@@ -355,11 +399,17 @@ const changePlaybackSpeed = () => {
             @input="seek"
           />
         </div>
-        <span
-          class="tabular-nums text-[11px] font-medium leading-none text-n-slate-11"
-        >
-          {{ displayTime }}
-        </span>
+        <div class="flex min-w-0 items-center gap-2 leading-none">
+          <span
+            class="tabular-nums text-[11px] font-medium leading-none text-n-slate-11"
+          >
+            {{ displayTime }}
+          </span>
+          <MessageMeta
+            v-if="props.showMessageMeta"
+            class="ml-auto justify-end text-[10px] font-medium leading-none text-n-slate-11"
+          />
+        </div>
       </div>
 
       <div v-if="isRecordedAudio && !isOutgoing" class="relative shrink-0">
