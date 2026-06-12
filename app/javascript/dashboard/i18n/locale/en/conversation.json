@@ -74,11 +74,19 @@
     "FAIL_DELETE_MESSSAGE": "Couldn't delete message! Try again",
     "SUCCESS_DELETE_FOR_EVERYONE_MESSAGE": "Message deleted for everyone",
     "FAIL_DELETE_FOR_EVERYONE_MESSAGE": "Couldn't delete message for everyone! Try again",
+    "SUCCESS_EDIT_MESSAGE": "Message edited",
+    "FAIL_EDIT_MESSAGE": "Couldn't edit message! Try again",
     "NO_RESPONSE": "No response",
     "RESPONSE": "Response",
     "RATING_TITLE": "Rating",
     "FEEDBACK_TITLE": "Feedback",
     "REPLY_MESSAGE_NOT_FOUND": "Message not available",
+    "EDIT_MESSAGE": {
+      "TITLE": "Edit message",
+      "PLACEHOLDER": "Edit your message",
+      "SAVE": "Save",
+      "CANCEL": "Cancel"
+    },
     "CARD": {
       "SHOW_LABELS": "Show labels",
       "HIDE_LABELS": "Hide labels",
@@ -304,6 +312,7 @@
       "DELETE": "Delete",
       "PERMANENT_DELETE": "Delete permanently",
       "DELETE_FOR_EVERYONE": "Delete for everyone",
+      "EDIT": "Edit",
       "CREATE_A_CANNED_RESPONSE": "Add to canned responses",
       "TRANSLATE": "Translate",
       "COPY_PERMALINK": "Copy link to the message",

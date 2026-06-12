@@ -461,6 +461,21 @@ const canDeleteForEveryone = computed(() => {
   );
 });
 
+const canEditMessage = computed(() => {
+  const hasAttachments = !!(props.attachments && props.attachments.length > 0);
+
+  return (
+    isWhatsmeowInbox.value &&
+    props.messageType === MESSAGE_TYPES.OUTGOING &&
+    !props.private &&
+    !isMessageDeleted.value &&
+    !isFailedOrProcessing.value &&
+    !!props.sourceId &&
+    !!props.content &&
+    !hasAttachments
+  );
+});
+
 const contextMenuEnabledOptions = computed(() => {
   const hasText = !!props.content;
   const hasAttachments = !!(props.attachments && props.attachments.length > 0);
@@ -486,6 +501,7 @@ const contextMenuEnabledOptions = computed(() => {
       props.inboxSupportsReplyTo.outgoing &&
       !isFailedOrProcessing.value,
     reaction: canReactToMessage.value,
+    edit: canEditMessage.value,
     deleteForEveryone: canDeleteForEveryone.value,
   };
 });
@@ -775,6 +791,17 @@ provideMessageContext({
           :orientation="orientation"
           @react="handleReactToMessage"
         />
+        <ContextMenu
+          v-if="shouldShowContextMenu && isBubble"
+          :context-menu-position="contextMenuPosition"
+          :is-open="showContextMenu"
+          :enabled-options="contextMenuEnabledOptions"
+          :message="payloadForContextMenu"
+          @open="openContextMenu"
+          @close="closeContextMenu"
+          @reply-to="handleReplyTo"
+          @react="handleReactToMessage"
+        />
       </div>
       <MessageError
         v-if="contentAttributes.externalError"
@@ -782,20 +809,6 @@ provideMessageContext({
         :class="flexOrientationClass"
         :error="contentAttributes.externalError"
         @retry="emit('retry')"
-      />
-    </div>
-    <div v-if="shouldShowContextMenu" class="context-menu-wrap">
-      <ContextMenu
-        v-if="isBubble"
-        :context-menu-position="contextMenuPosition"
-        :is-open="showContextMenu"
-        :enabled-options="contextMenuEnabledOptions"
-        :message="payloadForContextMenu"
-        hide-button
-        @open="openContextMenu"
-        @close="closeContextMenu"
-        @reply-to="handleReplyTo"
-        @react="handleReactToMessage"
       />
     </div>
   </div>

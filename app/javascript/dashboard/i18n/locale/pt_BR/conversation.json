@@ -73,11 +73,19 @@
     "FAIL_DELETE_MESSSAGE": "Não foi possível excluir a mensagem! Tente novamente",
     "SUCCESS_DELETE_FOR_EVERYONE_MESSAGE": "Mensagem excluída para todos",
     "FAIL_DELETE_FOR_EVERYONE_MESSAGE": "Não foi possível excluir a mensagem para todos! Tente novamente",
+    "SUCCESS_EDIT_MESSAGE": "Mensagem editada",
+    "FAIL_EDIT_MESSAGE": "Nao foi possivel editar a mensagem! Tente novamente",
     "NO_RESPONSE": "Sem resposta",
     "RESPONSE": "Resposta",
     "RATING_TITLE": "Classificação",
     "FEEDBACK_TITLE": "Feedback",
     "REPLY_MESSAGE_NOT_FOUND": "Mensagem não disponível",
+    "EDIT_MESSAGE": {
+      "TITLE": "Editar mensagem",
+      "PLACEHOLDER": "Edite sua mensagem",
+      "SAVE": "Salvar",
+      "CANCEL": "Cancelar"
+    },
     "CARD": {
       "SHOW_LABELS": "Mostrar etiquetas",
       "HIDE_LABELS": "Ocultar as etiquetas",
@@ -288,6 +296,7 @@
       "DELETE": "Excluir",
       "PERMANENT_DELETE": "Excluir permanentemente",
       "DELETE_FOR_EVERYONE": "Excluir para todos",
+      "EDIT": "Editar",
       "CREATE_A_CANNED_RESPONSE": "Adicionar às respostas prontas",
       "TRANSLATE": "Traduzir",
       "COPY_PERMALINK": "Copiar link para a mensagem",

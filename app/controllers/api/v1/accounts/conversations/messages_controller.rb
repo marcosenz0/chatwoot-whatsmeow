@@ -36,6 +36,16 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
     render_could_not_create_error(e.message)
   end
 
+  def edit
+    @message = Whatsmeow::EditMessageService.new(
+      message: message,
+      content: permitted_params[:content],
+      actor: Current.user
+    ).perform
+  rescue StandardError => e
+    render_could_not_create_error(e.message)
+  end
+
   def retry
     return if message.blank?
 
@@ -86,7 +96,7 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
   end
 
   def permitted_params
-    params.permit(:id, :target_language, :status, :external_error, :emoji)
+    params.permit(:id, :target_language, :status, :external_error, :emoji, :content)
   end
 
   def already_translated_content_available?

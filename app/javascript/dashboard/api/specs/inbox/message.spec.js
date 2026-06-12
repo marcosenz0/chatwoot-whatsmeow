@@ -10,6 +10,7 @@ describe('#ConversationAPI', () => {
     expect(messageAPI).toHaveProperty('update');
     expect(messageAPI).toHaveProperty('delete');
     expect(messageAPI).toHaveProperty('deleteForEveryone');
+    expect(messageAPI).toHaveProperty('edit');
     expect(messageAPI).toHaveProperty('getPreviousMessages');
   });
 
@@ -49,6 +50,14 @@ describe('#ConversationAPI', () => {
       messageAPI.deleteForEveryone(12, 34);
       expect(axiosMock.post).toHaveBeenCalledWith(
         '/api/v1/conversations/12/messages/34/delete_for_everyone'
+      );
+    });
+
+    it('#edit', () => {
+      messageAPI.edit(12, 34, 'Edited text');
+      expect(axiosMock.post).toHaveBeenCalledWith(
+        '/api/v1/conversations/12/messages/34/edit',
+        { content: 'Edited text' }
       );
     });
   });

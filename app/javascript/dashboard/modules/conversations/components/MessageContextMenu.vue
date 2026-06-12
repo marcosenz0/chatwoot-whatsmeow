@@ -58,6 +58,9 @@ export default {
       showDeleteModal: false,
       showPermanentDeleteModal: false,
       showDeleteForEveryoneModal: false,
+      showEditModal: false,
+      editableContent: '',
+      isEditingMessage: false,
       quickReactionEmojis: [
         '\u{1F44D}',
         '\u{2764}\u{FE0F}',
@@ -90,6 +93,9 @@ export default {
       return useSnakeCase(
         this.message.content_attributes ?? this.message.contentAttributes
       );
+    },
+    canSubmitEdit() {
+      return this.editableContent.trim().length > 0 && !this.isEditingMessage;
     },
   },
   methods: {
@@ -158,6 +164,39 @@ export default {
     openDeleteForEveryoneModal() {
       this.handleClose();
       this.showDeleteForEveryoneModal = true;
+    },
+    openEditModal() {
+      this.handleClose();
+      this.editableContent = this.messageContent || '';
+      this.showEditModal = true;
+      this.$nextTick(() => this.$refs.editTextArea?.focus());
+    },
+    closeEditModal() {
+      if (this.isEditingMessage) return;
+
+      this.showEditModal = false;
+      this.editableContent = '';
+    },
+    async confirmEdit() {
+      if (!this.canSubmitEdit) return;
+
+      this.isEditingMessage = true;
+      try {
+        await this.$store.dispatch('editMessage', {
+          conversationId: this.conversationId,
+          messageId: this.messageId,
+          content: this.editableContent.trim(),
+        });
+        useAlert(this.$t('CONVERSATION.SUCCESS_EDIT_MESSAGE'));
+        this.showEditModal = false;
+      } catch (error) {
+        useAlert(
+          error?.response?.data?.error ||
+            this.$t('CONVERSATION.FAIL_EDIT_MESSAGE')
+        );
+      } finally {
+        this.isEditingMessage = false;
+      }
     },
     async confirmDeletion() {
       try {
@@ -271,13 +310,58 @@ export default {
         $t('CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE_CONFIRMATION.CANCEL')
       "
     />
+    <woot-modal
+      v-if="showEditModal && enabledOptions['edit']"
+      v-model:show="showEditModal"
+      :on-close="closeEditModal"
+    >
+      <div class="flex flex-col gap-5 p-6 text-n-slate-12">
+        <div class="flex items-center justify-between gap-3">
+          <h3 class="m-0 text-base font-semibold">
+            {{ $t('CONVERSATION.EDIT_MESSAGE.TITLE') }}
+          </h3>
+          <NextButton
+            ghost
+            slate
+            sm
+            icon="i-lucide-x"
+            :disabled="isEditingMessage"
+            @click="closeEditModal"
+          />
+        </div>
+        <textarea
+          ref="editTextArea"
+          v-model="editableContent"
+          class="reset-base min-h-24 w-full resize-y rounded-lg border border-n-weak bg-n-alpha-2 px-3 py-2 text-sm leading-5 text-n-slate-12 outline-none focus:border-n-brand"
+          :placeholder="$t('CONVERSATION.EDIT_MESSAGE.PLACEHOLDER')"
+        />
+        <div class="flex items-center justify-end gap-2">
+          <NextButton
+            faded
+            slate
+            :label="$t('CONVERSATION.EDIT_MESSAGE.CANCEL')"
+            :disabled="isEditingMessage"
+            @click="closeEditModal"
+          />
+          <NextButton
+            solid
+            blue
+            icon="i-lucide-check"
+            :label="$t('CONVERSATION.EDIT_MESSAGE.SAVE')"
+            :is-loading="isEditingMessage"
+            :disabled="!canSubmitEdit"
+            @click="confirmEdit"
+          />
+        </div>
+      </div>
+    </woot-modal>
     <NextButton
       v-if="!hideButton"
       ghost
       slate
       sm
-      icon="i-lucide-ellipsis-vertical"
-      class="invisible group-hover/context-menu:visible"
+      icon="i-lucide-chevron-down"
+      class="invisible rounded-full bg-n-alpha-2 group-hover/message:visible focus:visible"
       @click="handleOpen"
     />
     <ContextMenu
@@ -329,6 +413,15 @@ export default {
           }"
           variant="icon"
           @click.stop="handleTranslate"
+        />
+        <MenuItem
+          v-if="enabledOptions['edit']"
+          :option="{
+            icon: 'edit',
+            label: $t('CONVERSATION.CONTEXT_MENU.EDIT'),
+          }"
+          variant="icon"
+          @click.stop="openEditModal"
         />
         <hr />
         <MenuItem

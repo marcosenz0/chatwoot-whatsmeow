@@ -88,6 +88,13 @@ type MessageDeleteRequest struct {
 	MessageID string `json:"message_id" binding:"required"`
 }
 
+type MessageEditRequest struct {
+	ChannelID string `json:"channel_id" binding:"required"`
+	To        string `json:"to" binding:"required"`
+	MessageID string `json:"message_id" binding:"required"`
+	Body      string `json:"body" binding:"required"`
+}
+
 type QuotedMessageRequest struct {
 	MessageID   string `json:"message_id"`
 	Participant string `json:"participant"`
@@ -209,6 +216,7 @@ func main() {
 	r.POST("/messages", handleSendMessage)
 	r.POST("/messages/reaction", handleSendReaction)
 	r.POST("/messages/delete", handleDeleteMessage)
+	r.POST("/messages/edit", handleEditMessage)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -1078,6 +1086,57 @@ func handleDeleteMessage(c *gin.Context) {
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to delete message: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"id":        resp.ID,
+		"timestamp": resp.Timestamp.Unix(),
+	})
+}
+
+func handleEditMessage(c *gin.Context) {
+	var req MessageEditRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	body := strings.TrimSpace(req.Body)
+	if body == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Message body is required"})
+		return
+	}
+
+	clientsMu.RLock()
+	client, exists := clients[req.ChannelID]
+	clientsMu.RUnlock()
+
+	if !exists || !client.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	targetJID, ok := parseJID(req.To)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid target phone number / JID"})
+		return
+	}
+
+	sendCtx, cancelSend := context.WithTimeout(context.Background(), sendMessageTimeout)
+	defer cancelSend()
+
+	editMessage := client.BuildEdit(targetJID, types.MessageID(req.MessageID), &proto.Message{
+		Conversation: stringPtr(body),
+	})
+	resp, err := client.SendMessage(
+		sendCtx,
+		targetJID,
+		editMessage,
+		whatsmeow.SendRequestExtra{Timeout: sendMessageTimeout - 5*time.Second},
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to edit message: %v", err)})
 		return
 	}
 
