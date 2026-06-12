@@ -5,6 +5,7 @@ import {
   onMounted,
   ref,
   useTemplateRef,
+  watch,
 } from 'vue';
 import Icon from 'next/icon/Icon.vue';
 import Avatar from 'next/avatar/Avatar.vue';
@@ -63,18 +64,6 @@ const contentType = computed(() => {
 const extension = computed(() =>
   String(props.attachment.extension || '').toLowerCase()
 );
-const playableContentType = computed(() => {
-  if (
-    ['audio/ogg', 'audio/opus', 'application/ogg'].includes(
-      contentType.value
-    ) ||
-    ['ogg', 'opus'].includes(extension.value)
-  ) {
-    return 'audio/ogg; codecs=opus';
-  }
-
-  return contentType.value || undefined;
-});
 const isOutgoing = computed(() => orientation.value === ORIENTATION.RIGHT);
 const isRecordedAudio = computed(() => {
   const meta = audioMeta.value;
@@ -117,6 +106,7 @@ const isPlaying = ref(false);
 const currentTime = ref(0);
 const duration = ref(0);
 const playbackSpeed = ref(1);
+const generatedWaveform = ref([]);
 const hasPlayableSource = computed(() => Boolean(timeStampURL.value));
 
 const { uid } = getCurrentInstance();
@@ -222,8 +212,62 @@ const decodedWaveform = computed(() => {
     return [];
   }
 });
+
+const generateWaveformFromBuffer = audioBuffer => {
+  const channelData = audioBuffer.getChannelData(0);
+  const samplesPerBar = Math.max(
+    1,
+    Math.floor(channelData.length / WAVEFORM_BAR_COUNT)
+  );
+  const amplitudes = Array.from({ length: WAVEFORM_BAR_COUNT }, (_, index) => {
+    const start = index * samplesPerBar;
+    const end =
+      index === WAVEFORM_BAR_COUNT - 1
+        ? channelData.length
+        : Math.min(channelData.length, start + samplesPerBar);
+    let peak = 0;
+
+    for (let sampleIndex = start; sampleIndex < end; sampleIndex += 1) {
+      peak = Math.max(peak, Math.abs(channelData[sampleIndex]));
+    }
+
+    return peak;
+  });
+
+  const maxAmplitude = Math.max(...amplitudes, 0);
+  if (maxAmplitude <= 0.005) return FLAT_WAVEFORM;
+
+  return amplitudes.map(amplitude =>
+    clampWaveformHeight((amplitude / maxAmplitude) * 6)
+  );
+};
+
+const generateWaveformFromAudio = async () => {
+  if (!timeStampURL.value || !isRecordedAudio.value) return;
+
+  try {
+    const response = await fetch(timeStampURL.value, {
+      credentials: 'include',
+    });
+    if (!response.ok) return;
+
+    const audioData = await response.arrayBuffer();
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+
+    const audioContext = new AudioContext();
+    const audioBuffer = await audioContext.decodeAudioData(audioData);
+    generatedWaveform.value = generateWaveformFromBuffer(audioBuffer);
+    setDuration(audioBuffer.duration);
+    await audioContext.close();
+  } catch {
+    generatedWaveform.value = [];
+  }
+};
+
 const waveformBars = computed(() => {
   if (!isRecordedAudio.value) return FLAT_WAVEFORM;
+  if (generatedWaveform.value.length) return generatedWaveform.value;
   return decodedWaveform.value.length
     ? decodedWaveform.value
     : DEFAULT_VOICE_WAVEFORM;
@@ -235,7 +279,7 @@ const activeBarCount = computed(() => {
   );
 });
 const playerClass = computed(() => [
-  'flex w-full min-w-64 max-w-96 items-center gap-2 rounded-xl px-3 py-2 shadow-[0_1px_1px_rgba(0,0,0,0.14)]',
+  'flex w-full min-w-80 max-w-[28rem] items-center gap-2 rounded-xl px-3 py-2 shadow-[0_1px_1px_rgba(0,0,0,0.14)]',
   isOutgoing.value
     ? 'bg-n-teal-4 text-n-slate-12'
     : 'bg-n-slate-4 text-n-slate-12',
@@ -267,6 +311,12 @@ onMounted(() => {
   if (metaDuration.value && !duration.value)
     duration.value = metaDuration.value;
   if (audioPlayer.value) audioPlayer.value.playbackRate = playbackSpeed.value;
+  generateWaveformFromAudio();
+});
+
+watch(timeStampURL, () => {
+  generatedWaveform.value = [];
+  generateWaveformFromAudio();
 });
 
 useEmitter('pause_playing_audio', currentPlayingId => {
@@ -301,6 +351,7 @@ const playOrPause = async () => {
 
   emitter.emit('pause_playing_audio', uid);
   try {
+    if (!audioPlayer.value.readyState) audioPlayer.value.load();
     await audioPlayer.value.play();
     syncDuration();
     isPlaying.value = true;
@@ -329,6 +380,7 @@ const changePlaybackSpeed = () => {
   <audio
     ref="audioPlayer"
     class="hidden"
+    :src="timeStampURL"
     playsinline
     preload="metadata"
     @loadedmetadata="onLoadedMetadata"
@@ -337,10 +389,8 @@ const changePlaybackSpeed = () => {
     @canplay="syncDuration"
     @timeupdate="onTimeUpdate"
     @ended="onEnd"
-  >
-    <source :src="timeStampURL" :type="playableContentType" />
-  </audio>
-  <div v-bind="$attrs" class="flex w-full max-w-96 flex-col gap-2">
+  />
+  <div v-bind="$attrs" class="flex w-full max-w-[28rem] flex-col gap-2">
     <div :class="playerClass">
       <div v-if="isRecordedAudio && isOutgoing" class="relative shrink-0">
         <Avatar :name="avatarName" :src="avatarSrc" :size="44" />
@@ -381,7 +431,7 @@ const changePlaybackSpeed = () => {
       </button>
 
       <div class="flex min-w-0 flex-1 flex-col justify-center gap-1">
-        <div class="relative flex h-6 min-w-44 items-center">
+        <div class="relative flex h-6 min-w-56 items-center">
           <div class="flex h-6 w-full items-center gap-px">
             <span
               v-for="(height, index) in waveformBars"

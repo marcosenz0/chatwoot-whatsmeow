@@ -162,6 +162,7 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Incoming audio downloads now reject partial file-length/hash warning payloads instead of saving truncated clips; complete audio files are probed with `ffprobe` so Chatwoot stores the real duration from the downloaded media.
 - The audio player preloads browser metadata, falls back to stored duration when needed, and keeps the waveform row visually aligned with the play control.
 - Audio bubbles render the message timestamp/status inside the player chip, resample low-detail waveforms to a consistent visual width, and hint OGG/Opus sources as `audio/ogg; codecs=opus` for better playback of older saved attachments.
+- Audio playback now uses the attachment URL directly on the `<audio>` element again, avoiding strict MIME hints that can block browser playback when saved audio metadata does not exactly match the file. Voice-note waveforms are regenerated client-side from the decoded audio buffer when possible, so visible bars better reflect speech/silence instead of using a generic pattern.
 
 - Send and receive direct text messages.
 - Send and receive group text messages.
