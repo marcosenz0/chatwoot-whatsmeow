@@ -75,7 +75,7 @@ onBeforeUnmount(() =>
   >
     <button
       type="button"
-      class="skip-context-menu flex size-7 items-center justify-center rounded-full bg-n-alpha-2 text-n-slate-11 hover:bg-n-alpha-3"
+      class="skip-context-menu flex size-7 items-center justify-center rounded-full bg-n-alpha-2 text-n-slate-12 hover:bg-n-alpha-3"
       @click.stop="togglePicker"
       @contextmenu.stop.prevent
     >
