@@ -508,6 +508,18 @@ const hasAudioAttachment = computed(() =>
   props.attachments?.some(attachment => isAudioAttachment(attachment))
 );
 
+const actionRailClass = computed(() => {
+  const sideClass =
+    orientation.value === ORIENTATION.RIGHT
+      ? 'right-full mr-1.5'
+      : 'left-full ml-1.5';
+  const verticalClass = hasAudioAttachment.value
+    ? 'top-1'
+    : 'top-1/2 -translate-y-1/2';
+
+  return `${sideClass} ${verticalClass}`;
+});
+
 const contextMenuEnabledOptions = computed(() => {
   const hasText = !!props.content;
   const hasAttachments = !!(props.attachments && props.attachments.length > 0);
@@ -783,11 +795,6 @@ provideMessageContext({
         }"
         @contextmenu="openContextMenu($event)"
       >
-        <MessageReactionButton
-          v-if="canReactToMessage && orientation === ORIENTATION.RIGHT"
-          :orientation="orientation"
-          @react="handleReactToMessage"
-        />
         <div
           class="flex min-w-0 flex-col"
           :class="{
@@ -824,29 +831,28 @@ provideMessageContext({
             />
           </div>
         </div>
-        <MessageReactionButton
-          v-if="canReactToMessage && orientation === ORIENTATION.LEFT"
-          :orientation="orientation"
-          @react="handleReactToMessage"
-        />
-        <ContextMenu
-          v-if="shouldShowContextMenu && isBubble"
-          class="absolute top-1 z-20"
-          :class="{
-            'right-0 translate-x-[calc(100%+0.25rem)]':
-              orientation === ORIENTATION.RIGHT,
-            'left-0 -translate-x-[calc(100%+0.25rem)]':
-              orientation === ORIENTATION.LEFT,
-          }"
-          :context-menu-position="contextMenuPosition"
-          :is-open="showContextMenu"
-          :enabled-options="contextMenuEnabledOptions"
-          :message="payloadForContextMenu"
-          @open="openContextMenu"
-          @close="closeContextMenu"
-          @reply-to="handleReplyTo"
-          @react="handleReactToMessage"
-        />
+        <div
+          v-if="canReactToMessage || (shouldShowContextMenu && isBubble)"
+          class="absolute z-20 flex flex-col items-center gap-1"
+          :class="actionRailClass"
+        >
+          <ContextMenu
+            v-if="shouldShowContextMenu && isBubble"
+            :context-menu-position="contextMenuPosition"
+            :is-open="showContextMenu"
+            :enabled-options="contextMenuEnabledOptions"
+            :message="payloadForContextMenu"
+            @open="openContextMenu"
+            @close="closeContextMenu"
+            @reply-to="handleReplyTo"
+            @react="handleReactToMessage"
+          />
+          <MessageReactionButton
+            v-if="canReactToMessage"
+            :orientation="orientation"
+            @react="handleReactToMessage"
+          />
+        </div>
       </div>
       <MessageError
         v-if="contentAttributes.externalError"
