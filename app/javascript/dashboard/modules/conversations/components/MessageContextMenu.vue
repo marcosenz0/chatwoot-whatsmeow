@@ -402,6 +402,7 @@ export default {
       <woot-modal
         v-if="showEditModal && enabledOptions['edit']"
         v-model:show="showEditModal"
+        :show-close-button="false"
         :on-close="closeEditModal"
       >
         <div class="flex flex-col gap-5 p-6 text-n-slate-12">
