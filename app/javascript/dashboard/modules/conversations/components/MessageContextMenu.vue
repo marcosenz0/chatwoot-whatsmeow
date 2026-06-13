@@ -398,51 +398,54 @@ export default {
         $t('CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE_CONFIRMATION.CANCEL')
       "
     />
-    <woot-modal
-      v-if="showEditModal && enabledOptions['edit']"
-      v-model:show="showEditModal"
-      :on-close="closeEditModal"
-    >
-      <div class="flex flex-col gap-5 p-6 text-n-slate-12">
-        <div class="flex items-center justify-between gap-3">
-          <h3 class="m-0 text-base font-semibold">
-            {{ $t('CONVERSATION.EDIT_MESSAGE.TITLE') }}
-          </h3>
-          <NextButton
-            ghost
-            slate
-            sm
-            icon="i-lucide-x"
-            :disabled="isEditingMessage"
-            @click="closeEditModal"
+    <Teleport to="body">
+      <woot-modal
+        v-if="showEditModal && enabledOptions['edit']"
+        v-model:show="showEditModal"
+        :on-close="closeEditModal"
+      >
+        <div class="flex flex-col gap-5 p-6 text-n-slate-12">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="m-0 text-base font-semibold">
+              {{ $t('CONVERSATION.EDIT_MESSAGE.TITLE') }}
+            </h3>
+            <NextButton
+              ghost
+              slate
+              sm
+              icon="i-lucide-x"
+              :disabled="isEditingMessage"
+              @click="closeEditModal"
+            />
+          </div>
+          <textarea
+            ref="editTextArea"
+            v-model="editableContent"
+            class="reset-base min-h-24 w-full resize-y rounded-lg border border-n-weak bg-n-alpha-2 px-3 py-2 text-sm leading-5 text-n-slate-12 outline-none focus:border-n-brand"
+            :placeholder="$t('CONVERSATION.EDIT_MESSAGE.PLACEHOLDER')"
+            @keydown.enter.exact.prevent="confirmEdit"
           />
+          <div class="flex items-center justify-end gap-2">
+            <NextButton
+              faded
+              slate
+              :label="$t('CONVERSATION.EDIT_MESSAGE.CANCEL')"
+              :disabled="isEditingMessage"
+              @click="closeEditModal"
+            />
+            <NextButton
+              solid
+              blue
+              icon="i-lucide-check"
+              :label="$t('CONVERSATION.EDIT_MESSAGE.SAVE')"
+              :is-loading="isEditingMessage"
+              :disabled="!canSubmitEdit"
+              @click="confirmEdit"
+            />
+          </div>
         </div>
-        <textarea
-          ref="editTextArea"
-          v-model="editableContent"
-          class="reset-base min-h-24 w-full resize-y rounded-lg border border-n-weak bg-n-alpha-2 px-3 py-2 text-sm leading-5 text-n-slate-12 outline-none focus:border-n-brand"
-          :placeholder="$t('CONVERSATION.EDIT_MESSAGE.PLACEHOLDER')"
-        />
-        <div class="flex items-center justify-end gap-2">
-          <NextButton
-            faded
-            slate
-            :label="$t('CONVERSATION.EDIT_MESSAGE.CANCEL')"
-            :disabled="isEditingMessage"
-            @click="closeEditModal"
-          />
-          <NextButton
-            solid
-            blue
-            icon="i-lucide-check"
-            :label="$t('CONVERSATION.EDIT_MESSAGE.SAVE')"
-            :is-loading="isEditingMessage"
-            :disabled="!canSubmitEdit"
-            @click="confirmEdit"
-          />
-        </div>
-      </div>
-    </woot-modal>
+      </woot-modal>
+    </Teleport>
     <NextButton
       v-if="!hideButton"
       ghost
