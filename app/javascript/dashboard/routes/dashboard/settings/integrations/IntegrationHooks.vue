@@ -151,7 +151,7 @@ export default {
     <woot-modal
       v-model:show="showAddHookModal"
       :on-close="hideAddHookModal"
-      size="mt-10 max-h-[calc(100%-5rem)]"
+      size="integration-hook-modal"
     >
       <NewHook
         :integration-id="integrationId"

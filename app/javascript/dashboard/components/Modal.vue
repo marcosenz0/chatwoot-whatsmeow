@@ -109,6 +109,10 @@ onMounted(() => {
       @apply max-w-[80%] w-[56.25rem];
     }
 
+    &.integration-hook-modal {
+      @apply mt-10 max-h-[calc(100vh-5rem)];
+    }
+
     // .content-box {
     //   @apply h-auto p-0;
     // }
