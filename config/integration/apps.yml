@@ -128,8 +128,11 @@ audio_transcription:
         'options':
           [
             { 'label': 'GPT-4o Mini Transcribe', 'value': 'gpt-4o-mini-transcribe' },
+            { 'label': 'GPT-4o Mini Transcribe 2025-12-15', 'value': 'gpt-4o-mini-transcribe-2025-12-15' },
+            { 'label': 'GPT-4o Mini Transcribe 2025-03-20', 'value': 'gpt-4o-mini-transcribe-2025-03-20' },
             { 'label': 'GPT-4o Transcribe', 'value': 'gpt-4o-transcribe' },
-            { 'label': 'Whisper', 'value': 'whisper-1' },
+            { 'label': 'GPT-4o Transcribe Diarize', 'value': 'gpt-4o-transcribe-diarize' },
+            { 'label': 'Whisper 1', 'value': 'whisper-1' },
           ],
       },
       {
@@ -145,15 +148,41 @@ audio_transcription:
       },
       {
         'label': 'Modelo de resumo da OpenAI',
-        'type': 'text',
+        'type': 'select',
         'name': 'openai_summary_model',
         'default': 'gpt-4.1-mini',
+        'options':
+          [
+            { 'label': 'GPT-5.4', 'value': 'gpt-5.4' },
+            { 'label': 'GPT-5.4 Mini', 'value': 'gpt-5.4-mini' },
+            { 'label': 'GPT-5.4 Nano', 'value': 'gpt-5.4-nano' },
+            { 'label': 'GPT-5.2', 'value': 'gpt-5.2' },
+            { 'label': 'GPT-5.1', 'value': 'gpt-5.1' },
+            { 'label': 'GPT-4.1', 'value': 'gpt-4.1' },
+            { 'label': 'GPT-4.1 Mini', 'value': 'gpt-4.1-mini' },
+            { 'label': 'GPT-4.1 Nano', 'value': 'gpt-4.1-nano' },
+            { 'label': 'GPT-4o', 'value': 'gpt-4o' },
+            { 'label': 'GPT-4o Mini', 'value': 'gpt-4o-mini' },
+          ],
       },
       {
         'label': 'Modelo de resumo da Groq',
-        'type': 'text',
+        'type': 'select',
         'name': 'groq_summary_model',
         'default': 'llama-3.3-70b-versatile',
+        'options':
+          [
+            { 'label': 'Llama 3.3 70B Versatile', 'value': 'llama-3.3-70b-versatile' },
+            { 'label': 'Llama 3.1 8B Instant', 'value': 'llama-3.1-8b-instant' },
+            { 'label': 'GPT OSS 120B', 'value': 'openai/gpt-oss-120b' },
+            { 'label': 'GPT OSS 20B', 'value': 'openai/gpt-oss-20b' },
+            { 'label': 'Qwen 3.6 27B', 'value': 'qwen/qwen3.6-27b' },
+            { 'label': 'Qwen 3 32B', 'value': 'qwen/qwen3-32b' },
+            { 'label': 'Llama 4 Scout 17B Instruct', 'value': 'meta-llama/llama-4-scout-17b-16e-instruct' },
+            { 'label': 'Groq Compound', 'value': 'groq/compound' },
+            { 'label': 'Groq Compound Mini', 'value': 'groq/compound-mini' },
+            { 'label': 'Allam 2 7B', 'value': 'allam-2-7b' },
+          ],
       },
       {
         'label': 'Idioma do audio',

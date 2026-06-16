@@ -46,6 +46,7 @@
           "PLACEHOLDER": "Select Inbox"
         },
         "SUBMIT": "Create",
+        "SAVE": "Save",
         "VALIDATING_OPENAI": "Validating with OpenAI...",
         "CANCEL": "Cancel"
       },
@@ -64,6 +65,17 @@
       "GROQ_TITLE": "Groq",
       "GROQ_DESCRIPTION": "Use Groq Whisper models for fast audio transcription.",
       "GROQ_BUTTON": "Connect Groq",
+      "PRIMARY_BADGE": "Primary",
+      "FALLBACK_BADGE": "Fallback",
+      "MAKE_PRIMARY_BUTTON": "Make primary",
+      "CONNECT_PROVIDER_TITLE": "Connect {provider}",
+      "CONFIGURE_PROVIDER_TITLE": "Configure {provider}",
+      "MODAL_DESCRIPTION_OPENAI": "Add the OpenAI API key and choose the models used by OpenAI for audio transcription and summaries.",
+      "MODAL_DESCRIPTION_GROQ": "Add the Groq API key and choose the models used by Groq for audio transcription and summaries.",
+      "SAVED_KEY_PLACEHOLDER": "API key already saved",
+      "SAVED_KEY_HELP": "Leave this field blank to keep the current API key. Fill it only when you want to replace it.",
+      "DISCONNECT_PROVIDER_TITLE": "Disconnect {provider}",
+      "DISCONNECT_PROVIDER_MESSAGE": "This will remove only the {provider} API key. The other provider will remain configured.",
       "MODAL_TITLE_OPENAI": "Connect OpenAI",
       "MODAL_TITLE_GROQ": "Connect Groq",
       "MODAL_DESCRIPTION": "Configure the primary provider and optional fallback for audio transcription and summaries."

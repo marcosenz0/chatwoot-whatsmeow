@@ -13,7 +13,12 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['add', 'delete']);
+const emit = defineEmits([
+  'add',
+  'delete',
+  'removeProvider',
+  'setPrimaryProvider',
+]);
 
 const { integration, hasConnectedHooks } = useIntegrationHook(
   props.integrationId
@@ -51,8 +56,47 @@ const audioProviderCards = computed(() => [
   },
 ]);
 
+const audioHook = computed(() => integration.value?.hooks?.[0]);
+const audioSettings = computed(() => audioHook.value?.settings || {});
+
+const providerLabels = {
+  openai: 'OpenAI',
+  groq: 'Groq',
+};
+
+const providerHasKey = provider =>
+  Boolean(audioSettings.value?.[`${provider}_api_key`]);
+
+const providerIsPrimary = provider =>
+  providerHasKey(provider) && audioSettings.value.provider === provider;
+
+const providerState = provider => {
+  if (!providerHasKey(provider)) {
+    return '';
+  }
+
+  return providerIsPrimary(provider)
+    ? t('INTEGRATION_APPS.AUDIO_TRANSCRIPTION.PRIMARY_BADGE')
+    : t('INTEGRATION_APPS.AUDIO_TRANSCRIPTION.FALLBACK_BADGE');
+};
+
 const connectAudioProvider = provider => {
   emit('add', provider);
+};
+
+const removeAudioProvider = provider => {
+  emit('removeProvider', {
+    hook: audioHook.value,
+    provider,
+    providerName: providerLabels[provider],
+  });
+};
+
+const setPrimaryAudioProvider = provider => {
+  emit('setPrimaryProvider', {
+    hook: audioHook.value,
+    provider,
+  });
 };
 </script>
 
@@ -137,28 +181,49 @@ const connectAudioProvider = provider => {
             <p class="text-sm text-n-slate-11">
               {{ provider.description }}
             </p>
+            <div v-if="providerHasKey(provider.id)" class="mt-2">
+              <span
+                class="inline-flex items-center rounded-md bg-n-teal-3 px-2 py-0.5 text-xs font-medium text-n-teal-11"
+              >
+                {{ providerState(provider.id) }}
+              </span>
+            </div>
           </div>
         </div>
-        <Button
-          v-if="!hasConnectedHooks"
-          faded
-          blue
-          size="sm"
-          :label="provider.button"
-          @click="connectAudioProvider(provider.id)"
-        />
+        <div class="flex items-center gap-2">
+          <Button
+            faded
+            blue
+            size="sm"
+            :label="
+              providerHasKey(provider.id)
+                ? $t('INTEGRATION_APPS.CONFIGURE')
+                : provider.button
+            "
+            @click="connectAudioProvider(provider.id)"
+          />
+          <Button
+            v-if="providerHasKey(provider.id)"
+            faded
+            ruby
+            size="sm"
+            :label="$t('INTEGRATION_APPS.DISCONNECT.BUTTON_TEXT')"
+            @click="removeAudioProvider(provider.id)"
+          />
+          <Button
+            v-if="
+              providerHasKey(provider.id) && !providerIsPrimary(provider.id)
+            "
+            faded
+            slate
+            size="sm"
+            :label="
+              $t('INTEGRATION_APPS.AUDIO_TRANSCRIPTION.MAKE_PRIMARY_BUTTON')
+            "
+            @click="setPrimaryAudioProvider(provider.id)"
+          />
+        </div>
       </div>
-    </div>
-    <div
-      v-if="isAudioTranscription && hasConnectedHooks"
-      class="flex justify-end mt-4"
-    >
-      <Button
-        ruby
-        faded
-        :label="$t('INTEGRATION_APPS.DISCONNECT.BUTTON_TEXT')"
-        @click="$emit('delete', integration.hooks[0])"
-      />
     </div>
   </div>
 </template>

@@ -255,6 +255,7 @@ class Messages::AudioTranscriptionService
       temperature: 0.0
     }
     payload[:language] = language if language.present?
+    payload[:chunking_strategy] = 'auto' if transcription_model_for(provider) == 'gpt-4o-transcribe-diarize'
     payload
   end
 

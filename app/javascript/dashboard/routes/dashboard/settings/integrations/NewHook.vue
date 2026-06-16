@@ -61,8 +61,46 @@ export default {
       }
       return this.integration.hooks.map(hook => hook.inbox?.id);
     },
+    existingAudioHook() {
+      if (!this.isAudioTranscription) {
+        return null;
+      }
+
+      return this.integration.hooks?.[0] || null;
+    },
+    existingAudioSettings() {
+      return this.existingAudioHook?.settings || {};
+    },
+    audioProvider() {
+      return this.initialProvider || this.existingAudioSettings.provider || '';
+    },
+    audioProviderName() {
+      return this.audioProvider === 'groq' ? 'Groq' : 'OpenAI';
+    },
+    audioProviderKeyName() {
+      return `${this.audioProvider}_api_key`;
+    },
+    hasSavedAudioProviderKey() {
+      return Boolean(this.existingAudioSettings[this.audioProviderKeyName]);
+    },
     formItems() {
+      if (this.isAudioTranscription) {
+        return this.audioProviderFormItems;
+      }
+
       return this.integration.settings_form_schema;
+    },
+    audioProviderFormItems() {
+      const fieldNames = [
+        this.audioProviderKeyName,
+        `${this.audioProvider}_transcription_model`,
+        `${this.audioProvider}_summary_model`,
+        'language',
+      ];
+
+      return this.integration.settings_form_schema
+        .filter(item => fieldNames.includes(item.name))
+        .map(item => this.audioFormItem(item));
     },
     isIntegrationDialogflow() {
       return this.integration.id === 'dialogflow';
@@ -75,20 +113,32 @@ export default {
         return this.integration.name;
       }
 
-      return this.initialProvider === 'groq'
-        ? this.$t('INTEGRATION_APPS.AUDIO_TRANSCRIPTION.MODAL_TITLE_GROQ')
-        : this.$t('INTEGRATION_APPS.AUDIO_TRANSCRIPTION.MODAL_TITLE_OPENAI');
+      const actionKey = this.hasSavedAudioProviderKey
+        ? 'CONFIGURE_PROVIDER_TITLE'
+        : 'CONNECT_PROVIDER_TITLE';
+
+      return this.$t(`INTEGRATION_APPS.AUDIO_TRANSCRIPTION.${actionKey}`, {
+        provider: this.audioProviderName,
+      });
     },
     modalDescription() {
       if (!this.isAudioTranscription) {
         return this.replaceInstallationName(this.integration.short_description);
       }
 
-      return this.$t('INTEGRATION_APPS.AUDIO_TRANSCRIPTION.MODAL_DESCRIPTION');
+      return this.initialProvider === 'groq'
+        ? this.$t('INTEGRATION_APPS.AUDIO_TRANSCRIPTION.MODAL_DESCRIPTION_GROQ')
+        : this.$t(
+            'INTEGRATION_APPS.AUDIO_TRANSCRIPTION.MODAL_DESCRIPTION_OPENAI'
+          );
     },
     submitButtonLabel() {
       if (this.integration.id === 'openai' && this.uiFlags.isCreatingHook) {
         return this.$t('INTEGRATION_APPS.ADD.FORM.VALIDATING_OPENAI');
+      }
+
+      if (this.isAudioTranscription && this.hasSavedAudioProviderKey) {
+        return this.$t('INTEGRATION_APPS.ADD.FORM.SAVE');
       }
 
       return this.$t('INTEGRATION_APPS.ADD.FORM.SUBMIT');
@@ -103,19 +153,88 @@ export default {
         return {};
       }
 
-      const fallbackProvider =
-        this.initialProvider === 'groq' ? 'openai' : 'groq';
+      const provider = this.initialProvider;
+      const settings = this.integration?.hooks?.[0]?.settings || {};
+      const values = {
+        language: settings.language || 'pt',
+      };
+
+      const providerFields = [
+        `${provider}_transcription_model`,
+        `${provider}_summary_model`,
+      ];
+
+      providerFields.forEach(fieldName => {
+        values[fieldName] =
+          settings[fieldName] || this.defaultValueForField(fieldName);
+      });
+
+      values[`${provider}_api_key`] = '';
+
+      return values;
+    },
+    defaultValueForField(fieldName) {
+      return (
+        this.integration?.settings_form_schema?.find(
+          item => item.name === fieldName
+        )?.default || ''
+      );
+    },
+    audioFormItem(item) {
+      if (item.name !== this.audioProviderKeyName) {
+        return item;
+      }
 
       return {
-        provider: this.initialProvider,
-        fallback_provider: fallbackProvider,
-        language: 'pt',
+        ...item,
+        validation: this.hasSavedAudioProviderKey ? '' : 'required',
+        placeholder: this.hasSavedAudioProviderKey
+          ? this.$t(
+              'INTEGRATION_APPS.AUDIO_TRANSCRIPTION.SAVED_KEY_PLACEHOLDER'
+            )
+          : '',
+        help: this.hasSavedAudioProviderKey
+          ? this.$t('INTEGRATION_APPS.AUDIO_TRANSCRIPTION.SAVED_KEY_HELP')
+          : item.help,
       };
     },
     onClose() {
       this.$emit('close');
     },
+    fallbackProviderFor(primaryProvider, settings) {
+      const otherProvider = primaryProvider === 'groq' ? 'openai' : 'groq';
+      return settings[`${otherProvider}_api_key`] ? otherProvider : 'none';
+    },
+    buildAudioTranscriptionHookPayload() {
+      const existingSettings = { ...this.existingAudioSettings };
+      const settings = { ...existingSettings };
+
+      Object.keys(this.values).forEach(key => {
+        if (key === this.audioProviderKeyName && !this.values[key]) {
+          return;
+        }
+
+        settings[key] = this.values[key];
+      });
+
+      settings.provider = this.hasSavedAudioProviderKey
+        ? existingSettings.provider || this.audioProvider
+        : this.audioProvider;
+      settings.fallback_provider = this.fallbackProviderFor(
+        settings.provider,
+        settings
+      );
+
+      return {
+        app_id: this.integration.id,
+        settings,
+      };
+    },
     buildHookPayload() {
+      if (this.isAudioTranscription) {
+        return this.buildAudioTranscriptionHookPayload();
+      }
+
       const hookPayload = {
         app_id: this.integration.id,
         settings: {},
@@ -144,10 +263,17 @@ export default {
     },
     async submitForm() {
       try {
-        await this.$store.dispatch(
-          'integrations/createHook',
-          this.buildHookPayload()
-        );
+        const hookPayload = this.buildHookPayload();
+
+        if (this.isAudioTranscription && this.existingAudioHook?.id) {
+          await this.$store.dispatch('integrations/updateHook', {
+            hookId: this.existingAudioHook.id,
+            hookData: hookPayload,
+          });
+        } else {
+          await this.$store.dispatch('integrations/createHook', hookPayload);
+        }
+
         this.alertMessage = this.$t('INTEGRATION_APPS.ADD.API.SUCCESS_MESSAGE');
         this.onClose();
       } catch (error) {
@@ -157,6 +283,11 @@ export default {
       } finally {
         useAlert(this.alertMessage);
       }
+    },
+  },
+  watch: {
+    initialProvider() {
+      this.values = this.initialValues();
     },
   },
 };

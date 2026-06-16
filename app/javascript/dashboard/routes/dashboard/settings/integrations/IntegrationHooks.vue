@@ -47,6 +47,8 @@ export default {
       showDeleteConfirmationPopup: false,
       selectedHook: {},
       selectedProvider: '',
+      selectedProviderForRemoval: '',
+      selectedProviderNameForRemoval: '',
       alertMessage: '',
     };
   },
@@ -76,6 +78,9 @@ export default {
     cancelText() {
       return this.$t('INTEGRATION_APPS.DELETE.CANCEL_BUTTON_TEXT');
     },
+    isAudioTranscription() {
+      return this.integrationId === 'audio_transcription';
+    },
   },
   mounted() {
     this.$store.dispatch('integrations/get');
@@ -93,15 +98,87 @@ export default {
       this.showDeleteConfirmationPopup = true;
       this.selectedHook = response;
     },
+    openProviderDeletePopup({ hook, provider, providerName }) {
+      this.showDeleteConfirmationPopup = true;
+      this.selectedHook = hook;
+      this.selectedProviderForRemoval = provider;
+      this.selectedProviderNameForRemoval = providerName;
+    },
     closeDeletePopup() {
       this.showDeleteConfirmationPopup = false;
+      this.selectedProviderForRemoval = '';
+      this.selectedProviderNameForRemoval = '';
     },
-    async confirmDeletion() {
+    nextProviderSettingsAfterRemoval() {
+      const provider = this.selectedProviderForRemoval;
+      const otherProvider = provider === 'openai' ? 'groq' : 'openai';
+      const settings = { ...(this.selectedHook.settings || {}) };
+
+      delete settings[`${provider}_api_key`];
+
+      if (!settings[`${otherProvider}_api_key`]) {
+        return null;
+      }
+
+      settings.provider = otherProvider;
+      settings.fallback_provider = 'none';
+      return settings;
+    },
+    fallbackProviderFor(primaryProvider, settings) {
+      const otherProvider = primaryProvider === 'openai' ? 'groq' : 'openai';
+      return settings[`${otherProvider}_api_key`] ? otherProvider : 'none';
+    },
+    async setPrimaryAudioProvider({ hook, provider }) {
+      const settings = {
+        ...(hook.settings || {}),
+        provider,
+      };
+      settings.fallback_provider = this.fallbackProviderFor(provider, settings);
+
       try {
+        await this.$store.dispatch('integrations/updateHook', {
+          hookId: hook.id,
+          hookData: {
+            settings,
+          },
+        });
+        this.alertMessage = this.$t('INTEGRATION_APPS.ADD.API.SUCCESS_MESSAGE');
+      } catch (error) {
+        const errorMessage = error?.response?.data?.message;
+        this.alertMessage =
+          errorMessage || this.$t('INTEGRATION_APPS.ADD.API.ERROR_MESSAGE');
+      } finally {
+        useAlert(this.alertMessage);
+      }
+    },
+    async disconnectAudioProvider() {
+      const nextSettings = this.nextProviderSettingsAfterRemoval();
+
+      if (!nextSettings) {
         await this.$store.dispatch('integrations/deleteHook', {
           hookId: this.selectedHook.id,
           appId: this.selectedHook.app_id,
         });
+        return;
+      }
+
+      await this.$store.dispatch('integrations/updateHook', {
+        hookId: this.selectedHook.id,
+        hookData: {
+          settings: nextSettings,
+        },
+      });
+    },
+    async confirmDeletion() {
+      try {
+        if (this.isAudioTranscription && this.selectedProviderForRemoval) {
+          await this.disconnectAudioProvider();
+        } else {
+          await this.$store.dispatch('integrations/deleteHook', {
+            hookId: this.selectedHook.id,
+            appId: this.selectedHook.app_id,
+          });
+        }
         this.alertMessage = this.$t(
           'INTEGRATION_APPS.DELETE.API.SUCCESS_MESSAGE'
         );
@@ -144,6 +221,8 @@ export default {
             :integration-id="integrationId"
             @add="openAddHookModal"
             @delete="openDeletePopup"
+            @remove-provider="openProviderDeletePopup"
+            @set-primary-provider="setPrimaryAudioProvider"
           />
         </div>
       </div>
@@ -164,8 +243,26 @@ export default {
       v-model:show="showDeleteConfirmationPopup"
       :on-close="closeDeletePopup"
       :on-confirm="confirmDeletion"
-      :title="deleteTitle"
-      :message="deleteMessage"
+      :title="
+        selectedProviderForRemoval
+          ? $t(
+              'INTEGRATION_APPS.AUDIO_TRANSCRIPTION.DISCONNECT_PROVIDER_TITLE',
+              {
+                provider: selectedProviderNameForRemoval,
+              }
+            )
+          : deleteTitle
+      "
+      :message="
+        selectedProviderForRemoval
+          ? $t(
+              'INTEGRATION_APPS.AUDIO_TRANSCRIPTION.DISCONNECT_PROVIDER_MESSAGE',
+              {
+                provider: selectedProviderNameForRemoval,
+              }
+            )
+          : deleteMessage
+      "
       :confirm-text="confirmText"
       :reject-text="cancelText"
     />
