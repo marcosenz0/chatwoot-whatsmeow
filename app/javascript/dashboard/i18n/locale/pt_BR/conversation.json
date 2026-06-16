@@ -104,6 +104,17 @@
       "AGENT_ANSWERED": "{agentName} respondeu",
       "JOIN_CALL": "Entrar na chamada"
     },
+    "AUDIO": {
+      "TRANSCRIBE": "Transcrever áudio",
+      "TRANSCRIBING": "Transcrevendo...",
+      "HIDE_TRANSCRIPT": "Ocultar transcrição",
+      "SUMMARIZE": "Resumir áudio",
+      "SUMMARIZING": "Resumindo...",
+      "HIDE_SUMMARY": "Ocultar resumo",
+      "TRANSCRIPT_TITLE": "Transcrição do áudio",
+      "SUMMARY_TITLE": "Resumo do áudio",
+      "PROCESSING_ERROR": "Não foi possível processar o áudio. Confira a integração de transcrição de áudios e tente novamente."
+    },
     "HEADER": {
       "RESOLVE_ACTION": "Resolver",
       "REOPEN_ACTION": "Reabrir",

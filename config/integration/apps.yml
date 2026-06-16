@@ -56,6 +56,121 @@ openai:
       },
     ]
   visible_properties: ['api_key', 'label_suggestion']
+audio_transcription:
+  id: audio_transcription
+  logo: openai.png
+  i18n_key: audio_transcription
+  hook_type: account
+  allow_multiple_hooks: false
+  settings_json_schema:
+    {
+      'type': 'object',
+      'properties':
+        {
+          'provider': { 'type': 'string', 'enum': ['openai', 'groq'] },
+          'fallback_provider':
+            { 'type': 'string', 'enum': ['none', 'openai', 'groq'] },
+          'openai_api_key': { 'type': 'string' },
+          'groq_api_key': { 'type': 'string' },
+          'openai_transcription_model': { 'type': 'string' },
+          'groq_transcription_model': { 'type': 'string' },
+          'openai_summary_model': { 'type': 'string' },
+          'groq_summary_model': { 'type': 'string' },
+          'language': { 'type': 'string' },
+        },
+      'required': ['provider'],
+      'additionalProperties': false,
+    }
+  settings_form_schema:
+    [
+      {
+        'label': 'Primary provider',
+        'type': 'select',
+        'name': 'provider',
+        'default': 'openai',
+        'validation': 'required',
+        'options':
+          [
+            { 'label': 'OpenAI', 'value': 'openai' },
+            { 'label': 'Groq', 'value': 'groq' },
+          ],
+      },
+      {
+        'label': 'Fallback provider',
+        'type': 'select',
+        'name': 'fallback_provider',
+        'default': 'none',
+        'help': 'Use another provider automatically if the primary one fails.',
+        'options':
+          [
+            { 'label': 'None', 'value': 'none' },
+            { 'label': 'OpenAI', 'value': 'openai' },
+            { 'label': 'Groq', 'value': 'groq' },
+          ],
+      },
+      {
+        'label': 'OpenAI API Key',
+        'type': 'password',
+        'name': 'openai_api_key',
+        'help': 'Required when OpenAI is the primary or fallback provider.',
+      },
+      {
+        'label': 'Groq API Key',
+        'type': 'password',
+        'name': 'groq_api_key',
+        'help': 'Required when Groq is the primary or fallback provider.',
+      },
+      {
+        'label': 'OpenAI transcription model',
+        'type': 'select',
+        'name': 'openai_transcription_model',
+        'default': 'gpt-4o-mini-transcribe',
+        'options':
+          [
+            { 'label': 'GPT-4o Mini Transcribe', 'value': 'gpt-4o-mini-transcribe' },
+            { 'label': 'GPT-4o Transcribe', 'value': 'gpt-4o-transcribe' },
+            { 'label': 'Whisper', 'value': 'whisper-1' },
+          ],
+      },
+      {
+        'label': 'Groq transcription model',
+        'type': 'select',
+        'name': 'groq_transcription_model',
+        'default': 'whisper-large-v3-turbo',
+        'options':
+          [
+            { 'label': 'Whisper Large V3 Turbo', 'value': 'whisper-large-v3-turbo' },
+            { 'label': 'Whisper Large V3', 'value': 'whisper-large-v3' },
+          ],
+      },
+      {
+        'label': 'OpenAI summary model',
+        'type': 'text',
+        'name': 'openai_summary_model',
+        'default': 'gpt-4.1-mini',
+      },
+      {
+        'label': 'Groq summary model',
+        'type': 'text',
+        'name': 'groq_summary_model',
+        'default': 'llama-3.3-70b-versatile',
+      },
+      {
+        'label': 'Audio language',
+        'type': 'select',
+        'name': 'language',
+        'default': 'auto',
+        'help': 'Auto-detect works well; choose Portuguese to improve speed and accuracy for Brazilian audios.',
+        'options':
+          [
+            { 'label': 'Auto-detect', 'value': 'auto' },
+            { 'label': 'Portuguese', 'value': 'pt' },
+            { 'label': 'English', 'value': 'en' },
+            { 'label': 'Spanish', 'value': 'es' },
+          ],
+      },
+    ]
+  visible_properties: ['provider', 'fallback_provider', 'language']
 linear:
   id: linear
   logo: linear.png

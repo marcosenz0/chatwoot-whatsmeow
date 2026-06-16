@@ -351,6 +351,10 @@ pt_BR:
       name: 'OpenAI'
       short_description: 'Sugestões, resumos e aprimoramento de mensagem e resposta com IA.'
       description: 'Aproveite o poder dos grandes modelos de linguagem do OpenAI com recursos como sugestões de resposta, resumo, reformulação de mensagens, verificação ortográfica e classificação de rótulos.'
+    audio_transcription:
+      name: 'Transcrição de Áudios'
+      short_description: 'Transcreva e resuma áudios com OpenAI ou Groq.'
+      description: 'Configure provedores OpenAI e Groq para transcrever e resumir áudios enviados ou recebidos diretamente dentro das conversas.'
     linear:
       name: 'Linear'
       short_description: 'Crie e vincule issues do Linear diretamente de conversas.'

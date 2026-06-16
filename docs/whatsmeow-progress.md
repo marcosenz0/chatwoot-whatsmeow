@@ -175,6 +175,7 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 
 ## Known Operational Notes
 
+- For functional Chatwoot/Whatsmeow changes, do not stop at local edits. The expected delivery loop is: validate what can be validated locally, commit and push to `develop`, wait for the `ghcr.io/marcosenz0/chatwoot-whatsmeow:develop` image to publish, redeploy Chatwoot web and Sidekiq in Easypanel, then verify the staging UI and health endpoints.
 - Local Ruby may not be installed on every workstation; Ruby validation may need CI or the container.
 - Local Docker may not be available; use GitHub Actions and staging deploy for end-to-end checks when needed.
 - Portable Go can be used from `.codex/tools/go/bin/go.exe` if system Go is missing.

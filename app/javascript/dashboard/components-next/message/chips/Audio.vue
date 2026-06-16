@@ -7,11 +7,16 @@ import {
   useTemplateRef,
   watch,
 } from 'vue';
+import { useStore } from 'vuex';
+import { useI18n } from 'vue-i18n';
 import Icon from 'next/icon/Icon.vue';
 import Avatar from 'next/avatar/Avatar.vue';
+import Button from 'dashboard/components-next/button/Button.vue';
 import { timeStampAppendedURL } from 'dashboard/helper/URLHelper';
+import { useAlert } from 'dashboard/composables';
 import { useEmitter } from 'dashboard/composables/emitter';
 import { emitter } from 'shared/helpers/mitt';
+import { LocalStorage } from 'shared/helpers/localStorage';
 import MessageMeta from '../MessageMeta.vue';
 import { ORIENTATION } from '../constants';
 import { useMessageContext } from '../provider.js';
@@ -35,26 +40,59 @@ defineOptions({
   inheritAttrs: false,
 });
 
-const { contentAttributes, orientation, sender } = useMessageContext();
+const { contentAttributes, conversationId, id, orientation, sender } =
+  useMessageContext();
+const store = useStore();
+const { t } = useI18n();
 
 const timeStampURL = computed(() => {
   if (!props.attachment.dataUrl) return '';
   return timeStampAppendedURL(props.attachment.dataUrl);
 });
 
-const TRANSCRIPT_PREVIEW_LENGTH = 200;
+const audioMeta = computed(() => props.attachment.meta || {});
+
+const getAttachmentText = (...keys) => {
+  const value = keys
+    .map(key => props.attachment[key] ?? audioMeta.value[key])
+    .find(text => typeof text === 'string' && text.trim());
+
+  return value || '';
+};
+
+const transcriptText = computed(() =>
+  getAttachmentText('transcribedText', 'transcribed_text')
+);
+const summaryText = computed(() =>
+  getAttachmentText('summaryText', 'summary_text')
+);
+const AUDIO_TEXT_PREVIEW_LENGTH = 200;
 const isTranscriptExpanded = ref(false);
+const isSummaryExpanded = ref(false);
+const showTranscript = ref(Boolean(transcriptText.value));
+const showSummary = ref(Boolean(summaryText.value));
+const isTranscribing = ref(false);
+const isSummarizing = ref(false);
 const isTranscriptLong = computed(
-  () =>
-    (props.attachment.transcribedText?.length || 0) > TRANSCRIPT_PREVIEW_LENGTH
+  () => transcriptText.value.length > AUDIO_TEXT_PREVIEW_LENGTH
+);
+const isSummaryLong = computed(
+  () => summaryText.value.length > AUDIO_TEXT_PREVIEW_LENGTH
 );
 const displayedTranscript = computed(() => {
-  const text = props.attachment.transcribedText || '';
-  if (!isTranscriptLong.value || isTranscriptExpanded.value) return text;
-  return `${text.slice(0, TRANSCRIPT_PREVIEW_LENGTH).trimEnd()}...`;
+  if (!isTranscriptLong.value || isTranscriptExpanded.value)
+    return transcriptText.value;
+  return `${transcriptText.value
+    .slice(0, AUDIO_TEXT_PREVIEW_LENGTH)
+    .trimEnd()}...`;
+});
+const displayedSummary = computed(() => {
+  if (!isSummaryLong.value || isSummaryExpanded.value) return summaryText.value;
+  return `${summaryText.value
+    .slice(0, AUDIO_TEXT_PREVIEW_LENGTH)
+    .trimEnd()}...`;
 });
 
-const audioMeta = computed(() => props.attachment.meta || {});
 const contentType = computed(() => {
   const rawContentType = String(
     props.attachment.contentType || props.attachment.content_type || ''
@@ -85,6 +123,28 @@ const isRecordedAudio = computed(() => {
       ['ogg', 'opus'].includes(extension.value)
   );
 });
+
+const PLAYED_AUDIO_STORE = 'chatwoot:played-audio-attachments';
+const audioPlayedKey = computed(() =>
+  String(props.attachment.id || props.attachment.dataUrl || '')
+);
+const wasAudioPlayed = () =>
+  audioPlayedKey.value
+    ? Boolean(
+        LocalStorage.getFromJsonStore(PLAYED_AUDIO_STORE, audioPlayedKey.value)
+      )
+    : false;
+const isAudioHeard = ref(wasAudioPlayed());
+const isUnheardIncomingRecordedAudio = computed(
+  () => isRecordedAudio.value && !isOutgoing.value && !isAudioHeard.value
+);
+
+const markAudioAsHeard = () => {
+  if (!audioPlayedKey.value || isAudioHeard.value) return;
+
+  LocalStorage.updateJsonStore(PLAYED_AUDIO_STORE, audioPlayedKey.value, true);
+  isAudioHeard.value = true;
+};
 
 const avatarName = computed(() => sender.value?.name || '');
 const avatarSrc = computed(
@@ -278,15 +338,29 @@ const activeBarCount = computed(() => {
     (currentTime.value / effectiveDuration.value) * waveformBars.value.length
   );
 });
+const playerToneClass = computed(() => {
+  if (isUnheardIncomingRecordedAudio.value || isOutgoing.value) {
+    return 'bg-n-teal-4 text-n-slate-12';
+  }
+
+  return 'bg-n-slate-4 text-n-slate-12';
+});
 const playerClass = computed(() => [
   'flex w-full min-w-80 max-w-[28rem] items-center gap-2 rounded-xl px-3 py-2 shadow-[0_1px_1px_rgba(0,0,0,0.14)]',
-  isOutgoing.value
-    ? 'bg-n-teal-4 text-n-slate-12'
-    : 'bg-n-slate-4 text-n-slate-12',
+  playerToneClass.value,
 ]);
-const playedBarClass = computed(() => 'bg-n-blue-9');
-const pendingBarClass = computed(() =>
-  isOutgoing.value ? 'bg-n-teal-8/70' : 'bg-n-slate-8'
+const playedBarClass = computed(() =>
+  isUnheardIncomingRecordedAudio.value ? 'bg-n-teal-9' : 'bg-n-blue-9'
+);
+const pendingBarClass = computed(() => {
+  if (isUnheardIncomingRecordedAudio.value || isOutgoing.value) {
+    return 'bg-n-teal-8/70';
+  }
+
+  return 'bg-n-slate-8';
+});
+const micBadgeClass = computed(() =>
+  isUnheardIncomingRecordedAudio.value ? 'bg-n-teal-9' : 'bg-n-blue-9'
 );
 
 const barHeightClass = value => {
@@ -305,6 +379,76 @@ const barHeightClass = value => {
 const barColorClass = index =>
   index < activeBarCount.value ? playedBarClass.value : pendingBarClass.value;
 
+const canProcessAudio = computed(() =>
+  Boolean(conversationId.value && id.value && props.attachment.id)
+);
+const showAudioActions = computed(
+  () => props.showTranscribedText && Boolean(props.attachment.id)
+);
+const transcribeButtonLabel = computed(() => {
+  if (isTranscribing.value) return t('CONVERSATION.AUDIO.TRANSCRIBING');
+  if (showTranscript.value && transcriptText.value)
+    return t('CONVERSATION.AUDIO.HIDE_TRANSCRIPT');
+
+  return t('CONVERSATION.AUDIO.TRANSCRIBE');
+});
+const summarizeButtonLabel = computed(() => {
+  if (isSummarizing.value) return t('CONVERSATION.AUDIO.SUMMARIZING');
+  if (showSummary.value && summaryText.value)
+    return t('CONVERSATION.AUDIO.HIDE_SUMMARY');
+
+  return t('CONVERSATION.AUDIO.SUMMARIZE');
+});
+
+const audioProcessingError = error =>
+  error?.response?.data?.error || t('CONVERSATION.AUDIO.PROCESSING_ERROR');
+
+const transcribeAudio = async () => {
+  if (transcriptText.value) {
+    showTranscript.value = !showTranscript.value;
+    return;
+  }
+
+  if (!canProcessAudio.value || isTranscribing.value) return;
+
+  isTranscribing.value = true;
+  try {
+    await store.dispatch('transcribeAudioMessage', {
+      conversationId: conversationId.value,
+      messageId: id.value,
+      attachmentId: props.attachment.id,
+    });
+    showTranscript.value = true;
+  } catch (error) {
+    useAlert(audioProcessingError(error));
+  } finally {
+    isTranscribing.value = false;
+  }
+};
+
+const summarizeAudio = async () => {
+  if (summaryText.value) {
+    showSummary.value = !showSummary.value;
+    return;
+  }
+
+  if (!canProcessAudio.value || isSummarizing.value) return;
+
+  isSummarizing.value = true;
+  try {
+    await store.dispatch('summarizeAudioMessage', {
+      conversationId: conversationId.value,
+      messageId: id.value,
+      attachmentId: props.attachment.id,
+    });
+    showSummary.value = true;
+  } catch (error) {
+    useAlert(audioProcessingError(error));
+  } finally {
+    isSummarizing.value = false;
+  }
+};
+
 onMounted(() => {
   const d = audioPlayer.value?.duration;
   setDuration(d);
@@ -318,6 +462,20 @@ watch(timeStampURL, () => {
   generatedWaveform.value = [];
   generateWaveformFromAudio();
 });
+
+watch(audioPlayedKey, () => {
+  isAudioHeard.value = wasAudioPlayed();
+});
+
+watch(
+  () => props.attachment.id,
+  () => {
+    isTranscriptExpanded.value = false;
+    isSummaryExpanded.value = false;
+    showTranscript.value = Boolean(transcriptText.value);
+    showSummary.value = Boolean(summaryText.value);
+  }
+);
 
 useEmitter('pause_playing_audio', currentPlayingId => {
   if (currentPlayingId !== uid && isPlaying.value) {
@@ -353,6 +511,7 @@ const playOrPause = async () => {
   try {
     if (!audioPlayer.value.readyState) audioPlayer.value.load();
     await audioPlayer.value.play();
+    markAudioAsHeard();
     syncDuration();
     isPlaying.value = true;
   } catch {
@@ -431,12 +590,12 @@ const changePlaybackSpeed = () => {
       </button>
 
       <div class="flex min-w-0 flex-1 flex-col justify-center gap-1">
-        <div class="relative flex h-6 min-w-56 items-center">
-          <div class="flex h-6 w-full items-center gap-px">
+        <div class="relative flex h-6 min-w-0 items-center">
+          <div class="flex h-6 w-full min-w-0 items-center gap-px">
             <span
               v-for="(height, index) in waveformBars"
               :key="`${height}-${index}`"
-              class="w-0.5 shrink-0 rounded-full"
+              class="min-w-px flex-1 rounded-full"
               :class="[barHeightClass(height), barColorClass(index)]"
             />
           </div>
@@ -465,18 +624,50 @@ const changePlaybackSpeed = () => {
       <div v-if="isRecordedAudio && !isOutgoing" class="relative shrink-0">
         <Avatar :name="avatarName" :src="avatarSrc" :size="44" />
         <span
-          class="absolute -bottom-0.5 -left-0.5 grid size-4 place-items-center rounded-full bg-n-teal-9 text-white"
+          class="absolute -bottom-0.5 -left-0.5 grid size-4 place-items-center rounded-full text-white"
+          :class="micBadgeClass"
         >
           <Icon class="size-2.5" icon="i-lucide-mic" />
         </span>
       </div>
     </div>
 
+    <div v-if="showAudioActions" class="flex flex-wrap items-center gap-2 px-1">
+      <Button
+        :label="transcribeButtonLabel"
+        :is-loading="isTranscribing"
+        :disabled="isSummarizing || !canProcessAudio"
+        icon="i-lucide-file-text"
+        slate
+        faded
+        xs
+        @click="transcribeAudio"
+      />
+      <Button
+        :label="summarizeButtonLabel"
+        :is-loading="isSummarizing"
+        :disabled="isTranscribing || !canProcessAudio"
+        icon="i-lucide-sparkles"
+        blue
+        faded
+        xs
+        @click="summarizeAudio"
+      />
+    </div>
+
     <div
-      v-if="props.attachment.transcribedText && props.showTranscribedText"
+      v-if="showTranscript && transcriptText && props.showTranscribedText"
       class="w-full rounded-lg bg-n-alpha-1 p-3 text-sm text-n-slate-12 break-words"
     >
-      {{ displayedTranscript }}
+      <div
+        class="mb-1 flex items-center gap-1 text-xs font-semibold text-n-slate-11"
+      >
+        <Icon class="size-3" icon="i-lucide-file-text" />
+        {{ $t('CONVERSATION.AUDIO.TRANSCRIPT_TITLE') }}
+      </div>
+      <p class="whitespace-pre-wrap">
+        {{ displayedTranscript }}
+      </p>
       <button
         v-if="isTranscriptLong"
         class="mt-1 block border-0 bg-transparent p-0 font-medium text-n-slate-11 hover:text-n-slate-12"
@@ -484,8 +675,34 @@ const changePlaybackSpeed = () => {
       >
         {{
           isTranscriptExpanded
-            ? $t('CONVERSATION.VOICE_CALL.TRANSCRIPT_SHOW_LESS')
-            : $t('CONVERSATION.VOICE_CALL.TRANSCRIPT_SHOW_MORE')
+            ? $t('CONVERSATION.SHOW_LESS')
+            : $t('CONVERSATION.SHOW_MORE')
+        }}
+      </button>
+    </div>
+
+    <div
+      v-if="showSummary && summaryText && props.showTranscribedText"
+      class="w-full rounded-lg bg-n-blue-9/10 p-3 text-sm text-n-slate-12 break-words"
+    >
+      <div
+        class="mb-1 flex items-center gap-1 text-xs font-semibold text-n-blue-11"
+      >
+        <Icon class="size-3" icon="i-lucide-sparkles" />
+        {{ $t('CONVERSATION.AUDIO.SUMMARY_TITLE') }}
+      </div>
+      <p class="whitespace-pre-wrap">
+        {{ displayedSummary }}
+      </p>
+      <button
+        v-if="isSummaryLong"
+        class="mt-1 block border-0 bg-transparent p-0 font-medium text-n-slate-11 hover:text-n-slate-12"
+        @click="isSummaryExpanded = !isSummaryExpanded"
+      >
+        {{
+          isSummaryExpanded
+            ? $t('CONVERSATION.SHOW_LESS')
+            : $t('CONVERSATION.SHOW_MORE')
         }}
       </button>
     </div>

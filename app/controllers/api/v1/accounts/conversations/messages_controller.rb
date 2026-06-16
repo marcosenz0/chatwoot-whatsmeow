@@ -85,6 +85,14 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
     render json: { content: translated_content }
   end
 
+  def transcribe_audio
+    render_audio_processing_result(:transcribe)
+  end
+
+  def summarize_audio
+    render_audio_processing_result(:summarize)
+  end
+
   private
 
   def message
@@ -96,7 +104,28 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
   end
 
   def permitted_params
-    params.permit(:id, :target_language, :status, :external_error, :emoji, :content)
+    params.permit(:id, :target_language, :status, :external_error, :emoji, :content, :attachment_id)
+  end
+
+  def render_audio_processing_result(operation)
+    result = Messages::AudioTranscriptionService.new(
+      audio_attachment,
+      operation: operation
+    ).perform
+
+    if result[:success]
+      @message = message.reload
+      render :create
+    else
+      render json: { error: result[:error] }, status: :unprocessable_entity
+    end
+  end
+
+  def audio_attachment
+    attachments = message.attachments.audio
+    return attachments.find(permitted_params[:attachment_id]) if permitted_params[:attachment_id].present?
+
+    attachments.first
   end
 
   def already_translated_content_available?

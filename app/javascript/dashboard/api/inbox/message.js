@@ -128,6 +128,20 @@ class MessageApi extends ApiClient {
       }
     );
   }
+
+  transcribeAudio(conversationId, messageId, attachmentId) {
+    return axios.post(
+      `${this.url}/${conversationId}/messages/${messageId}/transcribe_audio`,
+      { attachment_id: attachmentId }
+    );
+  }
+
+  summarizeAudio(conversationId, messageId, attachmentId) {
+    return axios.post(
+      `${this.url}/${conversationId}/messages/${messageId}/summarize_audio`,
+      { attachment_id: attachmentId }
+    );
+  }
 }
 
 export default new MessageApi();

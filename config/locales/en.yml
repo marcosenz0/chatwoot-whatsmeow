@@ -369,6 +369,10 @@ en:
       name: 'OpenAI'
       short_description: 'AI-powered reply suggestions, summarization, and message enhancement.'
       description: 'Leverage the power of large language models from OpenAI with the features such as reply suggestions, summarization, message rephrasing, spell-checking, and label classification.'
+    audio_transcription:
+      name: 'Audio Transcription'
+      short_description: 'Transcribe and summarize audio messages with OpenAI or Groq.'
+      description: 'Configure OpenAI and Groq providers to transcribe and summarize sent or received audio messages directly inside conversations.'
     linear:
       name: 'Linear'
       short_description: 'Create and link Linear issues directly from conversations.'

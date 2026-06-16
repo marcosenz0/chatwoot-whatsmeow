@@ -114,6 +114,17 @@
       "TRANSCRIPT_SHOW_MORE": "Show more",
       "TRANSCRIPT_SHOW_LESS": "Show less"
     },
+    "AUDIO": {
+      "TRANSCRIBE": "Transcribe audio",
+      "TRANSCRIBING": "Transcribing...",
+      "HIDE_TRANSCRIPT": "Hide transcription",
+      "SUMMARIZE": "Summarize audio",
+      "SUMMARIZING": "Summarizing...",
+      "HIDE_SUMMARY": "Hide summary",
+      "TRANSCRIPT_TITLE": "Audio transcription",
+      "SUMMARY_TITLE": "Audio summary",
+      "PROCESSING_ERROR": "Could not process the audio. Check the audio transcription integration and try again."
+    },
     "HEADER": {
       "RESOLVE_ACTION": "Resolve",
       "REOPEN_ACTION": "Reopen",

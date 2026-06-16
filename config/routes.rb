@@ -161,6 +161,8 @@ Rails.application.routes.draw do
               resources :messages, only: [:index, :create, :destroy, :update] do
                 member do
                   post :translate
+                  post :transcribe_audio
+                  post :summarize_audio
                   post :retry
                   post :reaction
                   post :edit

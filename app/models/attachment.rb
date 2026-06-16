@@ -111,7 +111,8 @@ class Attachment < ApplicationRecord
       {
         # Keep audio playback inline while avoiding the ActiveStorage proxy path.
         data_url: inline_audio_url,
-        transcribed_text: meta&.[]('transcribed_text') || ''
+        transcribed_text: meta&.[]('transcribed_text') || '',
+        summary_text: meta&.[]('summary_text') || ''
       }
     )
   end

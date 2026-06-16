@@ -391,6 +391,32 @@ const actions = {
     commit(types.ADD_MESSAGE, data);
   },
 
+  transcribeAudioMessage: async (
+    { commit },
+    { conversationId, messageId, attachmentId }
+  ) => {
+    const { data } = await MessageApi.transcribeAudio(
+      conversationId,
+      messageId,
+      attachmentId
+    );
+    commit(types.ADD_MESSAGE, data);
+    return data;
+  },
+
+  summarizeAudioMessage: async (
+    { commit },
+    { conversationId, messageId, attachmentId }
+  ) => {
+    const { data } = await MessageApi.summarizeAudio(
+      conversationId,
+      messageId,
+      attachmentId
+    );
+    commit(types.ADD_MESSAGE, data);
+    return data;
+  },
+
   deleteConversation: async ({ commit, dispatch }, conversationId) => {
     try {
       await ConversationApi.delete(conversationId);
