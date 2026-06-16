@@ -212,7 +212,7 @@ class Messages::AudioTranscriptionService
   def transcribe_with_provider(provider, file_path)
     response = connection_for(provider).post('audio/transcriptions') do |request|
       request.headers['Authorization'] = "Bearer #{api_key_for(provider)}"
-      request.body = transcription_payload(file_path)
+      request.body = transcription_payload(provider, file_path)
     end
 
     JSON.parse(response.body).fetch('text').to_s.strip
@@ -242,7 +242,7 @@ class Messages::AudioTranscriptionService
     end
   end
 
-  def transcription_payload(file_path)
+  def transcription_payload(provider, file_path)
     blob = attachment.file.blob
     payload = {
       model: transcription_model_for(provider),
