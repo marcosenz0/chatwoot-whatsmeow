@@ -18,6 +18,10 @@ export default {
       type: String,
       required: true,
     },
+    initialProvider: {
+      type: String,
+      default: '',
+    },
   },
   emits: ['close'],
   setup(props) {
@@ -32,7 +36,7 @@ export default {
     return {
       endPoint: '',
       alertMessage: '',
-      values: {},
+      values: this.initialValues(),
     };
   },
   computed: {
@@ -63,6 +67,25 @@ export default {
     isIntegrationDialogflow() {
       return this.integration.id === 'dialogflow';
     },
+    isAudioTranscription() {
+      return this.integration.id === 'audio_transcription';
+    },
+    modalTitle() {
+      if (!this.isAudioTranscription || !this.initialProvider) {
+        return this.integration.name;
+      }
+
+      return this.initialProvider === 'groq'
+        ? this.$t('INTEGRATION_APPS.AUDIO_TRANSCRIPTION.MODAL_TITLE_GROQ')
+        : this.$t('INTEGRATION_APPS.AUDIO_TRANSCRIPTION.MODAL_TITLE_OPENAI');
+    },
+    modalDescription() {
+      if (!this.isAudioTranscription) {
+        return this.replaceInstallationName(this.integration.short_description);
+      }
+
+      return this.$t('INTEGRATION_APPS.AUDIO_TRANSCRIPTION.MODAL_DESCRIPTION');
+    },
     submitButtonLabel() {
       if (this.integration.id === 'openai' && this.uiFlags.isCreatingHook) {
         return this.$t('INTEGRATION_APPS.ADD.FORM.VALIDATING_OPENAI');
@@ -72,6 +95,23 @@ export default {
     },
   },
   methods: {
+    initialValues() {
+      if (
+        this.integrationId !== 'audio_transcription' ||
+        !this.initialProvider
+      ) {
+        return {};
+      }
+
+      const fallbackProvider =
+        this.initialProvider === 'groq' ? 'openai' : 'groq';
+
+      return {
+        provider: this.initialProvider,
+        fallback_provider: fallbackProvider,
+        language: 'pt',
+      };
+    },
     onClose() {
       this.$emit('close');
     },
@@ -125,8 +165,8 @@ export default {
 <template>
   <div class="flex flex-col h-auto overflow-auto integration-hooks">
     <woot-modal-header
-      :header-title="integration.name"
-      :header-content="replaceInstallationName(integration.short_description)"
+      :header-title="modalTitle"
+      :header-content="modalDescription"
     />
     <FormKit
       v-model="values"

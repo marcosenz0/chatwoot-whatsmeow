@@ -11,7 +11,7 @@
 ########################################################
 webhooks:
   id: webhook
-  logo: webhooks.png
+  logo: webhook.png
   i18n_key: webhooks
   action: /webhook
   hook_type: account
@@ -58,7 +58,7 @@ openai:
   visible_properties: ['api_key', 'label_suggestion']
 audio_transcription:
   id: audio_transcription
-  logo: openai.png
+  logo: audio-transcription.svg
   i18n_key: audio_transcription
   hook_type: account
   allow_multiple_hooks: false
@@ -84,7 +84,7 @@ audio_transcription:
   settings_form_schema:
     [
       {
-        'label': 'Primary provider',
+        'label': 'Provedor principal',
         'type': 'select',
         'name': 'provider',
         'default': 'openai',
@@ -96,11 +96,11 @@ audio_transcription:
           ],
       },
       {
-        'label': 'Fallback provider',
+        'label': 'Provedor reserva',
         'type': 'select',
         'name': 'fallback_provider',
         'default': 'none',
-        'help': 'Use another provider automatically if the primary one fails.',
+        'help': 'Use outro provedor automaticamente se o principal falhar.',
         'options':
           [
             { 'label': 'None', 'value': 'none' },
@@ -109,19 +109,19 @@ audio_transcription:
           ],
       },
       {
-        'label': 'OpenAI API Key',
+        'label': 'Chave API da OpenAI',
         'type': 'password',
         'name': 'openai_api_key',
-        'help': 'Required when OpenAI is the primary or fallback provider.',
+        'help': 'Obrigatoria quando OpenAI for o provedor principal ou reserva.',
       },
       {
-        'label': 'Groq API Key',
+        'label': 'Chave API da Groq',
         'type': 'password',
         'name': 'groq_api_key',
-        'help': 'Required when Groq is the primary or fallback provider.',
+        'help': 'Obrigatoria quando Groq for o provedor principal ou reserva.',
       },
       {
-        'label': 'OpenAI transcription model',
+        'label': 'Modelo de transcricao da OpenAI',
         'type': 'select',
         'name': 'openai_transcription_model',
         'default': 'gpt-4o-mini-transcribe',
@@ -133,7 +133,7 @@ audio_transcription:
           ],
       },
       {
-        'label': 'Groq transcription model',
+        'label': 'Modelo de transcricao da Groq',
         'type': 'select',
         'name': 'groq_transcription_model',
         'default': 'whisper-large-v3-turbo',
@@ -144,23 +144,23 @@ audio_transcription:
           ],
       },
       {
-        'label': 'OpenAI summary model',
+        'label': 'Modelo de resumo da OpenAI',
         'type': 'text',
         'name': 'openai_summary_model',
         'default': 'gpt-4.1-mini',
       },
       {
-        'label': 'Groq summary model',
+        'label': 'Modelo de resumo da Groq',
         'type': 'text',
         'name': 'groq_summary_model',
         'default': 'llama-3.3-70b-versatile',
       },
       {
-        'label': 'Audio language',
+        'label': 'Idioma do audio',
         'type': 'select',
         'name': 'language',
         'default': 'auto',
-        'help': 'Auto-detect works well; choose Portuguese to improve speed and accuracy for Brazilian audios.',
+        'help': 'A deteccao automatica funciona bem; escolha portugues para melhorar velocidade e precisao em audios brasileiros.',
         'options':
           [
             { 'label': 'Auto-detect', 'value': 'auto' },
@@ -278,7 +278,7 @@ dialogflow:
   visible_properties: ['project_id', 'region', 'language_code']
 google_translate:
   id: google_translate
-  logo: google-translate.png
+  logo: google_translate.png
   i18n_key: google_translate
   action: /google_translate
   hook_type: account

@@ -46,6 +46,7 @@ export default {
       showAddHookModal: false,
       showDeleteConfirmationPopup: false,
       selectedHook: {},
+      selectedProvider: '',
       alertMessage: '',
     };
   },
@@ -80,11 +81,13 @@ export default {
     this.$store.dispatch('integrations/get');
   },
   methods: {
-    openAddHookModal() {
+    openAddHookModal(provider = '') {
+      this.selectedProvider = provider;
       this.showAddHookModal = true;
     },
     hideAddHookModal() {
       this.showAddHookModal = false;
+      this.selectedProvider = '';
     },
     openDeletePopup(response) {
       this.showDeleteConfirmationPopup = true;
@@ -145,8 +148,16 @@ export default {
         </div>
       </div>
     </template>
-    <woot-modal v-model:show="showAddHookModal" :on-close="hideAddHookModal">
-      <NewHook :integration-id="integrationId" @close="hideAddHookModal" />
+    <woot-modal
+      v-model:show="showAddHookModal"
+      :on-close="hideAddHookModal"
+      size="mt-10 max-h-[calc(100%-5rem)]"
+    >
+      <NewHook
+        :integration-id="integrationId"
+        :initial-provider="selectedProvider"
+        @close="hideAddHookModal"
+      />
     </woot-modal>
 
     <woot-delete-modal

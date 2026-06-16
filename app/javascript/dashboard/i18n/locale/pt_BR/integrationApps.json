@@ -57,6 +57,17 @@
     "CONNECT": {
       "BUTTON_TEXT": "Conectar"
     },
+    "AUDIO_TRANSCRIPTION": {
+      "OPENAI_TITLE": "OpenAI",
+      "OPENAI_DESCRIPTION": "Use modelos da OpenAI para transcricao e resumo com maior precisao.",
+      "OPENAI_BUTTON": "Conectar OpenAI",
+      "GROQ_TITLE": "Groq",
+      "GROQ_DESCRIPTION": "Use modelos Whisper da Groq para transcrever audios com velocidade.",
+      "GROQ_BUTTON": "Conectar Groq",
+      "MODAL_TITLE_OPENAI": "Conectar OpenAI",
+      "MODAL_TITLE_GROQ": "Conectar Groq",
+      "MODAL_DESCRIPTION": "Configure o provedor principal e uma reserva opcional para transcricao e resumo de audios."
+    },
     "DISCONNECT": {
       "BUTTON_TEXT": "Desconectado"
     },

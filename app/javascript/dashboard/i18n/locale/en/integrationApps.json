@@ -57,6 +57,17 @@
     "CONNECT": {
       "BUTTON_TEXT": "Connect"
     },
+    "AUDIO_TRANSCRIPTION": {
+      "OPENAI_TITLE": "OpenAI",
+      "OPENAI_DESCRIPTION": "Use OpenAI transcription and summary models for higher accuracy.",
+      "OPENAI_BUTTON": "Connect OpenAI",
+      "GROQ_TITLE": "Groq",
+      "GROQ_DESCRIPTION": "Use Groq Whisper models for fast audio transcription.",
+      "GROQ_BUTTON": "Connect Groq",
+      "MODAL_TITLE_OPENAI": "Connect OpenAI",
+      "MODAL_TITLE_GROQ": "Connect Groq",
+      "MODAL_DESCRIPTION": "Configure the primary provider and optional fallback for audio transcription and summaries."
+    },
     "DISCONNECT": {
       "BUTTON_TEXT": "Disconnect"
     },
