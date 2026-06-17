@@ -359,8 +359,12 @@ export default {
         :on-confirm="confirmDeletion"
         :title="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.TITLE')"
         :message="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.MESSAGE')"
-        :confirm-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.DELETE')"
-        :reject-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.CANCEL')"
+        :confirm-text="
+          $t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.DELETE')
+        "
+        :reject-text="
+          $t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.CANCEL')
+        "
       />
       <woot-delete-modal
         v-if="showPermanentDeleteModal && enabledOptions['permanentDelete']"
