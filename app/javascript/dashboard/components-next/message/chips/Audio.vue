@@ -83,22 +83,12 @@ const SUMMARY_TYPES = [
 const isValidSummaryType = type =>
   SUMMARY_TYPES.some(summaryType => summaryType.id === type);
 
-const savedSummaryType = LocalStorage.get(AUDIO_SUMMARY_TYPE_STORE);
 const isTranscriptExpanded = ref(false);
 const isSummaryExpanded = ref(false);
 const showTranscript = ref(Boolean(transcriptText.value));
 const showSummary = ref(Boolean(summaryText.value));
 const isTranscribing = ref(false);
 const isSummarizing = ref(false);
-const selectedSummaryType = ref(
-  isValidSummaryType(savedSummaryType) ? savedSummaryType : DEFAULT_SUMMARY_TYPE
-);
-const summaryTypeOptions = computed(() =>
-  SUMMARY_TYPES.map(summaryType => ({
-    ...summaryType,
-    label: t(summaryType.labelKey),
-  }))
-);
 const attachmentSummaryType = computed(() => {
   const type =
     props.attachment.summaryType ||
@@ -107,6 +97,21 @@ const attachmentSummaryType = computed(() => {
     audioMeta.value.summary_type;
   return isValidSummaryType(type) ? type : DEFAULT_SUMMARY_TYPE;
 });
+const preferredSummaryType = () => {
+  const savedSummaryType = LocalStorage.get(AUDIO_SUMMARY_TYPE_STORE);
+  return isValidSummaryType(savedSummaryType)
+    ? savedSummaryType
+    : DEFAULT_SUMMARY_TYPE;
+};
+const selectedSummaryType = ref(
+  summaryText.value ? attachmentSummaryType.value : preferredSummaryType()
+);
+const summaryTypeOptions = computed(() =>
+  SUMMARY_TYPES.map(summaryType => ({
+    ...summaryType,
+    label: t(summaryType.labelKey),
+  }))
+);
 const cleanGeneratedText = text =>
   String(text || '')
     .replace(/\*\*(.*?)\*\*/g, '$1')
@@ -540,8 +545,17 @@ watch(
     isSummaryExpanded.value = false;
     showTranscript.value = Boolean(transcriptText.value);
     showSummary.value = Boolean(summaryText.value);
+    selectedSummaryType.value = summaryText.value
+      ? attachmentSummaryType.value
+      : preferredSummaryType();
   }
 );
+
+watch([summaryText, attachmentSummaryType], () => {
+  if (summaryText.value) {
+    selectedSummaryType.value = attachmentSummaryType.value;
+  }
+});
 
 useEmitter('pause_playing_audio', currentPlayingId => {
   if (currentPlayingId !== uid && isPlaying.value) {
