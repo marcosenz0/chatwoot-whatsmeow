@@ -104,13 +104,14 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
   end
 
   def permitted_params
-    params.permit(:id, :target_language, :status, :external_error, :emoji, :content, :attachment_id)
+    params.permit(:id, :target_language, :status, :external_error, :emoji, :content, :attachment_id, :summary_type)
   end
 
   def render_audio_processing_result(operation)
     result = Messages::AudioTranscriptionService.new(
       audio_attachment,
-      operation: operation
+      operation: operation,
+      summary_type: permitted_params[:summary_type]
     ).perform
 
     if result[:success]

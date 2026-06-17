@@ -67,17 +67,60 @@ const summaryText = computed(() =>
   getAttachmentText('summaryText', 'summary_text')
 );
 const AUDIO_TEXT_PREVIEW_LENGTH = 200;
+const AUDIO_SUMMARY_TYPE_STORE = 'chatwoot:audio-summary-type';
+const DEFAULT_SUMMARY_TYPE = 'structured';
+const SUMMARY_TYPES = [
+  {
+    id: DEFAULT_SUMMARY_TYPE,
+    labelKey: 'CONVERSATION.AUDIO.SUMMARY_TYPES.STRUCTURED',
+  },
+  {
+    id: 'general',
+    labelKey: 'CONVERSATION.AUDIO.SUMMARY_TYPES.GENERAL',
+  },
+];
+
+const isValidSummaryType = type =>
+  SUMMARY_TYPES.some(summaryType => summaryType.id === type);
+
+const savedSummaryType = LocalStorage.get(AUDIO_SUMMARY_TYPE_STORE);
 const isTranscriptExpanded = ref(false);
 const isSummaryExpanded = ref(false);
 const showTranscript = ref(Boolean(transcriptText.value));
 const showSummary = ref(Boolean(summaryText.value));
 const isTranscribing = ref(false);
 const isSummarizing = ref(false);
+const selectedSummaryType = ref(
+  isValidSummaryType(savedSummaryType) ? savedSummaryType : DEFAULT_SUMMARY_TYPE
+);
+const summaryTypeOptions = computed(() =>
+  SUMMARY_TYPES.map(summaryType => ({
+    ...summaryType,
+    label: t(summaryType.labelKey),
+  }))
+);
+const attachmentSummaryType = computed(() => {
+  const type =
+    props.attachment.summaryType ||
+    props.attachment.summary_type ||
+    audioMeta.value.summaryType ||
+    audioMeta.value.summary_type;
+  return isValidSummaryType(type) ? type : DEFAULT_SUMMARY_TYPE;
+});
+const cleanGeneratedText = text =>
+  String(text || '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .replace(/^\s*#{1,6}\s*/gm, '')
+    .replace(/^\s*Resumo do (?:\u00C1udio|Audio):\s*/i, '')
+    .replace(/\*/g, '')
+    .trim();
+const cleanSummaryText = computed(() => cleanGeneratedText(summaryText.value));
 const isTranscriptLong = computed(
   () => transcriptText.value.length > AUDIO_TEXT_PREVIEW_LENGTH
 );
 const isSummaryLong = computed(
-  () => summaryText.value.length > AUDIO_TEXT_PREVIEW_LENGTH
+  () => cleanSummaryText.value.length > AUDIO_TEXT_PREVIEW_LENGTH
 );
 const displayedTranscript = computed(() => {
   if (!isTranscriptLong.value || isTranscriptExpanded.value)
@@ -87,8 +130,9 @@ const displayedTranscript = computed(() => {
     .trimEnd()}...`;
 });
 const displayedSummary = computed(() => {
-  if (!isSummaryLong.value || isSummaryExpanded.value) return summaryText.value;
-  return `${summaryText.value
+  if (!isSummaryLong.value || isSummaryExpanded.value)
+    return cleanSummaryText.value;
+  return `${cleanSummaryText.value
     .slice(0, AUDIO_TEXT_PREVIEW_LENGTH)
     .trimEnd()}...`;
 });
@@ -403,6 +447,25 @@ const summarizeButtonLabel = computed(() => {
 const audioProcessingError = error =>
   error?.response?.data?.error || t('CONVERSATION.AUDIO.PROCESSING_ERROR');
 
+const requestSummary = async () => {
+  if (!canProcessAudio.value || isSummarizing.value) return;
+
+  isSummarizing.value = true;
+  try {
+    await store.dispatch('summarizeAudioMessage', {
+      conversationId: conversationId.value,
+      messageId: id.value,
+      attachmentId: props.attachment.id,
+      summaryType: selectedSummaryType.value,
+    });
+    showSummary.value = true;
+  } catch (error) {
+    useAlert(audioProcessingError(error));
+  } finally {
+    isSummarizing.value = false;
+  }
+};
+
 const transcribeAudio = async () => {
   if (transcriptText.value) {
     showTranscript.value = !showTranscript.value;
@@ -427,26 +490,29 @@ const transcribeAudio = async () => {
 };
 
 const summarizeAudio = async () => {
-  if (summaryText.value) {
+  if (
+    summaryText.value &&
+    attachmentSummaryType.value === selectedSummaryType.value
+  ) {
     showSummary.value = !showSummary.value;
     return;
   }
 
-  if (!canProcessAudio.value || isSummarizing.value) return;
+  await requestSummary();
+};
 
-  isSummarizing.value = true;
-  try {
-    await store.dispatch('summarizeAudioMessage', {
-      conversationId: conversationId.value,
-      messageId: id.value,
-      attachmentId: props.attachment.id,
-    });
-    showSummary.value = true;
-  } catch (error) {
-    useAlert(audioProcessingError(error));
-  } finally {
-    isSummarizing.value = false;
+const changeSummaryType = async summaryType => {
+  if (
+    !isValidSummaryType(summaryType) ||
+    summaryType === selectedSummaryType.value
+  ) {
+    return;
   }
+
+  selectedSummaryType.value = summaryType;
+  LocalStorage.set(AUDIO_SUMMARY_TYPE_STORE, summaryType);
+  isSummaryExpanded.value = false;
+  if (showSummary.value) await requestSummary();
 };
 
 onMounted(() => {
@@ -660,7 +726,7 @@ const changePlaybackSpeed = () => {
       class="w-full rounded-lg bg-n-alpha-1 p-3 text-sm text-n-slate-12 break-words"
     >
       <div
-        class="mb-1 flex items-center gap-1 text-xs font-semibold text-n-slate-11"
+        class="mb-2 inline-flex items-center gap-1 rounded-md bg-n-teal-3 px-2 py-1 text-xs font-semibold text-n-teal-12"
       >
         <Icon class="size-3" icon="i-lucide-file-text" />
         {{ $t('CONVERSATION.AUDIO.TRANSCRIPT_TITLE') }}
@@ -670,9 +736,17 @@ const changePlaybackSpeed = () => {
       </p>
       <button
         v-if="isTranscriptLong"
-        class="mt-1 block border-0 bg-transparent p-0 font-medium text-n-slate-11 hover:text-n-slate-12"
+        class="mt-2 inline-flex items-center gap-1 rounded-md border-0 bg-n-teal-9 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-n-teal-10"
         @click="isTranscriptExpanded = !isTranscriptExpanded"
       >
+        <Icon
+          class="size-3"
+          :icon="
+            isTranscriptExpanded
+              ? 'i-lucide-chevron-up'
+              : 'i-lucide-chevron-down'
+          "
+        />
         {{
           isTranscriptExpanded
             ? $t('CONVERSATION.SHOW_LESS')
@@ -682,23 +756,53 @@ const changePlaybackSpeed = () => {
     </div>
 
     <div
-      v-if="showSummary && summaryText && props.showTranscribedText"
+      v-if="showSummary && cleanSummaryText && props.showTranscribedText"
       class="w-full rounded-lg bg-n-blue-9/10 p-3 text-sm text-n-slate-12 break-words"
     >
-      <div
-        class="mb-1 flex items-center gap-1 text-xs font-semibold text-n-blue-11"
-      >
-        <Icon class="size-3" icon="i-lucide-sparkles" />
-        {{ $t('CONVERSATION.AUDIO.SUMMARY_TITLE') }}
+      <div class="mb-2 flex flex-wrap items-center gap-2">
+        <div
+          class="inline-flex items-center gap-1 rounded-md bg-n-blue-3 px-2 py-1 text-xs font-semibold text-n-blue-12"
+        >
+          <Icon class="size-3" icon="i-lucide-sparkles" />
+          {{ $t('CONVERSATION.AUDIO.SUMMARY_TITLE') }}
+        </div>
+        <div
+          class="ml-auto inline-flex items-center gap-1 rounded-lg bg-n-blue-1 p-1"
+        >
+          <span class="px-1 text-[10px] font-semibold text-n-blue-11">
+            {{ $t('CONVERSATION.AUDIO.SUMMARY_TYPE_LABEL') }}
+          </span>
+          <button
+            v-for="summaryType in summaryTypeOptions"
+            :key="summaryType.id"
+            type="button"
+            class="rounded-md border-0 px-2 py-1 text-[11px] font-semibold transition"
+            :class="
+              selectedSummaryType === summaryType.id
+                ? 'bg-n-blue-9 text-white shadow-sm'
+                : 'bg-transparent text-n-blue-11 hover:bg-n-blue-2'
+            "
+            :disabled="isSummarizing"
+            @click="changeSummaryType(summaryType.id)"
+          >
+            {{ summaryType.label }}
+          </button>
+        </div>
       </div>
       <p class="whitespace-pre-wrap">
         {{ displayedSummary }}
       </p>
       <button
         v-if="isSummaryLong"
-        class="mt-1 block border-0 bg-transparent p-0 font-medium text-n-slate-11 hover:text-n-slate-12"
+        class="mt-2 inline-flex items-center gap-1 rounded-md border-0 bg-n-teal-9 px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition hover:bg-n-teal-10"
         @click="isSummaryExpanded = !isSummaryExpanded"
       >
+        <Icon
+          class="size-3"
+          :icon="
+            isSummaryExpanded ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'
+          "
+        />
         {{
           isSummaryExpanded
             ? $t('CONVERSATION.SHOW_LESS')

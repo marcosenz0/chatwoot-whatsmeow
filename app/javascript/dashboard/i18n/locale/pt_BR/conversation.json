@@ -113,6 +113,11 @@
       "HIDE_SUMMARY": "Ocultar resumo",
       "TRANSCRIPT_TITLE": "Transcrição do áudio",
       "SUMMARY_TITLE": "Resumo do áudio",
+      "SUMMARY_TYPE_LABEL": "Tipo de resumo",
+      "SUMMARY_TYPES": {
+        "STRUCTURED": "Estruturado",
+        "GENERAL": "Geral"
+      },
       "PROCESSING_ERROR": "Não foi possível processar o áudio. Confira a integração de transcrição de áudios e tente novamente."
     },
     "HEADER": {

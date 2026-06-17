@@ -5,6 +5,8 @@ class Messages::AudioTranscriptionService
   LEGACY_OPENAI_MODEL_CONFIG = 'CAPTAIN_OPEN_AI_MODEL'.freeze
   LEGACY_OPENAI_ENDPOINT_CONFIG = 'CAPTAIN_OPEN_AI_ENDPOINT'.freeze
   PROVIDERS = %w[openai groq].freeze
+  SUMMARY_TYPES = %w[structured general].freeze
+  DEFAULT_SUMMARY_TYPE = 'structured'.freeze
   LEGACY_OPENAI_TRANSCRIPTION_MODEL = 'whisper-1'.freeze
   DEFAULT_TRANSCRIPTION_MODELS = {
     'openai' => 'gpt-4o-mini-transcribe',
@@ -19,13 +21,14 @@ class Messages::AudioTranscriptionService
     'groq' => 'https://api.groq.com/openai/v1'
   }.freeze
 
-  attr_reader :attachment, :message, :account, :operation
+  attr_reader :attachment, :message, :account, :operation, :summary_type
 
-  def initialize(attachment, operation: :transcribe)
+  def initialize(attachment, operation: :transcribe, summary_type: DEFAULT_SUMMARY_TYPE)
     @attachment = attachment
     @message = attachment&.message
     @account = message&.account
     @operation = operation.to_sym
+    @summary_type = SUMMARY_TYPES.include?(summary_type.to_s) ? summary_type.to_s : DEFAULT_SUMMARY_TYPE
   end
 
   def perform
@@ -61,7 +64,7 @@ class Messages::AudioTranscriptionService
 
   def summarize
     summary = summarize_audio
-    { success: true, summary: summary }
+    { success: true, summary: summary, summary_type: summary_type }
   end
 
   def audio_too_large?
@@ -180,14 +183,15 @@ class Messages::AudioTranscriptionService
   end
 
   def summarize_audio
-    summary_text = attachment.meta&.[]('summary_text').to_s
-    return summary_text if summary_text.present?
+    cached_summary = cached_summary_text
+    return cached_summary if cached_summary.present?
 
     transcribed_text = transcribe_audio
     return '' if transcribed_text.blank?
 
     provider, summary_text = first_successful_provider { |candidate| summarize_with_provider(candidate, transcribed_text) }
-    update_audio_meta('summary_text', summary_text, provider)
+    summary_text = clean_summary_text(summary_text)
+    update_summary_meta(summary_text, provider)
     summary_text
   end
 
@@ -229,7 +233,7 @@ class Messages::AudioTranscriptionService
       }.to_json
     end
 
-    JSON.parse(response.body).dig('choices', 0, 'message', 'content').to_s.strip
+    clean_summary_text(JSON.parse(response.body).dig('choices', 0, 'message', 'content'))
   end
 
   def connection_for(provider)
@@ -263,13 +267,91 @@ class Messages::AudioTranscriptionService
     [
       {
         role: 'system',
-        content: 'Resuma audios de atendimento em portugues claro, curto e util para um agente de suporte. Destaque intencao, pedidos, dados importantes e proximos passos quando existirem.'
+        content: summary_prompt
       },
       {
         role: 'user',
         content: "Transcricao do audio:\n\n#{transcribed_text}"
       }
     ]
+  end
+
+  def summary_prompt
+    return general_summary_prompt if summary_type == 'general'
+
+    [
+      'Resuma audios de atendimento em portugues claro, curto e util para um agente de suporte.',
+      'Nao use Markdown, asteriscos, negrito, listas com simbolos ou titulo "Resumo do Audio".',
+      'Use texto simples e separe em linhas curtas com estes campos quando fizer sentido:',
+      'Intencao:, Pedidos:, Dados importantes:, Proximos passos:.',
+      'Se um campo nao existir, escreva "Nao identificado".'
+    ].join(' ')
+  end
+
+  def general_summary_prompt
+    [
+      'Resuma audios de atendimento em portugues claro, natural e util para um agente de suporte.',
+      'Nao use Markdown, asteriscos, negrito, topicos ou titulo "Resumo do Audio".',
+      'Escreva um resumo geral em um paragrafo curto, juntando a ideia principal, contexto e qualquer pedido importante.'
+    ].join(' ')
+  end
+
+  def cached_summary_text
+    summaries = summary_cache
+    cached_summary = clean_summary_text(summaries[summary_type])
+    if cached_summary.present?
+      update_summary_meta(cached_summary, summary_provider_cache[summary_type])
+      return cached_summary
+    end
+
+    return if summary_type != DEFAULT_SUMMARY_TYPE || summaries.present?
+
+    legacy_summary = clean_summary_text(attachment.meta&.[]('summary_text'))
+    return if legacy_summary.blank?
+
+    update_summary_meta(legacy_summary, attachment.meta&.[]('summary_text_provider'))
+    legacy_summary
+  end
+
+  def summary_cache
+    summaries = attachment.meta&.[]('summary_texts')
+    summaries.is_a?(Hash) ? summaries : {}
+  end
+
+  def summary_provider_cache
+    providers = attachment.meta&.[]('summary_text_providers')
+    providers.is_a?(Hash) ? providers : {}
+  end
+
+  def summary_generated_at_cache
+    generated_ats = attachment.meta&.[]('summary_text_generated_ats')
+    generated_ats.is_a?(Hash) ? generated_ats : {}
+  end
+
+  def clean_summary_text(text)
+    text.to_s
+        .gsub(/\*\*(.*?)\*\*/m, '\1')
+        .gsub(/__(.*?)__/m, '\1')
+        .gsub(/\A\s*Resumo do (?:\u{C1}udio|Audio):\s*/i, '')
+        .gsub('*', '')
+        .strip
+  end
+
+  def update_summary_meta(value, provider)
+    return if value.blank?
+
+    generated_at = Time.current.iso8601
+    metadata = (attachment.meta || {}).merge(
+      'summary_text' => value,
+      'summary_type' => summary_type,
+      'summary_text_provider' => provider,
+      'summary_text_generated_at' => generated_at,
+      'summary_texts' => summary_cache.merge(summary_type => value),
+      'summary_text_providers' => summary_provider_cache.merge(summary_type => provider),
+      'summary_text_generated_ats' => summary_generated_at_cache.merge(summary_type => generated_at)
+    )
+    attachment.update!(meta: metadata)
+    after_audio_meta_update('summary_text')
   end
 
   def update_audio_meta(key, value, provider)
@@ -281,6 +363,10 @@ class Messages::AudioTranscriptionService
       "#{key}_generated_at" => Time.current.iso8601
     )
     attachment.update!(meta: metadata)
+    after_audio_meta_update(key)
+  end
+
+  def after_audio_meta_update(key)
     message.reload.send_update_event
     message.account.increment_response_usage if audio_transcription_hook.blank? && key == 'transcribed_text'
 

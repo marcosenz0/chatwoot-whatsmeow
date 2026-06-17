@@ -406,12 +406,13 @@ const actions = {
 
   summarizeAudioMessage: async (
     { commit },
-    { conversationId, messageId, attachmentId }
+    { conversationId, messageId, attachmentId, summaryType }
   ) => {
     const { data } = await MessageApi.summarizeAudio(
       conversationId,
       messageId,
-      attachmentId
+      attachmentId,
+      summaryType
     );
     commit(types.ADD_MESSAGE, data);
     return data;

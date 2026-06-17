@@ -136,10 +136,13 @@ class MessageApi extends ApiClient {
     );
   }
 
-  summarizeAudio(conversationId, messageId, attachmentId) {
+  summarizeAudio(conversationId, messageId, attachmentId, summaryType) {
+    const payload = { attachment_id: attachmentId };
+    if (summaryType) payload.summary_type = summaryType;
+
     return axios.post(
       `${this.url}/${conversationId}/messages/${messageId}/summarize_audio`,
-      { attachment_id: attachmentId }
+      payload
     );
   }
 }
