@@ -7,7 +7,7 @@ class Messages::AudioTranscriptionService
   LEGACY_OPENAI_ENDPOINT_CONFIG = 'CAPTAIN_OPEN_AI_ENDPOINT'.freeze
   PROVIDERS = %w[openai groq].freeze
   SUMMARY_TYPES = %w[structured general].freeze
-  DEFAULT_SUMMARY_TYPE = 'structured'.freeze
+  DEFAULT_SUMMARY_TYPE = 'general'.freeze
   LEGACY_OPENAI_TRANSCRIPTION_MODEL = 'whisper-1'.freeze
   DEFAULT_TRANSCRIPTION_MODELS = {
     'openai' => 'gpt-4o-mini-transcribe',

@@ -123,7 +123,6 @@
       "HIDE_SUMMARY": "Hide summary",
       "TRANSCRIPT_TITLE": "Audio transcription",
       "SUMMARY_TITLE": "Audio summary",
-      "SUMMARY_TYPE_LABEL": "Summary type",
       "SUMMARY_TYPES": {
         "STRUCTURED": "Structured",
         "GENERAL": "General"

@@ -61,9 +61,6 @@ class Captain::OpenAiMessageBuilderService
     audio_attachments = attachments.where(file_type: :audio)
     return '' if audio_attachments.blank?
 
-    audio_attachments.map do |attachment|
-      result = Messages::AudioTranscriptionService.new(attachment).perform
-      result[:success] ? result[:transcriptions] : ''
-    end.join
+    audio_attachments.filter_map { |attachment| attachment.meta&.dig('transcribed_text').presence }.join
   end
 end

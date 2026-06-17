@@ -12,10 +12,7 @@ class Messages::AudioTranscriptionJob < ApplicationJob
   end
   retry_on ActiveStorage::FileNotFoundError, wait: 2.seconds, attempts: 3
 
-  def perform(attachment_id)
-    attachment = Attachment.find_by(id: attachment_id)
-    return if attachment.blank?
-
-    Messages::AudioTranscriptionService.new(attachment).perform
+  def perform(_attachment_id)
+    Rails.logger.info('[audio-transcription] Skipping automatic transcription job; audio processing is manual only')
   end
 end

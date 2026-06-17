@@ -188,6 +188,7 @@ export default {
       this.$emit('open', e);
     },
     handleClose(e) {
+      document.activeElement?.blur?.();
       this.$emit('close', e);
     },
     handleTranslate() {
@@ -348,56 +349,64 @@ export default {
         :on-close="hideCannedResponseModal"
       />
     </woot-modal>
-    <!-- Confirm Deletion -->
-    <woot-delete-modal
-      v-if="showDeleteModal && enabledOptions['delete']"
-      v-model:show="showDeleteModal"
-      class="context-menu--delete-modal"
-      :on-close="closeDeleteModal"
-      :on-confirm="confirmDeletion"
-      :title="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.TITLE')"
-      :message="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.MESSAGE')"
-      :confirm-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.DELETE')"
-      :reject-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.CANCEL')"
-    />
-    <woot-delete-modal
-      v-if="showPermanentDeleteModal && enabledOptions['permanentDelete']"
-      v-model:show="showPermanentDeleteModal"
-      class="context-menu--delete-modal"
-      :on-close="closePermanentDeleteModal"
-      :on-confirm="confirmPermanentDeletion"
-      :title="
-        $t('CONVERSATION.CONTEXT_MENU.PERMANENT_DELETE_CONFIRMATION.TITLE')
-      "
-      :message="
-        $t('CONVERSATION.CONTEXT_MENU.PERMANENT_DELETE_CONFIRMATION.MESSAGE')
-      "
-      :confirm-text="
-        $t('CONVERSATION.CONTEXT_MENU.PERMANENT_DELETE_CONFIRMATION.DELETE')
-      "
-      :reject-text="
-        $t('CONVERSATION.CONTEXT_MENU.PERMANENT_DELETE_CONFIRMATION.CANCEL')
-      "
-    />
-    <woot-delete-modal
-      v-if="showDeleteForEveryoneModal && enabledOptions['deleteForEveryone']"
-      v-model:show="showDeleteForEveryoneModal"
-      class="context-menu--delete-modal"
-      :on-close="closeDeleteForEveryoneModal"
-      :on-confirm="confirmDeleteForEveryone"
-      :title="
-        $t('CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE_CONFIRMATION.TITLE')
-      "
-      :message="
-        $t('CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE_CONFIRMATION.MESSAGE')
-      "
-      :confirm-text="
-        $t('CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE_CONFIRMATION.DELETE')
-      "
-      :reject-text="
-        $t('CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE_CONFIRMATION.CANCEL')
-      "
-    />
+    <Teleport to="body">
+      <!-- Confirm Deletion -->
+      <woot-delete-modal
+        v-if="showDeleteModal && enabledOptions['delete']"
+        v-model:show="showDeleteModal"
+        class="context-menu--delete-modal"
+        :on-close="closeDeleteModal"
+        :on-confirm="confirmDeletion"
+        :title="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.TITLE')"
+        :message="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.MESSAGE')"
+        :confirm-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.DELETE')"
+        :reject-text="$t('CONVERSATION.CONTEXT_MENU.DELETE_CONFIRMATION.CANCEL')"
+      />
+      <woot-delete-modal
+        v-if="showPermanentDeleteModal && enabledOptions['permanentDelete']"
+        v-model:show="showPermanentDeleteModal"
+        class="context-menu--delete-modal"
+        :on-close="closePermanentDeleteModal"
+        :on-confirm="confirmPermanentDeletion"
+        :title="
+          $t('CONVERSATION.CONTEXT_MENU.PERMANENT_DELETE_CONFIRMATION.TITLE')
+        "
+        :message="
+          $t('CONVERSATION.CONTEXT_MENU.PERMANENT_DELETE_CONFIRMATION.MESSAGE')
+        "
+        :confirm-text="
+          $t('CONVERSATION.CONTEXT_MENU.PERMANENT_DELETE_CONFIRMATION.DELETE')
+        "
+        :reject-text="
+          $t('CONVERSATION.CONTEXT_MENU.PERMANENT_DELETE_CONFIRMATION.CANCEL')
+        "
+      />
+      <woot-delete-modal
+        v-if="showDeleteForEveryoneModal && enabledOptions['deleteForEveryone']"
+        v-model:show="showDeleteForEveryoneModal"
+        class="context-menu--delete-modal"
+        :on-close="closeDeleteForEveryoneModal"
+        :on-confirm="confirmDeleteForEveryone"
+        :title="
+          $t('CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE_CONFIRMATION.TITLE')
+        "
+        :message="
+          $t(
+            'CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE_CONFIRMATION.MESSAGE'
+          )
+        "
+        :confirm-text="
+          $t(
+            'CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE_CONFIRMATION.DELETE'
+          )
+        "
+        :reject-text="
+          $t(
+            'CONVERSATION.CONTEXT_MENU.DELETE_FOR_EVERYONE_CONFIRMATION.CANCEL'
+          )
+        "
+      />
+    </Teleport>
     <Teleport to="body">
       <woot-modal
         v-if="showEditModal && enabledOptions['edit']"

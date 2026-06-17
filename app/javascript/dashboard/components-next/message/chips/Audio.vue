@@ -68,15 +68,15 @@ const summaryText = computed(() =>
 );
 const AUDIO_TEXT_PREVIEW_LENGTH = 200;
 const AUDIO_SUMMARY_TYPE_STORE = 'chatwoot:audio-summary-type';
-const DEFAULT_SUMMARY_TYPE = 'structured';
+const DEFAULT_SUMMARY_TYPE = 'general';
 const SUMMARY_TYPES = [
   {
     id: DEFAULT_SUMMARY_TYPE,
-    labelKey: 'CONVERSATION.AUDIO.SUMMARY_TYPES.STRUCTURED',
+    labelKey: 'CONVERSATION.AUDIO.SUMMARY_TYPES.GENERAL',
   },
   {
-    id: 'general',
-    labelKey: 'CONVERSATION.AUDIO.SUMMARY_TYPES.GENERAL',
+    id: 'structured',
+    labelKey: 'CONVERSATION.AUDIO.SUMMARY_TYPES.STRUCTURED',
   },
 ];
 
@@ -783,9 +783,6 @@ const changePlaybackSpeed = () => {
         <div
           class="ml-auto inline-flex items-center gap-1 rounded-lg bg-n-blue-1 p-1"
         >
-          <span class="px-1 text-[10px] font-semibold text-n-blue-11">
-            {{ $t('CONVERSATION.AUDIO.SUMMARY_TYPE_LABEL') }}
-          </span>
           <button
             v-for="summaryType in summaryTypeOptions"
             :key="summaryType.id"
