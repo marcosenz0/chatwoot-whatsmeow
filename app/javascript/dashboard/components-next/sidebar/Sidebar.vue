@@ -1,5 +1,5 @@
 <script setup>
-import { h, ref, computed, onMounted, watch } from 'vue';
+import { h, ref, computed, onBeforeUnmount, onMounted, watch } from 'vue';
 import { provideSidebarContext, useSidebarResize } from './provider';
 import { useAccount } from 'dashboard/composables/useAccount';
 import { useKbd } from 'dashboard/composables/utils/useKbd';
@@ -35,6 +35,8 @@ const emit = defineEmits([
   'showCreateAccountModal',
   'closeMobileSidebar',
 ]);
+
+const WHATSMEOW_STATUS_SYNC_INTERVAL = 60000;
 
 const { accountScopedRoute, isOnChatwootCloud } = useAccount();
 const store = useStore();
@@ -90,6 +92,7 @@ const toggleShortcutModalFn = show => {
 useSidebarKeyboardShortcuts(toggleShortcutModalFn);
 
 const expandedItem = ref(null);
+const whatsmeowStatusSyncInterval = ref(null);
 
 const setExpandedItem = name => {
   expandedItem.value = expandedItem.value === name ? null : name;
@@ -190,19 +193,47 @@ const conversationCustomViews = useMapGetter(
   'customViews/getConversationCustomViews'
 );
 
+const syncWhatsmeowStatuses = () => {
+  if (document.visibilityState === 'hidden') return;
+  store.dispatch('inboxes/syncWhatsmeowStatuses');
+};
+
+const startWhatsmeowStatusSync = () => {
+  if (whatsmeowStatusSyncInterval.value) return;
+
+  whatsmeowStatusSyncInterval.value = setInterval(
+    syncWhatsmeowStatuses,
+    WHATSMEOW_STATUS_SYNC_INTERVAL
+  );
+};
+
+const stopWhatsmeowStatusSync = () => {
+  if (!whatsmeowStatusSyncInterval.value) return;
+
+  clearInterval(whatsmeowStatusSyncInterval.value);
+  whatsmeowStatusSyncInterval.value = null;
+};
+
 onMounted(() => {
   store.dispatch('labels/get');
-  store.dispatch('inboxes/get');
+  store.dispatch('inboxes/get').then(syncWhatsmeowStatuses);
   store.dispatch('notifications/unReadCount');
   store.dispatch('teams/get');
   store.dispatch('attributes/get');
   store.dispatch('customViews/get', 'conversation');
   store.dispatch('customViews/get', 'contact');
+  startWhatsmeowStatusSync();
+});
+
+onBeforeUnmount(() => {
+  stopWhatsmeowStatusSync();
 });
 
 watch([accountId, hasConversationUnreadCounts], fetchConversationUnreadCounts, {
   immediate: true,
 });
+
+useEventListener(document, 'visibilitychange', syncWhatsmeowStatuses);
 
 const normalizeUnreadCount = count => {
   const unreadCount = Number(count);

@@ -12,6 +12,10 @@ import camelcaseKeys from 'camelcase-keys';
 import { ACCOUNT_EVENTS } from '../../helper/AnalyticsHelper/events';
 import { channelActions, buildInboxData } from './inboxes/channelActions';
 
+const WHATSMEOW_CHANNEL_TYPE = 'Channel::Whatsmeow';
+const WHATSMEOW_STATUS_REQUEST_TIMEOUT = 10000;
+let isSyncingWhatsmeowStatuses = false;
+
 export const state = {
   records: [],
   uiFlags: {
@@ -186,6 +190,25 @@ const sendAnalyticsEvent = channelType => {
   AnalyticsHelper.track(ACCOUNT_EVENTS.ADDED_AN_INBOX, {
     channelType,
   });
+};
+
+const inboxWithWhatsmeowStatus = (inbox, payload = {}) => {
+  const nextStatus = payload.status || 'disconnected';
+  const nextPhoneNumber = payload.phone_number;
+  const nextChannel = inbox.channel
+    ? {
+        ...inbox.channel,
+        status: nextStatus,
+        ...(nextPhoneNumber ? { phone_number: nextPhoneNumber } : {}),
+      }
+    : inbox.channel;
+
+  return {
+    ...inbox,
+    status: nextStatus,
+    ...(nextPhoneNumber ? { phone_number: nextPhoneNumber } : {}),
+    ...(nextChannel ? { channel: nextChannel } : {}),
+  };
 };
 
 export const actions = {
@@ -374,6 +397,39 @@ export const actions = {
     } catch (error) {
       throwErrorMessage(error);
       return null;
+    }
+  },
+  syncWhatsmeowStatuses: async ({ state: $state, commit }) => {
+    if (isSyncingWhatsmeowStatuses) return;
+
+    const whatsmeowInboxes = $state.records.filter(
+      inbox => inbox.channel_type === WHATSMEOW_CHANNEL_TYPE
+    );
+    if (!whatsmeowInboxes.length) return;
+
+    isSyncingWhatsmeowStatuses = true;
+
+    try {
+      await Promise.all(
+        whatsmeowInboxes.map(async inbox => {
+          try {
+            const { data } = await InboxesAPI.getWhatsmeowStatus(inbox.id, {
+              timeout: WHATSMEOW_STATUS_REQUEST_TIMEOUT,
+            });
+            commit(
+              types.default.EDIT_INBOXES,
+              inboxWithWhatsmeowStatus(inbox, data)
+            );
+          } catch {
+            commit(
+              types.default.EDIT_INBOXES,
+              inboxWithWhatsmeowStatus(inbox, { status: 'disconnected' })
+            );
+          }
+        })
+      );
+    } finally {
+      isSyncingWhatsmeowStatuses = false;
     }
   },
 };
