@@ -1,3 +1,4 @@
+# rubocop:disable Metrics/ClassLength
 class Messages::AudioTranscriptionService
   TRANSCRIPTION_BYTE_LIMIT = 25_000_000
   INTEGRATION_APP_ID = 'audio_transcription'.freeze
@@ -333,7 +334,7 @@ class Messages::AudioTranscriptionService
         .gsub(/\*\*(.*?)\*\*/m, '\1')
         .gsub(/__(.*?)__/m, '\1')
         .gsub(/\A\s*Resumo do (?:\u{C1}udio|Audio):\s*/i, '')
-        .gsub('*', '')
+        .delete('*')
         .strip
   end
 
@@ -386,3 +387,4 @@ class Messages::AudioTranscriptionService
     }.fetch(subtype, subtype)
   end
 end
+# rubocop:enable Metrics/ClassLength
