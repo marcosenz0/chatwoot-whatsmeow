@@ -91,7 +91,7 @@ onMounted(() => {
           ghost
           slate
           icon="i-lucide-x"
-          class="absolute z-10 ltr:right-2 rtl:left-2 top-2"
+          class="absolute right-2 top-2 z-10"
           @click="close"
         />
         <slot />

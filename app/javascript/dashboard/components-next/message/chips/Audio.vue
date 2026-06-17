@@ -67,7 +67,6 @@ const summaryText = computed(() =>
   getAttachmentText('summaryText', 'summary_text')
 );
 const AUDIO_TEXT_PREVIEW_LENGTH = 200;
-const AUDIO_SUMMARY_TYPE_STORE = 'chatwoot:audio-summary-type';
 const DEFAULT_SUMMARY_TYPE = 'general';
 const SUMMARY_TYPES = [
   {
@@ -85,8 +84,8 @@ const isValidSummaryType = type =>
 
 const isTranscriptExpanded = ref(false);
 const isSummaryExpanded = ref(false);
-const showTranscript = ref(Boolean(transcriptText.value));
-const showSummary = ref(Boolean(summaryText.value));
+const showTranscript = ref(false);
+const showSummary = ref(false);
 const isTranscribing = ref(false);
 const isSummarizing = ref(false);
 const attachmentSummaryType = computed(() => {
@@ -98,14 +97,9 @@ const attachmentSummaryType = computed(() => {
   return isValidSummaryType(type) ? type : DEFAULT_SUMMARY_TYPE;
 });
 const preferredSummaryType = () => {
-  const savedSummaryType = LocalStorage.get(AUDIO_SUMMARY_TYPE_STORE);
-  return isValidSummaryType(savedSummaryType)
-    ? savedSummaryType
-    : DEFAULT_SUMMARY_TYPE;
+  return DEFAULT_SUMMARY_TYPE;
 };
-const selectedSummaryType = ref(
-  summaryText.value ? attachmentSummaryType.value : preferredSummaryType()
-);
+const selectedSummaryType = ref(preferredSummaryType());
 const summaryTypeOptions = computed(() =>
   SUMMARY_TYPES.map(summaryType => ({
     ...summaryType,
@@ -515,7 +509,6 @@ const changeSummaryType = async summaryType => {
   }
 
   selectedSummaryType.value = summaryType;
-  LocalStorage.set(AUDIO_SUMMARY_TYPE_STORE, summaryType);
   isSummaryExpanded.value = false;
   if (showSummary.value) await requestSummary();
 };
@@ -543,16 +536,14 @@ watch(
   () => {
     isTranscriptExpanded.value = false;
     isSummaryExpanded.value = false;
-    showTranscript.value = Boolean(transcriptText.value);
-    showSummary.value = Boolean(summaryText.value);
-    selectedSummaryType.value = summaryText.value
-      ? attachmentSummaryType.value
-      : preferredSummaryType();
+    showTranscript.value = false;
+    showSummary.value = false;
+    selectedSummaryType.value = preferredSummaryType();
   }
 );
 
 watch([summaryText, attachmentSummaryType], () => {
-  if (summaryText.value) {
+  if (summaryText.value && showSummary.value) {
     selectedSummaryType.value = attachmentSummaryType.value;
   }
 });
