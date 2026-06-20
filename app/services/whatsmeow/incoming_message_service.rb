@@ -481,7 +481,6 @@ class Whatsmeow::IncomingMessageService
     content_type = 'image/webp' if content_type == 'application/octet-stream'
 
     {
-      data_base64: attachment[:data_base64],
       file_name: attachment[:file_name],
       content_type: content_type,
       file_size: attachment[:file_size]

@@ -46,7 +46,7 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
     conversation = Current.account.conversations.find_by!(display_id: sticker_params[:conversation_id])
     authorize conversation, :show?
 
-    metadata = persisted_sticker_metadata(@sticker)
+    metadata = runtime_sticker_metadata(@sticker)
     return render_unavailable_sticker unless metadata[:data_base64].present?
 
     message = build_sticker_message(conversation, @sticker, metadata)
@@ -91,7 +91,6 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
     return {} unless attachment.file.attached?
 
     {
-      data_base64: Base64.strict_encode64(attachment.file.download),
       file_name: attachment.file.filename.to_s,
       content_type: attachment.file.content_type.presence || 'image/webp',
       file_size: attachment.file.byte_size
@@ -100,11 +99,23 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
 
   def persisted_sticker_metadata(sticker)
     metadata = (sticker.metadata || {}).with_indifferent_access
-    return metadata if metadata[:data_base64].present?
+    return metadata if metadata[:file_name].present?
 
     metadata = sticker_metadata(sticker.attachment).merge(sticker_file_metadata(sticker.attachment))
     sticker.update!(metadata: metadata)
     metadata.with_indifferent_access
+  rescue ActiveStorage::FileNotFoundError, ActiveStorage::IntegrityError => e
+    Rails.logger.warn("Whatsmeow sticker #{sticker.id} is unavailable: #{e.message}")
+    metadata.merge(unavailable: true)
+  end
+
+  def runtime_sticker_metadata(sticker)
+    metadata = {}.with_indifferent_access
+    metadata = persisted_sticker_metadata(sticker)
+    return metadata if metadata[:data_base64].present?
+    return metadata unless sticker.attachment.file.attached?
+
+    metadata.merge(data_base64: Base64.strict_encode64(sticker.attachment.file.download)).with_indifferent_access
   rescue ActiveStorage::FileNotFoundError, ActiveStorage::IntegrityError => e
     Rails.logger.warn("Whatsmeow sticker #{sticker.id} is unavailable: #{e.message}")
     metadata.merge(unavailable: true)
@@ -150,7 +161,7 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
 
   def sticker_attachment_metadata(metadata)
     metadata.with_indifferent_access
-            .slice(:data_base64, :file_name, :content_type, :file_size)
+            .slice(:file_name, :content_type, :file_size)
             .compact_blank
   end
 
@@ -177,7 +188,7 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
   def sticker_payload(sticker)
     attachment = sticker.attachment
     metadata = persisted_sticker_metadata(sticker)
-    data_url = sticker_data_url(metadata)
+    data_url = attachment.file_url.presence || sticker_data_url(metadata)
 
     {
       id: sticker.id,

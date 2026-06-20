@@ -68,6 +68,13 @@ remove_old_notification_job:
   class: 'Notification::RemoveOldNotificationJob'
   queue: purgable
 
+# executed daily at 2315 UTC
+# purges old local Whatsmeow media files while preserving messages
+whatsmeow_purge_old_attachments_job:
+  cron: '15 23 * * *'
+  class: 'Whatsmeow::PurgeOldAttachmentsJob'
+  queue: housekeeping
+
 # executed every 12 hours
 # to remove orphan conversations without contact
 remove_orphan_conversations_job:

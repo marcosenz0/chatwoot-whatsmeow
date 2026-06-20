@@ -20,4 +20,11 @@ namespace :whatsmeow do
     action = inline ? 'Synced' : 'Queued'
     puts "#{action} #{synced} Whatsmeow profile picture sync jobs."
   end
+
+  desc 'Purge old Whatsmeow media attachments; use DRY_RUN=true to only report'
+  task purge_old_attachments: :environment do
+    dry_run = ActiveModel::Type::Boolean.new.cast(ENV.fetch('DRY_RUN', false))
+
+    Whatsmeow::PurgeOldAttachmentsJob.perform_now(dry_run: dry_run)
+  end
 end
