@@ -25,6 +25,7 @@ class Whatsmeow::IncomingMessageService
     attach_files
     attach_contacts
     @message.save!
+    Whatsmeow::AttachmentRetentionScheduler.maybe_enqueue
   end
 
   private
