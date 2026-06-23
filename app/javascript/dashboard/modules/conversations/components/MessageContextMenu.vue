@@ -504,7 +504,7 @@ export default {
         <MenuItem
           v-if="enabledOptions['downloadAudio']"
           :option="{
-            icon: 'arrow-download-outline',
+            icon: 'i-lucide-download',
             label: $t('CONVERSATION.CONTEXT_MENU.DOWNLOAD_AUDIO'),
           }"
           variant="icon"

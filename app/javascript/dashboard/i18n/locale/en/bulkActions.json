@@ -25,6 +25,14 @@
       "ALL_MISSING_ATTRIBUTES": "Cannot resolve conversations due to missing required attributes",
       "PARTIAL_SUCCESS": "Some conversations need required attributes before resolving and were skipped"
     },
+    "DELETE": {
+      "DELETE_SELECTED_TOOLTIP": "Delete selected conversations",
+      "TITLE": "Delete {conversationCount} selected conversations?",
+      "DESCRIPTION": "The selected conversations will be permanently deleted from this account.",
+      "CONFIRM": "Delete conversations",
+      "DELETE_SUCCESFUL": "Conversations deleted successfully.",
+      "DELETE_FAILED": "Failed to delete conversations. Please try again."
+    },
     "LABELS": {
       "ASSIGN_LABELS": "Assign labels",
       "REMOVE_LABELS": "Remove labels",

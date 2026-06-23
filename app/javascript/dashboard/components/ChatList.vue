@@ -816,6 +816,21 @@ const handleDelete = conversationId => {
   deleteConversationDialogRef.value.open();
 };
 
+const handleBulkDeleteConversations = conversationIds => {
+  resetBulkActions();
+
+  const currentConversationId =
+    route.params.conversation_id ||
+    route.params.conversationId ||
+    route.params.id;
+  if (
+    currentConversationId &&
+    conversationIds.map(String).includes(String(currentConversationId))
+  ) {
+    redirectToConversationList();
+  }
+};
+
 provide('selectConversation', selectConversation);
 provide('deSelectConversation', deSelectConversation);
 provide('assignAgent', onAssignAgent);
@@ -928,8 +943,8 @@ watch(conversationFilters, (newVal, oldVal) => {
       :show-open-action="allSelectedConversationsStatus('open')"
       :show-resolved-action="allSelectedConversationsStatus('resolved')"
       :show-snoozed-action="allSelectedConversationsStatus('snoozed')"
-      :class="isOnExpandedLayout && 'sm:!w-[24rem] !w-full'"
       @select-all-conversations="toggleSelectAll"
+      @delete-conversations="handleBulkDeleteConversations"
     />
     <ConversationList
       :conversation-list="conversationList"

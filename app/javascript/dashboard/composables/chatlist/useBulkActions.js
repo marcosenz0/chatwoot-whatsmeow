@@ -219,6 +219,25 @@ export function useBulkActions() {
     }
   }
 
+  async function onDeleteConversations(
+    conversationIds = selectedConversations.value
+  ) {
+    const ids = [...conversationIds];
+    if (!ids.length) return false;
+
+    try {
+      await Promise.all(
+        ids.map(id => store.dispatch('deleteConversation', id))
+      );
+      resetBulkActions();
+      useAlert(t('BULK_ACTION.DELETE.DELETE_SUCCESFUL'));
+      return true;
+    } catch (err) {
+      useAlert(t('BULK_ACTION.DELETE.DELETE_FAILED'));
+      return false;
+    }
+  }
+
   return {
     selectedConversations,
     selectedInboxes,
@@ -232,5 +251,6 @@ export function useBulkActions() {
     onRemoveLabels,
     onAssignTeamsForBulk,
     onUpdateConversations,
+    onDeleteConversations,
   };
 }

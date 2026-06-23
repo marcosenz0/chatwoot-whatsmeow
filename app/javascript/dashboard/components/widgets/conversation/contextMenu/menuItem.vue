@@ -16,8 +16,13 @@ defineProps({
 
 <template>
   <div class="menu text-n-slate-12 min-h-7 min-w-0" role="button">
+    <Icon
+      v-if="variant === 'icon' && option.icon?.startsWith('i-')"
+      :icon="option.icon"
+      class="size-3.5 flex-shrink-0"
+    />
     <fluent-icon
-      v-if="variant === 'icon' && option.icon"
+      v-else-if="variant === 'icon' && option.icon"
       :icon="option.icon"
       size="14"
       class="flex-shrink-0"

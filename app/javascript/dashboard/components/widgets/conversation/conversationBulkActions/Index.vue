@@ -14,6 +14,7 @@ import {
 
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Checkbox from 'dashboard/components-next/checkbox/Checkbox.vue';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import BulkAgentActions from './BulkAgentActions.vue';
 import BulkUpdateActions from './BulkUpdateActions.vue';
 import BulkLabelActions from './BulkLabelActions.vue';
@@ -47,7 +48,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['selectAllConversations']);
+const emit = defineEmits(['selectAllConversations', 'deleteConversations']);
 
 defineOptions({
   inheritAttrs: false,
@@ -62,6 +63,7 @@ const {
   onRemoveLabels,
   onAssignTeamsForBulk: onAssignTeam,
   onUpdateConversations,
+  onDeleteConversations,
 } = useBulkActions();
 
 const getConversationById = useMapGetter('getConversationById');
@@ -76,6 +78,9 @@ const appliedLabelsForSelection = computed(() => {
 });
 
 const showCustomTimeSnoozeModal = ref(false);
+const deleteConversationsDialogRef = ref(null);
+const pendingDeleteConversationIds = ref([]);
+const isDeletingConversations = ref(false);
 
 function onCmdSnoozeConversation(snoozeType) {
   if (snoozeType === wootConstants.SNOOZE_OPTIONS.UNTIL_CUSTOM_TIME) {
@@ -104,6 +109,27 @@ function customSnoozeTime(customSnoozedTime) {
 
 function hideCustomSnoozeModal() {
   showCustomTimeSnoozeModal.value = false;
+}
+
+function openDeleteConversationsDialog() {
+  pendingDeleteConversationIds.value = [...selectedConversations.value];
+  deleteConversationsDialogRef.value?.open();
+}
+
+function clearPendingDeleteConversations() {
+  pendingDeleteConversationIds.value = [];
+}
+
+async function confirmDeleteConversations() {
+  isDeletingConversations.value = true;
+  const ids = [...pendingDeleteConversationIds.value];
+  const deleted = await onDeleteConversations(ids);
+  isDeletingConversations.value = false;
+
+  if (deleted) {
+    deleteConversationsDialogRef.value?.close();
+    emit('deleteConversations', ids);
+  }
 }
 
 // Computed property with getter/setter to enable v-model usage
@@ -139,7 +165,7 @@ onUnmounted(() => {
     <div
       v-if="conversations.length > 0"
       v-bind="attrs"
-      class="px-2 absolute bottom-20 sm:bottom-4 left-1/2 -translate-x-1/2 z-30 w-full origin-bottom"
+      class="fixed bottom-4 left-1/2 z-30 w-[calc(100vw-2rem)] max-w-[44rem] -translate-x-1/2 origin-bottom px-2 lg:left-[calc(14rem+340px+1rem)] lg:right-[22rem] lg:w-auto lg:max-w-none lg:translate-x-0 2xl:left-[calc(14rem+412px+1rem)]"
     >
       <div
         v-if="allConversationsSelected"
@@ -148,15 +174,17 @@ onUnmounted(() => {
         {{ $t('BULK_ACTION.ALL_CONVERSATIONS_SELECTED_ALERT') }}
       </div>
       <div
-        class="flex items-center justify-between p-2 bg-n-button-color outline outline-1 -outline-offset-1 rounded-[10px] outline-n-weak shadow-[0_0_12px_0_rgba(27,40,59,0.08)]"
+        class="flex flex-wrap items-center justify-between gap-2 p-2 bg-n-button-color outline outline-1 -outline-offset-1 rounded-[10px] outline-n-weak shadow-[0_0_12px_0_rgba(27,40,59,0.08)] sm:flex-nowrap"
       >
-        <div class="ltr:ml-0.5 rtl:mr-0.5 flex items-center gap-1">
-          <label class="cursor-pointer flex items-center gap-1.5">
+        <div
+          class="ltr:ml-0.5 rtl:mr-0.5 flex min-w-0 flex-1 items-center gap-1"
+        >
+          <label class="cursor-pointer flex min-w-0 items-center gap-1.5">
             <Checkbox
               v-model="allSelected"
               :indeterminate="!allConversationsSelected"
             />
-            <span class="cursor-pointer">
+            <span class="cursor-pointer truncate text-sm">
               {{
                 $t('BULK_ACTION.CONVERSATIONS_SELECTED', {
                   conversationCount: conversations.length,
@@ -173,7 +201,7 @@ onUnmounted(() => {
             @click="allSelected = false"
           />
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex shrink-0 items-center gap-2">
           <BulkLabelActions @assign="onAssignLabels" />
           <BulkLabelActions
             action="remove"
@@ -185,6 +213,14 @@ onUnmounted(() => {
             :show-reopen="!showOpenAction"
             :show-snooze="!showSnoozedAction"
             @update="onUpdateConversations"
+          />
+          <NextButton
+            v-tooltip="$t('BULK_ACTION.DELETE.DELETE_SELECTED_TOOLTIP')"
+            icon="i-lucide-trash-2"
+            ruby
+            xs
+            ghost
+            @click="openDeleteConversationsDialog"
           />
           <BulkAgentActions
             :selected-inboxes="selectedInboxes"
@@ -199,6 +235,21 @@ onUnmounted(() => {
       </div>
     </div>
   </Transition>
+  <Dialog
+    ref="deleteConversationsDialogRef"
+    type="alert"
+    :title="
+      $t('BULK_ACTION.DELETE.TITLE', {
+        conversationCount:
+          pendingDeleteConversationIds.length || conversations.length,
+      })
+    "
+    :description="$t('BULK_ACTION.DELETE.DESCRIPTION')"
+    :confirm-button-label="$t('BULK_ACTION.DELETE.CONFIRM')"
+    :is-loading="isDeletingConversations"
+    @confirm="confirmDeleteConversations"
+    @close="clearPendingDeleteConversations"
+  />
   <woot-modal
     v-model:show="showCustomTimeSnoozeModal"
     :on-close="hideCustomSnoozeModal"

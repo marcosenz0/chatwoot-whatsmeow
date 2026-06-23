@@ -31,6 +31,14 @@
       "ALL_MISSING_ATTRIBUTES": "Não é possível resolver a conversa devido à ausência de atributos obrigatórios",
       "PARTIAL_SUCCESS": "Algumas conversas exigem atributos obrigatórios antes da resolução e foram ignoradas"
     },
+    "DELETE": {
+      "DELETE_SELECTED_TOOLTIP": "Excluir conversas selecionadas",
+      "TITLE": "Excluir {conversationCount} conversas selecionadas?",
+      "DESCRIPTION": "As conversas selecionadas serão excluídas permanentemente desta conta.",
+      "CONFIRM": "Excluir conversas",
+      "DELETE_SUCCESFUL": "Conversas excluídas com sucesso.",
+      "DELETE_FAILED": "Falha ao excluir conversas. Tente novamente."
+    },
     "LABELS": {
       "ASSIGN_LABELS": "Atribuir rótulo",
       "NO_LABELS_FOUND": "Nenhuma etiqueta encontrada",
