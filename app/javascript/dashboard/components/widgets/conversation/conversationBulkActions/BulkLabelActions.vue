@@ -31,6 +31,10 @@ const props = defineProps({
     type: Array,
     default: null,
   },
+  buttonSize: {
+    type: String,
+    default: '',
+  },
 });
 
 const emit = defineEmits(['assign', 'remove']);
@@ -45,6 +49,9 @@ const selectedLabels = ref([]);
 
 const isTypeContact = computed(() => props.type === 'contact');
 const isRemoveAction = computed(() => props.action === 'remove');
+const triggerButtonSize = computed(
+  () => props.buttonSize || (isTypeContact.value ? 'sm' : 'xs')
+);
 
 const buttonLabel = computed(() => {
   if (!isTypeContact.value) return '';
@@ -124,7 +131,7 @@ const handleDismiss = () => {
       :label="buttonLabel"
       :icon="isRemoveAction ? 'i-woot-tag-remove' : 'i-lucide-tag'"
       slate
-      :size="isTypeContact ? 'sm' : 'xs'"
+      :size="triggerButtonSize"
       ghost
       :class="{
         'bg-n-alpha-2': showDropdown,

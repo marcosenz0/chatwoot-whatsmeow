@@ -20,6 +20,10 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  buttonSize: {
+    type: String,
+    default: 'xs',
+  },
 });
 
 const emit = defineEmits(['update']);
@@ -81,7 +85,7 @@ const handleUpdate = item => {
       v-tooltip="$t('BULK_ACTION.UPDATE.CHANGE_STATUS')"
       icon="i-lucide-circle-fading-arrow-up"
       slate
-      xs
+      :size="buttonSize"
       ghost
       :class="{ 'bg-n-alpha-2': showDropdown }"
       @click="toggleDropdown()"

@@ -165,7 +165,7 @@ onUnmounted(() => {
     <div
       v-if="conversations.length > 0"
       v-bind="attrs"
-      class="fixed bottom-4 left-1/2 z-30 w-[calc(100vw-2rem)] max-w-[44rem] -translate-x-1/2 origin-bottom px-2 lg:left-[calc(14rem+340px+1rem)] lg:right-[22rem] lg:w-auto lg:max-w-none lg:translate-x-0 2xl:left-[calc(14rem+412px+1rem)]"
+      class="fixed bottom-4 left-0 right-0 z-30 origin-bottom px-3 lg:left-[calc(14rem+340px+1rem)] lg:right-[22rem] 2xl:left-[calc(14rem+412px+1rem)]"
     >
       <div
         v-if="allConversationsSelected"
@@ -174,7 +174,7 @@ onUnmounted(() => {
         {{ $t('BULK_ACTION.ALL_CONVERSATIONS_SELECTED_ALERT') }}
       </div>
       <div
-        class="flex flex-wrap items-center justify-between gap-2 p-2 bg-n-button-color outline outline-1 -outline-offset-1 rounded-[10px] outline-n-weak shadow-[0_0_12px_0_rgba(27,40,59,0.08)] sm:flex-nowrap"
+        class="mx-auto flex min-h-14 w-full max-w-[42rem] flex-wrap items-center justify-between gap-3 bg-n-button-color px-3 py-2.5 outline outline-1 -outline-offset-1 rounded-[10px] outline-n-weak shadow-[0_0_12px_0_rgba(27,40,59,0.08)] sm:flex-nowrap"
       >
         <div
           class="ltr:ml-0.5 rtl:mr-0.5 flex min-w-0 flex-1 items-center gap-1"
@@ -196,39 +196,43 @@ onUnmounted(() => {
           <NextButton
             :label="$t('BULK_ACTION.CLEAR_SELECTION')"
             ghost
-            class="!text-n-blue-11 !px-1 !h-6"
+            class="!text-n-blue-11 !px-2"
             sm
             @click="allSelected = false"
           />
         </div>
         <div class="flex shrink-0 items-center gap-2">
-          <BulkLabelActions @assign="onAssignLabels" />
+          <BulkLabelActions button-size="sm" @assign="onAssignLabels" />
           <BulkLabelActions
             action="remove"
             :applied-labels="appliedLabelsForSelection"
+            button-size="sm"
             @remove="onRemoveLabels"
           />
           <BulkUpdateActions
             :show-resolve="!showResolvedAction"
             :show-reopen="!showOpenAction"
             :show-snooze="!showSnoozedAction"
+            button-size="sm"
             @update="onUpdateConversations"
           />
           <NextButton
             v-tooltip="$t('BULK_ACTION.DELETE.DELETE_SELECTED_TOOLTIP')"
             icon="i-lucide-trash-2"
             ruby
-            xs
+            sm
             ghost
             @click="openDeleteConversationsDialog"
           />
           <BulkAgentActions
             :selected-inboxes="selectedInboxes"
             :conversation-count="conversations.length"
+            button-size="sm"
             @select="onAssignAgent"
           />
           <BulkTeamActions
             :conversation-count="conversations.length"
+            button-size="sm"
             @select="onAssignTeam"
           />
         </div>

@@ -18,6 +18,10 @@ const props = defineProps({
     type: Number,
     default: 0,
   },
+  buttonSize: {
+    type: String,
+    default: 'xs',
+  },
 });
 
 const emit = defineEmits(['select']);
@@ -116,7 +120,7 @@ const handleToggleDropdown = () => {
       v-tooltip="$t('BULK_ACTION.ASSIGN_AGENT_TOOLTIP')"
       icon="i-lucide-user-round-check"
       slate
-      xs
+      :size="buttonSize"
       ghost
       :class="{ 'bg-n-alpha-2': showDropdown }"
       @click="handleToggleDropdown"
