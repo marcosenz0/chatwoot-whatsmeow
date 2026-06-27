@@ -365,7 +365,21 @@
       "NO_MEMBERS": "Nenhum membro do grupo encontrado.",
       "MEMBERS_FAILED": "Nao foi possivel carregar os membros do grupo.",
       "OWNER": "Dono",
-      "ADMIN": "ADM"
+      "ADMIN": "ADM",
+      "MEMBER": "Membro",
+      "YES": "Sim",
+      "NO": "Nao",
+      "EXPORT_CSV": "Salvar contatos em CSV",
+      "EXPORT_CSV_EMPTY": "Nao ha membros para exportar.",
+      "EXPORT_CSV_SUCCESS": "{count} contatos exportados em CSV.",
+      "CSV_COLUMNS": {
+        "NAME": "Nome",
+        "PHONE": "Telefone",
+        "JID": "JID WhatsApp",
+        "LID": "LID",
+        "ROLE": "Tipo",
+        "SAVED_CONTACT": "Salvo no Chatwoot"
+      }
     },
     "WHATSMEOW_CONTACT": {
       "SEND_CONTACT": "Enviar contato",

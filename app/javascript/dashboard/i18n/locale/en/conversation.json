@@ -386,7 +386,21 @@
       "NO_MEMBERS": "No group members found.",
       "MEMBERS_FAILED": "Could not load group members.",
       "OWNER": "Owner",
-      "ADMIN": "Admin"
+      "ADMIN": "Admin",
+      "MEMBER": "Member",
+      "YES": "Yes",
+      "NO": "No",
+      "EXPORT_CSV": "Save contacts as CSV",
+      "EXPORT_CSV_EMPTY": "No members to export.",
+      "EXPORT_CSV_SUCCESS": "{count} contacts exported as CSV.",
+      "CSV_COLUMNS": {
+        "NAME": "Name",
+        "PHONE": "Phone",
+        "JID": "WhatsApp JID",
+        "LID": "LID",
+        "ROLE": "Role",
+        "SAVED_CONTACT": "Saved in Chatwoot"
+      }
     },
     "WHATSMEOW_CONTACT": {
       "SEND_CONTACT": "Send contact",

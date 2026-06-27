@@ -80,6 +80,82 @@ const subtitle = computed(() => props.groupName);
 
 const close = () => emit('close');
 
+const csvValue = value => {
+  const normalizedValue = `${value || ''}`
+    .replace(/(\r\n|\n|\r)/gm, ' ')
+    .trim();
+  return `"${normalizedValue.replace(/"/g, '""')}"`;
+};
+
+const csvFilePart = value => {
+  const normalizedValue = (value || 'grupo')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+
+  return normalizedValue || 'grupo';
+};
+
+const memberRole = member => {
+  if (member.isSuperAdmin) return t('CONVERSATION.WHATSMEOW_GROUP.OWNER');
+  if (member.isAdmin) return t('CONVERSATION.WHATSMEOW_GROUP.ADMIN');
+
+  return t('CONVERSATION.WHATSMEOW_GROUP.MEMBER');
+};
+
+const exportMembersCsv = () => {
+  if (!normalizedMembers.value.length) {
+    useAlert(t('CONVERSATION.WHATSMEOW_GROUP.EXPORT_CSV_EMPTY'));
+    return;
+  }
+
+  const headers = [
+    t('CONVERSATION.WHATSMEOW_GROUP.CSV_COLUMNS.NAME'),
+    t('CONVERSATION.WHATSMEOW_GROUP.CSV_COLUMNS.PHONE'),
+    t('CONVERSATION.WHATSMEOW_GROUP.CSV_COLUMNS.JID'),
+    t('CONVERSATION.WHATSMEOW_GROUP.CSV_COLUMNS.LID'),
+    t('CONVERSATION.WHATSMEOW_GROUP.CSV_COLUMNS.ROLE'),
+    t('CONVERSATION.WHATSMEOW_GROUP.CSV_COLUMNS.SAVED_CONTACT'),
+  ];
+
+  const rows = normalizedMembers.value.map(member => [
+    member.name,
+    member.phoneNumber,
+    member.jid,
+    member.lidJid,
+    memberRole(member),
+    member.isSavedContact
+      ? t('CONVERSATION.WHATSMEOW_GROUP.YES')
+      : t('CONVERSATION.WHATSMEOW_GROUP.NO'),
+  ]);
+
+  const csvContent = [headers, ...rows]
+    .map(row => row.map(csvValue).join(','))
+    .join('\n');
+  const blob = new Blob([`\uFEFF${csvContent}`], {
+    type: 'text/csv;charset=utf-8;',
+  });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+
+  link.href = url;
+  link.download = `membros-${csvFilePart(props.groupName)}-${new Date()
+    .toISOString()
+    .slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+
+  useAlert(
+    t('CONVERSATION.WHATSMEOW_GROUP.EXPORT_CSV_SUCCESS', {
+      count: normalizedMembers.value.length,
+    })
+  );
+};
+
 const fetchMembers = async () => {
   if (!props.show || !props.groupJid || !props.inboxId) {
     isFetching.value = false;
@@ -185,12 +261,13 @@ watch(
 
       <div class="relative">
         <span
-          class="i-lucide-search pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2 text-n-slate-9"
+          aria-hidden="true"
+          class="i-lucide-search pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-n-slate-10"
         />
         <input
           v-model="searchQuery"
           type="search"
-          class="h-10 w-full rounded-lg border border-n-weak bg-n-alpha-2 ps-3 pe-10 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-9 focus:border-n-brand"
+          class="h-10 w-full appearance-none rounded-lg border border-n-weak bg-n-alpha-2 pl-3 pr-10 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-9 focus:border-n-brand"
           :placeholder="$t('CONVERSATION.WHATSMEOW_GROUP.SEARCH_MEMBERS')"
         />
       </div>
@@ -253,6 +330,18 @@ watch(
             @click="openPrivateConversation(member)"
           />
         </div>
+      </div>
+
+      <div class="flex items-center justify-end border-t border-n-weak pt-4">
+        <NextButton
+          faded
+          blue
+          sm
+          icon="i-lucide-download"
+          :label="$t('CONVERSATION.WHATSMEOW_GROUP.EXPORT_CSV')"
+          :disabled="isFetching || !normalizedMembers.length"
+          @click="exportMembersCsv"
+        />
       </div>
     </div>
   </woot-modal>
