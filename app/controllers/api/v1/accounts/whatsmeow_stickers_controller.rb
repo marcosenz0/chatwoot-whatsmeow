@@ -189,6 +189,7 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
     attachment = sticker.attachment
     metadata = persisted_sticker_metadata(sticker)
     data_url = attachment.file_url.presence || sticker_data_url(metadata)
+    preview_url = attachment.thumb_url.presence || data_url
 
     {
       id: sticker.id,
@@ -196,7 +197,8 @@ class Api::V1::Accounts::WhatsmeowStickersController < Api::V1::Accounts::BaseCo
       file_name: metadata[:file_name].presence || (attachment.file.attached? ? attachment.file.filename.to_s : ''),
       content_type: metadata[:content_type].presence || (attachment.file.attached? ? attachment.file.content_type : ''),
       data_url: data_url,
-      thumb_url: data_url,
+      thumb_url: preview_url,
+      preview_url: preview_url,
       available: data_url.present?,
       meta: public_sticker_metadata(metadata.presence || sticker_metadata(attachment)),
       created_at: sticker.created_at.to_i,

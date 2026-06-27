@@ -5,7 +5,7 @@ import { useAlert } from 'dashboard/composables';
 import WhatsmeowStickersAPI from 'dashboard/api/whatsmeowStickers';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Icon from 'next/icon/Icon.vue';
-import { stickerDataUrl } from 'dashboard/helper/whatsmeowStickerHelper';
+import { stickerPreviewUrl } from 'dashboard/helper/whatsmeowStickerHelper';
 
 const props = defineProps({
   isOpen: {
@@ -32,8 +32,7 @@ const openedConversationId = ref(null);
 const hasStickers = computed(() => stickers.value.length > 0);
 const activeConversationId = computed(() => Number(props.conversationId || 0));
 
-const stickerImageUrl = sticker =>
-  stickerDataUrl(sticker) || sticker?.thumbUrl || sticker?.thumb_url || '';
+const stickerImageUrl = sticker => stickerPreviewUrl(sticker);
 
 const stickerHasFailed = sticker => failedStickerIds.value.has(sticker.id);
 
@@ -218,7 +217,7 @@ watch(activeConversationId, conversationId => {
           >
             <button
               type="button"
-              class="grid aspect-square w-full place-items-center rounded-xl border border-transparent p-1 hover:border-n-weak hover:bg-n-alpha-1 disabled:opacity-50"
+              class="grid aspect-square w-full place-items-center rounded-xl border border-transparent p-1 [contain-intrinsic-size:5rem_5rem] [content-visibility:auto] hover:border-n-weak hover:bg-n-alpha-1 disabled:opacity-50"
               :disabled="!!sendingStickerId || deletingStickerId === sticker.id"
               @click="sendSticker(sticker)"
             >
@@ -243,6 +242,9 @@ watch(activeConversationId, conversationId => {
                 :src="stickerImageUrl(sticker)"
                 :alt="$t('CONVERSATION.WHATSMEOW_STICKER.PREVIEW_TITLE')"
                 draggable="false"
+                loading="lazy"
+                decoding="async"
+                fetchpriority="low"
                 @load="clearStickerFailed(sticker)"
                 @error="setStickerFailed(sticker)"
               />

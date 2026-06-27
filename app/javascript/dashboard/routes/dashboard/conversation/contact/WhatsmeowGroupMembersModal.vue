@@ -185,12 +185,12 @@ watch(
 
       <div class="relative">
         <span
-          class="i-lucide-search pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-n-slate-9"
+          class="i-lucide-search pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2 text-n-slate-9"
         />
         <input
           v-model="searchQuery"
           type="search"
-          class="h-10 w-full rounded-lg border border-n-weak bg-n-alpha-2 ps-10 pe-3 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-9 focus:border-n-brand"
+          class="h-10 w-full rounded-lg border border-n-weak bg-n-alpha-2 ps-3 pe-10 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-9 focus:border-n-brand"
           :placeholder="$t('CONVERSATION.WHATSMEOW_GROUP.SEARCH_MEMBERS')"
         />
       </div>

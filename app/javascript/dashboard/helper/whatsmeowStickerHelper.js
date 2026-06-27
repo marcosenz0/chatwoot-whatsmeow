@@ -35,5 +35,20 @@ export const stickerDataUrl = sticker => {
   return sticker?.dataUrl || sticker?.data_url || '';
 };
 
+export const stickerFullUrl = sticker =>
+  stickerDataUrl(sticker) ||
+  sticker?.downloadUrl ||
+  sticker?.download_url ||
+  sticker?.fileUrl ||
+  sticker?.file_url ||
+  '';
+
+export const stickerPreviewUrl = sticker =>
+  sticker?.previewUrl ||
+  sticker?.preview_url ||
+  sticker?.thumbUrl ||
+  sticker?.thumb_url ||
+  stickerFullUrl(sticker);
+
 export const stickerAttachmentId = sticker =>
   sticker?.attachmentId || sticker?.attachment_id;

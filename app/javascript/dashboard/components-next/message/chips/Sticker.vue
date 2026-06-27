@@ -9,6 +9,7 @@ import { useMessageContext } from '../provider.js';
 import {
   stickerAttachmentId,
   stickerDataUrl,
+  stickerPreviewUrl,
 } from 'dashboard/helper/whatsmeowStickerHelper';
 
 const props = defineProps({
@@ -28,20 +29,18 @@ const isLoadingFavorite = ref(false);
 const favorite = ref(null);
 const reloadAttempt = ref(0);
 
-const rawSourceUrl = computed(
-  () =>
-    stickerDataUrl(props.attachment) ||
-    props.attachment?.thumbUrl ||
-    props.attachment?.thumb_url ||
-    ''
+const rawPreviewUrl = computed(() => stickerPreviewUrl(props.attachment));
+const rawFullUrl = computed(
+  () => stickerDataUrl(props.attachment) || rawPreviewUrl.value
 );
-const sourceUrl = computed(() => {
-  const url = rawSourceUrl.value;
+const withRetryCacheBuster = url => {
   if (!url || url.startsWith('data:') || !reloadAttempt.value) return url;
 
   const separator = url.includes('?') ? '&' : '?';
   return `${url}${separator}sticker_reload=${reloadAttempt.value}`;
-});
+};
+const sourceUrl = computed(() => withRetryCacheBuster(rawPreviewUrl.value));
+const previewSourceUrl = computed(() => withRetryCacheBuster(rawFullUrl.value));
 const senderName = computed(
   () => sender.value?.name || t('CONVERSATION.WHATSMEOW_STICKER.UNKNOWN_SENDER')
 );
@@ -51,7 +50,7 @@ const favoriteLabel = computed(() =>
     : t('CONVERSATION.WHATSMEOW_STICKER.ADD_FAVORITE')
 );
 const canOpenPreview = computed(
-  () => !!rawSourceUrl.value && !thumbnailHasError.value
+  () => !!rawFullUrl.value && !thumbnailHasError.value
 );
 
 const openPreview = () => {
@@ -115,7 +114,7 @@ watch(showPreview, value => {
   }
 });
 
-watch(rawSourceUrl, () => {
+watch(rawPreviewUrl, () => {
   reloadAttempt.value = 0;
   thumbnailHasError.value = false;
   previewHasError.value = false;
@@ -126,18 +125,18 @@ watch(rawSourceUrl, () => {
   <button
     type="button"
     data-whatsmeow-sticker-context="true"
-    class="group relative grid size-28 shrink-0 place-items-center overflow-hidden rounded-xl bg-transparent p-1 enabled:hover:bg-n-alpha-1 disabled:cursor-default"
-    :disabled="!rawSourceUrl"
+    class="group relative grid size-28 shrink-0 place-items-center overflow-hidden rounded-xl bg-transparent p-1 [contain-intrinsic-size:7rem_7rem] [content-visibility:auto] enabled:hover:bg-n-alpha-1 disabled:cursor-default"
+    :disabled="!rawPreviewUrl"
     @click="thumbnailHasError ? retryStickerLoad($event) : openPreview()"
   >
     <span
-      v-if="thumbnailHasError || !rawSourceUrl"
+      v-if="thumbnailHasError || !rawPreviewUrl"
       class="flex size-full flex-col items-center justify-center gap-1 rounded-lg bg-n-alpha-1 p-2 text-center text-xs text-n-slate-11"
     >
       <Icon icon="i-lucide-circle-off" class="text-n-slate-11" />
       <span>{{ $t('COMPONENTS.MEDIA.LOADING_FAILED') }}</span>
       <span
-        v-if="rawSourceUrl"
+        v-if="rawPreviewUrl"
         class="inline-flex items-center gap-1 rounded-md bg-n-alpha-2 px-2 py-1 text-[0.6875rem] font-medium text-n-slate-12 group-hover:bg-n-alpha-3"
       >
         <Icon icon="i-lucide-refresh-cw" class="size-3" />
@@ -149,6 +148,9 @@ watch(rawSourceUrl, () => {
       class="max-h-28 max-w-28 object-contain"
       :src="sourceUrl"
       :alt="$t('CONVERSATION.WHATSMEOW_STICKER.PREVIEW_TITLE')"
+      loading="lazy"
+      decoding="async"
+      fetchpriority="low"
       @error="handleThumbnailError"
     />
   </button>
@@ -187,9 +189,9 @@ watch(rawSourceUrl, () => {
         class="flex min-h-0 flex-1 flex-col items-center justify-center px-6"
       >
         <img
-          v-if="sourceUrl && !previewHasError"
+          v-if="previewSourceUrl && !previewHasError"
           class="max-h-[62vh] max-w-[min(28rem,80vw)] object-contain"
-          :src="sourceUrl"
+          :src="previewSourceUrl"
           :alt="$t('CONVERSATION.WHATSMEOW_STICKER.PREVIEW_TITLE')"
           @click.stop
           @error="handlePreviewError"
@@ -202,7 +204,7 @@ watch(rawSourceUrl, () => {
           <Icon icon="i-lucide-circle-off" class="size-6" />
           {{ $t('COMPONENTS.MEDIA.LOADING_FAILED') }}
           <button
-            v-if="rawSourceUrl"
+            v-if="rawFullUrl"
             type="button"
             class="mt-2 inline-flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/15"
             @click="retryStickerLoad"

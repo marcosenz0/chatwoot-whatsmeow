@@ -133,19 +133,45 @@ export default {
       const senderAttributes =
         this.currentChat?.meta?.sender?.additional_attributes || {};
       const chatAttributes = this.currentChat?.additional_attributes || {};
+      const sender = this.currentChat?.meta?.sender || {};
+      const contactInbox =
+        this.contact.contact_inbox || this.contact.contactInbox || {};
+      const chatContactInbox =
+        this.currentChat?.contact_inbox || this.currentChat?.contactInbox || {};
       const groupMessageAttributes = this.groupMessageAttributes;
+      const candidates = [
+        this.additionalAttributes.whatsmeow_group_jid,
+        this.additionalAttributes.whatsmeowGroupJid,
+        this.additionalAttributes.group_jid,
+        this.additionalAttributes.groupJid,
+        chatAttributes.whatsmeow_group_jid,
+        chatAttributes.whatsmeowGroupJid,
+        chatAttributes.group_jid,
+        chatAttributes.groupJid,
+        senderAttributes.whatsmeow_group_jid,
+        senderAttributes.whatsmeowGroupJid,
+        senderAttributes.group_jid,
+        senderAttributes.groupJid,
+        groupMessageAttributes.group_jid,
+        groupMessageAttributes.groupJid,
+        groupMessageAttributes.source_id,
+        groupMessageAttributes.sourceId,
+        this.contact.identifier,
+        this.contact.source_id,
+        this.contact.sourceId,
+        contactInbox.source_id,
+        contactInbox.sourceId,
+        this.currentChat?.source_id,
+        this.currentChat?.sourceId,
+        this.currentChat?.identifier,
+        chatContactInbox.source_id,
+        chatContactInbox.sourceId,
+        sender.identifier,
+        sender.source_id,
+        sender.sourceId,
+      ];
 
-      return (
-        this.additionalAttributes.whatsmeow_group_jid ||
-        this.additionalAttributes.whatsmeowGroupJid ||
-        chatAttributes.whatsmeow_group_jid ||
-        chatAttributes.whatsmeowGroupJid ||
-        senderAttributes.whatsmeow_group_jid ||
-        senderAttributes.whatsmeowGroupJid ||
-        groupMessageAttributes.group_jid ||
-        groupMessageAttributes.groupJid ||
-        ''
-      );
+      return candidates.map(this.canonicalGroupJid).find(Boolean) || '';
     },
     groupName() {
       return (
@@ -184,6 +210,12 @@ export default {
   },
   methods: {
     dynamicTime,
+    canonicalGroupJid(value) {
+      if (value === null || value === undefined) return '';
+
+      const match = String(value).match(/([0-9-]+@g\.us)/i);
+      return match ? match[1].toLowerCase() : '';
+    },
     toggleEditModal() {
       this.showEditModal = !this.showEditModal;
     },

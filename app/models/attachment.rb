@@ -66,7 +66,7 @@ class Attachment < ApplicationRecord
 
   def thumb_url
     return '' unless file.attached? && image?
-    return '' if whatsmeow_sticker?
+    return whatsmeow_sticker_thumb_url if whatsmeow_sticker?
 
     begin
       url_for(file.representation(resize_to_fill: [250, nil]))
@@ -183,6 +183,13 @@ class Attachment < ApplicationRecord
 
   def whatsmeow_sticker?
     meta&.with_indifferent_access&.fetch(:whatsmeow_sticker, false)
+  end
+
+  def whatsmeow_sticker_thumb_url
+    url_for(file.representation(resize_to_limit: [128, 128]))
+  rescue ActiveStorage::UnrepresentableError, ActiveStorage::FileNotFoundError, ActiveStorage::IntegrityError => e
+    Rails.logger.warn "Unrepresentable Whatsmeow sticker attachment: #{id} (#{file.filename}) - #{e.message}"
+    ''
   end
 
   def set_extension
