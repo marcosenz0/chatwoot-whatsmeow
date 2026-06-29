@@ -30,7 +30,7 @@ RSpec.describe 'Conversations API', type: :request do
         expect(response).to conform_schema(200)
         body = JSON.parse(response.body, symbolize_names: true)
         expect(body[:data][:meta][:all_count]).to eq(1)
-        expect(body[:data][:meta].keys).to include(:all_count, :mine_count, :assigned_count, :unassigned_count)
+        expect(body[:data][:meta].keys).to include(:all_count, :mine_count, :assigned_count, :unassigned_count, :group_count)
         expect(body[:data][:payload].first[:uuid]).to eq(conversation.uuid)
         expect(body[:data][:payload].first[:messages].first[:id]).to eq(message.id)
       end
@@ -95,7 +95,7 @@ RSpec.describe 'Conversations API', type: :request do
 
         expect(response).to have_http_status(:success)
         body = JSON.parse(response.body, symbolize_names: true)
-        expect(body[:meta].keys).to include(:all_count, :mine_count, :assigned_count, :unassigned_count)
+        expect(body[:meta].keys).to include(:all_count, :mine_count, :assigned_count, :unassigned_count, :group_count)
         expect(body[:meta][:all_count]).to eq(1)
       end
     end

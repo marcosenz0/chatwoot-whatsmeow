@@ -4304,6 +4304,9 @@
                         },
                         "all_count": {
                           "type": "number"
+                        },
+                        "group_count": {
+                          "type": "number"
                         }
                       }
                     }
@@ -12913,6 +12916,9 @@
                     "type": "number"
                   },
                   "all_count": {
+                    "type": "number"
+                  },
+                  "group_count": {
                     "type": "number"
                   }
                 }
