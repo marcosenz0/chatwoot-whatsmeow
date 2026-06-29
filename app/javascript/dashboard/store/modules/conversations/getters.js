@@ -1,5 +1,10 @@
 import { MESSAGE_TYPE } from 'shared/constants/messages';
-import { applyPageFilters, applyRoleFilter, sortComparator } from './helpers';
+import {
+  applyPageFilters,
+  applyRoleFilter,
+  isWhatsmeowGroupConversation,
+  sortComparator,
+} from './helpers';
 import filterQueryGenerator from 'dashboard/helper/filterQueryGenerator';
 import { matchesFilters } from './helpers/filterHelpers';
 import {
@@ -127,6 +132,28 @@ const getters = {
 
     return _state.allConversations.filter(conversation => {
       const shouldFilter = applyPageFilters(conversation, activeFilters);
+      const allowedForRole = applyRoleFilter(
+        conversation,
+        userRole,
+        permissions,
+        currentUserId
+      );
+
+      return shouldFilter && allowedForRole;
+    });
+  },
+  getGroupChats: (_state, _, __, rootGetters) => activeFilters => {
+    const currentUser = rootGetters.getCurrentUser;
+    const currentUserId = rootGetters.getCurrentUser.id;
+    const currentAccountId = rootGetters.getCurrentAccountId;
+
+    const permissions = getUserPermissions(currentUser, currentAccountId);
+    const userRole = getUserRole(currentUser, currentAccountId);
+
+    return _state.allConversations.filter(conversation => {
+      const shouldFilter =
+        isWhatsmeowGroupConversation(conversation) &&
+        applyPageFilters(conversation, activeFilters);
       const allowedForRole = applyRoleFilter(
         conversation,
         userRole,

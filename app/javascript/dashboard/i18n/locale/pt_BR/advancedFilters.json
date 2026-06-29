@@ -12,6 +12,10 @@
     "CLEAR_BUTTON_LABEL": "Limpar filtros",
     "FOLDER_LABEL": "Nome da pasta",
     "FOLDER_QUERY_LABEL": "Consulta de Pasta",
+    "GROUP_VISIBILITY": {
+      "TITLE": "Mostrar grupos nas abas",
+      "DESCRIPTION": "Selecione onde as conversas de grupos tambem devem aparecer. A aba Grupos sempre mostra todos os grupos."
+    },
     "EMPTY_VALUE_ERROR": "Valor obrigatório.",
     "TOOLTIP_LABEL": "Filtrar conversas",
     "QUERY_DROPDOWN_LABELS": {

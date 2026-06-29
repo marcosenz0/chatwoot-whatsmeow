@@ -6,11 +6,13 @@ describe('#getters', () => {
       mineCount: 1,
       unAssignedCount: 1,
       allCount: 2,
+      groupCount: 1,
     };
     expect(getters.getStats(state)).toEqual({
       mineCount: 1,
       unAssignedCount: 1,
       allCount: 2,
+      groupCount: 1,
     });
   });
 });

@@ -51,12 +51,12 @@ describe('#actions', () => {
     it('sends correct mutations', async () => {
       actions.set(
         { commit },
-        { mine_count: 1, unassigned_count: 1, all_count: 2 }
+        { mine_count: 1, unassigned_count: 1, all_count: 2, group_count: 1 }
       );
       expect(commit.mock.calls).toEqual([
         [
           types.default.SET_CONV_TAB_META,
-          { mine_count: 1, unassigned_count: 1, all_count: 2 },
+          { mine_count: 1, unassigned_count: 1, all_count: 2, group_count: 1 },
         ],
       ]);
     });

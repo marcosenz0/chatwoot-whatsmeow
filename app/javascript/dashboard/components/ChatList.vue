@@ -64,7 +64,7 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['conversationLoad']);
-const { uiSettings } = useUISettings();
+const { uiSettings, updateUISettings } = useUISettings();
 const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
@@ -95,6 +95,7 @@ const chatLists = useMapGetter('getFilteredConversations');
 const mineChatsList = useMapGetter('getMineChats');
 const allChatList = useMapGetter('getAllStatusChats');
 const unAssignedChatsList = useMapGetter('getUnAssignedChats');
+const groupChatsList = useMapGetter('getGroupChats');
 const participatingChatsList = useMapGetter('getParticipatingChats');
 const chatListLoading = useMapGetter('getChatListLoadingStatus');
 const activeInbox = useMapGetter('getSelectedInbox');
@@ -163,6 +164,21 @@ const hasAppliedFiltersOrActiveFolders = computed(() => {
   return hasAppliedFilters.value || hasActiveFolders.value;
 });
 
+const GROUP_VISIBILITY_TABS = [
+  wootConstants.ASSIGNEE_TYPE.ME,
+  wootConstants.ASSIGNEE_TYPE.UNASSIGNED,
+  wootConstants.ASSIGNEE_TYPE.ALL,
+];
+
+const shownGroupTabs = computed(() => {
+  const tabs = uiSettings.value.conversations_show_groups_in_tabs;
+  return Array.isArray(tabs) ? tabs : [];
+});
+
+const hiddenGroupTabs = computed(() =>
+  GROUP_VISIBILITY_TABS.filter(tab => !shownGroupTabs.value.includes(tab))
+);
+
 const currentUserDetails = computed(() => {
   const { id, name } = currentUser.value;
   return { id, name };
@@ -187,7 +203,8 @@ const assigneeTabItems = computed(() => {
 const showAssigneeInConversationCard = computed(() => {
   return (
     hasAppliedFiltersOrActiveFolders.value ||
-    activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.ALL
+    activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.ALL ||
+    activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.GROUPS
   );
 });
 
@@ -219,7 +236,7 @@ const conversationCustomAttributes = useFunctionGetter(
 const activeAssigneeTabCount = computed(() => {
   const count = assigneeTabItems.value.find(
     item => item.key === activeAssigneeTab.value
-  ).count;
+  )?.count;
   return count;
 });
 
@@ -250,6 +267,7 @@ const conversationFilters = computed(() => {
     status: activeStatus.value,
     sortBy: activeSortBy.value,
     page: conversationListPagination.value,
+    hideGroupTabs: hiddenGroupTabs.value,
     labels: props.label ? [props.label] : undefined,
     teamId: props.teamId || undefined,
     conversationType: props.conversationType || undefined,
@@ -320,6 +338,8 @@ const conversationList = computed(() => {
       localConversationList = [...mineChatsList.value(filters)];
     } else if (activeAssigneeTab.value === 'unassigned') {
       localConversationList = [...unAssignedChatsList.value(filters)];
+    } else if (activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.GROUPS) {
+      localConversationList = [...groupChatsList.value(filters)];
     } else {
       localConversationList = [...allChatList.value(filters)];
     }
@@ -603,6 +623,12 @@ function onBasicFilterChange(value, type) {
   resetAndFetchData();
 }
 
+function onUpdateShownGroupTabs(tabs) {
+  updateUISettings({
+    conversations_show_groups_in_tabs: tabs,
+  });
+}
+
 function openLastSavedItemInFolder() {
   const lastItemOfFolder = folders.value[folders.value.length - 1];
   const lastItemId = lastItemOfFolder.id;
@@ -859,6 +885,8 @@ watch(
   () => resetAndFetchData()
 );
 
+watch(hiddenGroupTabs, () => resetAndFetchData());
+
 watch(activeFolder, (newVal, oldVal) => {
   if (newVal !== oldVal) {
     store.dispatch('customViews/setActiveConversationFolder', newVal || null);
@@ -979,8 +1007,10 @@ watch(conversationFilters, (newVal, oldVal) => {
         v-model="appliedFilter"
         :folder-name="activeFolderName"
         :is-folder-view="hasActiveFolders"
+        :shown-group-tabs="shownGroupTabs"
         @apply-filter="onApplyFilter"
         @update-folder="onUpdateSavedFilter"
+        @update-shown-group-tabs="onUpdateShownGroupTabs"
         @close="closeAdvanceFiltersModal"
       />
     </TeleportWithDirection>

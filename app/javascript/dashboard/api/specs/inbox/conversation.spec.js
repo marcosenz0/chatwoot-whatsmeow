@@ -47,6 +47,7 @@ describe('#ConversationAPI', () => {
         labels: [],
         teamId: 1,
         updatedWithin: 20,
+        hideGroupTabs: ['all'],
       });
       expect(axiosMock.get).toHaveBeenCalledWith('/api/v1/conversations', {
         params: {
@@ -57,6 +58,7 @@ describe('#ConversationAPI', () => {
           page: 1,
           labels: [],
           updated_within: 20,
+          hide_group_tabs: ['all'],
         },
       });
     });
@@ -150,6 +152,7 @@ describe('#ConversationAPI', () => {
         assigneeType: 'me',
         labels: [],
         teamId: 1,
+        hideGroupTabs: ['me'],
       });
       expect(axiosMock.get).toHaveBeenCalledWith('/api/v1/conversations/meta', {
         params: {
@@ -158,6 +161,7 @@ describe('#ConversationAPI', () => {
           status: 'open',
           assignee_type: 'me',
           labels: [],
+          hide_group_tabs: ['me'],
         },
       });
     });

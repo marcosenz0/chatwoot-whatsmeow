@@ -2,6 +2,8 @@ class ConversationFinder
   attr_reader :current_user, :current_account, :params
 
   DEFAULT_STATUS = 'open'.freeze
+  GROUPS_ASSIGNEE_TYPE = 'groups'.freeze
+  HIDEABLE_GROUP_TABS = %w[me unassigned all].freeze
   SORT_OPTIONS = {
     'last_activity_at_asc' => %w[sort_on_last_activity_at asc],
     'last_activity_at_desc' => %w[sort_on_last_activity_at desc],
@@ -40,8 +42,8 @@ class ConversationFinder
   def perform
     set_up
 
-    mine_count, unassigned_count, all_count, = set_count_for_all_conversations
-    assigned_count = all_count - unassigned_count
+    mine_count, unassigned_count, all_count, group_count = set_count_for_all_conversations
+    assigned_count = conversations_for_tab(@conversations.assigned, 'all').count
 
     filter_by_assignee_type
 
@@ -51,7 +53,8 @@ class ConversationFinder
         mine_count: mine_count,
         assigned_count: assigned_count,
         unassigned_count: unassigned_count,
-        all_count: all_count
+        all_count: all_count,
+        group_count: group_count
       }
     }
   end
@@ -59,15 +62,16 @@ class ConversationFinder
   def perform_meta_only
     set_up
 
-    mine_count, unassigned_count, all_count, = set_count_for_all_conversations
-    assigned_count = all_count - unassigned_count
+    mine_count, unassigned_count, all_count, group_count = set_count_for_all_conversations
+    assigned_count = conversations_for_tab(@conversations.assigned, 'all').count
 
     {
       count: {
         mine_count: mine_count,
         assigned_count: assigned_count,
         unassigned_count: unassigned_count,
-        all_count: all_count
+        all_count: all_count,
+        group_count: group_count
       }
     }
   end
@@ -127,7 +131,11 @@ class ConversationFinder
       @conversations = @conversations.unassigned
     when 'assigned'
       @conversations = @conversations.assigned
+    when GROUPS_ASSIGNEE_TYPE
+      @conversations = group_conversations(@conversations)
+      return @conversations
     end
+    @conversations = conversations_for_tab(@conversations, @assignee_type)
     @conversations
   end
 
@@ -181,10 +189,29 @@ class ConversationFinder
 
   def set_count_for_all_conversations
     [
-      @conversations.assigned_to(current_user).count,
-      @conversations.unassigned.count,
-      @conversations.count
+      conversations_for_tab(@conversations.assigned_to(current_user), 'me').count,
+      conversations_for_tab(@conversations.unassigned, 'unassigned').count,
+      conversations_for_tab(@conversations, 'all').count,
+      group_conversations(@conversations).count
     ]
+  end
+
+  def conversations_for_tab(relation, tab)
+    return relation unless hide_group_tabs.include?(tab.to_s)
+
+    direct_conversations(relation)
+  end
+
+  def group_conversations(relation)
+    relation.joins(:contact).where("contacts.additional_attributes ->> 'whatsmeow_group' = ?", 'true')
+  end
+
+  def direct_conversations(relation)
+    relation.joins(:contact).where("COALESCE(contacts.additional_attributes ->> 'whatsmeow_group', 'false') != ?", 'true')
+  end
+
+  def hide_group_tabs
+    @hide_group_tabs ||= Array(params[:hide_group_tabs]).map(&:to_s) & HIDEABLE_GROUP_TABS
   end
 
   def current_page

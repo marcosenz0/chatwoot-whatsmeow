@@ -21,9 +21,18 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  shownGroupTabs: {
+    type: Array,
+    default: () => [],
+  },
 });
 
-const emit = defineEmits(['applyFilter', 'updateFolder', 'close']);
+const emit = defineEmits([
+  'applyFilter',
+  'updateFolder',
+  'updateShownGroupTabs',
+  'close',
+]);
 const { filterTypes } = useConversationFilterContext();
 
 const filters = defineModel({
@@ -38,6 +47,7 @@ const DEFAULT_FILTER = {
   values: [],
   queryOperator: 'and',
 };
+const SHOW_GROUP_TAB_KEYS = ['me', 'unassigned', 'all'];
 
 const { t } = useI18n();
 const store = useStore();
@@ -95,6 +105,28 @@ const filterModalHeaderTitle = computed(() => {
     : t('FILTER.EDIT_CUSTOM_FILTER');
 });
 
+const groupTabOptions = computed(() =>
+  SHOW_GROUP_TAB_KEYS.map(key => {
+    const labels = {
+      me: t('CHAT_LIST.ASSIGNEE_TYPE_TABS.me'),
+      unassigned: t('CHAT_LIST.ASSIGNEE_TYPE_TABS.unassigned'),
+      all: t('CHAT_LIST.ASSIGNEE_TYPE_TABS.all'),
+    };
+
+    return { key, label: labels[key] };
+  })
+);
+
+const isGroupTabShown = key => props.shownGroupTabs.includes(key);
+
+const toggleGroupTab = key => {
+  const nextTabs = isGroupTabShown(key)
+    ? props.shownGroupTabs.filter(tab => tab !== key)
+    : [...props.shownGroupTabs, key];
+
+  emit('updateShownGroupTabs', nextTabs);
+};
+
 onBeforeUnmount(() => emit('close'));
 const outsideClickHandler = [
   () => emit('close'),
@@ -110,6 +142,36 @@ const outsideClickHandler = [
     <h3 class="text-base font-medium leading-6 text-n-slate-12">
       {{ filterModalHeaderTitle }}
     </h3>
+    <div
+      v-if="!props.isFolderView"
+      class="grid gap-3 p-3 border rounded-lg border-n-weak bg-n-alpha-1"
+    >
+      <div class="grid gap-1">
+        <h4 class="text-sm font-medium text-n-slate-12">
+          {{ t('FILTER.GROUP_VISIBILITY.TITLE') }}
+        </h4>
+        <p class="m-0 text-sm text-n-slate-11">
+          {{ t('FILTER.GROUP_VISIBILITY.DESCRIPTION') }}
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <label
+          v-for="option in groupTabOptions"
+          :key="option.key"
+          class="inline-flex items-center gap-2 px-2.5 py-1.5 border rounded-md cursor-pointer select-none border-n-weak bg-n-alpha-2 text-n-slate-12 hover:bg-n-alpha-3"
+        >
+          <input
+            type="checkbox"
+            class="reset-base size-4 rounded border-n-strong text-n-blue-9"
+            :checked="isGroupTabShown(option.key)"
+            @change="toggleGroupTab(option.key)"
+          />
+          <span class="text-sm font-medium">
+            {{ option.label }}
+          </span>
+        </label>
+      </div>
+    </div>
     <div v-if="props.isFolderView">
       <div class="border-b border-n-weak pb-6">
         <Input

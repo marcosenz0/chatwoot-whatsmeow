@@ -12,6 +12,10 @@
     "CLEAR_BUTTON_LABEL": "Clear filters",
     "FOLDER_LABEL": "Folder Name",
     "FOLDER_QUERY_LABEL": "Folder Query",
+    "GROUP_VISIBILITY": {
+      "TITLE": "Show groups in tabs",
+      "DESCRIPTION": "Select where group conversations should also appear. The Groups tab always shows every group."
+    },
     "EMPTY_VALUE_ERROR": "Value is required.",
     "TOOLTIP_LABEL": "Filter conversations",
     "QUERY_DROPDOWN_LABELS": {

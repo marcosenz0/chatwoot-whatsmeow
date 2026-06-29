@@ -18,16 +18,23 @@ describe('#mutations', () => {
   describe('#CLEAR_CONVERSATION_PAGE', () => {
     it('resets the state to initial state', () => {
       const state = {
-        currentPage: { me: 1, unassigned: 2, all: 3 },
-        hasEndReached: { me: true, unassigned: true, all: true },
+        currentPage: { me: 1, unassigned: 2, all: 3, groups: 4 },
+        hasEndReached: { me: true, unassigned: true, all: true, groups: true },
       };
       mutations[types.default.CLEAR_CONVERSATION_PAGE](state);
       expect(state).toEqual({
-        currentPage: { me: 0, unassigned: 0, all: 0, appliedFilters: 0 },
+        currentPage: {
+          me: 0,
+          unassigned: 0,
+          all: 0,
+          groups: 0,
+          appliedFilters: 0,
+        },
         hasEndReached: {
           me: false,
           unassigned: false,
           all: false,
+          groups: false,
           appliedFilters: false,
         },
       });
@@ -37,7 +44,12 @@ describe('#mutations', () => {
   describe('#SET_CONVERSATION_END_REACHED', () => {
     it('set conversation end reached correctly', () => {
       const state = {
-        hasEndReached: { me: false, unassigned: false, all: false },
+        hasEndReached: {
+          me: false,
+          unassigned: false,
+          all: false,
+          groups: false,
+        },
       };
       mutations[types.default.SET_CONVERSATION_END_REACHED](state, {
         filter: 'me',
@@ -46,12 +58,18 @@ describe('#mutations', () => {
         me: true,
         unassigned: false,
         all: false,
+        groups: false,
       });
     });
 
     it('set all state to true if all end has reached', () => {
       const state = {
-        hasEndReached: { me: false, unassigned: false, all: false },
+        hasEndReached: {
+          me: false,
+          unassigned: false,
+          all: false,
+          groups: false,
+        },
       };
       mutations[types.default.SET_CONVERSATION_END_REACHED](state, {
         filter: 'all',
@@ -60,6 +78,7 @@ describe('#mutations', () => {
         me: true,
         unassigned: true,
         all: true,
+        groups: false,
       });
     });
   });

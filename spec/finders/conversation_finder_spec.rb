@@ -115,6 +115,56 @@ describe ConversationFinder do
       end
     end
 
+    context 'with Whatsmeow groups' do
+      let!(:group_contact) do
+        create(:contact, account: account, additional_attributes: { 'whatsmeow_group' => true, 'whatsmeow_group_jid' => '123@g.us' })
+      end
+      let!(:group_contact_inbox) { create(:contact_inbox, contact: group_contact, inbox: inbox, source_id: '123@g.us') }
+      let!(:assigned_group_conversation) do
+        create(:conversation, account: account, inbox: inbox, contact: group_contact, contact_inbox: group_contact_inbox, assignee: user_1)
+      end
+
+      let!(:unassigned_group_contact) do
+        create(:contact, account: account, additional_attributes: { 'whatsmeow_group' => true, 'whatsmeow_group_jid' => '456@g.us' })
+      end
+      let!(:unassigned_group_contact_inbox) { create(:contact_inbox, contact: unassigned_group_contact, inbox: inbox, source_id: '456@g.us') }
+      let!(:unassigned_group_conversation) do
+        create(:conversation, account: account, inbox: inbox, contact: unassigned_group_contact, contact_inbox: unassigned_group_contact_inbox)
+      end
+
+      context 'with assignee_type groups' do
+        let(:params) { { status: 'open', assignee_type: 'groups' } }
+
+        it 'returns only group conversations' do
+          result = conversation_finder.perform
+
+          expect(result[:conversations].map(&:id)).to contain_exactly(assigned_group_conversation.id, unassigned_group_conversation.id)
+        end
+
+        it 'returns the group count' do
+          result = conversation_finder.perform
+
+          expect(result[:count][:group_count]).to eq(2)
+        end
+      end
+
+      context 'with hidden group tabs' do
+        let(:params) { { status: 'open', assignee_type: 'all', hide_group_tabs: %w[me unassigned all] } }
+
+        it 'excludes groups from requested tabs but keeps group_count' do
+          result = conversation_finder.perform
+
+          expect(result[:conversations].map(&:id)).not_to include(assigned_group_conversation.id, unassigned_group_conversation.id)
+          expect(result[:count]).to include(
+            mine_count: 2,
+            unassigned_count: 1,
+            all_count: 4,
+            group_count: 2
+          )
+        end
+      end
+    end
+
     context 'with team' do
       let(:team) { create(:team, account: account) }
       let(:params) { { team_id: team.id } }

@@ -1,6 +1,11 @@
 /* global axios */
 import ApiClient from '../ApiClient';
 
+const compactParams = params =>
+  Object.fromEntries(
+    Object.entries(params).filter(([, value]) => value !== undefined)
+  );
+
 class ConversationApi extends ApiClient {
   constructor() {
     super('conversations', { accountScoped: true });
@@ -16,9 +21,10 @@ class ConversationApi extends ApiClient {
     conversationType,
     sortBy,
     updatedWithin,
+    hideGroupTabs,
   }) {
     return axios.get(this.url, {
-      params: {
+      params: compactParams({
         inbox_id: inboxId,
         team_id: teamId,
         status,
@@ -28,7 +34,8 @@ class ConversationApi extends ApiClient {
         conversation_type: conversationType,
         sort_by: sortBy,
         updated_within: updatedWithin,
-      },
+        hide_group_tabs: hideGroupTabs,
+      }),
     });
   }
 
@@ -96,16 +103,25 @@ class ConversationApi extends ApiClient {
     return axios.post(`${this.url}/${conversationId}/unmute`);
   }
 
-  meta({ inboxId, status, assigneeType, labels, teamId, conversationType }) {
+  meta({
+    inboxId,
+    status,
+    assigneeType,
+    labels,
+    teamId,
+    conversationType,
+    hideGroupTabs,
+  }) {
     return axios.get(`${this.url}/meta`, {
-      params: {
+      params: compactParams({
         inbox_id: inboxId,
         status,
         assignee_type: assigneeType,
         labels,
         team_id: teamId,
         conversation_type: conversationType,
-      },
+        hide_group_tabs: hideGroupTabs,
+      }),
     });
   }
 

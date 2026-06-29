@@ -24,6 +24,23 @@ export const filterByLabel = (shouldFilter, labels, chatLabels) => {
   const isOnLabel = labels.every(label => chatLabels.includes(label));
   return labels.length ? isOnLabel && shouldFilter : shouldFilter;
 };
+
+export const isWhatsmeowGroupConversation = conversation =>
+  !!conversation?.meta?.sender?.additional_attributes?.whatsmeow_group;
+
+export const filterByHiddenGroups = (
+  shouldFilter,
+  hideGroupTabs,
+  assigneeType,
+  conversation
+) => {
+  if (!hideGroupTabs?.includes(assigneeType) || assigneeType === 'groups') {
+    return shouldFilter;
+  }
+
+  return !isWhatsmeowGroupConversation(conversation) && shouldFilter;
+};
+
 export const filterByUnattended = (
   shouldFilter,
   conversationType,
@@ -36,7 +53,15 @@ export const filterByUnattended = (
 };
 
 export const applyPageFilters = (conversation, filters) => {
-  const { inboxId, status, labels = [], teamId, conversationType } = filters;
+  const {
+    inboxId,
+    status,
+    labels = [],
+    teamId,
+    conversationType,
+    assigneeType,
+    hideGroupTabs = [],
+  } = filters;
   const {
     status: chatStatus,
     inbox_id: chatInboxId,
@@ -57,6 +82,12 @@ export const applyPageFilters = (conversation, filters) => {
     conversationType,
     firstReplyOn,
     waitingSince
+  );
+  shouldFilter = filterByHiddenGroups(
+    shouldFilter,
+    hideGroupTabs,
+    assigneeType,
+    conversation
   );
 
   return shouldFilter;

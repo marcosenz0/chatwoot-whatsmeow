@@ -183,6 +183,49 @@ describe('#getters', () => {
       ]);
     });
   });
+  describe('#getGroupChats', () => {
+    const groupConversation = {
+      id: 1,
+      inbox_id: 2,
+      status: 'open',
+      meta: {
+        sender: { additional_attributes: { whatsmeow_group: true } },
+      },
+    };
+    const directConversation = {
+      id: 2,
+      inbox_id: 2,
+      status: 'open',
+      meta: {
+        sender: { additional_attributes: {} },
+      },
+    };
+    const rootGetters = {
+      getCurrentUser: {
+        id: 1,
+        accounts: [{ id: 1, role: 'agent', permissions: [] }],
+      },
+      getCurrentAccountId: 1,
+    };
+
+    it('returns only Whatsmeow group conversations', () => {
+      const state = {
+        allConversations: [groupConversation, directConversation],
+      };
+
+      expect(
+        getters.getGroupChats(
+          state,
+          {},
+          {},
+          rootGetters
+        )({
+          status: 'open',
+          assigneeType: 'groups',
+        })
+      ).toEqual([groupConversation]);
+    });
+  });
   describe('#getParticipatingChats', () => {
     const conversationList = [
       { id: 1, inbox_id: 2, status: 1, meta: { assignee: { id: 1 } } },
