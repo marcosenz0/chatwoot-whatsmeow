@@ -55,7 +55,7 @@ export default {
       default: false,
     },
   },
-  emits: ['open', 'close', 'replyTo', 'react'],
+  emits: ['open', 'close', 'replyTo', 'react', 'select'],
   setup() {
     const { getPlainText } = useMessageFormatter();
 
@@ -205,6 +205,10 @@ export default {
     },
     handleReplyTo() {
       this.$emit('replyTo', this.message);
+      this.handleClose();
+    },
+    handleSelect() {
+      this.$emit('select', this.message);
       this.handleClose();
     },
     handleReaction(emoji) {
@@ -518,6 +522,15 @@ export default {
           }"
           variant="icon"
           @click.stop="handleCopy"
+        />
+        <MenuItem
+          v-if="enabledOptions['select']"
+          :option="{
+            icon: 'i-lucide-square-check',
+            label: $t('CONVERSATION.CONTEXT_MENU.SELECT'),
+          }"
+          variant="icon"
+          @click.stop="handleSelect"
         />
         <MenuItem
           v-if="enabledOptions['translate']"

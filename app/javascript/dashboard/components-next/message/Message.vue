@@ -141,9 +141,11 @@ const props = defineProps({
   senderId: { type: Number, default: null },
   senderType: { type: String, default: null },
   sourceId: { type: String, default: '' }, // eslint-disable-line vue/no-unused-properties
+  isSelectionMode: { type: Boolean, default: false },
+  isSelected: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['retry']);
+const emit = defineEmits(['retry', 'select']);
 
 const AUDIO_FILE_EXTENSIONS = [
   'aac',
@@ -409,6 +411,12 @@ const isFailedOrProcessing = computed(() => {
   );
 });
 
+const isSelectableMessage = computed(() => {
+  return (
+    isBubble.value && !isMessageDeleted.value && !isFailedOrProcessing.value
+  );
+});
+
 const canReactToMessage = computed(() => {
   return (
     isWhatsmeowInbox.value &&
@@ -538,6 +546,7 @@ const contextMenuEnabledOptions = computed(() => {
       isLocallyDeleted.value,
     cannedResponse: isOutgoing && hasText && !isMessageDeleted.value,
     copyLink: !isFailedOrProcessing.value,
+    select: isSelectableMessage.value,
     translate:
       !isFailedOrProcessing.value && !isMessageDeleted.value && hasText,
     replyTo:
@@ -612,6 +621,10 @@ function handleReplyTo() {
 
   LocalStorage.updateJsonStore(replyStorageKey, conversationId, replyTo);
   emitter.emit(BUS_EVENTS.TOGGLE_REPLY_TO_MESSAGE, props);
+}
+
+function handleSelect() {
+  emit('select', payloadForContextMenu.value);
 }
 
 async function handleReactToMessage(emoji) {
@@ -763,6 +776,24 @@ provideMessageContext({
       },
     ]"
   >
+    <button
+      v-if="isSelectionMode && isSelectableMessage"
+      type="button"
+      class="mr-2 mt-1 grid size-7 shrink-0 place-content-center rounded-md text-n-slate-11 hover:bg-n-alpha-2"
+      :aria-pressed="isSelected"
+      @click.stop="handleSelect"
+    >
+      <span
+        class="grid size-4 place-content-center rounded border"
+        :class="
+          isSelected
+            ? 'border-n-brand bg-n-brand text-white'
+            : 'border-n-slate-8'
+        "
+      >
+        <fluent-icon v-if="isSelected" icon="checkmark" size="12" />
+      </span>
+    </button>
     <div v-if="variant === MESSAGE_VARIANTS.ACTIVITY">
       <ActivityBubble :content="content" />
     </div>
@@ -846,6 +877,7 @@ provideMessageContext({
             @close="closeContextMenu"
             @reply-to="handleReplyTo"
             @react="handleReactToMessage"
+            @select="handleSelect"
           />
           <MessageReactionButton
             v-if="canReactToMessage"

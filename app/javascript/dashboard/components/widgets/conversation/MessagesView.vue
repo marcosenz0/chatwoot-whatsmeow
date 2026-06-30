@@ -12,9 +12,12 @@ import ConversationLabelSuggestion from './conversation/LabelSuggestion.vue';
 import Banner from 'dashboard/components/ui/Banner.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import ResizableEditorWrapper from './ResizableEditorWrapper.vue';
+import MessageSelectionToolbar from './MessageSelectionToolbar.vue';
+import ForwardMessagesModal from './ForwardMessagesModal.vue';
 
 // stores and apis
 import { mapGetters } from 'vuex';
+import InboxesAPI from 'dashboard/api/inboxes';
 
 // mixins
 import inboxMixin, { INBOX_FEATURES } from 'shared/mixins/inboxMixin';
@@ -24,6 +27,9 @@ import { emitter } from 'shared/helpers/mitt';
 import { getTypingUsersText } from '../../../helper/commons';
 import { calculateScrollTop } from './helpers/scrollTopCalculationHelper';
 import { LocalStorage } from 'shared/helpers/localStorage';
+import { copyTextToClipboard } from 'shared/helpers/clipboard';
+import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
+import { useAlert } from 'dashboard/composables';
 import {
   filterDuplicateSourceMessages,
   getReadMessages,
@@ -45,6 +51,8 @@ export default {
     ConversationLabelSuggestion,
     Spinner,
     ResizableEditorWrapper,
+    MessageSelectionToolbar,
+    ForwardMessagesModal,
   },
   mixins: [inboxMixin],
   setup() {
@@ -54,6 +62,7 @@ export default {
     const topBannerRef = useTemplateRef('topBannerRef');
     const { height: containerHeight } = useElementSize(messagesViewRef);
     const { height: topBannerHeight } = useElementSize(topBannerRef);
+    const { getPlainText } = useMessageFormatter();
 
     const {
       captainTasksEnabled,
@@ -73,6 +82,7 @@ export default {
       topBannerRef,
       containerHeight,
       topBannerHeight,
+      getPlainText,
     };
   },
   data() {
@@ -84,6 +94,12 @@ export default {
       isProgrammaticScroll: false,
       messageSentSinceOpened: false,
       labelSuggestions: [],
+      isMessageSelectionMode: false,
+      selectedMessageIds: [],
+      showBulkDeleteModal: false,
+      isBulkDeleting: false,
+      isForwardModalOpen: false,
+      isForwardingMessages: false,
     };
   },
 
@@ -93,6 +109,7 @@ export default {
       currentUserId: 'getCurrentUserID',
       listLoadingStatus: 'getAllMessagesLoaded',
       currentAccountId: 'getCurrentAccountId',
+      allConversations: 'getAllConversations',
     }),
     isOpen() {
       return this.currentChat?.status === wootConstants.STATUS_TYPE.OPEN;
@@ -244,6 +261,19 @@ export default {
 
       return { incoming, outgoing };
     },
+    selectedMessages() {
+      return this.getMessages.filter(message =>
+        this.selectedMessageIds.includes(message.id)
+      );
+    },
+    forwardableSelectedMessages() {
+      return this.selectedMessages.filter(
+        message => this.messagePlainText(message).length
+      );
+    },
+    canForwardSelectedMessages() {
+      return this.forwardableSelectedMessages.length > 0;
+    },
   },
 
   watch: {
@@ -255,6 +285,7 @@ export default {
       this.fetchSuggestions();
       this.messageSentSinceOpened = false;
       this.resetReplyEditorHeight();
+      this.clearMessageSelection();
     },
   },
 
@@ -438,6 +469,135 @@ export default {
       const payload = useSnakeCase(message);
       await this.$store.dispatch('sendMessageWithData', payload);
     },
+    messagePlainText(message) {
+      return this.getPlainText(message.content || '').trim();
+    },
+    toggleMessageSelection(message) {
+      const messageId = message.id;
+      if (!messageId) return;
+
+      this.isMessageSelectionMode = true;
+      if (this.selectedMessageIds.includes(messageId)) {
+        this.selectedMessageIds = this.selectedMessageIds.filter(
+          selectedId => selectedId !== messageId
+        );
+      } else {
+        this.selectedMessageIds = [...this.selectedMessageIds, messageId];
+      }
+
+      if (!this.selectedMessageIds.length) {
+        this.clearMessageSelection();
+      }
+    },
+    clearMessageSelection() {
+      this.isMessageSelectionMode = false;
+      this.selectedMessageIds = [];
+      this.showBulkDeleteModal = false;
+      this.isForwardModalOpen = false;
+    },
+    async copySelectedMessages() {
+      const text = this.selectedMessages
+        .map(message => this.messagePlainText(message))
+        .filter(Boolean)
+        .join('\n\n');
+
+      if (!text) {
+        useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.NO_TEXT'));
+        return;
+      }
+
+      await copyTextToClipboard(text);
+      useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.COPIED'));
+    },
+    openBulkDeleteModal() {
+      if (!this.selectedMessages.length) return;
+      this.showBulkDeleteModal = true;
+    },
+    closeBulkDeleteModal() {
+      if (this.isBulkDeleting) return;
+      this.showBulkDeleteModal = false;
+    },
+    async confirmBulkDeletion() {
+      if (!this.selectedMessages.length || this.isBulkDeleting) return;
+
+      this.isBulkDeleting = true;
+      try {
+        await Promise.all(
+          this.selectedMessages.map(message =>
+            this.$store.dispatch('deleteMessage', {
+              conversationId: this.currentChat.id,
+              messageId: message.id,
+            })
+          )
+        );
+        useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.DELETED'));
+        this.clearMessageSelection();
+      } catch {
+        useAlert(this.$t('CONVERSATION.FAIL_DELETE_MESSSAGE'));
+      } finally {
+        this.isBulkDeleting = false;
+      }
+    },
+    openForwardModal() {
+      if (!this.canForwardSelectedMessages) {
+        useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.NO_TEXT'));
+        return;
+      }
+      this.isForwardModalOpen = true;
+    },
+    async conversationIdForForwardTarget(target) {
+      if (target.type === 'conversation') return target.conversationId;
+
+      const response = await InboxesAPI.createWhatsmeowDirectConversation(
+        this.inboxId,
+        {
+          participant_phone: target.phoneNumber,
+          participant_name: target.label,
+        }
+      );
+      return response.data?.conversation_id || response.data?.display_id;
+    },
+    async forwardSelectedMessages(targets) {
+      if (!targets.length || this.isForwardingMessages) return;
+
+      this.isForwardingMessages = true;
+      try {
+        const conversationIds = await Promise.all(
+          targets.map(target => this.conversationIdForForwardTarget(target))
+        );
+
+        const validConversationIds = [
+          ...new Set(conversationIds.filter(Boolean)),
+        ];
+        const sendTasks = validConversationIds.flatMap(conversationId =>
+          this.forwardableSelectedMessages.map(message => ({
+            conversationId,
+            message,
+          }))
+        );
+
+        await sendTasks.reduce((promise, { conversationId, message }) => {
+          return promise.then(() =>
+            this.$store.dispatch('createPendingMessageAndSend', {
+              conversationId,
+              message: this.messagePlainText(message),
+              private: false,
+            })
+          );
+        }, Promise.resolve());
+
+        useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.FORWARDED'));
+        this.clearMessageSelection();
+      } catch (error) {
+        useAlert(
+          error?.response?.data?.message ||
+            error?.response?.data?.error ||
+            this.$t('CONVERSATION.MESSAGE_SELECTION.FORWARD_FAILED')
+        );
+      } finally {
+        this.isForwardingMessages = false;
+      }
+    },
     toggleReplyEditorSize() {
       this.resizableEditorWrapperRef?.toggleEditorExpand?.();
     },
@@ -476,8 +636,11 @@ export default {
       :first-unread-id="unReadMessages[0]?.id"
       :is-an-email-channel="isAnEmailChannel"
       :inbox-supports-reply-to="inboxSupportsReplyTo"
+      :is-selection-mode="isMessageSelectionMode"
       :messages="getMessages"
+      :selected-message-ids="selectedMessageIds"
       @retry="handleMessageRetry"
+      @select="toggleMessageSelection"
     >
       <template #beforeAll>
         <transition name="slide-up">
@@ -510,7 +673,43 @@ export default {
         />
       </template>
     </MessageList>
-    <div class="flex relative flex-col bg-n-surface-1">
+    <MessageSelectionToolbar
+      v-if="isMessageSelectionMode"
+      :selected-count="selectedMessageIds.length"
+      :can-forward="canForwardSelectedMessages"
+      :is-deleting="isBulkDeleting"
+      :is-forwarding="isForwardingMessages"
+      @clear="clearMessageSelection"
+      @copy="copySelectedMessages"
+      @delete="openBulkDeleteModal"
+      @forward="openForwardModal"
+    />
+    <ForwardMessagesModal
+      :is-open="isForwardModalOpen"
+      :conversations="allConversations"
+      :current-user-id="currentUserId"
+      :selected-count="selectedMessageIds.length"
+      :is-forwarding="isForwardingMessages"
+      @close="isForwardModalOpen = false"
+      @send="forwardSelectedMessages"
+    />
+    <Teleport to="body">
+      <woot-delete-modal
+        v-if="showBulkDeleteModal"
+        v-model:show="showBulkDeleteModal"
+        class="context-menu--delete-modal"
+        :on-close="closeBulkDeleteModal"
+        :on-confirm="confirmBulkDeletion"
+        :title="$t('CONVERSATION.MESSAGE_SELECTION.DELETE_TITLE')"
+        :message="$t('CONVERSATION.MESSAGE_SELECTION.DELETE_MESSAGE')"
+        :confirm-text="$t('CONVERSATION.MESSAGE_SELECTION.DELETE')"
+        :reject-text="$t('CONVERSATION.MESSAGE_SELECTION.CANCEL')"
+      />
+    </Teleport>
+    <div
+      class="flex relative flex-col bg-n-surface-1"
+      :class="{ 'pb-14': isMessageSelectionMode }"
+    >
       <div
         v-if="isAnyoneTyping"
         class="absolute flex items-center w-full h-0 -top-7"

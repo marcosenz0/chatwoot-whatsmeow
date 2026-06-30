@@ -37,9 +37,17 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  isSelectionMode: {
+    type: Boolean,
+    default: false,
+  },
+  selectedMessageIds: {
+    type: Array,
+    default: () => [],
+  },
 });
 
-const emit = defineEmits(['retry']);
+const emit = defineEmits(['retry', 'select']);
 
 const allMessages = computed(() => {
   return useCamelCase(props.messages, {
@@ -177,8 +185,11 @@ const getInReplyToMessage = parentMessage => {
         :group-with-next="shouldGroupWithNext(index, allMessages)"
         :inbox-supports-reply-to="inboxSupportsReplyTo"
         :current-user-id="currentUserId"
+        :is-selection-mode="isSelectionMode"
+        :is-selected="selectedMessageIds.includes(message.id)"
         data-clarity-mask="True"
         @retry="emit('retry', message)"
+        @select="emit('select', message)"
       />
     </template>
     <slot name="after" />

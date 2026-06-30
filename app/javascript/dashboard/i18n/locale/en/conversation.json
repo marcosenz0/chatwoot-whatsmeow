@@ -87,6 +87,32 @@
       "SAVE": "Save",
       "CANCEL": "Cancel"
     },
+    "MESSAGE_SELECTION": {
+      "SELECTED_COUNT": "{count} selected",
+      "COPY": "Copy",
+      "COPIED": "Selected messages copied",
+      "DELETE": "Delete",
+      "DELETED": "Selected messages deleted",
+      "DELETE_TITLE": "Delete selected messages?",
+      "DELETE_MESSAGE": "This will remove the selected messages from Chatwoot.",
+      "FORWARD": "Forward",
+      "FORWARDED": "Selected messages forwarded",
+      "FORWARD_FAILED": "Could not forward the selected messages. Please try again.",
+      "NO_TEXT": "Select at least one text message.",
+      "CANCEL": "Cancel",
+      "FORWARD_MODAL": {
+        "TITLE": "Forward {count} messages to",
+        "SEARCH": "Search name or number",
+        "ALL": "All",
+        "UNASSIGNED": "Unassigned",
+        "MINE": "Mine",
+        "MANUAL_NUMBER": "Send directly to this WhatsApp number",
+        "NO_RESULTS": "No conversations found.",
+        "CONVERSATION": "Conversation",
+        "TARGET_COUNT": "{count} recipients selected",
+        "SEND": "Send"
+      }
+    },
     "CARD": {
       "SHOW_LABELS": "Show labels",
       "HIDE_LABELS": "Hide labels",
@@ -328,6 +354,7 @@
       "PERMANENT_DELETE": "Delete permanently",
       "DELETE_FOR_EVERYONE": "Delete for everyone",
       "EDIT": "Edit",
+      "SELECT": "Select",
       "DOWNLOAD_AUDIO": "Download audio",
       "DOWNLOAD_AUDIO_ERROR": "Could not download the audio. Please try again.",
       "CREATE_A_CANNED_RESPONSE": "Add to canned responses",
