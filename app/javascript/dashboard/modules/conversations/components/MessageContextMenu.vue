@@ -211,6 +211,12 @@ export default {
       this.$emit('select', this.message);
       this.handleClose();
     },
+    selectMenuLabel() {
+      const locale = String(this.$i18n?.locale || '').toLowerCase();
+      if (locale.startsWith('pt')) return 'Selecionar';
+
+      return this.$t('CONVERSATION.CONTEXT_MENU.SELECT');
+    },
     handleReaction(emoji) {
       this.$emit('react', emoji);
       this.handleClose();
@@ -527,7 +533,7 @@ export default {
           v-if="enabledOptions['select']"
           :option="{
             icon: 'i-lucide-square-check',
-            label: $t('CONVERSATION.CONTEXT_MENU.SELECT'),
+            label: selectMenuLabel(),
           }"
           variant="icon"
           @click.stop="handleSelect"

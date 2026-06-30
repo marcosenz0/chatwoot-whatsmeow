@@ -626,6 +626,19 @@ function handleSelect() {
   emit('select', payloadForContextMenu.value);
 }
 
+function isInteractiveSelectionTarget(target) {
+  return target?.closest?.(
+    'a,button,input,textarea,select,audio,video,[role="button"],[data-selection-ignore]'
+  );
+}
+
+function handleSelectionModeClick(event) {
+  if (!props.isSelectionMode || !isSelectableMessage.value) return;
+  if (isInteractiveSelectionTarget(event.target)) return;
+
+  handleSelect();
+}
+
 async function handleReactToMessage(emoji) {
   const selectedEmoji = (emoji || '').toString().trim();
   const nextEmoji =
@@ -765,29 +778,34 @@ provideMessageContext({
   <div
     v-if="shouldRenderMessage"
     :id="`message${props.id}`"
-    class="group/message flex w-full mb-2 message-bubble-container"
+    class="group/message relative flex w-full mb-2 message-bubble-container"
     :data-message-id="props.id"
     :class="[
       flexOrientationClass,
       {
         'group-with-next': shouldGroupWithNext,
         'bg-n-alpha-1': showBackgroundHighlight,
+        'cursor-pointer rounded-lg px-10 py-1 transition-colors hover:bg-n-alpha-2':
+          isSelectionMode && isSelectableMessage,
+        'bg-n-alpha-2 ring-1 ring-n-weak': isSelectionMode && isSelected,
       },
     ]"
+    @click="handleSelectionModeClick"
   >
     <button
       v-if="isSelectionMode && isSelectableMessage"
       type="button"
-      class="mr-2 mt-1 grid size-7 shrink-0 place-content-center rounded-md text-n-slate-11 hover:bg-n-alpha-2"
+      data-selection-ignore
+      class="absolute left-2 top-1/2 z-10 grid size-8 -translate-y-1/2 place-content-center rounded-full text-n-slate-11 opacity-90 transition hover:bg-n-alpha-2 group-hover/message:opacity-100"
       :aria-pressed="isSelected"
       @click.stop="handleSelect"
     >
       <span
-        class="grid size-4 place-content-center rounded border"
+        class="grid size-5 place-content-center rounded border transition"
         :class="
           isSelected
-            ? 'border-n-brand bg-n-brand text-white'
-            : 'border-n-slate-8'
+            ? 'border-n-brand bg-n-brand text-white shadow-sm'
+            : 'border-n-slate-8 bg-n-solid-1'
         "
       >
         <fluent-icon v-if="isSelected" icon="checkmark" size="12" />

@@ -110,6 +110,7 @@ export default {
       listLoadingStatus: 'getAllMessagesLoaded',
       currentAccountId: 'getCurrentAccountId',
       allConversations: 'getAllConversations',
+      selectedChatAttachments: 'getSelectedChatAttachments',
     }),
     isOpen() {
       return this.currentChat?.status === wootConstants.STATUS_TYPE.OPEN;
@@ -473,7 +474,26 @@ export default {
       return this.getPlainText(message.content || '').trim();
     },
     messageAttachments(message) {
-      return message.attachments || [];
+      const inlineAttachments = message.attachments || [];
+      const inlineAttachmentIds = new Set(
+        inlineAttachments
+          .map(attachment => Number(attachment.id))
+          .filter(Number.isFinite)
+      );
+      const messageId = Number(message.id || message.message_id);
+      const chatAttachments = this.selectedChatAttachments || [];
+      const storedAttachments = chatAttachments.filter(attachment => {
+        const attachmentMessageId = Number(
+          attachment.message_id || attachment.messageId
+        );
+        const attachmentId = Number(attachment.id);
+        return (
+          attachmentMessageId === messageId &&
+          !inlineAttachmentIds.has(attachmentId)
+        );
+      });
+
+      return [...inlineAttachments, ...storedAttachments];
     },
     messageCopyText(message) {
       const text = this.messagePlainText(message);
@@ -495,7 +515,13 @@ export default {
     },
     attachmentUrl(attachment) {
       return (
-        attachment.data_url || attachment.dataUrl || attachment.download_url
+        attachment.data_url ||
+        attachment.dataUrl ||
+        attachment.download_url ||
+        attachment.downloadUrl ||
+        attachment.file_url ||
+        attachment.fileUrl ||
+        attachment.url
       );
     },
     attachmentFileName(attachment, fallbackIndex = 0) {
@@ -544,15 +570,28 @@ export default {
 
       return new File([blob], fileName, { type: contentType });
     },
+    async sendForwardedMessagePayload({ conversationId, message, file }) {
+      const payload = {
+        conversationId,
+        message,
+        private: false,
+      };
+
+      if (file) {
+        payload.file = file;
+        payload.files = [file];
+      }
+
+      await this.$store.dispatch('createPendingMessageAndSend', payload);
+    },
     async forwardMessageToConversation(conversationId, message) {
       const text = this.messagePlainText(message);
       const attachments = this.messageAttachments(message);
 
       if (!attachments.length) {
-        await this.$store.dispatch('createPendingMessageAndSend', {
+        await this.sendForwardedMessagePayload({
           conversationId,
           message: text,
-          private: false,
         });
         return;
       }
@@ -566,14 +605,64 @@ export default {
       await files.reduce((promise, file, index) => {
         const caption = index === 0 ? text : '';
         return promise.then(() =>
-          this.$store.dispatch('createPendingMessageAndSend', {
+          this.sendForwardedMessagePayload({
             conversationId,
             message: caption,
-            files: [file],
-            private: false,
+            file,
           })
         );
       }, Promise.resolve());
+    },
+    isPortugueseLocale() {
+      return String(this.$i18n?.locale || '')
+        .toLowerCase()
+        .startsWith('pt');
+    },
+    messageSelectionText(key) {
+      if (this.isPortugueseLocale()) {
+        if (key === 'COPIED') return 'Mensagens copiadas';
+        if (key === 'DELETED') return 'Mensagens apagadas';
+        if (key === 'FORWARDED') return 'Mensagens encaminhadas';
+        if (key === 'FORWARD_FAILED') {
+          return 'Não foi possível encaminhar as mensagens';
+        }
+        if (key === 'NO_FORWARDABLE') {
+          return 'Selecione mensagens com texto, mídia ou anexo';
+        }
+        if (key === 'DELETE_TITLE') return 'Apagar mensagens selecionadas?';
+        if (key === 'DELETE_MESSAGE') {
+          return 'As mensagens selecionadas serão apagadas desta conversa.';
+        }
+        if (key === 'DELETE') return 'Apagar';
+        if (key === 'CANCEL') return 'Cancelar';
+      }
+
+      if (key === 'COPIED') {
+        return this.$t('CONVERSATION.MESSAGE_SELECTION.COPIED');
+      }
+      if (key === 'DELETED') {
+        return this.$t('CONVERSATION.MESSAGE_SELECTION.DELETED');
+      }
+      if (key === 'FORWARDED') {
+        return this.$t('CONVERSATION.MESSAGE_SELECTION.FORWARDED');
+      }
+      if (key === 'FORWARD_FAILED') {
+        return this.$t('CONVERSATION.MESSAGE_SELECTION.FORWARD_FAILED');
+      }
+      if (key === 'NO_FORWARDABLE') {
+        return this.$t('CONVERSATION.MESSAGE_SELECTION.NO_FORWARDABLE');
+      }
+      if (key === 'DELETE_TITLE') {
+        return this.$t('CONVERSATION.MESSAGE_SELECTION.DELETE_TITLE');
+      }
+      if (key === 'DELETE_MESSAGE') {
+        return this.$t('CONVERSATION.MESSAGE_SELECTION.DELETE_MESSAGE');
+      }
+      if (key === 'DELETE') {
+        return this.$t('CONVERSATION.MESSAGE_SELECTION.DELETE');
+      }
+
+      return this.$t('CONVERSATION.MESSAGE_SELECTION.CANCEL');
     },
     toggleMessageSelection(message) {
       const messageId = message.id;
@@ -605,12 +694,12 @@ export default {
         .join('\n\n');
 
       if (!text) {
-        useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.NO_FORWARDABLE'));
+        useAlert(this.messageSelectionText('NO_FORWARDABLE'));
         return;
       }
 
       await copyTextToClipboard(text);
-      useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.COPIED'));
+      useAlert(this.messageSelectionText('COPIED'));
     },
     openBulkDeleteModal() {
       if (!this.selectedMessages.length) return;
@@ -633,7 +722,7 @@ export default {
             })
           )
         );
-        useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.DELETED'));
+        useAlert(this.messageSelectionText('DELETED'));
         this.clearMessageSelection();
       } catch {
         useAlert(this.$t('CONVERSATION.FAIL_DELETE_MESSSAGE'));
@@ -643,7 +732,7 @@ export default {
     },
     openForwardModal() {
       if (!this.canForwardSelectedMessages) {
-        useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.NO_FORWARDABLE'));
+        useAlert(this.messageSelectionText('NO_FORWARDABLE'));
         return;
       }
       this.isForwardModalOpen = true;
@@ -685,13 +774,13 @@ export default {
           );
         }, Promise.resolve());
 
-        useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.FORWARDED'));
+        useAlert(this.messageSelectionText('FORWARDED'));
         this.clearMessageSelection();
       } catch (error) {
         useAlert(
           error?.response?.data?.message ||
             error?.response?.data?.error ||
-            this.$t('CONVERSATION.MESSAGE_SELECTION.FORWARD_FAILED')
+            this.messageSelectionText('FORWARD_FAILED')
         );
       } finally {
         this.isForwardingMessages = false;
@@ -799,10 +888,10 @@ export default {
         class="context-menu--delete-modal"
         :on-close="closeBulkDeleteModal"
         :on-confirm="confirmBulkDeletion"
-        :title="$t('CONVERSATION.MESSAGE_SELECTION.DELETE_TITLE')"
-        :message="$t('CONVERSATION.MESSAGE_SELECTION.DELETE_MESSAGE')"
-        :confirm-text="$t('CONVERSATION.MESSAGE_SELECTION.DELETE')"
-        :reject-text="$t('CONVERSATION.MESSAGE_SELECTION.CANCEL')"
+        :title="messageSelectionText('DELETE_TITLE')"
+        :message="messageSelectionText('DELETE_MESSAGE')"
+        :confirm-text="messageSelectionText('DELETE')"
+        :reject-text="messageSelectionText('CANCEL')"
       />
     </Teleport>
     <div

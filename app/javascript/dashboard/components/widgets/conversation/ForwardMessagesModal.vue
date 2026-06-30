@@ -29,24 +29,83 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['close', 'send']);
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 const query = ref('');
 const activeTab = ref('all');
 const selectedKeys = ref([]);
 
+const isPortugueseLocale = computed(() =>
+  String(locale.value || '')
+    .toLowerCase()
+    .startsWith('pt')
+);
+
+const forwardText = (key, params = {}) => {
+  if (isPortugueseLocale.value) {
+    if (key === 'ALL') return 'Todas';
+    if (key === 'UNASSIGNED') return 'Não atribuídas';
+    if (key === 'MINE') return 'Minhas';
+    if (key === 'SEARCH') return 'Pesquisar nome ou número';
+    if (key === 'MANUAL_NUMBER') return 'Enviar para este número';
+    if (key === 'NO_RESULTS') return 'Nenhuma conversa encontrada';
+    if (key === 'CONVERSATION') return 'Conversa';
+    if (key === 'SEND') return 'Encaminhar';
+    if (key === 'TITLE') return 'Encaminhar mensagens para';
+    if (key === 'TARGET_COUNT') {
+      const { count = 0 } = params;
+      return count === 1
+        ? '1 destinatário selecionado'
+        : `${count} destinatários selecionados`;
+    }
+  }
+
+  if (key === 'ALL') {
+    return t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.ALL');
+  }
+  if (key === 'UNASSIGNED') {
+    return t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.UNASSIGNED');
+  }
+  if (key === 'MINE') {
+    return t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.MINE');
+  }
+  if (key === 'SEARCH') {
+    return t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.SEARCH');
+  }
+  if (key === 'MANUAL_NUMBER') {
+    return t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.MANUAL_NUMBER');
+  }
+  if (key === 'NO_RESULTS') {
+    return t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.NO_RESULTS');
+  }
+  if (key === 'CONVERSATION') {
+    return t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.CONVERSATION');
+  }
+  if (key === 'TARGET_COUNT') {
+    return t(
+      'CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.TARGET_COUNT',
+      params
+    );
+  }
+  if (key === 'SEND') {
+    return t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.SEND');
+  }
+
+  return t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.TITLE', params);
+};
+
 const tabs = computed(() => [
   {
     key: 'all',
-    label: t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.ALL'),
+    label: forwardText('ALL'),
   },
   {
     key: 'unassigned',
-    label: t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.UNASSIGNED'),
+    label: forwardText('UNASSIGNED'),
   },
   {
     key: 'mine',
-    label: t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.MINE'),
+    label: forwardText('MINE'),
   },
 ]);
 
@@ -213,7 +272,7 @@ const send = () => {
           <div class="min-w-0 flex-1">
             <h3 class="m-0 truncate text-base font-semibold text-n-slate-12">
               {{
-                t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.TITLE', {
+                forwardText('TITLE', {
                   count: selectedCount,
                 })
               }}
@@ -231,9 +290,7 @@ const send = () => {
               class="reset-base h-full min-w-0 flex-1 bg-transparent text-sm text-n-slate-12 outline-none"
               type="search"
               autocomplete="off"
-              :placeholder="
-                t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.SEARCH')
-              "
+              :placeholder="forwardText('SEARCH')"
             />
           </label>
 
@@ -286,11 +343,7 @@ const send = () => {
                 {{ manualPhoneNumber }}
               </p>
               <p class="m-0 truncate text-xs text-n-slate-11">
-                {{
-                  t(
-                    'CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.MANUAL_NUMBER'
-                  )
-                }}
+                {{ forwardText('MANUAL_NUMBER') }}
               </p>
             </div>
           </button>
@@ -301,7 +354,7 @@ const send = () => {
           >
             <Icon icon="i-lucide-message-circle" class="size-8" />
             <p class="m-0">
-              {{ t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.NO_RESULTS') }}
+              {{ forwardText('NO_RESULTS') }}
             </p>
           </div>
 
@@ -338,7 +391,7 @@ const send = () => {
               <p class="m-0 truncate text-xs text-n-slate-11">
                 {{
                   conversationSubtitle(conversation) ||
-                  t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.CONVERSATION')
+                  forwardText('CONVERSATION')
                 }}
               </p>
             </div>
@@ -350,7 +403,7 @@ const send = () => {
         >
           <p class="m-0 truncate text-sm text-n-slate-11">
             {{
-              t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.TARGET_COUNT', {
+              forwardText('TARGET_COUNT', {
                 count: selectedTargets.length,
               })
             }}
@@ -359,7 +412,7 @@ const send = () => {
             solid
             blue
             icon="i-lucide-send"
-            :label="t('CONVERSATION.MESSAGE_SELECTION.FORWARD_MODAL.SEND')"
+            :label="forwardText('SEND')"
             :disabled="!selectedTargets.length"
             :is-loading="isForwarding"
             @click="send"
