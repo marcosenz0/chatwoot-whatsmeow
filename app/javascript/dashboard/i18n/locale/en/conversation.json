@@ -99,6 +99,7 @@
       "FORWARDED": "Selected messages forwarded",
       "FORWARD_FAILED": "Could not forward the selected messages. Please try again.",
       "NO_TEXT": "Select at least one text message.",
+      "NO_FORWARDABLE": "Select at least one message with text or attachment.",
       "CANCEL": "Cancel",
       "FORWARD_MODAL": {
         "TITLE": "Forward {count} messages to",

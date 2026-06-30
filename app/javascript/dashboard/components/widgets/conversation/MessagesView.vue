@@ -267,8 +267,8 @@ export default {
       );
     },
     forwardableSelectedMessages() {
-      return this.selectedMessages.filter(
-        message => this.messagePlainText(message).length
+      return this.selectedMessages.filter(message =>
+        this.isForwardableMessage(message)
       );
     },
     canForwardSelectedMessages() {
@@ -472,6 +472,109 @@ export default {
     messagePlainText(message) {
       return this.getPlainText(message.content || '').trim();
     },
+    messageAttachments(message) {
+      return message.attachments || [];
+    },
+    messageCopyText(message) {
+      const text = this.messagePlainText(message);
+      const attachmentLines = this.messageAttachments(message)
+        .map((attachment, index) => {
+          const fileName = this.attachmentFileName(attachment, index);
+          const url = this.attachmentUrl(attachment);
+          return url ? `${fileName}: ${url}` : fileName;
+        })
+        .filter(Boolean);
+
+      return [text, ...attachmentLines].filter(Boolean).join('\n');
+    },
+    isForwardableMessage(message) {
+      return (
+        this.messagePlainText(message).length ||
+        this.messageAttachments(message).length
+      );
+    },
+    attachmentUrl(attachment) {
+      return (
+        attachment.data_url || attachment.dataUrl || attachment.download_url
+      );
+    },
+    attachmentFileName(attachment, fallbackIndex = 0) {
+      const configuredName =
+        attachment.file_name ||
+        attachment.fileName ||
+        attachment.filename ||
+        attachment.name;
+      if (configuredName) return configuredName;
+
+      const url = this.attachmentUrl(attachment);
+      if (url) {
+        try {
+          const parsedUrl = new URL(url, window.location.origin);
+          const pathName = decodeURIComponent(parsedUrl.pathname);
+          const fileName = pathName.split('/').filter(Boolean).pop();
+          if (fileName) return fileName;
+        } catch {
+          // Fall back to a generated filename below.
+        }
+      }
+
+      const extension = attachment.extension
+        ? `.${attachment.extension.replace(/^\./, '')}`
+        : '';
+      return `forwarded-attachment-${fallbackIndex + 1}${extension}`;
+    },
+    attachmentContentType(attachment, blob) {
+      return (
+        attachment.content_type ||
+        attachment.contentType ||
+        blob.type ||
+        'application/octet-stream'
+      );
+    },
+    async attachmentToFile(attachment, fallbackIndex = 0) {
+      const url = this.attachmentUrl(attachment);
+      if (!url) throw new Error('Attachment URL not available');
+
+      const response = await fetch(url, { credentials: 'include' });
+      if (!response.ok) throw new Error('Attachment download failed');
+
+      const blob = await response.blob();
+      const fileName = this.attachmentFileName(attachment, fallbackIndex);
+      const contentType = this.attachmentContentType(attachment, blob);
+
+      return new File([blob], fileName, { type: contentType });
+    },
+    async forwardMessageToConversation(conversationId, message) {
+      const text = this.messagePlainText(message);
+      const attachments = this.messageAttachments(message);
+
+      if (!attachments.length) {
+        await this.$store.dispatch('createPendingMessageAndSend', {
+          conversationId,
+          message: text,
+          private: false,
+        });
+        return;
+      }
+
+      const files = await Promise.all(
+        attachments.map((attachment, index) =>
+          this.attachmentToFile(attachment, index)
+        )
+      );
+
+      await files.reduce((promise, file, index) => {
+        const caption = index === 0 ? text : '';
+        return promise.then(() =>
+          this.$store.dispatch('createPendingMessageAndSend', {
+            conversationId,
+            message: caption,
+            files: [file],
+            private: false,
+          })
+        );
+      }, Promise.resolve());
+    },
     toggleMessageSelection(message) {
       const messageId = message.id;
       if (!messageId) return;
@@ -497,12 +600,12 @@ export default {
     },
     async copySelectedMessages() {
       const text = this.selectedMessages
-        .map(message => this.messagePlainText(message))
+        .map(message => this.messageCopyText(message))
         .filter(Boolean)
         .join('\n\n');
 
       if (!text) {
-        useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.NO_TEXT'));
+        useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.NO_FORWARDABLE'));
         return;
       }
 
@@ -540,7 +643,7 @@ export default {
     },
     openForwardModal() {
       if (!this.canForwardSelectedMessages) {
-        useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.NO_TEXT'));
+        useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.NO_FORWARDABLE'));
         return;
       }
       this.isForwardModalOpen = true;
@@ -578,11 +681,7 @@ export default {
 
         await sendTasks.reduce((promise, { conversationId, message }) => {
           return promise.then(() =>
-            this.$store.dispatch('createPendingMessageAndSend', {
-              conversationId,
-              message: this.messagePlainText(message),
-              private: false,
-            })
+            this.forwardMessageToConversation(conversationId, message)
           );
         }, Promise.resolve());
 

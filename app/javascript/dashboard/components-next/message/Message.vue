@@ -593,8 +593,7 @@ function openContextMenu(e) {
   const shouldSkipContextMenu =
     !isAudioContextTarget &&
     !isWhatsmeowStickerContextTarget &&
-    (target?.classList.contains('skip-context-menu') ||
-      ['a', 'img'].includes(target?.tagName.toLowerCase()));
+    target?.classList.contains('skip-context-menu');
   if (shouldSkipContextMenu || getSelection().toString()) {
     return;
   }

@@ -86,6 +86,33 @@
       "SAVE": "Salvar",
       "CANCEL": "Cancelar"
     },
+    "MESSAGE_SELECTION": {
+      "SELECTED_COUNT": "{count} selecionada | {count} selecionadas",
+      "COPY": "Copiar",
+      "COPIED": "Mensagens selecionadas copiadas",
+      "DELETE": "Excluir",
+      "DELETED": "Mensagens selecionadas excluidas",
+      "DELETE_TITLE": "Excluir mensagens selecionadas?",
+      "DELETE_MESSAGE": "Isso removera as mensagens selecionadas do Chatwoot.",
+      "FORWARD": "Encaminhar",
+      "FORWARDED": "Mensagens selecionadas encaminhadas",
+      "FORWARD_FAILED": "Nao foi possivel encaminhar as mensagens selecionadas. Tente novamente.",
+      "NO_TEXT": "Selecione pelo menos uma mensagem com texto.",
+      "NO_FORWARDABLE": "Selecione pelo menos uma mensagem com texto ou anexo.",
+      "CANCEL": "Cancelar",
+      "FORWARD_MODAL": {
+        "TITLE": "Encaminhar {count} mensagens para",
+        "SEARCH": "Pesquisar nome ou numero",
+        "ALL": "Todos",
+        "UNASSIGNED": "Nao atribuidas",
+        "MINE": "Minhas",
+        "MANUAL_NUMBER": "Enviar diretamente para este numero do WhatsApp",
+        "NO_RESULTS": "Nenhuma conversa encontrada.",
+        "CONVERSATION": "Conversa",
+        "TARGET_COUNT": "{count} destinatario selecionado | {count} destinatarios selecionados",
+        "SEND": "Enviar"
+      }
+    },
     "CARD": {
       "SHOW_LABELS": "Mostrar etiquetas",
       "HIDE_LABELS": "Ocultar as etiquetas",
@@ -312,6 +339,7 @@
       "PERMANENT_DELETE": "Excluir permanentemente",
       "DELETE_FOR_EVERYONE": "Excluir para todos",
       "EDIT": "Editar",
+      "SELECT": "Selecionar",
       "DOWNLOAD_AUDIO": "Baixar áudio",
       "DOWNLOAD_AUDIO_ERROR": "Não foi possível baixar o áudio. Tente novamente.",
       "CREATE_A_CANNED_RESPONSE": "Adicionar às respostas prontas",
