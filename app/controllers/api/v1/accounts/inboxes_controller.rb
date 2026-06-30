@@ -123,7 +123,7 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
     create_whatsmeow_group_member_activity(group_jid, response['participant'])
     render json: response
   rescue Whatsmeow::SessionClient::Error => e
-    render json: { message: e.message }, status: :bad_gateway
+    render json: { message: e.message }, status: :unprocessable_entity
   end
 
   def whatsmeow_group_conversation
