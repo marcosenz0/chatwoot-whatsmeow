@@ -64,7 +64,6 @@ const onDragStart = event => {
   didDrag.value = false;
   dragStartX.value = event.clientX;
   dragStartScrollLeft.value = tabsList.value.scrollLeft;
-  tabsList.value.setPointerCapture?.(event.pointerId);
 };
 
 const onDragMove = event => {
@@ -77,11 +76,10 @@ const onDragMove = event => {
   tabsList.value.scrollLeft = dragStartScrollLeft.value - distance;
 };
 
-const onDragEnd = event => {
+const onDragEnd = () => {
   if (!isDragging.value || !tabsList.value) return;
 
   isDragging.value = false;
-  tabsList.value.releasePointerCapture?.(event.pointerId);
 };
 
 const onClickCapture = event => {
