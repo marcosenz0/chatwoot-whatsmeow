@@ -821,6 +821,7 @@ func handleGetGroupMembers(c *gin.Context) {
 		member := buildGroupMemberResponse(client, participant, fetchProfilePictures)
 		if groupParticipantMatches(participant, selfJID) {
 			member.IsSelf = true
+			member.Name = firstNonBlank(client.Store.PushName, member.Name)
 			member.PhoneNumber = firstNonBlank(selfPhoneNumber, member.PhoneNumber)
 			selfIsAdmin = participant.IsAdmin || participant.IsSuperAdmin
 			selfIsSuperAdmin = participant.IsSuperAdmin
@@ -884,26 +885,35 @@ func handleAddGroupMember(c *gin.Context) {
 		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("Failed to add group member: %v", err)})
 		return
 	}
-
-	result := GroupMemberResponse{
-		JID:         participantJID.ToNonAD().String(),
-		PhoneNumber: phoneNumberFromJID(participantJID),
-		Name:        firstNonBlank(phoneNumberFromJID(participantJID), participantJID.ToNonAD().String()),
-	}
-	if len(participants) > 0 {
-		result = buildGroupMemberResponse(client, participants[0], false)
+	if len(participants) == 0 {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "WhatsApp did not return a participant update confirmation"})
+		return
 	}
 
+	result := buildGroupMemberResponse(client, participants[0], false)
 	if result.Error != 0 {
+		message := fmt.Sprintf("WhatsApp returned participant error %d", result.Error)
+		if result.AddRequestCode != "" {
+			message = "WhatsApp requires an invite request for this participant instead of adding them directly"
+		}
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error":       fmt.Sprintf("WhatsApp returned participant error %d", result.Error),
+			"error":       message,
+			"participant": result,
+		})
+		return
+	}
+
+	confirmedMember, ok := waitForGroupParticipant(client, groupJID, participantJID)
+	if !ok {
+		c.JSON(http.StatusConflict, gin.H{
+			"error":       "WhatsApp accepted the request, but the participant is not in the group member list yet",
 			"participant": result,
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"participant": result,
+		"participant": confirmedMember,
 		"message":     "Group member added",
 	})
 }
@@ -3404,6 +3414,24 @@ func currentClientJID(client *whatsmeow.Client) (types.JID, string) {
 	}
 	jid := client.Store.ID.ToNonAD()
 	return jid, phoneNumberFromJID(jid)
+}
+
+func waitForGroupParticipant(client *whatsmeow.Client, groupJID types.JID, participantJID types.JID) (GroupMemberResponse, bool) {
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Second)
+		}
+		info, err := client.GetGroupInfo(context.Background(), groupJID.ToNonAD())
+		if err != nil {
+			continue
+		}
+		for _, participant := range info.Participants {
+			if groupParticipantMatches(participant, participantJID) {
+				return buildGroupMemberResponse(client, participant, false), true
+			}
+		}
+	}
+	return GroupMemberResponse{}, false
 }
 
 func buildGroupMemberResponse(client *whatsmeow.Client, participant types.GroupParticipant, fetchProfilePicture bool) GroupMemberResponse {

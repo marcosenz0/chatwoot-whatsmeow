@@ -133,8 +133,7 @@ const subtitle = computed(() => props.groupName);
 
 const close = () => emit('close');
 
-const memberDisplayName = member =>
-  member.isSelf ? t('CONVERSATION.WHATSMEOW_GROUP.YOU') : member.name;
+const memberDisplayName = member => member.name;
 
 const csvValue = value => {
   const normalizedValue = `${value || ''}`
@@ -286,8 +285,17 @@ const addGroupMember = async () => {
 
   isAddingMember.value = true;
   try {
-    await InboxesAPI.addWhatsmeowGroupMember(props.inboxId, payload);
-    useAlert(t('CONVERSATION.WHATSMEOW_GROUP.ADD_MEMBER_SUCCESS'));
+    const { data } = await InboxesAPI.addWhatsmeowGroupMember(
+      props.inboxId,
+      payload
+    );
+    const addedMember =
+      data.participant?.name || data.participant?.phone_number;
+    useAlert(
+      t('CONVERSATION.WHATSMEOW_GROUP.ADD_MEMBER_SUCCESS', {
+        member: addedMember || participant,
+      })
+    );
     clearAddMemberForm();
     await fetchMembers();
   } catch (error) {

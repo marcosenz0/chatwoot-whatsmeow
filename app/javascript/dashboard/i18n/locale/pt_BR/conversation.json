@@ -372,7 +372,7 @@
       "ADD_MEMBER_PLACEHOLDER": "Pesquise contatos ou digite um numero do WhatsApp",
       "LOADING_CONTACTS": "Carregando contatos",
       "ADD_MEMBER_CONFIRM": "Adicionar",
-      "ADD_MEMBER_SUCCESS": "Membro adicionado ao grupo.",
+      "ADD_MEMBER_SUCCESS": "{member} foi adicionado ao grupo.",
       "ADD_MEMBER_FAILED": "Nao foi possivel adicionar o membro ao grupo.",
       "UNKNOWN_CONTACT": "Contato",
       "CANCEL": "Cancelar",

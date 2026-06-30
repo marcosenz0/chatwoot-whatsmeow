@@ -22,6 +22,10 @@ const { width: containerWidth } = useElementSize(tabsContainer);
 const { width: listWidth } = useElementSize(tabsList);
 
 const hasScroll = ref(false);
+const isDragging = ref(false);
+const didDrag = ref(false);
+const dragStartX = ref(0);
+const dragStartScrollLeft = ref(0);
 
 const activeIndex = computed({
   get: () => props.index,
@@ -53,6 +57,41 @@ const onScrollClick = direction => {
   }
 };
 
+const onDragStart = event => {
+  if (!hasScroll.value || !tabsList.value) return;
+
+  isDragging.value = true;
+  didDrag.value = false;
+  dragStartX.value = event.clientX;
+  dragStartScrollLeft.value = tabsList.value.scrollLeft;
+  tabsList.value.setPointerCapture?.(event.pointerId);
+};
+
+const onDragMove = event => {
+  if (!isDragging.value || !tabsList.value) return;
+
+  const distance = event.clientX - dragStartX.value;
+  if (Math.abs(distance) > 4) {
+    didDrag.value = true;
+  }
+  tabsList.value.scrollLeft = dragStartScrollLeft.value - distance;
+};
+
+const onDragEnd = event => {
+  if (!isDragging.value || !tabsList.value) return;
+
+  isDragging.value = false;
+  tabsList.value.releasePointerCapture?.(event.pointerId);
+};
+
+const onClickCapture = event => {
+  if (!didDrag.value) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  didDrag.value = false;
+};
+
 // Watch for changes in element sizes with immediate execution
 watch(
   [containerWidth, listWidth],
@@ -78,10 +117,20 @@ watch(
     </button>
     <ul
       ref="tabsList"
-      class="border-r-0 border-l-0 border-t-0 flex min-w-[6.25rem] py-0 px-4 list-none mb-0"
+      class="border-r-0 border-l-0 border-t-0 flex min-w-[6.25rem] py-0 px-4 list-none mb-0 select-none"
       :class="
-        hasScroll ? 'overflow-hidden py-0 px-1 max-w-[calc(100%-64px)]' : ''
+        hasScroll
+          ? `overflow-hidden py-0 px-1 max-w-[calc(100%-64px)] ${
+              isDragging ? 'cursor-grabbing' : 'cursor-grab'
+            }`
+          : ''
       "
+      @click.capture="onClickCapture"
+      @pointerdown="onDragStart"
+      @pointermove="onDragMove"
+      @pointerup="onDragEnd"
+      @pointercancel="onDragEnd"
+      @pointerleave="onDragEnd"
     >
       <slot />
     </ul>

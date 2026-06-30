@@ -115,11 +115,13 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
       return render json: { message: 'participant_jid or participant_phone is required' }, status: :bad_request
     end
 
-    render json: Whatsmeow::SessionClient.new(inbox: @inbox).add_group_member(
+    response = Whatsmeow::SessionClient.new(inbox: @inbox).add_group_member(
       group_jid: group_jid,
       participant_jid: participant_jid,
       participant_phone: participant_phone
     )
+    create_whatsmeow_group_member_activity(group_jid, response['participant'])
+    render json: response
   rescue Whatsmeow::SessionClient::Error => e
     render json: { message: e.message }, status: :bad_gateway
   end
@@ -242,6 +244,34 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
     updates[:status] = status if status.present? && @inbox.channel.status != status
     updates[:phone_number] = phone_number if phone_number.present? && @inbox.channel.phone_number != phone_number
     @inbox.channel.update!(updates) if updates.present?
+  end
+
+  def create_whatsmeow_group_member_activity(group_jid, participant)
+    participant ||= {}
+    conversation = whatsmeow_group_conversation_for(group_jid)
+    return if conversation.blank?
+
+    participant_name = participant['name'].presence || participant['phone_number'].presence || participant['jid'].presence || 'membro'
+    content = "Membro #{participant_name} adicionado ao grupo pelo Chatwoot."
+    ::Conversations::ActivityMessageJob.perform_later(
+      conversation,
+      {
+        account_id: conversation.account_id,
+        inbox_id: conversation.inbox_id,
+        message_type: :activity,
+        content: content
+      }
+    )
+  rescue StandardError => e
+    Rails.logger.warn("Whatsmeow group member activity failed: #{e.message}")
+  end
+
+  def whatsmeow_group_conversation_for(group_jid)
+    ::Conversation.joins(:contact)
+                  .where(account_id: Current.account.id, inbox_id: @inbox.id)
+                  .where("contacts.additional_attributes ->> 'whatsmeow_group_jid' = ?", group_jid)
+                  .order(updated_at: :desc)
+                  .first
   end
 
   def format_csat_config(config)
