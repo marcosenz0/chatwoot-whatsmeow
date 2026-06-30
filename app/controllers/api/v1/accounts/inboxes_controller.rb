@@ -103,6 +103,27 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
     render json: { message: e.message }, status: :bad_gateway
   end
 
+  def whatsmeow_group_member
+    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
+
+    group_jid = params[:group_jid].presence
+    participant_jid = params[:participant_jid].presence
+    participant_phone = params[:participant_phone].presence
+    return render json: { message: 'group_jid is required' }, status: :bad_request if group_jid.blank?
+
+    if participant_jid.blank? && participant_phone.blank?
+      return render json: { message: 'participant_jid or participant_phone is required' }, status: :bad_request
+    end
+
+    render json: Whatsmeow::SessionClient.new(inbox: @inbox).add_group_member(
+      group_jid: group_jid,
+      participant_jid: participant_jid,
+      participant_phone: participant_phone
+    )
+  rescue Whatsmeow::SessionClient::Error => e
+    render json: { message: e.message }, status: :bad_gateway
+  end
+
   def whatsmeow_group_conversation
     return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
 

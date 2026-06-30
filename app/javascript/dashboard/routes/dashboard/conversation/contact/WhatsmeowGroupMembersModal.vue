@@ -1,9 +1,10 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import InboxesAPI from 'dashboard/api/inboxes';
+import ContactsAPI from 'dashboard/api/contacts';
 import {
   whatsmeowConversationPath,
   whatsmeowDirectConversationPayload,
@@ -28,8 +29,36 @@ const { t } = useI18n();
 
 const isFetching = ref(false);
 const isOpeningConversation = ref(false);
+const isFetchingContacts = ref(false);
+const isAddingMember = ref(false);
 const members = ref([]);
 const searchQuery = ref('');
+const canAddMembers = ref(false);
+const showAddMemberPanel = ref(false);
+const addMemberQuery = ref('');
+const contactOptions = ref([]);
+const selectedContact = ref(null);
+const isSelectingContact = ref(false);
+let contactSearchTimer = null;
+
+const contactPhone = contact =>
+  contact.phone_number ||
+  contact.phoneNumber ||
+  contact.identifier ||
+  contact.additional_attributes?.phone_number ||
+  contact.additionalAttributes?.phoneNumber ||
+  '';
+
+const normalizeContact = contact => ({
+  id: contact.id,
+  name:
+    contact.name ||
+    contact.email ||
+    contactPhone(contact) ||
+    t('CONVERSATION.WHATSMEOW_GROUP.UNKNOWN_CONTACT'),
+  phoneNumber: contactPhone(contact),
+  thumbnail: contact.thumbnail || contact.avatar_url || contact.avatarUrl || '',
+});
 
 const normalizedMembers = computed(() =>
   members.value.map(member => ({
@@ -43,15 +72,39 @@ const normalizedMembers = computed(() =>
     isAdmin: member.is_admin || member.isAdmin || false,
     isSuperAdmin: member.is_super_admin || member.isSuperAdmin || false,
     isSavedContact: member.is_saved_contact || member.isSavedContact || false,
+    isSelf: member.is_self || member.isSelf || false,
   }))
+);
+
+const memberSortRank = member => {
+  if (member.isSelf) return 0;
+  if (member.isSuperAdmin) return 1;
+  if (member.isAdmin) return 2;
+  return 3;
+};
+
+const sortedMembers = computed(() =>
+  [...normalizedMembers.value].sort((left, right) => {
+    const rankDiff = memberSortRank(left) - memberSortRank(right);
+    if (rankDiff !== 0) return rankDiff;
+    if (left.isSavedContact !== right.isSavedContact) {
+      return left.isSavedContact ? -1 : 1;
+    }
+    return left.name.localeCompare(right.name);
+  })
 );
 
 const filteredMembers = computed(() => {
   const query = searchQuery.value.trim().toLowerCase();
-  if (!query) return normalizedMembers.value;
+  if (!query) return sortedMembers.value;
 
-  return normalizedMembers.value.filter(member =>
-    [member.name, member.phoneNumber, member.jid]
+  return sortedMembers.value.filter(member =>
+    [
+      member.isSelf ? t('CONVERSATION.WHATSMEOW_GROUP.YOU') : '',
+      member.name,
+      member.phoneNumber,
+      member.jid,
+    ]
       .filter(Boolean)
       .some(value => value.toLowerCase().includes(query))
   );
@@ -79,6 +132,9 @@ const adminCountLabel = computed(() =>
 const subtitle = computed(() => props.groupName);
 
 const close = () => emit('close');
+
+const memberDisplayName = member =>
+  member.isSelf ? t('CONVERSATION.WHATSMEOW_GROUP.YOU') : member.name;
 
 const csvValue = value => {
   const normalizedValue = `${value || ''}`
@@ -169,6 +225,7 @@ const fetchMembers = async () => {
       props.groupJid
     );
     members.value = data.members || [];
+    canAddMembers.value = data.can_add_members || data.canAddMembers || false;
   } catch (error) {
     useAlert(
       error?.response?.data?.message ||
@@ -176,6 +233,71 @@ const fetchMembers = async () => {
     );
   } finally {
     isFetching.value = false;
+  }
+};
+
+const fetchContactOptions = async () => {
+  if (!showAddMemberPanel.value) return;
+
+  isFetchingContacts.value = true;
+  try {
+    const query = addMemberQuery.value.trim();
+    const { data } = query
+      ? await ContactsAPI.search(query, 1, 'name')
+      : await ContactsAPI.get(1, 'name');
+    contactOptions.value = (data.payload || [])
+      .map(normalizeContact)
+      .filter(contact => contact.phoneNumber);
+  } catch (error) {
+    contactOptions.value = [];
+  } finally {
+    isFetchingContacts.value = false;
+  }
+};
+
+const scheduleContactSearch = () => {
+  window.clearTimeout(contactSearchTimer);
+  contactSearchTimer = window.setTimeout(fetchContactOptions, 300);
+};
+
+const selectContact = contact => {
+  isSelectingContact.value = true;
+  addMemberQuery.value = contact.phoneNumber;
+  selectedContact.value = contact;
+};
+
+const clearAddMemberForm = () => {
+  addMemberQuery.value = '';
+  selectedContact.value = null;
+  contactOptions.value = [];
+};
+
+const addGroupMember = async () => {
+  const query = addMemberQuery.value.trim();
+  if (isAddingMember.value || (!query && !selectedContact.value)) return;
+
+  const participant = selectedContact.value?.phoneNumber || query;
+  const payload = { group_jid: props.groupJid };
+  if (participant.includes('@')) {
+    payload.participant_jid = participant;
+  } else {
+    payload.participant_phone = participant;
+  }
+
+  isAddingMember.value = true;
+  try {
+    await InboxesAPI.addWhatsmeowGroupMember(props.inboxId, payload);
+    useAlert(t('CONVERSATION.WHATSMEOW_GROUP.ADD_MEMBER_SUCCESS'));
+    clearAddMemberForm();
+    await fetchMembers();
+  } catch (error) {
+    useAlert(
+      error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        t('CONVERSATION.WHATSMEOW_GROUP.ADD_MEMBER_FAILED')
+    );
+  } finally {
+    isAddingMember.value = false;
   }
 };
 
@@ -213,10 +335,33 @@ watch(
     if (show) {
       members.value = [];
       searchQuery.value = '';
+      showAddMemberPanel.value = false;
+      clearAddMemberForm();
       fetchMembers();
     }
   }
 );
+
+watch(showAddMemberPanel, showPanel => {
+  if (showPanel) {
+    fetchContactOptions();
+  } else {
+    clearAddMemberForm();
+  }
+});
+
+watch(addMemberQuery, () => {
+  if (isSelectingContact.value) {
+    isSelectingContact.value = false;
+  } else {
+    selectedContact.value = null;
+  }
+  scheduleContactSearch();
+});
+
+onBeforeUnmount(() => {
+  window.clearTimeout(contactSearchTimer);
+});
 </script>
 
 <template>
@@ -257,6 +402,90 @@ watch(
             />
           </div>
         </div>
+        <NextButton
+          v-if="canAddMembers"
+          faded
+          blue
+          sm
+          icon="i-lucide-user-plus"
+          :label="$t('CONVERSATION.WHATSMEOW_GROUP.ADD_MEMBER')"
+          @click="showAddMemberPanel = !showAddMemberPanel"
+        />
+      </div>
+
+      <div
+        v-if="showAddMemberPanel"
+        class="rounded-lg border border-n-weak bg-n-alpha-2 p-3"
+      >
+        <div class="flex flex-col gap-3">
+          <div class="relative">
+            <span
+              aria-hidden="true"
+              class="i-lucide-search pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-n-slate-10"
+            />
+            <input
+              v-model="addMemberQuery"
+              type="search"
+              class="h-10 w-full appearance-none rounded-lg border border-n-weak bg-n-solid-2 pl-3 pr-10 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-9 focus:border-n-brand"
+              :placeholder="
+                $t('CONVERSATION.WHATSMEOW_GROUP.ADD_MEMBER_PLACEHOLDER')
+              "
+            />
+          </div>
+          <div
+            v-if="isFetchingContacts"
+            class="flex items-center justify-center gap-2 py-4 text-sm text-n-slate-11"
+          >
+            <Spinner :size="16" />
+            {{ $t('CONVERSATION.WHATSMEOW_GROUP.LOADING_CONTACTS') }}
+          </div>
+          <div
+            v-else-if="contactOptions.length"
+            class="max-h-44 overflow-y-auto rounded-lg border border-n-weak bg-n-solid-1"
+          >
+            <button
+              v-for="contact in contactOptions"
+              :key="contact.id || contact.phoneNumber"
+              type="button"
+              class="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-n-alpha-2"
+              @click="selectContact(contact)"
+            >
+              <Avatar
+                :name="contact.name"
+                :src="contact.thumbnail"
+                :size="28"
+              />
+              <span class="min-w-0 flex-1">
+                <span
+                  class="block truncate text-sm font-medium text-n-slate-12"
+                >
+                  {{ contact.name }}
+                </span>
+                <span class="block truncate text-xs text-n-slate-10">
+                  {{ contact.phoneNumber }}
+                </span>
+              </span>
+            </button>
+          </div>
+          <div class="flex items-center justify-end gap-2">
+            <NextButton
+              ghost
+              slate
+              sm
+              :label="$t('CONVERSATION.WHATSMEOW_GROUP.CANCEL')"
+              @click="showAddMemberPanel = false"
+            />
+            <NextButton
+              blue
+              sm
+              icon="i-lucide-user-plus"
+              :label="$t('CONVERSATION.WHATSMEOW_GROUP.ADD_MEMBER_CONFIRM')"
+              :is-loading="isAddingMember"
+              :disabled="!addMemberQuery.trim() && !selectedContact"
+              @click="addGroupMember"
+            />
+          </div>
+        </div>
       </div>
 
       <div class="relative">
@@ -294,24 +523,26 @@ watch(
           class="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-n-alpha-2"
         >
           <Avatar
-            :name="member.name"
+            :name="memberDisplayName(member)"
             :src="member.profilePictureUrl"
             :size="36"
           />
           <div class="min-w-0 flex-1">
             <div class="flex min-w-0 items-center gap-1.5">
               <p class="m-0 truncate text-sm font-medium text-n-slate-12">
-                {{ member.name }}
+                {{ memberDisplayName(member) }}
               </p>
               <span
-                v-if="member.isSuperAdmin || member.isAdmin"
+                v-if="member.isSelf"
+                class="shrink-0 rounded-md bg-n-teal-4 px-1.5 py-0.5 text-[11px] font-semibold uppercase text-n-teal-11"
+              >
+                {{ $t('CONVERSATION.WHATSMEOW_GROUP.YOU') }}
+              </span>
+              <span
+                v-if="member.isSelf || member.isSuperAdmin || member.isAdmin"
                 class="shrink-0 rounded-md bg-n-alpha-2 px-1.5 py-0.5 text-[11px] font-semibold uppercase text-n-slate-11"
               >
-                {{
-                  member.isSuperAdmin
-                    ? $t('CONVERSATION.WHATSMEOW_GROUP.OWNER')
-                    : $t('CONVERSATION.WHATSMEOW_GROUP.ADMIN')
-                }}
+                {{ memberRole(member) }}
               </span>
             </div>
             <p class="m-0 truncate text-xs text-n-slate-10">

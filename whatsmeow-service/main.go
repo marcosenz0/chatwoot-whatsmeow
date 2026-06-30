@@ -149,6 +149,10 @@ type GroupMemberResponse struct {
 	IsAdmin           bool   `json:"is_admin"`
 	IsSuperAdmin      bool   `json:"is_super_admin"`
 	IsSavedContact    bool   `json:"is_saved_contact"`
+	IsSelf            bool   `json:"is_self"`
+	Error             int    `json:"error,omitempty"`
+	AddRequestCode    string `json:"add_request_code,omitempty"`
+	AddRequestExpires string `json:"add_request_expires,omitempty"`
 }
 
 type GroupResponse struct {
@@ -158,6 +162,12 @@ type GroupResponse struct {
 	ParticipantCount  int    `json:"participant_count"`
 	IsAnnounce        bool   `json:"is_announce"`
 	IsLocked          bool   `json:"is_locked"`
+}
+
+type AddGroupMemberRequest struct {
+	GroupJID         string `json:"group_jid" binding:"required"`
+	ParticipantJID   string `json:"participant_jid"`
+	ParticipantPhone string `json:"participant_phone"`
 }
 
 type ResolvedGroupParticipant struct {
@@ -210,6 +220,7 @@ func main() {
 	r.GET("/sessions/:channel_id/status", handleGetStatus)
 	r.GET("/sessions/:channel_id/groups", handleGetGroups)
 	r.GET("/sessions/:channel_id/group_members", handleGetGroupMembers)
+	r.POST("/sessions/:channel_id/group_members", handleAddGroupMember)
 	r.GET("/sessions/:channel_id/profile_picture", handleGetProfilePicture)
 	r.GET("/sessions/:channel_id/check_number", handleCheckNumber)
 	r.DELETE("/sessions/:channel_id", handleDisconnectSession)
@@ -803,16 +814,97 @@ func handleGetGroupMembers(c *gin.Context) {
 
 	fetchProfilePictures := len(info.Participants) <= groupMemberProfileFetchMax
 	members := make([]GroupMemberResponse, 0, len(info.Participants))
+	selfJID, selfPhoneNumber := currentClientJID(client)
+	selfIsAdmin := false
+	selfIsSuperAdmin := false
 	for _, participant := range info.Participants {
-		members = append(members, buildGroupMemberResponse(client, participant, fetchProfilePictures))
+		member := buildGroupMemberResponse(client, participant, fetchProfilePictures)
+		if groupParticipantMatches(participant, selfJID) {
+			member.IsSelf = true
+			member.PhoneNumber = firstNonBlank(selfPhoneNumber, member.PhoneNumber)
+			selfIsAdmin = participant.IsAdmin || participant.IsSuperAdmin
+			selfIsSuperAdmin = participant.IsSuperAdmin
+		}
+		members = append(members, member)
 	}
 	sortGroupMembers(members)
 
+	canAddMembers := selfIsAdmin || selfIsSuperAdmin || info.MemberAddMode == types.GroupMemberAddModeAllMember
+
 	c.JSON(http.StatusOK, gin.H{
-		"group_jid":  groupJID.ToNonAD().String(),
-		"group_name": info.Name,
-		"members":    members,
-		"count":      len(members),
+		"group_jid":           groupJID.ToNonAD().String(),
+		"group_name":          info.Name,
+		"members":             members,
+		"count":               len(members),
+		"self_jid":            jidString(selfJID),
+		"self_phone_number":   selfPhoneNumber,
+		"self_is_admin":       selfIsAdmin,
+		"self_is_super_admin": selfIsSuperAdmin,
+		"member_add_mode":     string(info.MemberAddMode),
+		"can_add_members":     canAddMembers,
+	})
+}
+
+func handleAddGroupMember(c *gin.Context) {
+	channelID := c.Param("channel_id")
+	var request AddGroupMemberRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "group_jid is required"})
+		return
+	}
+
+	groupJID, ok := parseJID(request.GroupJID)
+	if !ok || !isGroupJID(groupJID) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid WhatsApp group JID"})
+		return
+	}
+
+	participantJID, ok := parseParticipantJID(request.ParticipantJID, request.ParticipantPhone)
+	if !ok || isGroupJID(participantJID) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid WhatsApp participant phone / JID"})
+		return
+	}
+
+	clientsMu.RLock()
+	client, exists := clients[channelID]
+	clientsMu.RUnlock()
+
+	if !exists || !client.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	participants, err := client.UpdateGroupParticipants(
+		context.Background(),
+		groupJID.ToNonAD(),
+		[]types.JID{participantJID.ToNonAD()},
+		whatsmeow.ParticipantChangeAdd,
+	)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("Failed to add group member: %v", err)})
+		return
+	}
+
+	result := GroupMemberResponse{
+		JID:         participantJID.ToNonAD().String(),
+		PhoneNumber: phoneNumberFromJID(participantJID),
+		Name:        firstNonBlank(phoneNumberFromJID(participantJID), participantJID.ToNonAD().String()),
+	}
+	if len(participants) > 0 {
+		result = buildGroupMemberResponse(client, participants[0], false)
+	}
+
+	if result.Error != 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":       fmt.Sprintf("WhatsApp returned participant error %d", result.Error),
+			"participant": result,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"participant": result,
+		"message":     "Group member added",
 	})
 }
 
@@ -1721,6 +1813,28 @@ func parseJID(phone string) (types.JID, bool) {
 		return jid, err == nil
 	}
 	return types.NewJID(phone, types.DefaultUserServer), true
+}
+
+func parseParticipantJID(values ...string) (types.JID, bool) {
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if strings.Contains(value, "@") {
+			jid, ok := parseJID(value)
+			if ok {
+				return jid.ToNonAD(), true
+			}
+			continue
+		}
+		phone, ok := normalizePhoneForWhatsAppCheck(value)
+		if !ok {
+			continue
+		}
+		return types.NewJID(strings.TrimPrefix(phone, "+"), types.DefaultUserServer), true
+	}
+	return types.JID{}, false
 }
 
 func normalizePhoneForWhatsAppCheck(value string) (string, bool) {
@@ -3284,6 +3398,14 @@ func phoneNumberFromJID(jid types.JID) string {
 	return "+" + strings.Split(jid.User, ":")[0]
 }
 
+func currentClientJID(client *whatsmeow.Client) (types.JID, string) {
+	if client == nil || client.Store == nil || client.Store.ID == nil {
+		return types.JID{}, ""
+	}
+	jid := client.Store.ID.ToNonAD()
+	return jid, phoneNumberFromJID(jid)
+}
+
 func buildGroupMemberResponse(client *whatsmeow.Client, participant types.GroupParticipant, fetchProfilePicture bool) GroupMemberResponse {
 	memberJID := firstUsableJID(participant.PhoneNumber, participant.JID, participant.LID)
 	phoneJID := firstUsableJID(participant.PhoneNumber, participant.JID)
@@ -3303,6 +3425,12 @@ func buildGroupMemberResponse(client *whatsmeow.Client, participant types.GroupP
 	if profilePictureURL == "" && fetchProfilePicture {
 		profilePictureURL = getProfilePictureURL(client, profileJID)
 	}
+	addRequestCode := ""
+	addRequestExpires := ""
+	if participant.AddRequest != nil {
+		addRequestCode = participant.AddRequest.Code
+		addRequestExpires = participant.AddRequest.Expiration.UTC().Format(time.RFC3339)
+	}
 
 	return GroupMemberResponse{
 		JID:               jidString(memberJID),
@@ -3314,6 +3442,9 @@ func buildGroupMemberResponse(client *whatsmeow.Client, participant types.GroupP
 		IsAdmin:           participant.IsAdmin || participant.IsSuperAdmin,
 		IsSuperAdmin:      participant.IsSuperAdmin,
 		IsSavedContact:    isSaved,
+		Error:             participant.Error,
+		AddRequestCode:    addRequestCode,
+		AddRequestExpires: addRequestExpires,
 	}
 }
 
@@ -3350,6 +3481,9 @@ func sortGroupMembers(members []GroupMemberResponse) {
 	sort.SliceStable(members, func(i, j int) bool {
 		left := members[i]
 		right := members[j]
+		if left.IsSelf != right.IsSelf {
+			return left.IsSelf
+		}
 		if left.IsSuperAdmin != right.IsSuperAdmin {
 			return left.IsSuperAdmin
 		}

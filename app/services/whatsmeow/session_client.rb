@@ -37,6 +37,18 @@ class Whatsmeow::SessionClient
     request(:get, "/sessions/#{@inbox.id}/group_members?group_jid=#{CGI.escape(group_jid)}")
   end
 
+  def add_group_member(group_jid:, participant_jid: nil, participant_phone: nil)
+    request(
+      :post,
+      "/sessions/#{@inbox.id}/group_members",
+      body: {
+        group_jid: group_jid,
+        participant_jid: participant_jid,
+        participant_phone: participant_phone
+      }
+    )
+  end
+
   def groups
     request(:get, "/sessions/#{@inbox.id}/groups")
   end

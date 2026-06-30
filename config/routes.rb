@@ -288,6 +288,7 @@ Rails.application.routes.draw do
             delete :whatsmeow_session, on: :member, action: :destroy_whatsmeow_session
             get :whatsmeow_groups, on: :member
             get :whatsmeow_group_members, on: :member
+            post :whatsmeow_group_member, on: :member
             post :whatsmeow_group_conversation, on: :member
             post :whatsmeow_direct_conversation, on: :member
             if ChatwootApp.enterprise?

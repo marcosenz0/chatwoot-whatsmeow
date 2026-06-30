@@ -86,6 +86,10 @@ class InboxPolicy < ApplicationPolicy
     true
   end
 
+  def whatsmeow_group_member?
+    true
+  end
+
   def whatsmeow_groups?
     true
   end

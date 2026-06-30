@@ -80,6 +80,10 @@ class Inboxes extends CacheEnabledApiClient {
     });
   }
 
+  addWhatsmeowGroupMember(inboxId, payload) {
+    return axios.post(`${this.url}/${inboxId}/whatsmeow_group_member`, payload);
+  }
+
   getWhatsmeowGroups(inboxId) {
     return axios.get(`${this.url}/${inboxId}/whatsmeow_groups`);
   }
