@@ -284,6 +284,7 @@ Rails.application.routes.draw do
             post :register_webhook, on: :member
             post :reset_secret, on: :member
             get :whatsmeow_status, on: :member
+            get :whatsmeow_number, on: :member
             post :whatsmeow_session, on: :member
             delete :whatsmeow_session, on: :member, action: :destroy_whatsmeow_session
             get :whatsmeow_groups, on: :member

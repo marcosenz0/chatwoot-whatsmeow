@@ -62,6 +62,12 @@ class Inboxes extends CacheEnabledApiClient {
     });
   }
 
+  checkWhatsmeowNumber(inboxId, phoneNumber) {
+    return axios.get(`${this.url}/${inboxId}/whatsmeow_number`, {
+      params: { phone: phoneNumber },
+    });
+  }
+
   createWhatsmeowSession(inboxId, payload = {}, config = {}) {
     return axios.post(
       `${this.url}/${inboxId}/whatsmeow_session`,

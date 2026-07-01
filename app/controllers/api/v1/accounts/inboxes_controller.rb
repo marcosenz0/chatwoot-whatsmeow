@@ -84,6 +84,17 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
     handle_whatsmeow_session(&:status)
   end
 
+  def whatsmeow_number
+    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
+
+    phone = normalized_whatsmeow_phone_number(params[:phone].presence || params[:jid].presence)
+    return render json: { message: 'phone is invalid' }, status: :bad_request if phone.blank?
+
+    render json: Whatsmeow::SessionClient.new(inbox: @inbox).check_number(phone)
+  rescue Whatsmeow::SessionClient::Error => e
+    render json: { message: e.message }, status: :bad_gateway
+  end
+
   def whatsmeow_groups
     return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
 
@@ -309,11 +320,28 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
   end
 
   def whatsmeow_direct_conversation_params
-    params.permit(:participant_jid, :participant_lid_jid, :participant_phone, :participant_name, :profile_picture_url)
+    permitted = params.permit(:participant_jid, :participant_lid_jid, :participant_phone, :participant_name, :profile_picture_url)
+    normalized_phone = normalized_whatsmeow_phone_number(permitted[:participant_phone])
+    permitted[:participant_phone] = normalized_phone if normalized_phone.present?
+    permitted
   end
 
   def whatsmeow_group_conversation_params
     params.permit(:group_jid, :group_name, :profile_picture_url, :participant_count)
+  end
+
+  def normalized_whatsmeow_phone_number(value)
+    raw_value = value.to_s.strip
+    return if raw_value.blank?
+
+    raw_value = raw_value.split('@').first if raw_value.include?('@')
+    digits = raw_value.delete('^0-9')
+    return if digits.blank?
+
+    digits = "55#{digits}" if !raw_value.start_with?('+') && !digits.start_with?('55') && [10, 11].include?(digits.length)
+    return unless digits.match?(/\A[1-9]\d{9,14}\z/)
+
+    "+#{digits}"
   end
 
   def force_new_whatsmeow_session?

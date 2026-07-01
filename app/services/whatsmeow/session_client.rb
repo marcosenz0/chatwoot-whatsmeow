@@ -29,6 +29,10 @@ class Whatsmeow::SessionClient
     request(:get, "/sessions/#{@inbox.id}/status")
   end
 
+  def check_number(phone)
+    request(:get, "/sessions/#{@inbox.id}/check_number?phone=#{CGI.escape(phone)}")
+  end
+
   def disconnect
     request(:delete, "/sessions/#{@inbox.id}")
   end

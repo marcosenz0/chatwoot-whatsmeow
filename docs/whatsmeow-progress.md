@@ -148,6 +148,13 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Rails updates the matching Chatwoot message by `source_id`, stores the first message body in `content_attributes.whatsmeow_original_content`, stores the latest edited body in `whatsmeow_edited_content`, and keeps the message content synced to the latest version for previews/search.
 - The Chatwoot text bubble renders edited Whatsmeow messages as one message with the original version and the edited version together. Long edited histories are collapsed behind "show more/show less" controls.
 
+## July 2026 Clickable Phone Numbers
+
+- Whatsmeow text bubbles linkify phone-like numbers inside received/sent message text and open a compact action menu.
+- The menu checks the connected Whatsmeow session through `GET /sessions/:channel_id/check_number`.
+- WhatsApp-registered numbers can open a direct Chatwoot conversation, while all detected numbers can be copied.
+- Brazilian local DDD numbers without country code are normalized to `+55` before the check and before direct-conversation creation.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

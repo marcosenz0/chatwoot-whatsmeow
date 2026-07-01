@@ -439,6 +439,13 @@
         "SAVED_CONTACT": "Saved in Chatwoot"
       }
     },
+    "WHATSMEOW_PHONE": {
+      "CHAT_WITH": "Message {phone}",
+      "COPY_PHONE": "Copy phone number",
+      "COPIED": "Phone number copied to clipboard",
+      "CHECKING": "Checking number...",
+      "OPEN_FAILED": "Could not open the WhatsApp conversation."
+    },
     "WHATSMEOW_CONTACT": {
       "SEND_CONTACT": "Send contact",
       "SEND_CONTACT_HINT": "Share a WhatsApp contact card in this conversation.",

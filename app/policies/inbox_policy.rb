@@ -74,6 +74,10 @@ class InboxPolicy < ApplicationPolicy
     @account_user.administrator?
   end
 
+  def whatsmeow_number?
+    true
+  end
+
   def whatsmeow_session?
     @account_user.administrator?
   end

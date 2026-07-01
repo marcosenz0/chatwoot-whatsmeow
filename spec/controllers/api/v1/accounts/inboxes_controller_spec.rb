@@ -1248,4 +1248,71 @@ RSpec.describe 'Inboxes API', type: :request do
       end
     end
   end
+
+  describe 'GET /api/v1/accounts/{account.id}/inboxes/{inbox.id}/whatsmeow_number' do
+    let(:whatsmeow_channel) { create(:channel_whatsmeow, account: account) }
+    let(:whatsmeow_inbox) { whatsmeow_channel.inbox }
+    let(:session_client) { instance_double(Whatsmeow::SessionClient) }
+
+    before do
+      create(:inbox_member, user: agent, inbox: whatsmeow_inbox)
+      allow(Whatsmeow::SessionClient).to receive(:new).with(inbox: whatsmeow_inbox).and_return(session_client)
+    end
+
+    it 'normalizes a Brazilian DDD number and returns WhatsApp availability for agents' do
+      allow(session_client).to receive(:check_number).with('+556391189840').and_return(
+        {
+          'phone' => '+556391189840',
+          'jid' => '556391189840@s.whatsapp.net',
+          'is_on_whatsapp' => true
+        }
+      )
+
+      get "/api/v1/accounts/#{account.id}/inboxes/#{whatsmeow_inbox.id}/whatsmeow_number",
+          params: { phone: '63 9118-9840' },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to include(
+        'phone' => '+556391189840',
+        'jid' => '556391189840@s.whatsapp.net',
+        'is_on_whatsapp' => true
+      )
+    end
+
+    it 'returns bad request when the phone number is not valid enough to check' do
+      get "/api/v1/accounts/#{account.id}/inboxes/#{whatsmeow_inbox.id}/whatsmeow_number",
+          params: { phone: '12345' },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body['message']).to eq('phone is invalid')
+    end
+
+    it 'returns not found for non Whatsmeow inboxes' do
+      inbox = create(:inbox, account: account)
+      create(:inbox_member, user: agent, inbox: inbox)
+
+      get "/api/v1/accounts/#{account.id}/inboxes/#{inbox.id}/whatsmeow_number",
+          params: { phone: '+556391189840' },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:not_found)
+    end
+
+    it 'returns bad gateway when the Whatsmeow service check fails' do
+      allow(session_client).to receive(:check_number).and_raise(Whatsmeow::SessionClient::Error, 'offline')
+
+      get "/api/v1/accounts/#{account.id}/inboxes/#{whatsmeow_inbox.id}/whatsmeow_number",
+          params: { phone: '+556391189840' },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:bad_gateway)
+      expect(response.parsed_body['message']).to eq('offline')
+    end
+  end
 end

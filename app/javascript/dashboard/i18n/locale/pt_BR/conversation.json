@@ -418,6 +418,13 @@
         "SAVED_CONTACT": "Salvo no Chatwoot"
       }
     },
+    "WHATSMEOW_PHONE": {
+      "CHAT_WITH": "Conversar com {phone}",
+      "COPY_PHONE": "Copiar numero de telefone",
+      "COPIED": "Numero de telefone copiado para a area de transferencia",
+      "CHECKING": "Verificando numero...",
+      "OPEN_FAILED": "Nao foi possivel abrir a conversa do WhatsApp."
+    },
     "WHATSMEOW_CONTACT": {
       "SEND_CONTACT": "Enviar contato",
       "SEND_CONTACT_HINT": "Compartilhe um cartao de contato do WhatsApp nesta conversa.",
