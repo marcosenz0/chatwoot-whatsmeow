@@ -94,6 +94,14 @@ class InboxPolicy < ApplicationPolicy
     true
   end
 
+  def whatsmeow_group_invite?
+    true
+  end
+
+  def join_whatsmeow_group_invite?
+    true
+  end
+
   def whatsmeow_groups?
     true
   end

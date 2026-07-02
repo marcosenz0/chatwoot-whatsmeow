@@ -23,7 +23,7 @@ RSpec.describe InboxPolicy, type: :policy do
     end
   end
 
-  permissions :index? do
+  permissions :index?, :whatsmeow_group_invite?, :join_whatsmeow_group_invite? do
     context 'when administrator' do
       it { expect(inbox_policy).to permit(administrator_context, inbox) }
     end
