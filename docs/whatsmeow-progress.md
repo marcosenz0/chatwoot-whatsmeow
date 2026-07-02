@@ -115,6 +115,12 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - The Groups tab can show a specific Whatsmeow inbox or all Whatsmeow inboxes together, supports group search, and can open/create the Chatwoot group conversation without sending any WhatsApp message automatically.
 - The same `ignore_groups` inbox setting is exposed as a quick toggle in the Groups tab when a specific instance is selected, so group receiving can be enabled or disabled without opening the inbox configuration page.
 
+## July 2026 Group Invite Links
+
+- Whatsmeow message bubbles intercept `chat.whatsapp.com/...` links and open an in-Chatwoot invite preview modal instead of navigating to WhatsApp Web/Desktop.
+- Rails exposes `whatsmeow_group_invite` for invite preview/join, and `whatsmeow-service` maps it to whatsmeow's `GetGroupInfoFromLink` and `JoinGroupWithLink`.
+- After a successful join, Rails immediately creates/opens the Chatwoot group conversation through `Whatsmeow::GroupConversationBuilder`, so the group can appear in Chatwoot without waiting for the first incoming message.
+
 ## June 2026 WhatsApp Reactions
 
 - `whatsmeow-service` now exposes `POST /messages/reaction`, using `Client.BuildReaction` to send real WhatsApp emoji reactions against an existing WhatsApp message ID.

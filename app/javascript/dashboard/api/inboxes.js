@@ -94,6 +94,16 @@ class Inboxes extends CacheEnabledApiClient {
     return axios.get(`${this.url}/${inboxId}/whatsmeow_groups`);
   }
 
+  getWhatsmeowGroupInvite(inboxId, payload) {
+    return axios.get(`${this.url}/${inboxId}/whatsmeow_group_invite`, {
+      params: payload,
+    });
+  }
+
+  joinWhatsmeowGroupInvite(inboxId, payload) {
+    return axios.post(`${this.url}/${inboxId}/whatsmeow_group_invite`, payload);
+  }
+
   createWhatsmeowGroupConversation(inboxId, payload) {
     return axios.post(
       `${this.url}/${inboxId}/whatsmeow_group_conversation`,

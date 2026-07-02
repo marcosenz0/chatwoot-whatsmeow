@@ -5,11 +5,16 @@ import { useI18n } from 'vue-i18n';
 import { useMessageContext } from '../../provider.js';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useAlert } from 'dashboard/composables';
+import WhatsmeowGroupInviteModal from './WhatsmeowGroupInviteModal.vue';
 
 import MessageFormatter from 'shared/helpers/MessageFormatter.js';
 import { MESSAGE_VARIANTS } from '../../constants';
 import InboxesAPI from 'dashboard/api/inboxes';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
+import {
+  linkifyWhatsmeowGroupInvites,
+  whatsmeowGroupInviteElementFromTarget,
+} from 'dashboard/helper/whatsmeowGroupInviteHelper';
 import {
   linkifyWhatsmeowPhoneNumbers,
   normalizeWhatsmeowPhoneNumber,
@@ -29,6 +34,7 @@ const props = defineProps({
 
 const PHONE_MENU_WIDTH = 272;
 const phoneCheckCache = new Map();
+const groupInvitePreviewCache = new Map();
 
 const { variant, inboxId } = useMessageContext();
 const inboxGetter = useMapGetter('inboxes/getInbox');
@@ -40,6 +46,10 @@ const { t } = useI18n();
 const phoneMenu = ref(null);
 const phoneMenuStyle = ref({});
 const isOpeningConversation = ref(false);
+const groupInviteModal = ref(null);
+const groupInviteError = ref('');
+const isLoadingGroupInvite = ref(false);
+const isJoiningGroupInvite = ref(false);
 
 const isWhatsmeowInbox = computed(
   () =>
@@ -60,10 +70,13 @@ const formattedContent = computed(() => {
     return renderedContent.value;
   }
 
-  return linkifyWhatsmeowPhoneNumbers(renderedContent.value);
+  return linkifyWhatsmeowGroupInvites(
+    linkifyWhatsmeowPhoneNumbers(renderedContent.value)
+  );
 });
 
 const isPhoneMenuOpen = computed(() => !!phoneMenu.value);
+const isGroupInviteModalOpen = computed(() => !!groupInviteModal.value);
 
 const phoneLabel = computed(
   () =>
@@ -83,6 +96,13 @@ const canOpenConversation = computed(
 const closePhoneMenu = () => {
   phoneMenu.value = null;
   isOpeningConversation.value = false;
+};
+
+const closeGroupInviteModal = () => {
+  groupInviteModal.value = null;
+  groupInviteError.value = '';
+  isLoadingGroupInvite.value = false;
+  isJoiningGroupInvite.value = false;
 };
 
 const positionPhoneMenu = element => {
@@ -180,6 +200,86 @@ const handlePhoneKeydown = event => {
   openPhoneMenu(element);
 };
 
+const applyGroupInvitePreview = (code, data) => {
+  if (!groupInviteModal.value || groupInviteModal.value.code !== code) return;
+
+  groupInviteModal.value = {
+    ...groupInviteModal.value,
+    ...data,
+  };
+  groupInviteError.value = '';
+  isLoadingGroupInvite.value = false;
+};
+
+const loadGroupInvitePreview = async ({ code, url }) => {
+  if (groupInvitePreviewCache.has(code)) {
+    applyGroupInvitePreview(code, groupInvitePreviewCache.get(code));
+    return;
+  }
+
+  isLoadingGroupInvite.value = true;
+  groupInviteError.value = '';
+  try {
+    const { data } = await InboxesAPI.getWhatsmeowGroupInvite(inboxId.value, {
+      code,
+      url,
+    });
+    groupInvitePreviewCache.set(code, data);
+    applyGroupInvitePreview(code, data);
+  } catch (error) {
+    if (!groupInviteModal.value || groupInviteModal.value.code !== code) return;
+
+    groupInviteError.value =
+      error?.response?.data?.message ||
+      t('CONVERSATION.WHATSMEOW_GROUP_INVITE.LOAD_FAILED');
+    isLoadingGroupInvite.value = false;
+  }
+};
+
+const openGroupInviteModal = element => {
+  const code = element.dataset.whatsmeowGroupInviteCode;
+  const url = element.dataset.whatsmeowGroupInviteUrl || element.href || '';
+  if (!code) return;
+
+  closePhoneMenu();
+  groupInviteModal.value = { code, link: url };
+  loadGroupInvitePreview({ code, url });
+};
+
+const handleGroupInviteClick = event => {
+  const element = whatsmeowGroupInviteElementFromTarget(event.target);
+  if (!element) return false;
+
+  event.preventDefault();
+  event.stopPropagation();
+  openGroupInviteModal(element);
+  return true;
+};
+
+const handleGroupInviteKeydown = event => {
+  if (!['Enter', ' '].includes(event.key)) return false;
+
+  const element = whatsmeowGroupInviteElementFromTarget(event.target);
+  if (!element) return false;
+
+  event.preventDefault();
+  event.stopPropagation();
+  openGroupInviteModal(element);
+  return true;
+};
+
+const handleContentClick = event => {
+  if (handleGroupInviteClick(event)) return;
+
+  handlePhoneClick(event);
+};
+
+const handleContentKeydown = event => {
+  if (handleGroupInviteKeydown(event)) return;
+
+  handlePhoneKeydown(event);
+};
+
 const copyPhoneNumber = async () => {
   if (!phoneLabel.value) return;
 
@@ -218,6 +318,43 @@ const openPhoneConversation = async () => {
     closePhoneMenu();
   }
 };
+
+const joinGroupInvite = async () => {
+  const code = groupInviteModal.value?.code;
+  if (!code || isJoiningGroupInvite.value) return;
+
+  isJoiningGroupInvite.value = true;
+  groupInviteError.value = '';
+  try {
+    const { data } = await InboxesAPI.joinWhatsmeowGroupInvite(inboxId.value, {
+      code,
+    });
+    groupInvitePreviewCache.set(code, data);
+    const conversationId = data.conversation_id || data.id;
+    useAlert(
+      data.pending_approval
+        ? t('CONVERSATION.WHATSMEOW_GROUP_INVITE.REQUEST_SENT')
+        : t('CONVERSATION.WHATSMEOW_GROUP_INVITE.JOINED')
+    );
+    closeGroupInviteModal();
+    if (conversationId) {
+      await router.push({
+        path: whatsmeowConversationPath({
+          route,
+          inboxId: inboxId.value,
+          conversationId,
+        }),
+      });
+    }
+  } catch (error) {
+    groupInviteError.value =
+      error?.response?.data?.message ||
+      t('CONVERSATION.WHATSMEOW_GROUP_INVITE.JOIN_FAILED');
+    useAlert(groupInviteError.value);
+  } finally {
+    isJoiningGroupInvite.value = false;
+  }
+};
 </script>
 
 <template>
@@ -225,8 +362,8 @@ const openPhoneConversation = async () => {
     <span
       v-dompurify-html="formattedContent"
       class="prose prose-bubble"
-      @click="handlePhoneClick"
-      @keydown="handlePhoneKeydown"
+      @click="handleContentClick"
+      @keydown="handleContentKeydown"
     />
     <div
       v-if="isPhoneMenuOpen"
@@ -278,5 +415,14 @@ const openPhoneConversation = async () => {
         </button>
       </div>
     </div>
+    <WhatsmeowGroupInviteModal
+      :is-open="isGroupInviteModalOpen"
+      :invite="groupInviteModal || {}"
+      :is-loading="isLoadingGroupInvite"
+      :is-joining="isJoiningGroupInvite"
+      :error="groupInviteError"
+      @close="closeGroupInviteModal"
+      @join="joinGroupInvite"
+    />
   </span>
 </template>

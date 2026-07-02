@@ -1315,4 +1315,94 @@ RSpec.describe 'Inboxes API', type: :request do
       expect(response.parsed_body['message']).to eq('offline')
     end
   end
+
+  describe 'GET /api/v1/accounts/{account.id}/inboxes/{inbox.id}/whatsmeow_group_invite' do
+    let(:whatsmeow_channel) { create(:channel_whatsmeow, account: account) }
+    let(:whatsmeow_inbox) { whatsmeow_channel.inbox }
+    let(:session_client) { instance_double(Whatsmeow::SessionClient) }
+
+    before do
+      create(:inbox_member, user: agent, inbox: whatsmeow_inbox)
+      allow(Whatsmeow::SessionClient).to receive(:new).with(inbox: whatsmeow_inbox).and_return(session_client)
+    end
+
+    it 'loads the WhatsApp group invite preview for agents' do
+      allow(session_client).to receive(:group_invite).with('FkLadnTzxGo9S25GLHuWiZ').and_return(
+        {
+          'code' => 'FkLadnTzxGo9S25GLHuWiZ',
+          'group_jid' => '120363000000000000@g.us',
+          'name' => 'Maturechip 2',
+          'participant_count' => 42,
+          'profile_picture_url' => 'https://example.com/group.jpg'
+        }
+      )
+
+      get "/api/v1/accounts/#{account.id}/inboxes/#{whatsmeow_inbox.id}/whatsmeow_group_invite",
+          params: { url: 'https://chat.whatsapp.com/FkLadnTzxGo9S25GLHuWiZ?mode=gi_t' },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(response.parsed_body).to include(
+        'group_jid' => '120363000000000000@g.us',
+        'name' => 'Maturechip 2',
+        'participant_count' => 42
+      )
+    end
+
+    it 'returns bad request for invalid group invite links' do
+      get "/api/v1/accounts/#{account.id}/inboxes/#{whatsmeow_inbox.id}/whatsmeow_group_invite",
+          params: { url: 'https://example.com/nope' },
+          headers: agent.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.parsed_body['message']).to eq('group invite link is invalid')
+    end
+  end
+
+  describe 'POST /api/v1/accounts/{account.id}/inboxes/{inbox.id}/whatsmeow_group_invite' do
+    let(:whatsmeow_channel) { create(:channel_whatsmeow, account: account) }
+    let(:whatsmeow_inbox) { whatsmeow_channel.inbox }
+    let(:session_client) { instance_double(Whatsmeow::SessionClient) }
+
+    before do
+      create(:inbox_member, user: agent, inbox: whatsmeow_inbox)
+      allow(Whatsmeow::SessionClient).to receive(:new).with(inbox: whatsmeow_inbox).and_return(session_client)
+    end
+
+    it 'joins the group invite and creates a Chatwoot group conversation' do
+      allow(session_client).to receive(:join_group_invite).with('FkLadnTzxGo9S25GLHuWiZ').and_return(
+        {
+          'code' => 'FkLadnTzxGo9S25GLHuWiZ',
+          'group_jid' => '120363000000000000@g.us',
+          'name' => 'Maturechip 2',
+          'participant_count' => 42,
+          'profile_picture_url' => 'https://example.com/group.jpg',
+          'joined' => true
+        }
+      )
+
+      post "/api/v1/accounts/#{account.id}/inboxes/#{whatsmeow_inbox.id}/whatsmeow_group_invite",
+           params: { url: 'https://chat.whatsapp.com/FkLadnTzxGo9S25GLHuWiZ?mode=gi_t' },
+           headers: agent.create_new_auth_token,
+           as: :json
+
+      expect(response).to have_http_status(:success)
+      json_response = response.parsed_body
+      expect(json_response).to include(
+        'group_jid' => '120363000000000000@g.us',
+        'name' => 'Maturechip 2',
+        'joined' => true
+      )
+      expect(json_response['conversation_id']).to be_present
+
+      conversation = Conversation.find_by!(display_id: json_response['conversation_id'], inbox_id: whatsmeow_inbox.id)
+      expect(conversation.contact.additional_attributes).to include(
+        'whatsmeow_group' => true,
+        'whatsmeow_group_jid' => '120363000000000000@g.us',
+        'whatsmeow_group_participant_count' => 42
+      )
+    end
+  end
 end

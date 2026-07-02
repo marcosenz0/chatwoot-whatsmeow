@@ -103,6 +103,32 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
     render json: { message: e.message }, status: :bad_gateway
   end
 
+  def whatsmeow_group_invite
+    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
+
+    code = whatsmeow_group_invite_code
+    return render json: { message: 'group invite link is invalid' }, status: :bad_request if code.blank?
+
+    render json: Whatsmeow::SessionClient.new(inbox: @inbox).group_invite(code)
+  rescue Whatsmeow::SessionClient::Error => e
+    render json: { message: e.message }, status: :bad_gateway
+  end
+
+  def join_whatsmeow_group_invite
+    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
+
+    code = whatsmeow_group_invite_code
+    return render json: { message: 'group invite link is invalid' }, status: :bad_request if code.blank?
+
+    response = Whatsmeow::SessionClient.new(inbox: @inbox).join_group_invite(code)
+    conversation = create_whatsmeow_group_conversation_from_invite(response)
+    render json: whatsmeow_group_invite_response(response, conversation)
+  rescue Whatsmeow::SessionClient::Error => e
+    render json: { message: e.message }, status: :unprocessable_entity
+  rescue ArgumentError => e
+    render json: { message: e.message }, status: :bad_request
+  end
+
   def whatsmeow_group_members
     return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
 
@@ -283,6 +309,56 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
                   .where("contacts.additional_attributes ->> 'whatsmeow_group_jid' = ?", group_jid)
                   .order(updated_at: :desc)
                   .first
+  end
+
+  def create_whatsmeow_group_conversation_from_invite(response)
+    return unless ActiveModel::Type::Boolean.new.cast(response['joined'])
+
+    group_jid = response['group_jid'].presence || response['jid'].presence
+    return if group_jid.blank?
+
+    Whatsmeow::GroupConversationBuilder.new(
+      inbox: @inbox,
+      params: {
+        group_jid: group_jid,
+        group_name: response['name'],
+        profile_picture_url: response['profile_picture_url'],
+        participant_count: response['participant_count']
+      }
+    ).perform
+  end
+
+  def whatsmeow_group_invite_response(response, conversation)
+    return response if conversation.blank?
+
+    response.merge(
+      'id' => conversation.display_id,
+      'conversation_id' => conversation.display_id,
+      'display_id' => conversation.display_id,
+      'contact_id' => conversation.contact_id
+    )
+  end
+
+  def whatsmeow_group_invite_code
+    raw_value = params[:code].presence || params[:invite_code].presence || params[:url].presence || params[:link].presence
+    normalized_whatsmeow_group_invite_code(raw_value)
+  end
+
+  def normalized_whatsmeow_group_invite_code(value)
+    raw_value = value.to_s.strip
+    return if raw_value.blank?
+
+    looks_like_url = raw_value.match?(%r{\Ahttps?://}i) || raw_value.match?(/\Awww\./i) || raw_value.include?('.')
+    raw_value = raw_value.gsub(%r{\Ahttps?://}i, '').sub(/\Awww\./i, '')
+    is_whatsapp_invite_url = raw_value.match?(/\Achat\.whatsapp\.com\//i)
+    return if looks_like_url && !is_whatsapp_invite_url
+
+    raw_value = raw_value.sub(/\Achat\.whatsapp\.com\//i, '')
+    raw_value = raw_value.split(/[?#]/).first.to_s
+    code = raw_value.split('/').reject(&:blank?).last.to_s.gsub(/\A[^A-Za-z0-9_-]+|[^A-Za-z0-9_-]+\z/, '')
+    return unless code.match?(/\A[A-Za-z0-9_-]{6,}\z/)
+
+    code
   end
 
   def format_csat_config(config)

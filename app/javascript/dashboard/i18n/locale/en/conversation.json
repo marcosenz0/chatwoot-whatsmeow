@@ -446,6 +446,21 @@
       "CHECKING": "Checking number...",
       "OPEN_FAILED": "Could not open the WhatsApp conversation."
     },
+    "WHATSMEOW_GROUP_INVITE": {
+      "UNKNOWN_GROUP": "WhatsApp group",
+      "GROUP_INVITE": "Group conversation invite",
+      "ONE_PARTICIPANT": "1 participant",
+      "PARTICIPANTS": "{count} participants",
+      "LOADING": "Loading group invite...",
+      "LOADING_HINT": "Fetching group details from WhatsApp.",
+      "JOIN": "Join group",
+      "JOINED": "Joined the group.",
+      "REQUEST_SENT": "Join request sent to the group admins.",
+      "JOIN_FAILED": "Could not join the WhatsApp group.",
+      "LOAD_FAILED": "Could not load this WhatsApp group invite.",
+      "CANCEL": "Cancel",
+      "CLOSE": "Close"
+    },
     "WHATSMEOW_CONTACT": {
       "SEND_CONTACT": "Send contact",
       "SEND_CONTACT_HINT": "Share a WhatsApp contact card in this conversation.",

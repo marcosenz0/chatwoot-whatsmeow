@@ -41,6 +41,14 @@ class Whatsmeow::SessionClient
     request(:get, "/sessions/#{@inbox.id}/group_members?group_jid=#{CGI.escape(group_jid)}")
   end
 
+  def group_invite(code)
+    request(:get, "/sessions/#{@inbox.id}/group_invite?code=#{CGI.escape(code)}")
+  end
+
+  def join_group_invite(code)
+    request(:post, "/sessions/#{@inbox.id}/group_invite", body: { code: code })
+  end
+
   def add_group_member(group_jid:, participant_jid: nil, participant_phone: nil)
     request(
       :post,

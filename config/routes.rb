@@ -288,6 +288,8 @@ Rails.application.routes.draw do
             post :whatsmeow_session, on: :member
             delete :whatsmeow_session, on: :member, action: :destroy_whatsmeow_session
             get :whatsmeow_groups, on: :member
+            get :whatsmeow_group_invite, on: :member
+            post :whatsmeow_group_invite, on: :member, action: :join_whatsmeow_group_invite
             get :whatsmeow_group_members, on: :member
             post :whatsmeow_group_member, on: :member
             post :whatsmeow_group_conversation, on: :member

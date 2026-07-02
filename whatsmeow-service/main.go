@@ -164,6 +164,28 @@ type GroupResponse struct {
 	IsLocked          bool   `json:"is_locked"`
 }
 
+type GroupInviteRequest struct {
+	Code       string `json:"code"`
+	InviteCode string `json:"invite_code"`
+	URL        string `json:"url"`
+	Link       string `json:"link"`
+}
+
+type GroupInviteResponse struct {
+	Code                   string `json:"code"`
+	Link                   string `json:"link"`
+	JID                    string `json:"jid"`
+	GroupJID               string `json:"group_jid"`
+	Name                   string `json:"name"`
+	ProfilePictureURL      string `json:"profile_picture_url"`
+	ParticipantCount       int    `json:"participant_count"`
+	IsAnnounce             bool   `json:"is_announce"`
+	IsLocked               bool   `json:"is_locked"`
+	IsJoinApprovalRequired bool   `json:"is_join_approval_required"`
+	Joined                 bool   `json:"joined"`
+	PendingApproval        bool   `json:"pending_approval"`
+}
+
 type AddGroupMemberRequest struct {
 	GroupJID         string `json:"group_jid" binding:"required"`
 	ParticipantJID   string `json:"participant_jid"`
@@ -219,6 +241,8 @@ func main() {
 	r.GET("/sessions/:channel_id/qr", handleGetQR)
 	r.GET("/sessions/:channel_id/status", handleGetStatus)
 	r.GET("/sessions/:channel_id/groups", handleGetGroups)
+	r.GET("/sessions/:channel_id/group_invite", handleGetGroupInvite)
+	r.POST("/sessions/:channel_id/group_invite", handleJoinGroupInvite)
 	r.GET("/sessions/:channel_id/group_members", handleGetGroupMembers)
 	r.POST("/sessions/:channel_id/group_members", handleAddGroupMember)
 	r.GET("/sessions/:channel_id/profile_picture", handleGetProfilePicture)
@@ -785,6 +809,76 @@ func handleGetGroups(c *gin.Context) {
 		"groups": responses,
 		"count":  len(responses),
 	})
+}
+
+func handleGetGroupInvite(c *gin.Context) {
+	channelID := c.Param("channel_id")
+	code, ok := groupInviteCodeFromRequest(c)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid WhatsApp group invite link"})
+		return
+	}
+
+	clientsMu.RLock()
+	client, exists := clients[channelID]
+	clientsMu.RUnlock()
+
+	if !exists || !client.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	info, err := client.GetGroupInfoFromLink(ctx, code)
+	if err != nil {
+		c.JSON(groupInviteErrorStatus(err), gin.H{"error": fmt.Sprintf("Failed to fetch group invite: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, groupInviteResponse(client, info, code, false, false))
+}
+
+func handleJoinGroupInvite(c *gin.Context) {
+	channelID := c.Param("channel_id")
+	code, ok := groupInviteCodeFromRequest(c)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid WhatsApp group invite link"})
+		return
+	}
+
+	clientsMu.RLock()
+	client, exists := clients[channelID]
+	clientsMu.RUnlock()
+
+	if !exists || !client.IsConnected() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+
+	groupJID, err := client.JoinGroupWithLink(ctx, code)
+	if err != nil {
+		c.JSON(groupInviteErrorStatus(err), gin.H{"error": fmt.Sprintf("Failed to join group invite: %v", err)})
+		return
+	}
+
+	info, infoErr := client.GetGroupInfo(ctx, groupJID.ToNonAD())
+	joined := infoErr == nil
+	if infoErr != nil {
+		info, _ = client.GetGroupInfoFromLink(ctx, code)
+	}
+
+	response := groupInviteResponse(client, info, code, joined, !joined)
+	if response.JID == "" && !groupJID.IsEmpty() {
+		response.JID = groupJID.ToNonAD().String()
+		response.GroupJID = response.JID
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 func handleGetGroupMembers(c *gin.Context) {
@@ -1873,6 +1967,91 @@ func normalizePhoneForWhatsAppCheck(value string) (string, bool) {
 		return "", false
 	}
 	return "+" + number, true
+}
+
+func groupInviteCodeFromRequest(c *gin.Context) (string, bool) {
+	candidates := []string{
+		c.Query("code"),
+		c.Query("invite_code"),
+		c.Query("url"),
+		c.Query("link"),
+	}
+
+	if c.Request.Method != http.MethodGet {
+		var request GroupInviteRequest
+		if err := c.ShouldBindJSON(&request); err == nil {
+			candidates = append(candidates, request.Code, request.InviteCode, request.URL, request.Link)
+		}
+	}
+
+	for _, candidate := range candidates {
+		if code, ok := normalizeGroupInviteCode(candidate); ok {
+			return code, true
+		}
+	}
+	return "", false
+}
+
+func normalizeGroupInviteCode(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	value = strings.Trim(value, "\"'<>.,;:)]}")
+	if value == "" {
+		return "", false
+	}
+
+	lowerValue := strings.ToLower(value)
+	looksLikeURL := strings.Contains(lowerValue, "://") || strings.HasPrefix(lowerValue, "www.") || strings.Contains(lowerValue, ".")
+	for _, prefix := range []string{"https://", "http://"} {
+		if strings.HasPrefix(lowerValue, prefix) {
+			value = value[len(prefix):]
+			lowerValue = strings.ToLower(value)
+			break
+		}
+	}
+	if strings.HasPrefix(lowerValue, "www.") {
+		value = value[4:]
+		lowerValue = strings.ToLower(value)
+	}
+	isWhatsAppInviteURL := strings.HasPrefix(lowerValue, "chat.whatsapp.com/")
+	if looksLikeURL && !isWhatsAppInviteURL {
+		return "", false
+	}
+	if isWhatsAppInviteURL {
+		value = value[len("chat.whatsapp.com/"):]
+	}
+	if strings.Contains(value, "/") {
+		parts := strings.Split(value, "/")
+		value = parts[len(parts)-1]
+	}
+	if index := strings.IndexAny(value, "?#"); index >= 0 {
+		value = value[:index]
+	}
+	value = strings.Trim(value, "\"'<>.,;:)]}")
+
+	if !isGroupInviteCode(value) {
+		return "", false
+	}
+	return value, true
+}
+
+func isGroupInviteCode(value string) bool {
+	if len(value) < 6 {
+		return false
+	}
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+func groupInviteErrorStatus(err error) int {
+	if errors.Is(err, whatsmeow.ErrInviteLinkInvalid) || errors.Is(err, whatsmeow.ErrInviteLinkRevoked) {
+		return http.StatusBadRequest
+	}
+	return http.StatusBadGateway
 }
 
 func safeDisconnectClient(client *whatsmeow.Client) {
@@ -3499,6 +3678,47 @@ func buildGroupResponse(client *whatsmeow.Client, group *types.GroupInfo, fetchP
 	}
 }
 
+func groupInviteResponse(client *whatsmeow.Client, group *types.GroupInfo, code string, joined bool, pendingApproval bool) GroupInviteResponse {
+	if group == nil {
+		return GroupInviteResponse{
+			Code:            code,
+			Link:            whatsmeow.InviteLinkPrefix + code,
+			Joined:          joined,
+			PendingApproval: pendingApproval,
+		}
+	}
+
+	groupJID := group.JID.ToNonAD()
+	name := firstNonBlank(group.Name, groupJID.String())
+	profilePictureURL := cachedProfilePictureURL(groupJID)
+	if profilePictureURL == "" {
+		profilePictureURL = getGroupInviteProfilePictureURL(client, groupJID, code)
+	}
+	if profilePictureURL == "" && joined {
+		profilePictureURL = getProfilePictureURL(client, groupJID)
+	}
+
+	participantCount := group.ParticipantCount
+	if participantCount == 0 {
+		participantCount = len(group.Participants)
+	}
+
+	return GroupInviteResponse{
+		Code:                   code,
+		Link:                   whatsmeow.InviteLinkPrefix + code,
+		JID:                    groupJID.String(),
+		GroupJID:               groupJID.String(),
+		Name:                   name,
+		ProfilePictureURL:      profilePictureURL,
+		ParticipantCount:       participantCount,
+		IsAnnounce:             group.IsAnnounce,
+		IsLocked:               group.IsLocked,
+		IsJoinApprovalRequired: group.IsJoinApprovalRequired,
+		Joined:                 joined,
+		PendingApproval:        pendingApproval,
+	}
+}
+
 func sortGroups(groups []GroupResponse) {
 	sort.SliceStable(groups, func(i, j int) bool {
 		return strings.ToLower(groups[i].Name) < strings.ToLower(groups[j].Name)
@@ -3626,6 +3846,30 @@ func getProfilePictureURLWithRefresh(client *whatsmeow.Client, jid types.JID, fo
 	info, err := client.GetProfilePictureInfo(context.Background(), jid.ToNonAD(), nil)
 	if err != nil {
 		log.Printf("Failed to fetch profile picture for %s: %v", cacheKey, err)
+		setCachedProfilePicture(cacheKey, "", 30*time.Minute)
+		return ""
+	}
+	if info == nil {
+		setCachedProfilePicture(cacheKey, "", 30*time.Minute)
+		return ""
+	}
+
+	setCachedProfilePicture(cacheKey, info.URL, 24*time.Hour)
+	return info.URL
+}
+
+func getGroupInviteProfilePictureURL(client *whatsmeow.Client, jid types.JID, code string) string {
+	if jid.IsEmpty() || strings.TrimSpace(code) == "" {
+		return ""
+	}
+
+	cacheKey := jidString(jid)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	info, err := client.GetProfilePictureInfo(ctx, jid.ToNonAD(), &whatsmeow.GetProfilePictureParams{InviteCode: code})
+	if err != nil {
+		log.Printf("Failed to fetch group invite profile picture for %s: %v", cacheKey, err)
 		setCachedProfilePicture(cacheKey, "", 30*time.Minute)
 		return ""
 	}
