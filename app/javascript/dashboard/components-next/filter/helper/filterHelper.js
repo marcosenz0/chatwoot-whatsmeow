@@ -9,6 +9,8 @@ export const CONVERSATION_ATTRIBUTES = {
   TEAM_ID: 'team_id',
   DISPLAY_ID: 'display_id',
   CAMPAIGN_ID: 'campaign_id',
+  CONVERSATION_PIPELINE_ID: 'conversation_pipeline_id',
+  CONVERSATION_PIPELINE_STAGE_ID: 'conversation_pipeline_stage_id',
   LABELS: 'labels',
   BROWSER_LANGUAGE: 'browser_language',
   REFERER: 'referer',

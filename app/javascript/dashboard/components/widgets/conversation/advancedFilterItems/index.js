@@ -31,6 +31,22 @@ const filterTypes = [
     attributeModel: 'standard',
   },
   {
+    attributeKey: 'conversation_pipeline_id',
+    attributeI18nKey: 'PIPELINE',
+    inputType: 'search_select',
+    dataType: 'number',
+    filterOperators: OPERATOR_TYPES_2,
+    attributeModel: 'standard',
+  },
+  {
+    attributeKey: 'conversation_pipeline_stage_id',
+    attributeI18nKey: 'PIPELINE_STAGE',
+    inputType: 'search_select',
+    dataType: 'number',
+    filterOperators: OPERATOR_TYPES_2,
+    attributeModel: 'standard',
+  },
+  {
     attributeKey: 'inbox_id',
     attributeI18nKey: 'INBOX_NAME',
     inputType: 'search_select',
@@ -144,6 +160,14 @@ export const filterAttributeGroups = [
       {
         key: 'labels',
         i18nKey: 'LABELS',
+      },
+      {
+        key: 'conversation_pipeline_id',
+        i18nKey: 'PIPELINE',
+      },
+      {
+        key: 'conversation_pipeline_stage_id',
+        i18nKey: 'PIPELINE_STAGE',
       },
       {
         key: 'created_at',

@@ -102,6 +102,7 @@ export const getActionOptions = ({
   type,
   addNoneToListFn,
   priorityOptions,
+  pipelineStageOptions,
 }) => {
   const actionsMap = {
     assign_agent: addNoneToListFn ? addNoneToListFn(agents) : agents,
@@ -110,6 +111,7 @@ export const getActionOptions = ({
     add_label: generateConditionOptions(labels, 'title'),
     remove_label: generateConditionOptions(labels, 'title'),
     change_priority: priorityOptions,
+    change_pipeline_stage: pipelineStageOptions,
     add_sla: slaPolicies,
   };
   return actionsMap[type];
@@ -129,6 +131,8 @@ export const getConditionOptions = ({
   teams,
   type,
   priorityOptions,
+  pipelineStageOptions,
+  pipelines,
   messageTypeOptions,
 }) => {
   if (isCustomAttributeCheckbox(customAttributes, type)) {
@@ -152,6 +156,8 @@ export const getConditionOptions = ({
     message_type: messageTypeOptions,
     private_note: booleanFilterOptions,
     priority: priorityOptions,
+    conversation_pipeline_id: pipelines,
+    conversation_pipeline_stage_id: pipelineStageOptions,
     labels: generateConditionOptions(labels, 'title'),
   };
 

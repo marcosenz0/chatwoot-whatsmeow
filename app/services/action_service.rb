@@ -34,6 +34,13 @@ class ActionService
     @conversation.update!(priority: (priority[0] == 'nil' ? nil : priority[0]))
   end
 
+  def change_pipeline_stage(stage_ids = [])
+    stage = @account.conversation_pipeline_stages.active.find_by(id: stage_ids[0])
+    return if stage.blank?
+
+    Pipelines::MoveConversationService.new(account: @account, conversation: @conversation, stage: stage).perform
+  end
+
   def add_label(labels)
     return if labels.empty?
 

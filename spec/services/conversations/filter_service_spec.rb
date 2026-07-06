@@ -92,6 +92,33 @@ describe Conversations::FilterService do
         expect(result[:conversations][0][:id]).to eq conversation.id
       end
 
+      it 'filters conversations by pipeline stage' do
+        pipeline = create(:conversation_pipeline, account: account)
+        stage = create(:conversation_pipeline_stage, conversation_pipeline: pipeline)
+        conversation = create(
+          :conversation,
+          account: account,
+          inbox: inbox,
+          assignee: user_1,
+          conversation_pipeline: pipeline,
+          conversation_pipeline_stage: stage
+        )
+
+        params[:payload] = [
+          {
+            attribute_key: 'conversation_pipeline_stage_id',
+            filter_operator: 'equal_to',
+            values: [stage.id],
+            query_operator: nil,
+            custom_attribute_type: ''
+          }.with_indifferent_access
+        ]
+        result = filter_service.new(params, user_1, account).perform
+
+        expect(result[:conversations].length).to eq 1
+        expect(result[:conversations][0][:id]).to eq conversation.id
+      end
+
       it 'filter conversations by multiple priority values' do
         high_priority = create(:conversation, account: account, inbox: inbox, assignee: user_1, priority: :high)
         urgent_priority = create(:conversation, account: account, inbox: inbox, assignee: user_1, priority: :urgent)

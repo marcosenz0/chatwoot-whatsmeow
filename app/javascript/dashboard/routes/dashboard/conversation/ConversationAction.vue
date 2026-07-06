@@ -65,6 +65,7 @@ export default {
     ...mapGetters({
       currentChat: 'getSelectedChat',
       currentUser: 'getCurrentUser',
+      pipelineStageOptions: 'pipelines/getPipelineStageOptions',
       teams: 'teams/getTeams',
     }),
     hasAnAssignedTeam() {
@@ -148,6 +149,25 @@ export default {
           });
       },
     },
+    assignedPipelineStage: {
+      get() {
+        const stageId = this.currentChat?.pipeline?.stage?.id;
+        return this.pipelineStageOptions.find(stage => stage.id === stageId);
+      },
+      set(stage) {
+        if (!stage || stage.id === this.currentChat?.pipeline?.stage?.id)
+          return;
+
+        this.$store
+          .dispatch('pipelines/moveConversation', {
+            conversationId: this.currentChat.id,
+            pipelineStageId: stage.id,
+          })
+          .then(() => {
+            useAlert(this.$t('CONVERSATION_SIDEBAR.PIPELINE_CHANGED'));
+          });
+      },
+    },
     showSelfAssign() {
       if (!this.assignedAgent) {
         return true;
@@ -157,6 +177,9 @@ export default {
       }
       return false;
     },
+  },
+  mounted() {
+    this.$store.dispatch('pipelines/get');
   },
   methods: {
     onSelfAssign() {
@@ -206,6 +229,10 @@ export default {
       this.assignedPriority = isSamePriority
         ? this.priorityOptions[0]
         : selectedPriorityItem;
+    },
+
+    onClickAssignPipelineStage(selectedStage) {
+      this.assignedPipelineStage = selectedStage;
     },
   },
 };
@@ -279,6 +306,23 @@ export default {
           $t('CONVERSATION.PRIORITY.CHANGE_PRIORITY.INPUT_PLACEHOLDER')
         "
         @select="onClickAssignPriority"
+      />
+    </div>
+    <div>
+      <ContactDetailsItem
+        compact
+        :title="$t('CONVERSATION_SIDEBAR.PIPELINE_LABEL')"
+      />
+      <MultiselectDropdown
+        :options="pipelineStageOptions"
+        :selected-item="assignedPipelineStage"
+        :multiselector-title="$t('CONVERSATION_SIDEBAR.PIPELINE_LABEL')"
+        :multiselector-placeholder="
+          $t('CONVERSATION_SIDEBAR.PIPELINE_PLACEHOLDER')
+        "
+        :no-search-result="$t('CONVERSATION_SIDEBAR.PIPELINE_NO_RESULTS')"
+        :input-placeholder="$t('CONVERSATION_SIDEBAR.PIPELINE_SEARCH')"
+        @select="onClickAssignPipelineStage"
       />
     </div>
     <ContactDetailsItem

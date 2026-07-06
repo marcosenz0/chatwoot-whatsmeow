@@ -561,6 +561,11 @@
     "ASSIGNEE_LABEL": "Assigned Agent",
     "SELF_ASSIGN": "Assign to me",
     "TEAM_LABEL": "Assigned Team",
+    "PIPELINE_LABEL": "Pipeline",
+    "PIPELINE_PLACEHOLDER": "Select pipeline stage",
+    "PIPELINE_SEARCH": "Search pipeline stages",
+    "PIPELINE_NO_RESULTS": "No pipeline stages found",
+    "PIPELINE_CHANGED": "Pipeline stage changed",
     "SELECT": {
       "PLACEHOLDER": "None"
     },

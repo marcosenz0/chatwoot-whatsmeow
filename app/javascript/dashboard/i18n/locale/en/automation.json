@@ -156,6 +156,7 @@
       "ADD_PRIVATE_NOTE": "Add a Private Note",
       "CHANGE_PRIORITY": "Change Priority",
       "ADD_SLA": "Add SLA",
+      "CHANGE_PIPELINE_STAGE": "Change pipeline stage",
       "OPEN_CONVERSATION": "Open conversation",
       "PENDING_CONVERSATION": "Mark conversation as pending"
     },
@@ -187,6 +188,8 @@
       "ASSIGNEE_NAME": "Assignee",
       "TEAM_NAME": "Team",
       "PRIORITY": "Priority",
+      "PIPELINE": "Pipeline",
+      "PIPELINE_STAGE": "Pipeline stage",
       "LABELS": "Labels"
     }
   }

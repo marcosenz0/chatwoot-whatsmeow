@@ -55,6 +55,8 @@ export function useConversationFilterContext() {
   );
 
   const labels = useMapGetter('labels/getLabels');
+  const pipelines = useMapGetter('pipelines/getPipelines');
+  const pipelineStages = useMapGetter('pipelines/getPipelineStageOptions');
   const agents = useMapGetter('agents/getAgents');
   const inboxes = useMapGetter('inboxes/getInboxes');
   const teams = useMapGetter('teams/getTeams');
@@ -203,6 +205,28 @@ export function useConversationFilterContext() {
         };
       }),
       dataType: 'text',
+      filterOperators: presenceOperators.value,
+      attributeModel: 'standard',
+    },
+    {
+      attributeKey: CONVERSATION_ATTRIBUTES.CONVERSATION_PIPELINE_ID,
+      value: CONVERSATION_ATTRIBUTES.CONVERSATION_PIPELINE_ID,
+      attributeName: t('FILTER.ATTRIBUTES.PIPELINE'),
+      label: t('FILTER.ATTRIBUTES.PIPELINE'),
+      inputType: 'searchSelect',
+      options: pipelines.value,
+      dataType: 'number',
+      filterOperators: presenceOperators.value,
+      attributeModel: 'standard',
+    },
+    {
+      attributeKey: CONVERSATION_ATTRIBUTES.CONVERSATION_PIPELINE_STAGE_ID,
+      value: CONVERSATION_ATTRIBUTES.CONVERSATION_PIPELINE_STAGE_ID,
+      attributeName: t('FILTER.ATTRIBUTES.PIPELINE_STAGE'),
+      label: t('FILTER.ATTRIBUTES.PIPELINE_STAGE'),
+      inputType: 'searchSelect',
+      options: pipelineStages.value,
+      dataType: 'number',
       filterOperators: presenceOperators.value,
       attributeModel: 'standard',
     },

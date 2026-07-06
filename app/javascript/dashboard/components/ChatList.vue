@@ -107,6 +107,8 @@ const teamsList = useMapGetter('teams/getTeams');
 const inboxesList = useMapGetter('inboxes/getInboxes');
 const campaigns = useMapGetter('campaigns/getAllCampaigns');
 const labels = useMapGetter('labels/getLabels');
+const pipelines = useMapGetter('pipelines/getPipelines');
+const pipelineStages = useMapGetter('pipelines/getPipelineStageOptions');
 const currentAccountId = useMapGetter('getCurrentAccountId');
 // We can't useFunctionGetter here since it needs to be called on setup?
 const getTeamFn = useMapGetter('teams/getTeam');
@@ -475,6 +477,8 @@ function setParamsForEditFolderModal() {
     teams: teamsList.value,
     inboxes: inboxesList.value,
     labels: labels.value,
+    conversation_pipeline_id: pipelines.value,
+    conversation_pipeline_stage_id: pipelineStages.value,
     campaigns: campaigns.value,
     languages: languages,
     countries: countries,
@@ -816,6 +820,7 @@ onMounted(() => {
   setFiltersFromUISettings();
   store.dispatch('setChatStatusFilter', activeStatus.value);
   store.dispatch('setChatSortFilter', activeSortBy.value);
+  store.dispatch('pipelines/get');
   resetAndFetchData();
   if (hasActiveFolders.value) {
     store.dispatch('campaigns/get');

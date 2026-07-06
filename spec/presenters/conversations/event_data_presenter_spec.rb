@@ -46,6 +46,21 @@ RSpec.describe Conversations::EventDataPresenter do
   end
 
   describe '#webhook_data' do
+    it 'includes the pipeline and selected stage' do
+      pipeline = create(:conversation_pipeline, account: conversation.account, name: 'Lead campanha Meta')
+      stage = create(:conversation_pipeline_stage, conversation_pipeline: pipeline, name: 'Qualificado')
+      conversation.update!(conversation_pipeline: pipeline, conversation_pipeline_stage: stage)
+
+      data = presenter.webhook_data
+
+      expect(data[:pipeline]).to include(
+        id: pipeline.id,
+        name: 'Lead campanha Meta',
+        internal_name: 'lead_campanha_meta',
+        stage: stage.push_event_data
+      )
+    end
+
     it 'normalizes hard-break backslashes in message content' do
       message = create(:message, conversation: conversation, account: conversation.account,
                                  message_type: :outgoing, content: "Hello\\\nWorld")

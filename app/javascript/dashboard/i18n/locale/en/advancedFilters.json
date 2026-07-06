@@ -55,6 +55,8 @@
       "TEAM_NAME": "Team name",
       "CONVERSATION_IDENTIFIER": "Conversation identifier",
       "CAMPAIGN_NAME": "Campaign name",
+      "PIPELINE": "Pipeline",
+      "PIPELINE_STAGE": "Pipeline stage",
       "LABELS": "Labels",
       "BROWSER_LANGUAGE": "Browser language",
       "PRIORITY": "Priority",

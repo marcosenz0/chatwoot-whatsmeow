@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_05_25_093000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_06_090000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -606,6 +606,22 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_25_093000) do
     t.index ["phone_number"], name: "index_channel_whatsapp_on_phone_number", unique: true
   end
 
+  create_table "channel_whatsmeow", force: :cascade do |t|
+    t.string "phone_number"
+    t.integer "account_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "status", default: "disconnected"
+    t.boolean "newsletter", default: false, null: false
+    t.boolean "always_online", default: false, null: false
+    t.boolean "reject_calls", default: false, null: false
+    t.boolean "read_messages", default: false, null: false
+    t.boolean "ignore_groups", default: false, null: false
+    t.boolean "ignore_status", default: false, null: false
+    t.boolean "ignore_newsletters", default: true, null: false
+    t.index ["phone_number"], name: "index_channel_whatsmeow_on_phone_number"
+  end
+
   create_table "companies", force: :cascade do |t|
     t.string "name", null: false
     t.string "domain"
@@ -681,6 +697,45 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_25_093000) do
     t.index ["user_id"], name: "index_conversation_participants_on_user_id"
   end
 
+  create_table "conversation_pipeline_stages", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "conversation_pipeline_id", null: false
+    t.string "name", null: false
+    t.string "internal_name", null: false
+    t.integer "position", null: false
+    t.string "color", default: "#1f93ff", null: false
+    t.integer "category", default: 0, null: false
+    t.integer "probability"
+    t.integer "stale_after_days"
+    t.boolean "archived", default: false, null: false
+    t.jsonb "settings", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "conversation_pipeline_id"], name: "idx_pipeline_stages_on_account_and_pipeline"
+    t.index ["account_id"], name: "index_conversation_pipeline_stages_on_account_id"
+    t.index ["conversation_pipeline_id", "internal_name"], name: "idx_pipeline_stages_on_pipeline_and_name", unique: true
+    t.index ["conversation_pipeline_id", "position"], name: "idx_pipeline_stages_on_pipeline_and_position"
+    t.index ["conversation_pipeline_id"], name: "index_conversation_pipeline_stages_on_conversation_pipeline_id"
+  end
+
+  create_table "conversation_pipelines", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.string "internal_name", null: false
+    t.text "description"
+    t.string "color", default: "#1f93ff", null: false
+    t.integer "position", null: false
+    t.boolean "default", default: false, null: false
+    t.boolean "archived", default: false, null: false
+    t.jsonb "settings", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "default"], name: "index_conversation_pipelines_on_account_id_and_default", unique: true, where: "(\"default\" = true)"
+    t.index ["account_id", "internal_name"], name: "index_conversation_pipelines_on_account_id_and_internal_name", unique: true
+    t.index ["account_id", "position"], name: "index_conversation_pipelines_on_account_id_and_position"
+    t.index ["account_id"], name: "index_conversation_pipelines_on_account_id"
+  end
+
   create_table "conversations", id: :serial, force: :cascade do |t|
     t.integer "account_id", null: false
     t.integer "inbox_id", null: false
@@ -708,6 +763,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_25_093000) do
     t.datetime "waiting_since"
     t.text "cached_label_list"
     t.bigint "assignee_agent_bot_id"
+    t.bigint "conversation_pipeline_id"
+    t.bigint "conversation_pipeline_stage_id"
+    t.datetime "pipeline_stage_entered_at"
+    t.index ["account_id", "conversation_pipeline_id"], name: "idx_conversations_on_account_pipeline"
+    t.index ["account_id", "conversation_pipeline_stage_id", "status", "last_activity_at"], name: "idx_conversations_on_account_stage_status_activity"
     t.index ["account_id", "display_id"], name: "index_conversations_on_account_id_and_display_id", unique: true
     t.index ["account_id", "id"], name: "index_conversations_on_id_and_account_id"
     t.index ["account_id", "inbox_id", "status", "assignee_id"], name: "conv_acid_inbid_stat_asgnid_idx"
@@ -716,6 +776,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_25_093000) do
     t.index ["campaign_id"], name: "index_conversations_on_campaign_id"
     t.index ["contact_id"], name: "index_conversations_on_contact_id"
     t.index ["contact_inbox_id"], name: "index_conversations_on_contact_inbox_id"
+    t.index ["conversation_pipeline_id"], name: "index_conversations_on_conversation_pipeline_id"
+    t.index ["conversation_pipeline_stage_id"], name: "index_conversations_on_conversation_pipeline_stage_id"
     t.index ["first_reply_created_at"], name: "index_conversations_on_first_reply_created_at"
     t.index ["identifier", "account_id"], name: "index_conversations_on_identifier_and_account_id"
     t.index ["inbox_id"], name: "index_conversations_on_inbox_id"
@@ -972,6 +1034,93 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_25_093000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["account_id"], name: "index_macros_on_account_id"
+  end
+
+  create_table "marcosx_ai_assistants", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.text "instructions"
+    t.jsonb "config", default: {}, null: false
+    t.jsonb "response_guidelines", default: [], null: false
+    t.jsonb "guardrails", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_marcosx_ai_assistants_on_account_id"
+  end
+
+  create_table "marcosx_ai_conversation_states", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "assistant_id"
+    t.bigint "conversation_id", null: false
+    t.bigint "inbox_id", null: false
+    t.string "status", default: "active", null: false
+    t.datetime "paused_until"
+    t.bigint "last_human_message_id"
+    t.bigint "last_ai_message_id"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "status"], name: "index_marcosx_ai_conversation_states_on_account_id_and_status"
+    t.index ["account_id"], name: "index_marcosx_ai_conversation_states_on_account_id"
+    t.index ["assistant_id"], name: "index_marcosx_ai_conversation_states_on_assistant_id"
+    t.index ["conversation_id"], name: "index_marcosx_ai_states_on_conversation_id", unique: true
+    t.index ["inbox_id"], name: "index_marcosx_ai_conversation_states_on_inbox_id"
+  end
+
+  create_table "marcosx_ai_credentials", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "provider", null: false
+    t.text "api_key"
+    t.string "api_base"
+    t.string "model"
+    t.boolean "enabled", default: false, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "provider"], name: "index_marcosx_ai_credentials_on_account_id_and_provider", unique: true
+    t.index ["account_id"], name: "index_marcosx_ai_credentials_on_account_id"
+  end
+
+  create_table "marcosx_ai_google_connections", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.string "email"
+    t.text "access_token"
+    t.text "refresh_token"
+    t.datetime "expires_at"
+    t.jsonb "scopes", default: [], null: false
+    t.string "status", default: "disconnected", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_marcosx_ai_google_connections_on_account_id", unique: true
+  end
+
+  create_table "marcosx_ai_inboxes", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "assistant_id", null: false
+    t.bigint "inbox_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_marcosx_ai_inboxes_on_account_id"
+    t.index ["assistant_id", "inbox_id"], name: "index_marcosx_ai_inboxes_on_assistant_id_and_inbox_id", unique: true
+    t.index ["assistant_id"], name: "index_marcosx_ai_inboxes_on_assistant_id"
+    t.index ["inbox_id"], name: "index_marcosx_ai_inboxes_on_inbox_id", unique: true
+  end
+
+  create_table "marcosx_ai_logs", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "assistant_id"
+    t.bigint "conversation_id"
+    t.string "event", null: false
+    t.string "status", default: "ok", null: false
+    t.jsonb "request", default: {}, null: false
+    t.jsonb "response", default: {}, null: false
+    t.text "error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "created_at"], name: "index_marcosx_ai_logs_on_account_id_and_created_at"
+    t.index ["account_id"], name: "index_marcosx_ai_logs_on_account_id"
+    t.index ["assistant_id"], name: "index_marcosx_ai_logs_on_assistant_id"
+    t.index ["conversation_id"], name: "index_marcosx_ai_logs_on_conversation_id"
   end
 
   create_table "mentions", force: :cascade do |t|
@@ -1305,6 +1454,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_25_093000) do
     t.index ["account_id", "url"], name: "index_webhooks_on_account_id_and_url", unique: true
   end
 
+  create_table "whatsmeow_stickers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "attachment_id", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "user_id", "attachment_id"], name: "idx_whatsmeow_stickers_on_account_user_attachment", unique: true
+    t.index ["account_id"], name: "index_whatsmeow_stickers_on_account_id"
+    t.index ["attachment_id"], name: "index_whatsmeow_stickers_on_attachment_id"
+    t.index ["user_id"], name: "index_whatsmeow_stickers_on_user_id"
+  end
+
   create_table "working_hours", force: :cascade do |t|
     t.bigint "inbox_id"
     t.bigint "account_id"
@@ -1323,7 +1485,28 @@ ActiveRecord::Schema[7.1].define(version: 2026_05_25_093000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "conversation_pipeline_stages", "accounts"
+  add_foreign_key "conversation_pipeline_stages", "conversation_pipelines"
+  add_foreign_key "conversation_pipelines", "accounts"
+  add_foreign_key "conversations", "conversation_pipeline_stages"
+  add_foreign_key "conversations", "conversation_pipelines"
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "marcosx_ai_assistants", "accounts"
+  add_foreign_key "marcosx_ai_conversation_states", "accounts"
+  add_foreign_key "marcosx_ai_conversation_states", "conversations"
+  add_foreign_key "marcosx_ai_conversation_states", "inboxes"
+  add_foreign_key "marcosx_ai_conversation_states", "marcosx_ai_assistants", column: "assistant_id"
+  add_foreign_key "marcosx_ai_credentials", "accounts"
+  add_foreign_key "marcosx_ai_google_connections", "accounts"
+  add_foreign_key "marcosx_ai_inboxes", "accounts"
+  add_foreign_key "marcosx_ai_inboxes", "inboxes"
+  add_foreign_key "marcosx_ai_inboxes", "marcosx_ai_assistants", column: "assistant_id"
+  add_foreign_key "marcosx_ai_logs", "accounts"
+  add_foreign_key "marcosx_ai_logs", "conversations"
+  add_foreign_key "marcosx_ai_logs", "marcosx_ai_assistants", column: "assistant_id"
+  add_foreign_key "whatsmeow_stickers", "accounts"
+  add_foreign_key "whatsmeow_stickers", "attachments"
+  add_foreign_key "whatsmeow_stickers", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
       on("accounts").
       after(:insert).

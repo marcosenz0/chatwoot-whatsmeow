@@ -146,6 +146,16 @@ Rails.application.routes.draw do
             end
           end
           resources :campaigns, only: [:index, :create, :show, :update, :destroy]
+          resources :conversation_pipelines, path: 'pipelines', controller: 'conversation_pipelines',
+                                             only: [:index, :show, :create, :update, :destroy] do
+            member do
+              get :board
+              post :reorder_stages
+            end
+            resources :stages, controller: 'conversation_pipeline_stages', only: [:create, :update, :destroy] do
+              post :reorder, on: :collection
+            end
+          end
           resources :dashboard_apps, only: [:index, :show, :create, :update, :destroy]
           namespace :channels do
             resource :twilio_channel, only: [:create]
@@ -171,6 +181,7 @@ Rails.application.routes.draw do
               end
               resources :assignments, only: [:create]
               resources :labels, only: [:create, :index]
+              resource :pipeline, only: [:create]
               resource :participants, only: [:show, :create, :update, :destroy]
               resource :direct_uploads, only: [:create]
               resource :draft_messages, only: [:show, :update, :destroy]

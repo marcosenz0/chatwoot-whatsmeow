@@ -105,6 +105,8 @@ class Conversation < ApplicationRecord
   belongs_to :contact_inbox
   belongs_to :team, optional: true
   belongs_to :campaign, optional: true
+  belongs_to :conversation_pipeline, optional: true
+  belongs_to :conversation_pipeline_stage, optional: true
 
   has_many :mentions, dependent: :destroy_async
   has_many :messages, dependent: :destroy_async, autosave: true
@@ -117,6 +119,7 @@ class Conversation < ApplicationRecord
   before_save :ensure_snooze_until_reset
   before_create :determine_conversation_status
   before_create :ensure_waiting_since
+  before_create :assign_default_conversation_pipeline_stage
 
   after_update_commit :execute_after_update_commit_callbacks
   after_create_commit :notify_conversation_creation
@@ -218,6 +221,14 @@ class Conversation < ApplicationRecord
     dispatcher_dispatch(CONVERSATION_UPDATED, previous_changes)
   end
 
+  def pipeline_push_data
+    return if conversation_pipeline.blank? || conversation_pipeline_stage.blank?
+
+    conversation_pipeline.push_event_data.except(:stages).merge(
+      stage: conversation_pipeline_stage.push_event_data
+    )
+  end
+
   private
 
   def execute_after_update_commit_callbacks
@@ -242,6 +253,25 @@ class Conversation < ApplicationRecord
 
   def ensure_waiting_since
     self.waiting_since = created_at
+  end
+
+  def assign_default_conversation_pipeline_stage
+    return if conversation_pipeline_assigned?
+
+    stage = default_conversation_pipeline&.active_stages&.first
+    return if stage.blank?
+
+    self.conversation_pipeline = stage.conversation_pipeline
+    self.conversation_pipeline_stage = stage
+    self.pipeline_stage_entered_at = Time.current
+  end
+
+  def conversation_pipeline_assigned?
+    conversation_pipeline_id.present? || conversation_pipeline_stage_id.present?
+  end
+
+  def default_conversation_pipeline
+    account&.conversation_pipelines&.active&.find_by(default: true)
   end
 
   def validate_additional_attributes
@@ -286,7 +316,7 @@ class Conversation < ApplicationRecord
 
   def list_of_keys
     %w[team_id assignee_id assignee_agent_bot_id status snoozed_until custom_attributes label_list waiting_since
-       first_reply_created_at priority]
+       first_reply_created_at priority conversation_pipeline_id conversation_pipeline_stage_id pipeline_stage_entered_at]
   end
 
   def allowed_keys?

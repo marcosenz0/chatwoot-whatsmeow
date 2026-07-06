@@ -216,6 +216,7 @@ const stopWhatsmeowStatusSync = () => {
 
 onMounted(() => {
   store.dispatch('labels/get');
+  store.dispatch('pipelines/get');
   store.dispatch('inboxes/get').then(syncWhatsmeowStatuses);
   store.dispatch('notifications/unReadCount');
   store.dispatch('teams/get');
@@ -411,6 +412,13 @@ const menuItems = computed(() => {
           })),
         },
       ],
+    },
+    {
+      name: 'Pipelines',
+      label: t('SIDEBAR.PIPELINES'),
+      icon: 'i-lucide-columns-3',
+      to: accountScopedRoute('pipelines_index'),
+      activeOn: ['pipelines_index'],
     },
     {
       name: 'Captain',

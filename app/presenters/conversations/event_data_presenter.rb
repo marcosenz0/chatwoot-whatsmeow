@@ -1,8 +1,7 @@
 class Conversations::EventDataPresenter < SimpleDelegator
   def push_data
     {
-      additional_attributes: additional_attributes,
-      can_reply: can_reply?,
+      additional_attributes: additional_attributes, can_reply: can_reply?,
       channel: inbox.try(:channel_type),
       contact_inbox: contact_inbox,
       id: display_id,
@@ -11,6 +10,7 @@ class Conversations::EventDataPresenter < SimpleDelegator
       labels: label_list,
       meta: push_meta,
       status: status,
+      pipeline: pipeline_push_data,
       custom_attributes: custom_attributes,
       snoozed_until: snoozed_until,
       unread_count: unread_incoming_messages.count,

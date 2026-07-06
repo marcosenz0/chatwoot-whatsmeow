@@ -1,0 +1,63 @@
+{
+  "PIPELINES": {
+    "HEADER": {
+      "TITLE": "Pipelines",
+      "DESCRIPTION": "Track conversations across CRM stages with a Kanban workflow.",
+      "NEW_PIPELINE": "New pipeline",
+      "NEW_STAGE": "New stage",
+      "REFRESH": "Refresh board",
+      "EDIT_PIPELINE": "Edit pipeline",
+      "DELETE_PIPELINE": "Delete pipeline",
+      "TOTAL": "{count} conversations"
+    },
+    "LOADING": "Loading pipelines",
+    "EMPTY": {
+      "TITLE": "Create your first pipeline",
+      "DESCRIPTION": "Build custom workflows for campaigns, sales, follow-up or any process your team needs."
+    },
+    "STAGE": {
+      "COUNT": "{count} conversations",
+      "STALE_COUNT": "{count} stale",
+      "LOAD_MORE": "Load more",
+      "EDIT": "Edit stage",
+      "DELETE": "Delete stage"
+    },
+    "CARD": {
+      "ID": "#{id}",
+      "NO_MESSAGE": "No recent message",
+      "UNASSIGNED": "Unassigned",
+      "UNKNOWN_CONTACT": "Unknown contact"
+    },
+    "PIPELINE_DIALOG": {
+      "CREATE_TITLE": "Create pipeline",
+      "EDIT_TITLE": "Edit pipeline",
+      "SAVE": "Save pipeline",
+      "NAME": "Pipeline name",
+      "NAME_PLACEHOLDER": "Lead campanha Meta",
+      "DESCRIPTION": "Description",
+      "DESCRIPTION_PLACEHOLDER": "Describe when this pipeline should be used",
+      "COLOR": "Color"
+    },
+    "STAGE_DIALOG": {
+      "CREATE_TITLE": "Create stage",
+      "EDIT_TITLE": "Edit stage",
+      "SAVE": "Save stage",
+      "NAME": "Stage name",
+      "NAME_PLACEHOLDER": "Qualified lead",
+      "CATEGORY": "Stage category",
+      "CATEGORY_OPEN": "Open",
+      "CATEGORY_WON": "Won",
+      "CATEGORY_LOST": "Lost",
+      "PROBABILITY": "Probability",
+      "STALE_AFTER": "Stale after days",
+      "COLOR": "Color"
+    },
+    "ALERTS": {
+      "PIPELINE_SAVED": "Pipeline saved",
+      "PIPELINE_DELETED": "Pipeline deleted",
+      "STAGE_SAVED": "Stage saved",
+      "STAGE_DELETED": "Stage deleted",
+      "CONVERSATION_MOVED": "Conversation moved"
+    }
+  }
+}

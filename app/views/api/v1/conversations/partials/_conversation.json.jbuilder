@@ -46,6 +46,7 @@ json.contact_last_seen_at conversation.contact_last_seen_at.to_i
 json.custom_attributes conversation.custom_attributes
 json.inbox_id conversation.inbox_id
 json.labels conversation.cached_label_list_array
+json.pipeline conversation.pipeline_push_data
 json.muted conversation.muted?
 json.snoozed_until conversation.snoozed_until
 json.status conversation.status

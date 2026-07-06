@@ -25,6 +25,10 @@ export default function useAutomationValues() {
   const contacts = useMapGetter('contacts/getContacts');
   const inboxes = useMapGetter('inboxes/getInboxes');
   const labels = useMapGetter('labels/getLabels');
+  const pipelines = useMapGetter('pipelines/getPipelines');
+  const pipelineStageOptions = useMapGetter(
+    'pipelines/getPipelineStageOptions'
+  );
   const teams = useMapGetter('teams/getTeams');
   const slaPolicies = useMapGetter('sla/getSLA');
 
@@ -105,6 +109,8 @@ export default function useAutomationValues() {
       customAttributes: getters['attributes/getAttributes'].value,
       inboxes: inboxes.value,
       labels: labels.value,
+      pipelines: pipelines.value,
+      pipelineStageOptions: pipelineStageOptions.value,
       statusFilterOptions: statusFilterOptions.value,
       priorityOptions: priorityOptions.value,
       messageTypeOptions: messageTypeOptions.value,
@@ -135,6 +141,8 @@ export default function useAutomationValues() {
     return getActionOptions({
       agents: agentsList,
       labels: labels.value,
+      pipelines: pipelines.value,
+      pipelineStageOptions: pipelineStageOptions.value,
       teams: teams.value,
       slaPolicies: slaPolicies.value,
       languages,
@@ -157,6 +165,8 @@ export default function useAutomationValues() {
     contacts,
     inboxes,
     labels,
+    pipelines,
+    pipelineStageOptions,
     teams,
     slaPolicies,
   };

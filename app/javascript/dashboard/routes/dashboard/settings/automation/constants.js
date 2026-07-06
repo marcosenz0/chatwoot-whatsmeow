@@ -686,6 +686,45 @@ export const AUTOMATIONS = {
   },
 };
 
+const PIPELINE_CONDITIONS = [
+  {
+    key: 'conversation_pipeline_id',
+    name: 'PIPELINE',
+    inputType: 'search_select',
+    filterOperators: OPERATOR_TYPES_1,
+  },
+  {
+    key: 'conversation_pipeline_stage_id',
+    name: 'PIPELINE_STAGE',
+    inputType: 'search_select',
+    filterOperators: OPERATOR_TYPES_1,
+  },
+];
+
+const CHANGE_PIPELINE_STAGE_ACTION = {
+  key: 'change_pipeline_stage',
+  name: 'CHANGE_PIPELINE_STAGE',
+};
+
+Object.values(AUTOMATIONS).forEach(config => {
+  const existingConditionKeys = config.conditions.map(
+    condition => condition.key
+  );
+  PIPELINE_CONDITIONS.forEach(condition => {
+    if (!existingConditionKeys.includes(condition.key)) {
+      config.conditions.push(condition);
+    }
+  });
+
+  if (
+    !config.actions.some(
+      action => action.key === CHANGE_PIPELINE_STAGE_ACTION.key
+    )
+  ) {
+    config.actions.push(CHANGE_PIPELINE_STAGE_ACTION);
+  }
+});
+
 export const AUTOMATION_RULE_EVENTS = [
   {
     key: 'conversation_created',
@@ -798,6 +837,11 @@ export const AUTOMATION_ACTION_TYPES = [
   {
     key: 'change_priority',
     label: 'CHANGE_PRIORITY',
+    inputType: 'search_select',
+  },
+  {
+    key: 'change_pipeline_stage',
+    label: 'CHANGE_PIPELINE_STAGE',
     inputType: 'search_select',
   },
   {

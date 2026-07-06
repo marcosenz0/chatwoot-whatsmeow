@@ -40,6 +40,28 @@ describe ActionService do
     end
   end
 
+  describe '#change_pipeline_stage' do
+    let(:pipeline) { create(:conversation_pipeline, account: account) }
+    let(:stage) { create(:conversation_pipeline_stage, conversation_pipeline: pipeline) }
+    let(:conversation) { create(:conversation, account: account) }
+    let(:action_service) { described_class.new(conversation) }
+
+    it 'moves the conversation to the selected pipeline stage' do
+      action_service.change_pipeline_stage([stage.id])
+
+      expect(conversation.reload.conversation_pipeline).to eq(pipeline)
+      expect(conversation.conversation_pipeline_stage).to eq(stage)
+    end
+
+    it 'ignores stages outside the account' do
+      other_stage = create(:conversation_pipeline_stage)
+
+      expect do
+        action_service.change_pipeline_stage([other_stage.id])
+      end.not_to(change { conversation.reload.conversation_pipeline_stage_id })
+    end
+  end
+
   describe '#assign_agent' do
     let(:agent) { create(:user, account: account, role: :agent) }
     let(:inbox_member) { create(:inbox_member, inbox: conversation.inbox, user: agent) }
