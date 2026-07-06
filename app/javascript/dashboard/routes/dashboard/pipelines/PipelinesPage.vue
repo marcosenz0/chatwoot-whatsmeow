@@ -639,7 +639,7 @@ onBeforeUnmount(() => {
         />
         <select
           v-model="boardFilters.status"
-          class="reset-base h-8 w-full rounded-lg border-0 bg-n-alpha-black2 px-3 text-sm text-n-slate-12 outline outline-1 outline-n-weak"
+          class="reset-base h-8 w-full rounded-lg border-0 bg-n-alpha-black2 px-3 text-sm text-n-slate-12 outline outline-1 outline-n-weak !mb-0"
           :aria-label="t('PIPELINES.FILTERS.STATUS')"
         >
           <option
