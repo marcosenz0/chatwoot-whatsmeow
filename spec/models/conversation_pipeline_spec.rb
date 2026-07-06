@@ -23,6 +23,14 @@ RSpec.describe ConversationPipeline do
       expect(first_pipeline.reload.default).to be(false)
       expect(second_pipeline.reload.default).to be(true)
     end
+
+    it 'allows reusing the visible name after a pipeline is archived' do
+      create(:conversation_pipeline, account: account, name: 'Lead campanha Meta', archived: true)
+
+      pipeline = described_class.create!(account: account, name: 'Lead campanha Meta')
+
+      expect(pipeline.internal_name).to eq('lead_campanha_meta')
+    end
   end
 
   describe '#push_event_data' do

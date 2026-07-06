@@ -8,7 +8,11 @@ class ConversationPipelineStage < ApplicationRecord
   enum category: { open: 0, won: 1, lost: 2 }
 
   validates :name, presence: true
-  validates :internal_name, presence: true, uniqueness: { scope: :conversation_pipeline_id }
+  validates :internal_name, presence: true,
+                            uniqueness: {
+                              scope: :conversation_pipeline_id,
+                              conditions: -> { where(archived: false) }
+                            }
   validates :position, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
   validates :probability, numericality: { only_integer: true, greater_than_or_equal_to: 0, less_than_or_equal_to: 100 },
                           allow_nil: true

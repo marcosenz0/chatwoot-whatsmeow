@@ -20,6 +20,15 @@ RSpec.describe ConversationPipelineStage do
       expect(stage).not_to be_valid
       expect(stage.errors[:account_id]).to include('must match pipeline account')
     end
+
+    it 'allows reusing the visible name after a stage is archived' do
+      pipeline = create(:conversation_pipeline)
+      create(:conversation_pipeline_stage, conversation_pipeline: pipeline, name: 'Proposta enviada', archived: true)
+
+      stage = described_class.create!(conversation_pipeline: pipeline, name: 'Proposta enviada')
+
+      expect(stage.internal_name).to eq('proposta_enviada')
+    end
   end
 
   describe '#push_event_data' do

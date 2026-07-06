@@ -15,7 +15,11 @@ class ConversationPipeline < ApplicationRecord
   has_many :conversations, dependent: :nullify
 
   validates :name, presence: true
-  validates :internal_name, presence: true, uniqueness: { scope: :account_id }
+  validates :internal_name, presence: true,
+                            uniqueness: {
+                              scope: :account_id,
+                              conditions: -> { where(archived: false) }
+                            }
   validates :color, presence: true
   validates :position, numericality: { only_integer: true, greater_than_or_equal_to: 0 }
 

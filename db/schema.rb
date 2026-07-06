@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_06_090000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_06_101500) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -713,7 +713,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_06_090000) do
     t.datetime "updated_at", null: false
     t.index ["account_id", "conversation_pipeline_id"], name: "idx_pipeline_stages_on_account_and_pipeline"
     t.index ["account_id"], name: "index_conversation_pipeline_stages_on_account_id"
-    t.index ["conversation_pipeline_id", "internal_name"], name: "idx_pipeline_stages_on_pipeline_and_name", unique: true
+    t.index ["conversation_pipeline_id", "internal_name"], name: "idx_active_pipeline_stages_on_pipeline_and_name", unique: true, where: "(archived = false)"
     t.index ["conversation_pipeline_id", "position"], name: "idx_pipeline_stages_on_pipeline_and_position"
     t.index ["conversation_pipeline_id"], name: "index_conversation_pipeline_stages_on_conversation_pipeline_id"
   end
@@ -731,7 +731,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_06_090000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["account_id", "default"], name: "index_conversation_pipelines_on_account_id_and_default", unique: true, where: "(\"default\" = true)"
-    t.index ["account_id", "internal_name"], name: "index_conversation_pipelines_on_account_id_and_internal_name", unique: true
+    t.index ["account_id", "internal_name"], name: "idx_active_pipelines_on_account_and_name", unique: true, where: "(archived = false)"
     t.index ["account_id", "position"], name: "index_conversation_pipelines_on_account_id_and_position"
     t.index ["account_id"], name: "index_conversation_pipelines_on_account_id"
   end
