@@ -55,6 +55,8 @@
       "TEAM_NAME": "Nome do Time",
       "CONVERSATION_IDENTIFIER": "Identificador da conversa",
       "CAMPAIGN_NAME": "Nome da campanha",
+      "PIPELINE": "Pipeline",
+      "PIPELINE_STAGE": "Etapa do pipeline",
       "LABELS": "Etiquetas",
       "BROWSER_LANGUAGE": "Idioma do navegador",
       "PRIORITY": "Prioridade",

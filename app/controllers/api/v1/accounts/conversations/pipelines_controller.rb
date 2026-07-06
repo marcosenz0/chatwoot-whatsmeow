@@ -8,6 +8,14 @@ class Api::V1::Accounts::Conversations::PipelinesController < Api::V1::Accounts:
     render 'api/v1/accounts/conversations/show'
   end
 
+  def destroy
+    @conversation = Pipelines::RemoveConversationService.new(
+      account: Current.account,
+      conversation: @conversation
+    ).perform
+    render 'api/v1/accounts/conversations/show'
+  end
+
   private
 
   def pipeline_stage

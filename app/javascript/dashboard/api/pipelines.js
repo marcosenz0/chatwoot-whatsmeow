@@ -10,6 +10,10 @@ class PipelinesAPI extends ApiClient {
     return axios.get(`${this.url}/${id}/board`, { params });
   }
 
+  candidates(id, params = {}) {
+    return axios.get(`${this.url}/${id}/candidates`, { params });
+  }
+
   createStage(pipelineId, data) {
     return axios.post(`${this.url}/${pipelineId}/stages`, data);
   }
@@ -28,6 +32,12 @@ class PipelinesAPI extends ApiClient {
       {
         pipeline_stage_id: pipelineStageId,
       }
+    );
+  }
+
+  removeConversation(conversationId) {
+    return axios.delete(
+      `${this.baseUrl()}/conversations/${conversationId}/pipeline`
     );
   }
 }

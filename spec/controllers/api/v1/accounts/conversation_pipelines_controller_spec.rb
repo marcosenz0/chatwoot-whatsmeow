@@ -70,6 +70,25 @@ RSpec.describe 'Conversation Pipelines API', type: :request do
     end
   end
 
+  describe 'GET /api/v1/accounts/:account_id/pipelines/:id/candidates' do
+    let(:pipeline) { create(:conversation_pipeline, account: account) }
+
+    it 'returns conversations that can be added to the pipeline' do
+      candidate = create(:conversation, account: account)
+      create(:conversation, account: account, conversation_pipeline: pipeline)
+
+      get "/api/v1/accounts/#{account.id}/pipelines/#{pipeline.id}/candidates",
+          params: { q: candidate.contact.name },
+          headers: admin.create_new_auth_token,
+          as: :json
+
+      expect(response).to have_http_status(:success)
+      payload = response.parsed_body['payload']
+      expect(payload['conversations'].pluck('uuid')).to eq([candidate.uuid])
+      expect(payload['meta']['count']).to eq(1)
+    end
+  end
+
   describe 'DELETE /api/v1/accounts/:account_id/pipelines/:id' do
     it 'archives a pipeline and assigns a new default' do
       pipeline = create(:conversation_pipeline, account: account, default: true)

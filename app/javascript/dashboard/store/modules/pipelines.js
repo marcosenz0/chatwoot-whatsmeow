@@ -17,6 +17,8 @@ export const state = {
     isUpdating: false,
     isDeleting: false,
     isMovingConversation: false,
+    isRemovingConversation: false,
+    isFetchingCandidates: false,
   },
 };
 
@@ -67,6 +69,16 @@ export const actions = {
     }
   },
 
+  getCandidates: async ({ commit }, { id, params = {} }) => {
+    commit(SET_UI_FLAGS, { isFetchingCandidates: true });
+    try {
+      const response = await PipelinesAPI.candidates(id, params);
+      return response.data.payload;
+    } finally {
+      commit(SET_UI_FLAGS, { isFetchingCandidates: false });
+    }
+  },
+
   create: async ({ commit }, payload) => {
     commit(SET_UI_FLAGS, { isCreating: true });
     try {
@@ -99,19 +111,34 @@ export const actions = {
     }
   },
 
-  createStage: async ({ dispatch }, { pipelineId, stage }) => {
-    await PipelinesAPI.createStage(pipelineId, { stage });
-    return dispatch('get');
+  createStage: async ({ commit, dispatch }, { pipelineId, stage }) => {
+    commit(SET_UI_FLAGS, { isCreating: true });
+    try {
+      await PipelinesAPI.createStage(pipelineId, { stage });
+      return dispatch('get');
+    } finally {
+      commit(SET_UI_FLAGS, { isCreating: false });
+    }
   },
 
-  updateStage: async ({ dispatch }, { pipelineId, stageId, stage }) => {
-    await PipelinesAPI.updateStage(pipelineId, stageId, { stage });
-    return dispatch('get');
+  updateStage: async ({ commit, dispatch }, { pipelineId, stageId, stage }) => {
+    commit(SET_UI_FLAGS, { isUpdating: true });
+    try {
+      await PipelinesAPI.updateStage(pipelineId, stageId, { stage });
+      return dispatch('get');
+    } finally {
+      commit(SET_UI_FLAGS, { isUpdating: false });
+    }
   },
 
-  deleteStage: async ({ dispatch }, { pipelineId, stageId }) => {
-    await PipelinesAPI.deleteStage(pipelineId, stageId);
-    return dispatch('get');
+  deleteStage: async ({ commit, dispatch }, { pipelineId, stageId }) => {
+    commit(SET_UI_FLAGS, { isDeleting: true });
+    try {
+      await PipelinesAPI.deleteStage(pipelineId, stageId);
+      return dispatch('get');
+    } finally {
+      commit(SET_UI_FLAGS, { isDeleting: false });
+    }
   },
 
   moveConversation: async ({ commit }, payload) => {
@@ -122,6 +149,17 @@ export const actions = {
       return response.data;
     } finally {
       commit(SET_UI_FLAGS, { isMovingConversation: false });
+    }
+  },
+
+  removeConversation: async ({ commit }, { conversationId }) => {
+    commit(SET_UI_FLAGS, { isRemovingConversation: true });
+    try {
+      const response = await PipelinesAPI.removeConversation(conversationId);
+      commit('UPDATE_CONVERSATION', response.data, { root: true });
+      return response.data;
+    } finally {
+      commit(SET_UI_FLAGS, { isRemovingConversation: false });
     }
   },
 };

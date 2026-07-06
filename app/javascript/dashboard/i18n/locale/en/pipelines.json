@@ -2,31 +2,55 @@
   "PIPELINES": {
     "HEADER": {
       "TITLE": "Pipelines",
-      "DESCRIPTION": "Track conversations across CRM stages with a Kanban workflow.",
+      "DESCRIPTION": "Track selected conversations across CRM stages with a focused Kanban workflow.",
       "NEW_PIPELINE": "New pipeline",
       "NEW_STAGE": "New stage",
+      "ADD_CONVERSATION": "Add conversation",
       "REFRESH": "Refresh board",
       "EDIT_PIPELINE": "Edit pipeline",
       "DELETE_PIPELINE": "Delete pipeline",
       "TOTAL": "{count} conversations"
     },
     "LOADING": "Loading pipelines",
+    "REFRESHING": "Updating board",
     "EMPTY": {
       "TITLE": "Create your first pipeline",
       "DESCRIPTION": "Build custom workflows for campaigns, sales, follow-up or any process your team needs."
+    },
+    "EMPTY_STAGES": {
+      "TITLE": "Create the first stage",
+      "DESCRIPTION": "Stages organize conversations from first contact to won or lost outcomes."
+    },
+    "FILTERS": {
+      "SEARCH_PLACEHOLDER": "Search conversations in this pipeline",
+      "STATUS": "Conversation status",
+      "INCLUDE_GROUPS": "Show WhatsApp groups",
+      "INCLUDE_GROUPS_SHORT": "Groups",
+      "STATUS_OPTIONS": {
+        "ALL": "All statuses",
+        "OPEN": "Open",
+        "PENDING": "Pending",
+        "SNOOZED": "Snoozed",
+        "RESOLVED": "Resolved"
+      }
     },
     "STAGE": {
       "COUNT": "{count} conversations",
       "STALE_COUNT": "{count} stale",
       "LOAD_MORE": "Load more",
+      "ADD_CONVERSATION": "Add conversation to this stage",
       "EDIT": "Edit stage",
-      "DELETE": "Delete stage"
+      "DELETE": "Delete stage",
+      "EMPTY": "No conversations in this stage"
     },
     "CARD": {
       "ID": "#{id}",
       "NO_MESSAGE": "No recent message",
       "UNASSIGNED": "Unassigned",
-      "UNKNOWN_CONTACT": "Unknown contact"
+      "UNKNOWN_CONTACT": "Unknown contact",
+      "NO_CONTACT_DETAIL": "No contact detail",
+      "GROUP": "Group",
+      "REMOVE": "Remove from pipeline"
     },
     "PIPELINE_DIALOG": {
       "CREATE_TITLE": "Create pipeline",
@@ -52,12 +76,36 @@
       "STALE_AFTER": "Stale after days",
       "COLOR": "Color"
     },
+    "CANDIDATE_DIALOG": {
+      "TITLE": "Add conversation to pipeline",
+      "DESCRIPTION": "Search current conversations and add only the opportunities that should be tracked here.",
+      "SEARCH_PLACEHOLDER": "Search by name, phone, ID or message",
+      "STAGE": "Destination stage",
+      "LOADING": "Searching conversations",
+      "EMPTY": "No conversations found for these filters",
+      "CURRENT_PIPELINE": "Currently in {pipeline} / {stage}",
+      "ADD": "Add",
+      "LOAD_MORE": "Load more",
+      "CLOSE": "Close"
+    },
+    "DELETE_PIPELINE_DIALOG": {
+      "TITLE": "Delete pipeline?",
+      "DESCRIPTION": "This archives the pipeline and removes it from the board. Conversations are not deleted.",
+      "CONFIRM": "Delete pipeline"
+    },
+    "DELETE_STAGE_DIALOG": {
+      "TITLE": "Delete stage?",
+      "DESCRIPTION": "Conversations in this stage will move to the next active stage when possible.",
+      "CONFIRM": "Delete stage"
+    },
     "ALERTS": {
       "PIPELINE_SAVED": "Pipeline saved",
       "PIPELINE_DELETED": "Pipeline deleted",
       "STAGE_SAVED": "Stage saved",
       "STAGE_DELETED": "Stage deleted",
-      "CONVERSATION_MOVED": "Conversation moved"
+      "CONVERSATION_MOVED": "Conversation moved",
+      "CONVERSATION_ADDED": "Conversation added to pipeline",
+      "CONVERSATION_REMOVED": "Conversation removed from pipeline"
     }
   }
 }

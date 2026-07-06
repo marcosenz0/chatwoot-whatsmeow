@@ -381,6 +381,11 @@
     "ASSIGNEE_LABEL": "Agente atribuído",
     "SELF_ASSIGN": "Atribuir a mim",
     "TEAM_LABEL": "Equipa atribuída",
+    "PIPELINE_LABEL": "Pipeline",
+    "PIPELINE_PLACEHOLDER": "Selecione a etapa do pipeline",
+    "PIPELINE_SEARCH": "Buscar etapas do pipeline",
+    "PIPELINE_NO_RESULTS": "Nenhuma etapa de pipeline encontrada",
+    "PIPELINE_CHANGED": "Etapa do pipeline alterada",
     "SELECT": {
       "PLACEHOLDER": "Nenhuma"
     },

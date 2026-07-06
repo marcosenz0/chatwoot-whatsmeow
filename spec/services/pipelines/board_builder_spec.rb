@@ -61,5 +61,30 @@ RSpec.describe Pipelines::BoardBuilder do
       expect(first_stage[:conversations].size).to eq(1)
       expect(first_stage[:pagination]).to include(current_page: 1, next_page: 2, total_pages: 2)
     end
+
+    it 'excludes Whatsmeow group conversations by default' do
+      contact = create(:contact, account: account, additional_attributes: { whatsmeow_group: true })
+      create(
+        :conversation,
+        account: account,
+        contact: contact,
+        conversation_pipeline: pipeline,
+        conversation_pipeline_stage: new_stage,
+        pipeline_stage_entered_at: Time.current
+      )
+
+      board = described_class.new(account: account, user: admin, pipeline: pipeline, params: { per_page: 25 }).perform
+      board_with_groups = described_class.new(
+        account: account,
+        user: admin,
+        pipeline: pipeline,
+        params: { per_page: 25, include_groups: true }
+      ).perform
+
+      expect(board[:total_count]).to eq(0)
+      expect(board[:stages].first[:count]).to eq(0)
+      expect(board_with_groups[:total_count]).to eq(1)
+      expect(board_with_groups[:stages].first[:conversations].first[:is_group]).to be(true)
+    end
   end
 end

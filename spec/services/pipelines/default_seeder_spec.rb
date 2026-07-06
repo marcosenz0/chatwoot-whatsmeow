@@ -23,16 +23,15 @@ RSpec.describe Pipelines::DefaultSeeder do
       expect(account.conversation_pipelines.count).to eq(1)
     end
 
-    it 'backfills open conversations into the first stage' do
+    it 'does not backfill conversations into the first stage' do
       open_conversation = create(:conversation, account: account, status: 'open')
       resolved_conversation = create(:conversation, account: account, status: 'resolved')
 
-      pipeline = described_class.new(account: account).perform!
-      first_stage = pipeline.active_stages.first
+      described_class.new(account: account).perform!
 
-      expect(open_conversation.reload.conversation_pipeline).to eq(pipeline)
-      expect(open_conversation.conversation_pipeline_stage).to eq(first_stage)
-      expect(open_conversation.pipeline_stage_entered_at).to be_present
+      expect(open_conversation.reload.conversation_pipeline).to be_nil
+      expect(open_conversation.conversation_pipeline_stage).to be_nil
+      expect(open_conversation.pipeline_stage_entered_at).to be_nil
       expect(resolved_conversation.reload.conversation_pipeline).to be_nil
     end
   end

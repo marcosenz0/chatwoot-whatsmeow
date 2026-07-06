@@ -11,6 +11,10 @@ class ConversationPipelinePolicy < ApplicationPolicy
     index?
   end
 
+  def candidates?
+    index?
+  end
+
   def create?
     administrator?
   end

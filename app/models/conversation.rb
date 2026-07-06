@@ -119,7 +119,6 @@ class Conversation < ApplicationRecord
   before_save :ensure_snooze_until_reset
   before_create :determine_conversation_status
   before_create :ensure_waiting_since
-  before_create :assign_default_conversation_pipeline_stage
 
   after_update_commit :execute_after_update_commit_callbacks
   after_create_commit :notify_conversation_creation
@@ -253,25 +252,6 @@ class Conversation < ApplicationRecord
 
   def ensure_waiting_since
     self.waiting_since = created_at
-  end
-
-  def assign_default_conversation_pipeline_stage
-    return if conversation_pipeline_assigned?
-
-    stage = default_conversation_pipeline&.active_stages&.first
-    return if stage.blank?
-
-    self.conversation_pipeline = stage.conversation_pipeline
-    self.conversation_pipeline_stage = stage
-    self.pipeline_stage_entered_at = Time.current
-  end
-
-  def conversation_pipeline_assigned?
-    conversation_pipeline_id.present? || conversation_pipeline_stage_id.present?
-  end
-
-  def default_conversation_pipeline
-    account&.conversation_pipelines&.active&.find_by(default: true)
   end
 
   def validate_additional_attributes

@@ -26,4 +26,24 @@ RSpec.describe 'Conversation Pipeline API', type: :request do
       expect(response.parsed_body['pipeline']['stage']['id']).to eq(stage.id)
     end
   end
+
+  describe 'DELETE /api/v1/accounts/:account_id/conversations/:id/pipeline' do
+    it 'removes a conversation from its pipeline stage' do
+      conversation.update!(
+        conversation_pipeline: pipeline,
+        conversation_pipeline_stage: stage,
+        pipeline_stage_entered_at: Time.current
+      )
+
+      delete "/api/v1/accounts/#{account.id}/conversations/#{conversation.display_id}/pipeline",
+             headers: agent.create_new_auth_token,
+             as: :json
+
+      expect(response).to have_http_status(:success)
+      expect(conversation.reload.conversation_pipeline).to be_nil
+      expect(conversation.conversation_pipeline_stage).to be_nil
+      expect(conversation.pipeline_stage_entered_at).to be_nil
+      expect(response.parsed_body['pipeline']).to be_nil
+    end
+  end
 end

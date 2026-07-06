@@ -45,6 +45,16 @@ class Api::V1::Accounts::ConversationPipelinesController < Api::V1::Accounts::Ba
     render json: { payload: board }
   end
 
+  def candidates
+    candidates = Pipelines::CandidateBuilder.new(
+      account: Current.account,
+      user: Current.user,
+      pipeline: @pipeline,
+      params: params
+    ).perform
+    render json: { payload: candidates }
+  end
+
   def reorder_stages
     stage_positions = params.require(:stage_positions)
     ActiveRecord::Base.transaction do

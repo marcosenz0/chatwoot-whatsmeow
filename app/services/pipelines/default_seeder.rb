@@ -24,7 +24,6 @@ class Pipelines::DefaultSeeder
       )
 
       create_default_stages!(pipeline)
-      backfill_open_conversations!(pipeline)
       pipeline
     end
   end
@@ -33,21 +32,5 @@ class Pipelines::DefaultSeeder
     DEFAULT_STAGES.each_with_index do |stage_params, index|
       pipeline.stages.create!(stage_params.merge(account: account, position: index))
     end
-  end
-
-  private
-
-  def backfill_open_conversations!(pipeline)
-    first_stage = pipeline.active_stages.first
-    return if first_stage.blank?
-
-    # rubocop:disable Rails/SkipsModelValidations
-    account.conversations.where(conversation_pipeline_id: nil).open.update_all(
-      conversation_pipeline_id: pipeline.id,
-      conversation_pipeline_stage_id: first_stage.id,
-      pipeline_stage_entered_at: Time.current,
-      updated_at: Time.current
-    )
-    # rubocop:enable Rails/SkipsModelValidations
   end
 end

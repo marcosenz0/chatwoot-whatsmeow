@@ -37,6 +37,7 @@ class Pipelines::BoardBuilder
   def base_relation
     @base_relation ||= begin
       relation = account.conversations
+                        .left_joins(:contact)
                         .where(conversation_pipeline_id: pipeline.id)
                         .includes(
                           :taggings,
@@ -56,6 +57,7 @@ class Pipelines::BoardBuilder
 
   def apply_filters(relation)
     relation = relation.where(status: params[:status]) if params[:status].present? && params[:status] != 'all'
+    relation = exclude_groups(relation) unless include_groups?
     FILTER_KEYS.each do |key|
       relation = relation.where(key => params[key]) if params[key].present?
     end
@@ -66,7 +68,19 @@ class Pipelines::BoardBuilder
   def apply_query_filter(relation)
     return relation if params[:q].blank?
 
-    relation.joins(:messages).where('messages.content ILIKE :search', search: "%#{params[:q]}%").distinct
+    relation.left_joins(:messages).where(
+      "cast(conversations.display_id as text) ILIKE :search
+        OR contacts.name ILIKE :search
+        OR contacts.email ILIKE :search
+        OR contacts.phone_number ILIKE :search
+        OR contacts.identifier ILIKE :search
+        OR messages.content ILIKE :search",
+      search: "%#{params[:q].to_s.strip}%"
+    ).distinct
+  end
+
+  def exclude_groups(relation)
+    relation.where("contacts.additional_attributes ->> 'whatsmeow_group' IS DISTINCT FROM ?", 'true')
   end
 
   def stale_count(stage, relation)
@@ -79,8 +93,16 @@ class Pipelines::BoardBuilder
     Conversations::EventDataPresenter.new(conversation).push_data.merge(
       uuid: conversation.uuid,
       muted: conversation.muted?,
+      is_group: group_conversation?(conversation),
       pipeline_stage_entered_at: conversation.pipeline_stage_entered_at&.to_i
     )
+  end
+
+  def group_conversation?(conversation)
+    conversation.contact&.additional_attributes&.with_indifferent_access&.fetch(
+      :whatsmeow_group,
+      false
+    ).in?([true, 'true'])
   end
 
   def page
@@ -110,5 +132,9 @@ class Pipelines::BoardBuilder
   def per_page
     requested = params[:per_page].presence&.to_i || DEFAULT_PER_PAGE
     requested.clamp(1, MAX_PER_PAGE)
+  end
+
+  def include_groups?
+    ActiveModel::Type::Boolean.new.cast(params[:include_groups])
   end
 end

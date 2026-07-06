@@ -1,0 +1,111 @@
+{
+  "PIPELINES": {
+    "HEADER": {
+      "TITLE": "Pipelines",
+      "DESCRIPTION": "Acompanhe conversas selecionadas em etapas de CRM com um Kanban focado.",
+      "NEW_PIPELINE": "Novo pipeline",
+      "NEW_STAGE": "Nova etapa",
+      "ADD_CONVERSATION": "Adicionar conversa",
+      "REFRESH": "Atualizar quadro",
+      "EDIT_PIPELINE": "Editar pipeline",
+      "DELETE_PIPELINE": "Excluir pipeline",
+      "TOTAL": "{count} conversas"
+    },
+    "LOADING": "Carregando pipelines",
+    "REFRESHING": "Atualizando quadro",
+    "EMPTY": {
+      "TITLE": "Crie seu primeiro pipeline",
+      "DESCRIPTION": "Monte fluxos personalizados para campanhas, vendas, follow-up ou qualquer processo do seu time."
+    },
+    "EMPTY_STAGES": {
+      "TITLE": "Crie a primeira etapa",
+      "DESCRIPTION": "As etapas organizam as conversas do primeiro contato até ganho ou perdido."
+    },
+    "FILTERS": {
+      "SEARCH_PLACEHOLDER": "Buscar conversas neste pipeline",
+      "STATUS": "Status da conversa",
+      "INCLUDE_GROUPS": "Mostrar grupos do WhatsApp",
+      "INCLUDE_GROUPS_SHORT": "Grupos",
+      "STATUS_OPTIONS": {
+        "ALL": "Todos os status",
+        "OPEN": "Abertas",
+        "PENDING": "Pendentes",
+        "SNOOZED": "Adiada",
+        "RESOLVED": "Resolvidas"
+      }
+    },
+    "STAGE": {
+      "COUNT": "{count} conversas",
+      "STALE_COUNT": "{count} paradas",
+      "LOAD_MORE": "Carregar mais",
+      "ADD_CONVERSATION": "Adicionar conversa nesta etapa",
+      "EDIT": "Editar etapa",
+      "DELETE": "Excluir etapa",
+      "EMPTY": "Nenhuma conversa nesta etapa"
+    },
+    "CARD": {
+      "ID": "#{id}",
+      "NO_MESSAGE": "Sem mensagem recente",
+      "UNASSIGNED": "Sem agente",
+      "UNKNOWN_CONTACT": "Contato desconhecido",
+      "NO_CONTACT_DETAIL": "Sem dado de contato",
+      "GROUP": "Grupo",
+      "REMOVE": "Remover do pipeline"
+    },
+    "PIPELINE_DIALOG": {
+      "CREATE_TITLE": "Criar pipeline",
+      "EDIT_TITLE": "Editar pipeline",
+      "SAVE": "Salvar pipeline",
+      "NAME": "Nome do pipeline",
+      "NAME_PLACEHOLDER": "Lead campanha Meta",
+      "DESCRIPTION": "Descrição",
+      "DESCRIPTION_PLACEHOLDER": "Descreva quando este pipeline deve ser usado",
+      "COLOR": "Cor"
+    },
+    "STAGE_DIALOG": {
+      "CREATE_TITLE": "Criar etapa",
+      "EDIT_TITLE": "Editar etapa",
+      "SAVE": "Salvar etapa",
+      "NAME": "Nome da etapa",
+      "NAME_PLACEHOLDER": "Lead qualificado",
+      "CATEGORY": "Categoria da etapa",
+      "CATEGORY_OPEN": "Aberta",
+      "CATEGORY_WON": "Ganha",
+      "CATEGORY_LOST": "Perdida",
+      "PROBABILITY": "Probabilidade",
+      "STALE_AFTER": "Parada após dias",
+      "COLOR": "Cor"
+    },
+    "CANDIDATE_DIALOG": {
+      "TITLE": "Adicionar conversa ao pipeline",
+      "DESCRIPTION": "Busque conversas atuais e adicione somente as oportunidades que devem ser acompanhadas aqui.",
+      "SEARCH_PLACEHOLDER": "Buscar por nome, telefone, ID ou mensagem",
+      "STAGE": "Etapa de destino",
+      "LOADING": "Buscando conversas",
+      "EMPTY": "Nenhuma conversa encontrada com estes filtros",
+      "CURRENT_PIPELINE": "Atualmente em {pipeline} / {stage}",
+      "ADD": "Adicionar",
+      "LOAD_MORE": "Carregar mais",
+      "CLOSE": "Fechar"
+    },
+    "DELETE_PIPELINE_DIALOG": {
+      "TITLE": "Excluir pipeline?",
+      "DESCRIPTION": "Isso arquiva o pipeline e remove ele do quadro. As conversas não são excluídas.",
+      "CONFIRM": "Excluir pipeline"
+    },
+    "DELETE_STAGE_DIALOG": {
+      "TITLE": "Excluir etapa?",
+      "DESCRIPTION": "As conversas desta etapa serão movidas para a próxima etapa ativa quando possível.",
+      "CONFIRM": "Excluir etapa"
+    },
+    "ALERTS": {
+      "PIPELINE_SAVED": "Pipeline salvo",
+      "PIPELINE_DELETED": "Pipeline excluído",
+      "STAGE_SAVED": "Etapa salva",
+      "STAGE_DELETED": "Etapa excluída",
+      "CONVERSATION_MOVED": "Conversa movida",
+      "CONVERSATION_ADDED": "Conversa adicionada ao pipeline",
+      "CONVERSATION_REMOVED": "Conversa removida do pipeline"
+    }
+  }
+}

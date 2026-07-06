@@ -156,6 +156,7 @@
       "ADD_PRIVATE_NOTE": "Adicionar uma Nota Privada",
       "CHANGE_PRIORITY": "Alterar Prioridade",
       "ADD_SLA": "Adicionar SLA",
+      "CHANGE_PIPELINE_STAGE": "Alterar etapa do pipeline",
       "OPEN_CONVERSATION": "Abrir conversa",
       "PENDING_CONVERSATION": "Marcar conversa como pendente"
     },
@@ -187,6 +188,8 @@
       "ASSIGNEE_NAME": "Agente atribuído",
       "TEAM_NAME": "Time",
       "PRIORITY": "Prioridade",
+      "PIPELINE": "Pipeline",
+      "PIPELINE_STAGE": "Etapa do pipeline",
       "LABELS": "Etiquetas"
     }
   }

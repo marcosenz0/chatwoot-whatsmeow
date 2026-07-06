@@ -150,6 +150,7 @@ Rails.application.routes.draw do
                                              only: [:index, :show, :create, :update, :destroy] do
             member do
               get :board
+              get :candidates
               post :reorder_stages
             end
             resources :stages, controller: 'conversation_pipeline_stages', only: [:create, :update, :destroy] do
@@ -181,7 +182,7 @@ Rails.application.routes.draw do
               end
               resources :assignments, only: [:create]
               resources :labels, only: [:create, :index]
-              resource :pipeline, only: [:create]
+              resource :pipeline, only: [:create, :destroy]
               resource :participants, only: [:show, :create, :update, :destroy]
               resource :direct_uploads, only: [:create]
               resource :draft_messages, only: [:show, :update, :destroy]
