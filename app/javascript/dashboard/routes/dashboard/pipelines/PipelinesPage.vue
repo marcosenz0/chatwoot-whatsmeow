@@ -629,17 +629,17 @@ onBeforeUnmount(() => {
       </div>
 
       <div
-        class="flex flex-wrap items-center gap-3 border-b border-n-weak px-5 py-3"
+        class="grid grid-cols-1 items-center gap-3 border-b border-n-weak px-5 py-3 lg:grid-cols-[minmax(0,1fr)_minmax(12rem,16rem)]"
       >
         <Input
           v-model="boardFilters.q"
           size="sm"
-          class="min-w-[15rem] flex-1"
+          class="min-w-0"
           :placeholder="t('PIPELINES.FILTERS.SEARCH_PLACEHOLDER')"
         />
         <select
           v-model="boardFilters.status"
-          class="reset-base h-8 min-w-[10rem] rounded-lg border-0 bg-n-alpha-black2 px-3 text-sm text-n-slate-12 outline outline-1 outline-n-weak"
+          class="reset-base h-8 w-full rounded-lg border-0 bg-n-alpha-black2 px-3 text-sm text-n-slate-12 outline outline-1 outline-n-weak"
           :aria-label="t('PIPELINES.FILTERS.STATUS')"
         >
           <option
