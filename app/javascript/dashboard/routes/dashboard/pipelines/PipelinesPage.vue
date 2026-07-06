@@ -15,6 +15,10 @@ import Draggable from 'vuedraggable';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import DropdownBody from 'next/dropdown-menu/base/DropdownBody.vue';
+import DropdownContainer from 'next/dropdown-menu/base/DropdownContainer.vue';
+import DropdownItem from 'next/dropdown-menu/base/DropdownItem.vue';
+import DropdownSection from 'next/dropdown-menu/base/DropdownSection.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 
@@ -460,7 +464,9 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <main class="flex h-full min-h-0 flex-col bg-n-background text-n-slate-12">
+  <main
+    class="flex h-full min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-n-background text-n-slate-12"
+  >
     <header
       class="flex flex-wrap items-center justify-between gap-3 border-b border-n-weak px-5 py-4"
     >
@@ -485,14 +491,42 @@ onBeforeUnmount(() => {
           :disabled="!selectedPipelineId"
           @click="fetchBoard"
         />
-        <Button
-          v-tooltip.top="t('PIPELINES.HEADER.EDIT_PIPELINE')"
-          icon="i-lucide-settings-2"
-          slate
-          sm
-          :disabled="!selectedPipeline"
-          @click="openEditPipelineDialog"
-        />
+        <DropdownContainer>
+          <template #trigger="{ toggle, isOpen }">
+            <Button
+              v-tooltip.top="t('PIPELINES.HEADER.EDIT_PIPELINE')"
+              icon="i-lucide-settings-2"
+              slate
+              sm
+              :disabled="!selectedPipeline"
+              :class="{ 'bg-n-alpha-2': isOpen }"
+              @click="toggle"
+            />
+          </template>
+          <DropdownBody class="right-0 top-9 z-50 min-w-72">
+            <DropdownSection>
+              <DropdownItem
+                icon="i-lucide-pencil"
+                :label="t('PIPELINES.HEADER.EDIT_PIPELINE')"
+                :click="openEditPipelineDialog"
+              />
+              <DropdownItem preserve-open>
+                <template #label>
+                  <label
+                    class="flex w-full cursor-pointer items-center gap-3 rounded-lg text-sm text-n-slate-12"
+                  >
+                    <input
+                      v-model="boardFilters.includeGroups"
+                      type="checkbox"
+                      class="reset-base size-4"
+                    />
+                    <span>{{ t('PIPELINES.FILTERS.INCLUDE_GROUPS') }}</span>
+                  </label>
+                </template>
+              </DropdownItem>
+            </DropdownSection>
+          </DropdownBody>
+        </DropdownContainer>
         <Button
           icon="i-lucide-plus"
           sm
@@ -616,16 +650,6 @@ onBeforeUnmount(() => {
             {{ option.label }}
           </option>
         </select>
-        <label
-          class="flex h-8 items-center gap-2 rounded-lg bg-n-alpha-black2 px-3 text-sm text-n-slate-11 outline outline-1 outline-n-weak"
-        >
-          <input
-            v-model="boardFilters.includeGroups"
-            type="checkbox"
-            class="reset-base size-4"
-          />
-          <span>{{ t('PIPELINES.FILTERS.INCLUDE_GROUPS') }}</span>
-        </label>
       </div>
 
       <div
