@@ -7,11 +7,12 @@ import WhatsmeowStatusesAPI from 'dashboard/api/whatsmeowStatuses';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import StatusDestinationSelector from './StatusDestinationSelector.vue';
 
 const props = defineProps({
-  inboxId: {
-    type: Number,
-    required: true,
+  inboxes: {
+    type: Array,
+    default: () => [],
   },
 });
 
@@ -28,6 +29,7 @@ const font = ref('bold');
 const mediaFile = ref(null);
 const mediaPreviewUrl = ref('');
 const isPublishing = ref(false);
+const selectedInboxIds = ref([]);
 
 let publishRequestToken = 0;
 
@@ -87,10 +89,17 @@ const previewBackgroundClass = computed(
 );
 const previewFontClass = computed(() => FONT_CLASSES[font.value]);
 const isVideo = computed(() => mediaFile.value?.type.startsWith('video/'));
-const canPublish = computed(() =>
-  mode.value === 'text'
-    ? Boolean(content.value.trim())
-    : Boolean(mediaFile.value)
+const connectedInboxIds = computed(() =>
+  props.inboxes
+    .filter(inbox => (inbox.channel?.status || inbox.status) === 'connected')
+    .map(inbox => inbox.id)
+);
+const canPublish = computed(
+  () =>
+    selectedInboxIds.value.length > 0 &&
+    (mode.value === 'text'
+      ? Boolean(content.value.trim())
+      : Boolean(mediaFile.value))
 );
 
 const revokeMediaPreview = () => {
@@ -110,11 +119,19 @@ const resetForm = () => {
   content.value = '';
   background.value = 'teal';
   font.value = 'bold';
+  selectedInboxIds.value = [];
   clearMedia();
   isPublishing.value = false;
 };
 
-const open = () => dialogRef.value?.open();
+const open = (inboxIds = []) => {
+  const requestedInboxIds = inboxIds.map(Number);
+  const availableInboxIds = new Set(connectedInboxIds.value);
+  selectedInboxIds.value = requestedInboxIds.length
+    ? requestedInboxIds.filter(id => availableInboxIds.has(id))
+    : connectedInboxIds.value;
+  dialogRef.value?.open();
+};
 
 const openFilePicker = () => fileInputRef.value?.click();
 
@@ -139,19 +156,52 @@ const publish = async () => {
   publishRequestToken += 1;
   const requestToken = publishRequestToken;
 
-  const formData = new FormData();
-  formData.append('inbox_id', String(props.inboxId));
-  formData.append('content', content.value.trim());
-  formData.append('background', background.value);
-  formData.append('font', font.value);
-  if (mode.value === 'media') formData.append('media', mediaFile.value);
-
   isPublishing.value = true;
   try {
-    const { data } = await WhatsmeowStatusesAPI.publish(formData);
+    const publishRequests = selectedInboxIds.value.map(inboxId => {
+      const formData = new FormData();
+      formData.append('inbox_id', String(inboxId));
+      formData.append('content', content.value.trim());
+      formData.append('background', background.value);
+      formData.append('font', font.value);
+      if (mode.value === 'media') formData.append('media', mediaFile.value);
+      return WhatsmeowStatusesAPI.publish(formData);
+    });
+    const results = await Promise.allSettled(publishRequests);
     if (requestToken !== publishRequestToken) return;
-    emit('published', data.payload);
-    useAlert(t('WHATSAPP_STATUS.PUBLISHED'));
+
+    const publishedStatuses = results
+      .filter(result => result.status === 'fulfilled')
+      .map(result => result.value.data.payload);
+    const failedResults = results.filter(
+      result => result.status === 'rejected'
+    );
+
+    if (publishedStatuses.length) emit('published', publishedStatuses);
+
+    if (failedResults.length === results.length) {
+      const [firstFailure] = failedResults;
+      useAlert(
+        firstFailure.reason?.response?.data?.message ||
+          t('WHATSAPP_STATUS.COMPOSER.ERROR')
+      );
+      return;
+    }
+
+    if (failedResults.length) {
+      useAlert(
+        t('WHATSAPP_STATUS.COMPOSER.PARTIAL_ERROR', {
+          published: publishedStatuses.length,
+          failed: failedResults.length,
+        })
+      );
+    } else {
+      useAlert(
+        t('WHATSAPP_STATUS.PUBLISHED_COUNT', {
+          count: publishedStatuses.length,
+        })
+      );
+    }
     dialogRef.value?.close();
   } catch (error) {
     if (requestToken !== publishRequestToken) return;
@@ -184,6 +234,8 @@ defineExpose({ open });
     @close="resetForm"
     @confirm="publish"
   >
+    <StatusDestinationSelector v-model="selectedInboxIds" :inboxes="inboxes" />
+
     <div class="flex rounded-xl bg-n-alpha-2 p-1" role="tablist">
       <button
         type="button"

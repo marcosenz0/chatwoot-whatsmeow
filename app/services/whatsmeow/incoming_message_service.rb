@@ -6,7 +6,7 @@ class Whatsmeow::IncomingMessageService
   pattr_initialize [:inbox!, :params!]
 
   def perform
-    return if handle_already_imported_message
+    return if status_message? || handle_already_imported_message
     return if ignored_newsletter?
 
     set_contact
@@ -562,6 +562,15 @@ class Whatsmeow::IncomingMessageService
 
   def ignored_newsletter?
     @inbox.channel.try(:ignore_newsletters) && all_payload_source_ids.any? { |source_id| newsletter_source?(source_id) }
+  end
+
+  def status_message?
+    return true if %w[status status_delete].include?(params[:event].to_s)
+
+    all_payload_source_ids.any? do |source_id|
+      user, server = source_id.to_s.downcase.split('@', 2)
+      user.to_s.split(':').first == 'status' && server == 'broadcast'
+    end
   end
 
   def newsletter_source?(source_id)

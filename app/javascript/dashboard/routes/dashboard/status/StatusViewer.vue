@@ -135,6 +135,15 @@ const currentTimestamp = computed(() =>
     ? formatStatusTime(currentStatus.value.posted_at)
     : ''
 );
+const currentMetadataLine = computed(() => {
+  const inboxName = currentStatus.value?.inbox_name;
+  if (!inboxName) return currentTimestamp.value;
+
+  return t('WHATSAPP_STATUS.VIEWER.INBOX_TIME', {
+    inbox: inboxName,
+    time: currentTimestamp.value,
+  });
+});
 
 const segmentValue = index => {
   if (index < statusIndex.value) return 1;
@@ -356,7 +365,7 @@ onBeforeUnmount(() => {
                 {{ currentGroup.name }}
               </p>
               <p class="mb-0 text-xs text-white/70">
-                {{ currentTimestamp }}
+                {{ currentMetadataLine }}
               </p>
             </div>
             <button

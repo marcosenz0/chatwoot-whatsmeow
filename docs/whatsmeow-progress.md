@@ -164,6 +164,9 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 ## July 2026 WhatsApp Status
 
 - The conversation sidebar now has a Status workspace for each connected `Channel::Whatsmeow` inbox, with own Status publishing and the active updates WhatsApp delivers for that session.
+- The Status workspace defaults to an all-inboxes view, shows each session's connection badge, and offers a Chatwoot-style inbox picker plus quick per-inbox Status toggles in the three-dot menu.
+- Publishing from the all-inboxes view can target every connected inbox or a selected subset. Each inbox receives its own publish request and partial failures are reported without hiding successful sends.
+- Incoming Status payloads are rejected by the normal message importer even if a webhook arrives with a generic message event, preventing `status@broadcast` from creating contacts or conversations outside the Status workspace.
 - Text Status supports the WhatsApp background/font metadata; image and video Status use Active Storage and expire after 24 hours. An hourly housekeeping job removes expired records and media.
 - The full-screen viewer advances text/images after five seconds, follows the real video duration, and continues through every update and contact with keyboard and pointer navigation.
 - Opening an incoming Status creates a per-agent local view immediately and sends the WhatsApp read receipt asynchronously, so a disconnected whatsmeow service does not block the viewer.

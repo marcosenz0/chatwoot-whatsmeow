@@ -83,8 +83,10 @@ class Webhooks::WhatsmeowController < ActionController::API
   end
 
   def status_payload?
-    [params[:chat], params[:sender]].compact.any? do |jid|
-      user, server = jid.to_s.split('@', 2)
+    return true if %w[status status_delete].include?(params[:event].to_s)
+
+    [params[:chat], params[:sender], params[:sender_alt], params[:recipient_alt], params[:group_jid]].compact.any? do |jid|
+      user, server = jid.to_s.downcase.split('@', 2)
       user.to_s.split(':').first == 'status' && server == 'broadcast'
     end
   end

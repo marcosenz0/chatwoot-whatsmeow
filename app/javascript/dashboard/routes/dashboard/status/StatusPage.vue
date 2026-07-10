@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
+import { useAlert } from 'dashboard/composables';
 import { useMapGetter, useStore } from 'dashboard/composables/store';
 import { useAdmin } from 'dashboard/composables/useAdmin';
 
@@ -11,11 +12,14 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import StatusComposer from './StatusComposer.vue';
+import StatusInboxSelector from './StatusInboxSelector.vue';
+import StatusInboxSettingsMenu from './StatusInboxSettingsMenu.vue';
 import StatusViewer from './StatusViewer.vue';
 import { useStatusTime } from './useStatusTime';
 
 const POLL_INTERVAL = 30000;
 const WHATSMEOW_CHANNEL_TYPE = 'Channel::Whatsmeow';
+const ALL_INBOXES = 'all';
 
 const { t } = useI18n();
 const { formatStatusTime } = useStatusTime();
@@ -36,6 +40,7 @@ const composerRef = ref(null);
 const isViewerOpen = ref(false);
 const viewerGroupIndex = ref(0);
 const viewerStatusIndex = ref(0);
+const updatingStatusInboxIds = ref([]);
 
 let pollTimer = null;
 let requestToken = 0;
@@ -46,9 +51,50 @@ const whatsmeowInboxes = computed(() =>
 
 const selectedInbox = computed(() =>
   whatsmeowInboxes.value.find(
-    inbox => inbox.id === Number(selectedInboxId.value)
+    inbox => String(inbox.id) === String(selectedInboxId.value)
   )
 );
+
+const hasSpecificInbox = computed(() => selectedInboxId.value !== ALL_INBOXES);
+
+const targetInboxes = computed(() => {
+  if (!hasSpecificInbox.value) return whatsmeowInboxes.value;
+  return selectedInbox.value ? [selectedInbox.value] : [];
+});
+
+const isInboxConnected = inbox =>
+  (inbox?.channel?.status || inbox?.status) === 'connected';
+
+const selectedInboxLabel = computed(() =>
+  hasSpecificInbox.value
+    ? selectedInbox.value?.name || ''
+    : t('WHATSAPP_STATUS.ALL_INBOXES')
+);
+
+const ignoredInboxes = computed(() =>
+  targetInboxes.value.filter(inbox => inbox.ignore_status)
+);
+
+const ignoredStatusTitle = computed(() =>
+  hasSpecificInbox.value
+    ? t('WHATSAPP_STATUS.IGNORE_STATUS_TITLE')
+    : t('WHATSAPP_STATUS.IGNORE_STATUS_ALL_TITLE', {
+        count: ignoredInboxes.value.length,
+      })
+);
+
+const ignoredStatusDescription = computed(() =>
+  hasSpecificInbox.value
+    ? t('WHATSAPP_STATUS.IGNORE_STATUS_DESCRIPTION')
+    : t('WHATSAPP_STATUS.IGNORE_STATUS_ALL_DESCRIPTION')
+);
+
+const defaultComposerInboxIds = computed(() => {
+  const publishableInboxes = hasSpecificInbox.value
+    ? targetInboxes.value
+    : whatsmeowInboxes.value;
+  return publishableInboxes.filter(isInboxConnected).map(inbox => inbox.id);
+});
 
 const activeStatuses = computed(() => {
   const now = Date.now();
@@ -57,9 +103,10 @@ const activeStatuses = computed(() => {
 
 const groupKeyForStatus = status => {
   if (status.from_me) return 'current-user';
-  if (status.contact?.id) return `contact:${status.contact.id}`;
-  if (status.sender_phone) return `phone:${status.sender_phone}`;
-  return `jid:${status.sender_jid || status.id}`;
+  const inboxPrefix = `inbox:${status.inbox_id}:`;
+  if (status.contact?.id) return `${inboxPrefix}contact:${status.contact.id}`;
+  if (status.sender_phone) return `${inboxPrefix}phone:${status.sender_phone}`;
+  return `${inboxPrefix}jid:${status.sender_jid || status.id}`;
 };
 
 const statusGroups = computed(() => {
@@ -94,11 +141,21 @@ const statusGroups = computed(() => {
     grouped.get(key).items.push(status);
   });
 
-  return Array.from(grouped.values()).map(group => ({
-    ...group,
-    latestAt: group.items[group.items.length - 1].posted_at,
-    viewed: group.items.every(status => status.viewed || status.from_me),
-  }));
+  return Array.from(grouped.values()).map(group => {
+    const inboxNames = Array.from(
+      new Set(group.items.map(item => item.inbox_name).filter(Boolean))
+    );
+
+    return {
+      ...group,
+      inboxName:
+        inboxNames.length === 1
+          ? inboxNames[0]
+          : t('WHATSAPP_STATUS.INBOX_COUNT', { count: inboxNames.length }),
+      latestAt: group.items[group.items.length - 1].posted_at,
+      viewed: group.items.every(status => status.viewed || status.from_me),
+    };
+  });
 });
 
 const ownGroup = computed(() => statusGroups.value.find(group => group.fromMe));
@@ -115,23 +172,35 @@ const viewerGroups = computed(() => [
 ]);
 
 const ownStatusSubtitle = computed(() => {
-  if (ownGroup.value) return formatStatusTime(ownGroup.value.latestAt);
+  if (ownGroup.value) {
+    return t('WHATSAPP_STATUS.INBOX_TIME', {
+      inbox: ownGroup.value.inboxName,
+      time: formatStatusTime(ownGroup.value.latestAt),
+    });
+  }
   return isAdmin.value
     ? t('WHATSAPP_STATUS.MY_STATUS_EMPTY')
     : t('WHATSAPP_STATUS.ADMIN_ONLY');
 });
 
 const initializeSelectedInbox = () => {
-  const queryInboxId = Number(route.query.inbox_id);
+  const queryValue = String(route.query.inbox_id || ALL_INBOXES);
+  if (queryValue === ALL_INBOXES) {
+    selectedInboxId.value = ALL_INBOXES;
+    return;
+  }
+
+  const queryInboxId = Number(queryValue);
   const requestedInbox = whatsmeowInboxes.value.find(
     inbox => inbox.id === queryInboxId
   );
-  selectedInboxId.value =
-    requestedInbox?.id || whatsmeowInboxes.value[0]?.id || null;
+  selectedInboxId.value = requestedInbox
+    ? String(requestedInbox.id)
+    : ALL_INBOXES;
 };
 
 const syncInboxQuery = inboxId => {
-  if (!inboxId || Number(route.query.inbox_id) === Number(inboxId)) return;
+  if (!inboxId || String(route.query.inbox_id) === String(inboxId)) return;
 
   router.replace({
     query: {
@@ -142,20 +211,36 @@ const syncInboxQuery = inboxId => {
 };
 
 const fetchStatuses = async ({ silent = false } = {}) => {
-  const inboxId = Number(selectedInboxId.value);
-  if (!inboxId) return;
+  const selectedValue = String(selectedInboxId.value);
+  const inboxesToFetch = targetInboxes.value.slice();
+  if (!inboxesToFetch.length) return;
 
   requestToken += 1;
   const token = requestToken;
   if (!silent) isLoading.value = true;
 
   try {
-    const { data } = await WhatsmeowStatusesAPI.getAll(inboxId);
-    if (token !== requestToken || inboxId !== Number(selectedInboxId.value)) {
+    const results = await Promise.allSettled(
+      inboxesToFetch.map(async inbox => {
+        const { data } = await WhatsmeowStatusesAPI.getAll(inbox.id);
+        return (data.payload || []).map(status => ({
+          ...status,
+          inbox_name: inbox.name,
+        }));
+      })
+    );
+    if (
+      token !== requestToken ||
+      selectedValue !== String(selectedInboxId.value)
+    ) {
       return;
     }
-    statuses.value = data.payload || [];
-    hasLoadError.value = false;
+
+    const fulfilledResults = results.filter(
+      result => result.status === 'fulfilled'
+    );
+    statuses.value = fulfilledResults.flatMap(result => result.value);
+    hasLoadError.value = fulfilledResults.length === 0;
   } catch {
     if (token === requestToken && (!silent || !statuses.value.length)) {
       hasLoadError.value = true;
@@ -181,7 +266,9 @@ const startPolling = () => {
 };
 
 const openComposer = () => {
-  if (isAdmin.value) composerRef.value?.open();
+  if (isAdmin.value) {
+    composerRef.value?.open(defaultComposerInboxIds.value);
+  }
 };
 
 const openStatusGroup = groupKey => {
@@ -201,13 +288,21 @@ const openOwnStatus = () => {
   else if (isAdmin.value) openComposer();
 };
 
-const onPublished = status => {
-  const existingIndex = statuses.value.findIndex(item => item.id === status.id);
-  if (existingIndex >= 0) {
-    statuses.value.splice(existingIndex, 1, status);
-  } else {
-    statuses.value.push(status);
-  }
+const onPublished = publishedStatuses => {
+  publishedStatuses.forEach(status => {
+    const inbox = whatsmeowInboxes.value.find(
+      item => item.id === status.inbox_id
+    );
+    const decoratedStatus = { ...status, inbox_name: inbox?.name || '' };
+    const existingIndex = statuses.value.findIndex(
+      item => item.id === status.id
+    );
+    if (existingIndex >= 0) {
+      statuses.value.splice(existingIndex, 1, decoratedStatus);
+    } else {
+      statuses.value.push(decoratedStatus);
+    }
+  });
 };
 
 const onViewed = statusId => {
@@ -216,11 +311,41 @@ const onViewed = statusId => {
   );
 };
 
+const setInboxUpdating = (inboxId, isUpdating) => {
+  const ids = new Set(updatingStatusInboxIds.value);
+  if (isUpdating) ids.add(inboxId);
+  else ids.delete(inboxId);
+  updatingStatusInboxIds.value = Array.from(ids);
+};
+
+const updateStatusEnabled = async ({ inbox, enabled }) => {
+  if (!inbox || updatingStatusInboxIds.value.includes(inbox.id)) return;
+
+  setInboxUpdating(inbox.id, true);
+  try {
+    await store.dispatch('inboxes/updateInbox', {
+      id: inbox.id,
+      formData: false,
+      channel: { ignore_status: !enabled },
+    });
+    const message = enabled
+      ? t('WHATSAPP_STATUS.STATUS_ENABLED', { inbox: inbox.name })
+      : t('WHATSAPP_STATUS.STATUS_DISABLED', { inbox: inbox.name });
+    useAlert(message);
+    if (enabled) fetchStatuses({ silent: true });
+  } catch {
+    useAlert(t('WHATSAPP_STATUS.STATUS_UPDATE_ERROR'));
+  } finally {
+    setInboxUpdating(inbox.id, false);
+  }
+};
+
 watch(
   whatsmeowInboxes,
   availableInboxes => {
+    if (selectedInboxId.value === ALL_INBOXES) return;
     const selectedStillExists = availableInboxes.some(
-      inbox => inbox.id === Number(selectedInboxId.value)
+      inbox => String(inbox.id) === String(selectedInboxId.value)
     );
     if (!selectedStillExists) initializeSelectedInbox();
   },
@@ -292,45 +417,38 @@ onBeforeUnmount(() => {
             <h1 class="mb-0 text-xl font-semibold text-n-slate-12">
               {{ t('WHATSAPP_STATUS.TITLE') }}
             </h1>
-            <Button
-              v-if="isAdmin"
-              icon="i-lucide-plus"
-              color="slate"
-              variant="ghost"
-              size="lg"
-              :aria-label="t('WHATSAPP_STATUS.ADD_STATUS')"
-              @click="openComposer"
-            />
+            <div class="flex items-center gap-1">
+              <StatusInboxSettingsMenu
+                v-if="isAdmin"
+                :inboxes="targetInboxes"
+                :updating-inbox-ids="updatingStatusInboxIds"
+                @toggle="updateStatusEnabled"
+              />
+              <Button
+                v-if="isAdmin"
+                icon="i-lucide-plus"
+                color="slate"
+                variant="ghost"
+                size="lg"
+                :aria-label="t('WHATSAPP_STATUS.ADD_STATUS')"
+                @click="openComposer"
+              />
+            </div>
           </div>
 
-          <label
-            for="whatsmeow-status-inbox"
+          <span
             class="mt-4 block text-xs font-medium uppercase tracking-wide text-n-slate-10"
           >
             {{ t('WHATSAPP_STATUS.SELECT_INBOX') }}
-          </label>
-          <div class="relative mt-2">
-            <select
-              id="whatsmeow-status-inbox"
-              v-model.number="selectedInboxId"
-              class="reset-base min-h-11 w-full appearance-none rounded-lg border-0 bg-n-alpha-2 py-2 pl-3 pr-10 text-sm font-medium text-n-slate-12 outline outline-1 -outline-offset-1 outline-n-weak transition-colors hover:outline-n-slate-6 focus:outline-n-brand"
-            >
-              <option
-                v-for="inbox in whatsmeowInboxes"
-                :key="inbox.id"
-                :value="inbox.id"
-              >
-                {{ inbox.name }}
-              </option>
-            </select>
-            <Icon
-              icon="i-lucide-chevron-down"
-              class="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-n-slate-11"
-            />
-          </div>
+          </span>
+          <StatusInboxSelector
+            v-model="selectedInboxId"
+            :inboxes="whatsmeowInboxes"
+            class="mt-2"
+          />
 
           <div
-            v-if="selectedInbox?.ignore_status"
+            v-if="ignoredInboxes.length"
             class="mt-3 flex gap-3 rounded-lg bg-n-amber-3 px-3 py-3 text-n-amber-11"
             role="status"
           >
@@ -340,10 +458,10 @@ onBeforeUnmount(() => {
             />
             <div class="min-w-0">
               <p class="mb-0 text-xs font-semibold">
-                {{ t('WHATSAPP_STATUS.IGNORE_STATUS_TITLE') }}
+                {{ ignoredStatusTitle }}
               </p>
               <p class="mb-0 mt-1 text-xs leading-5">
-                {{ t('WHATSAPP_STATUS.IGNORE_STATUS_DESCRIPTION') }}
+                {{ ignoredStatusDescription }}
               </p>
             </div>
           </div>
@@ -481,7 +599,12 @@ onBeforeUnmount(() => {
                   {{ group.name }}
                 </span>
                 <span class="mt-1 block truncate text-xs text-n-slate-11">
-                  {{ formatStatusTime(group.latestAt) }}
+                  {{
+                    t('WHATSAPP_STATUS.INBOX_TIME', {
+                      inbox: group.inboxName,
+                      time: formatStatusTime(group.latestAt),
+                    })
+                  }}
                 </span>
               </span>
               <span
@@ -505,7 +628,12 @@ onBeforeUnmount(() => {
               {{ t('WHATSAPP_STATUS.NO_RECENT_TITLE') }}
             </h2>
             <p class="mb-0 mt-2 max-w-xs text-xs leading-5 text-n-slate-11">
-              {{ t('WHATSAPP_STATUS.NO_RECENT_DESCRIPTION') }}
+              <template v-if="hasSpecificInbox">
+                {{ t('WHATSAPP_STATUS.NO_RECENT_DESCRIPTION') }}
+              </template>
+              <template v-else>
+                {{ t('WHATSAPP_STATUS.NO_RECENT_ALL_DESCRIPTION') }}
+              </template>
             </p>
           </div>
         </div>
@@ -527,14 +655,14 @@ onBeforeUnmount(() => {
           {{ t('WHATSAPP_STATUS.EMPTY_PANEL_DESCRIPTION') }}
         </p>
         <p class="mb-0 mt-2 text-xs text-n-slate-10">
-          {{ selectedInbox?.name }}
+          {{ selectedInboxLabel }}
         </p>
       </aside>
 
       <StatusComposer
-        v-if="selectedInboxId && isAdmin"
+        v-if="isAdmin"
         ref="composerRef"
-        :inbox-id="Number(selectedInboxId)"
+        :inboxes="whatsmeowInboxes"
         @published="onPublished"
       />
 
