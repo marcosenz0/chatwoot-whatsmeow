@@ -80,7 +80,7 @@ const toggleInbox = inbox => {
       {{ t('WHATSAPP_STATUS.COMPOSER.PUBLISH_TO') }}
     </span>
 
-    <DropdownContainer class="w-full">
+    <DropdownContainer class="w-full [&>div]:w-full">
       <template #trigger="{ toggle, isOpen }">
         <button
           type="button"
@@ -115,7 +115,7 @@ const toggleInbox = inbox => {
       </template>
 
       <DropdownBody
-        class="left-0 top-12 z-[60] w-full min-w-[20rem] max-w-[calc(100vw-3rem)] [&>ul]:max-h-72 [&>ul]:overflow-y-auto"
+        class="left-0 top-12 z-[60] w-full min-w-[20rem] max-w-[calc(100vw-3rem)] [&>ul]:max-h-72 [&>ul]:overflow-x-hidden [&>ul]:overflow-y-auto"
       >
         <DropdownSection>
           <DropdownItem

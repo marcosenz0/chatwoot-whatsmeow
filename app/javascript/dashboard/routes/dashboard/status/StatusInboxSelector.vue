@@ -58,7 +58,7 @@ const selectInbox = value => emit('update:modelValue', String(value));
 </script>
 
 <template>
-  <DropdownContainer class="w-full">
+  <DropdownContainer class="w-full [&>div]:w-full">
     <template #trigger="{ toggle, isOpen }">
       <button
         type="button"
@@ -99,7 +99,7 @@ const selectInbox = value => emit('update:modelValue', String(value));
     </template>
 
     <DropdownBody
-      class="left-0 top-[3.25rem] z-50 w-full min-w-[20rem] max-w-[calc(100vw-2rem)] [&>ul]:max-h-80 [&>ul]:overflow-y-auto"
+      class="left-0 top-[3.25rem] z-50 w-full min-w-[20rem] max-w-[calc(100vw-2rem)] [&>ul]:max-h-80 [&>ul]:overflow-x-hidden [&>ul]:overflow-y-auto"
     >
       <DropdownSection>
         <DropdownItem
