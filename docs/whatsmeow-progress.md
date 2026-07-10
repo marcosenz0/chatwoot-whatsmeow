@@ -161,6 +161,17 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - WhatsApp-registered numbers can open a direct Chatwoot conversation, while all detected numbers can be copied.
 - Brazilian local DDD numbers without country code are normalized to `+55` before the check and before direct-conversation creation.
 
+## July 2026 WhatsApp Status
+
+- The conversation sidebar now has a Status workspace for each connected `Channel::Whatsmeow` inbox, with own Status publishing and the active updates WhatsApp delivers for that session.
+- Text Status supports the WhatsApp background/font metadata; image and video Status use Active Storage and expire after 24 hours. An hourly housekeeping job removes expired records and media.
+- The full-screen viewer advances text/images after five seconds, follows the real video duration, and continues through every update and contact with keyboard and pointer navigation.
+- Opening an incoming Status creates a per-agent local view immediately and sends the WhatsApp read receipt asynchronously, so a disconnected whatsmeow service does not block the viewer.
+- Realtime `status@broadcast` messages and `StatusV3Messages` history snapshots bypass normal conversation/group creation. Status revokes delete the matching Status record.
+- Before publishing, Rails sends the selected inbox's valid phone contacts to the local whatsmeow contact store. This makes those contacts eligible for the sender's existing WhatsApp Status privacy mode; whitelist/blacklist choices are still respected.
+- Contact sync influences outgoing Status recipients only. It cannot force another account to send its Status to this session; incoming visibility remains controlled by WhatsApp delivery and the other person's privacy/contact relationship.
+- Set the same `WHATSMEOW_SHARED_SECRET` on Chatwoot and whatsmeow-service to authenticate Status API calls and callback webhooks.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

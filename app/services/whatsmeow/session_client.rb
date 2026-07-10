@@ -4,6 +4,7 @@ class Whatsmeow::SessionClient
   class Error < StandardError; end
 
   DEFAULT_TIMEOUT = 60
+  DEFAULT_STATUS_TIMEOUT = 330
   DEFAULT_SERVICE_URLS = [
     'http://whatsmeow-staging:8080',
     'http://marcos-apps_whatsmeow-staging:8080'
@@ -72,11 +73,24 @@ class Whatsmeow::SessionClient
     request(:get, path)
   end
 
-  def self.request(method, path, body: nil)
+  def publish_status(payload)
+    request(:post, "/sessions/#{@inbox.id}/statuses", body: payload, timeout: self.class.status_timeout)
+  end
+
+  def mark_status_read(message_id:, sender_jid:, timestamp:)
+    request(
+      :post,
+      "/sessions/#{@inbox.id}/statuses/read",
+      body: { message_id: message_id, sender_jid: sender_jid, timestamp: timestamp },
+      timeout: 20
+    )
+  end
+
+  def self.request(method, path, body: nil, timeout: nil)
     last_error = nil
 
     service_urls.each do |service_url|
-      response = perform_request(method, service_url, path, body)
+      response = perform_request(method, service_url, path, body, timeout)
       payload = parse_response(response)
       return payload if response.success?
 
@@ -88,18 +102,26 @@ class Whatsmeow::SessionClient
     raise Error, last_error || 'Whatsmeow service request failed'
   end
 
-  def self.perform_request(method, service_url, path, body)
+  def self.perform_request(method, service_url, path, body, request_timeout)
+    headers = { 'Content-Type' => 'application/json' }
+    shared_secret = ENV.fetch('WHATSMEOW_SHARED_SECRET', '')
+    headers['X-Whatsmeow-Internal-Token'] = shared_secret if shared_secret.present?
+
     HTTParty.public_send(
       method,
       "#{service_url}#{path}",
       body: body&.to_json,
-      headers: { 'Content-Type' => 'application/json' },
-      timeout: timeout
+      headers: headers,
+      timeout: request_timeout || timeout
     )
   end
 
   def self.timeout
     ENV.fetch('WHATSMEOW_SERVICE_TIMEOUT', DEFAULT_TIMEOUT).to_i
+  end
+
+  def self.status_timeout
+    ENV.fetch('WHATSMEOW_STATUS_TIMEOUT', DEFAULT_STATUS_TIMEOUT).to_i
   end
 
   def self.parse_response(response)
@@ -117,7 +139,7 @@ class Whatsmeow::SessionClient
 
   private
 
-  def request(method, path, body: nil)
-    self.class.request(method, path, body: body)
+  def request(method, path, body: nil, timeout: nil)
+    self.class.request(method, path, body: body, timeout: timeout)
   end
 end

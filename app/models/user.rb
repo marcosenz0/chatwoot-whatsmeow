@@ -86,6 +86,9 @@ class User < ApplicationRecord
 
   has_many :account_users, dependent: :destroy_async
   has_many :whatsmeow_stickers, dependent: :destroy_async
+  has_many :created_whatsmeow_statuses, class_name: 'WhatsmeowStatus', foreign_key: :created_by_id, dependent: :nullify,
+                                       inverse_of: :created_by
+  has_many :whatsmeow_status_views, dependent: :destroy_async
   has_many :accounts, through: :account_users
   accepts_nested_attributes_for :account_users
 

@@ -65,6 +65,8 @@ RAILS_SERVE_STATIC_FILES=true
 
 WHATSMEOW_SERVICE_URL=http://whatsmeow:8080
 WHATSMEOW_SERVICE_TIMEOUT=60
+WHATSMEOW_STATUS_TIMEOUT=330
+WHATSMEOW_SHARED_SECRET=gere_outro_valor_longo_e_aleatorio
 ```
 
 `WHATSMEOW_SERVICE_URL` tambem aceita mais de uma URL separada por virgula, o que ajuda quando o Easypanel muda o nome interno do servico:
@@ -79,6 +81,8 @@ WHATSMEOW_SERVICE_URL=http://whatsmeow:8080,http://marcos-apps_whatsmeow-staging
 PORT=8080
 DATABASE_URL=postgres://postgres:senha_segura@postgres:5432/chatwoot?sslmode=disable
 WEBHOOK_URL=http://rails:3000/api/v1/accounts/%s/whatsmeow/%s/callback
+WHATSMEOW_STATUS_SEND_TIMEOUT_SECONDS=300
+WHATSMEOW_SHARED_SECRET=use_exatamente_o_mesmo_valor_do_chatwoot
 ```
 
 O `DATABASE_URL` do Go deve apontar para o mesmo Postgres do Chatwoot. Nao confie em fallback interno.
@@ -86,6 +90,8 @@ O `DATABASE_URL` do Go deve apontar para o mesmo Postgres do Chatwoot. Nao confi
 O `WEBHOOK_URL` precisa manter os dois `%s`. O primeiro recebe o ID da conta e o segundo recebe o ID da caixa de entrada/canal.
 
 Em producao, prefira URL interna entre containers, por exemplo `http://rails:3000/...`. Use URL publica somente se os containers nao estiverem na mesma rede.
+
+`WHATSMEOW_SHARED_SECRET` precisa ser identico no Chatwoot web, Sidekiq e whatsmeow-service. Quando configurado, ele protege os endpoints de Status e os callbacks do Go sem alterar os endpoints legados documentados para automacoes.
 
 ## Instalacao local sem Docker
 
@@ -169,6 +175,8 @@ services:
       PORT: 8080
       DATABASE_URL: postgres://postgres:senha_segura@postgres:5432/chatwoot?sslmode=disable
       WEBHOOK_URL: http://rails:3000/api/v1/accounts/%s/whatsmeow/%s/callback
+      WHATSMEOW_STATUS_SEND_TIMEOUT_SECONDS: 300
+      WHATSMEOW_SHARED_SECRET: ${WHATSMEOW_SHARED_SECRET}
     ports:
       - "8080:8080"
     depends_on:

@@ -333,6 +333,11 @@ const menuItems = computed(() => {
           to: accountScopedRoute('home'),
         },
         {
+          name: 'Status',
+          label: t('SIDEBAR.STATUS'),
+          to: accountScopedRoute('whatsmeow_statuses'),
+        },
+        {
           name: 'Mentions',
           label: t('SIDEBAR.MENTIONED_CONVERSATIONS'),
           activeOn: ['conversation_through_mentions'],

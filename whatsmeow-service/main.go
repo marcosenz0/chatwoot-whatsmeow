@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -27,6 +28,7 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/binary/proto"
 	waWeb "go.mau.fi/whatsmeow/proto/waWeb"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
@@ -35,6 +37,7 @@ import (
 
 const (
 	sendMessageTimeout         = 60 * time.Second
+	defaultStatusSendTimeout   = 5 * time.Minute
 	groupMemberProfileFetchMax = 120
 	groupListProfileFetchMax   = 80
 )
@@ -71,6 +74,26 @@ type MessageRequest struct {
 	Attachments []WhatsmeowAttachment `json:"attachments"`
 	Contacts    []WhatsmeowContact    `json:"contacts"`
 	Quoted      *QuotedMessageRequest `json:"quoted"`
+}
+
+type StatusRequest struct {
+	Content        string               `json:"content"`
+	BackgroundARGB uint32               `json:"background_argb"`
+	TextARGB       uint32               `json:"text_argb"`
+	Font           int32                `json:"font"`
+	Attachment     *WhatsmeowAttachment `json:"attachment"`
+	Contacts       []StatusContact      `json:"contacts"`
+}
+
+type StatusReadRequest struct {
+	MessageID string `json:"message_id" binding:"required"`
+	SenderJID string `json:"sender_jid" binding:"required"`
+	Timestamp int64  `json:"timestamp" binding:"required"`
+}
+
+type StatusContact struct {
+	JID  string `json:"jid"`
+	Name string `json:"name"`
 }
 
 type ReactionRequest struct {
@@ -247,6 +270,8 @@ func main() {
 	r.POST("/sessions/:channel_id/group_members", handleAddGroupMember)
 	r.GET("/sessions/:channel_id/profile_picture", handleGetProfilePicture)
 	r.GET("/sessions/:channel_id/check_number", handleCheckNumber)
+	r.POST("/sessions/:channel_id/statuses", internalTokenMiddleware(), handleSendStatus)
+	r.POST("/sessions/:channel_id/statuses/read", internalTokenMiddleware(), handleReadStatus)
 	r.DELETE("/sessions/:channel_id", handleDisconnectSession)
 	r.POST("/messages", handleSendMessage)
 	r.POST("/messages/reaction", handleSendReaction)
@@ -265,11 +290,28 @@ func corsMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, X-Whatsmeow-Internal-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
+			return
+		}
+		c.Next()
+	}
+}
+
+func internalTokenMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		expectedToken := strings.TrimSpace(os.Getenv("WHATSMEOW_SHARED_SECRET"))
+		if expectedToken == "" {
+			c.Next()
+			return
+		}
+
+		providedToken := c.GetHeader("X-Whatsmeow-Internal-Token")
+		if subtle.ConstantTimeCompare([]byte(providedToken), []byte(expectedToken)) != 1 {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 			return
 		}
 		c.Next()
@@ -1177,6 +1219,188 @@ func handleSendMessage(c *gin.Context) {
 		"id":        resp.ID,
 		"timestamp": resp.Timestamp.Unix(),
 	})
+}
+
+func handleSendStatus(c *gin.Context) {
+	var req StatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if strings.TrimSpace(req.Content) == "" && (req.Attachment == nil || req.Attachment.DataBase64 == "") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Status content or attachment is required"})
+		return
+	}
+	if req.Attachment != nil && !statusMediaTypeSupported(*req.Attachment) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only image and video Status media is supported"})
+		return
+	}
+
+	client, ok := clientForChannel(c.Param("channel_id"))
+	if !ok {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	timeout := statusSendTimeout()
+	startedAt := time.Now()
+	log.Printf("Publishing Status on channel %s with %d synced Chatwoot contacts", c.Param("channel_id"), len(req.Contacts))
+	sendCtx, cancelSend := context.WithTimeout(context.Background(), timeout)
+	defer cancelSend()
+	if err := syncStatusContacts(sendCtx, client, req.Contacts); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to sync Status contacts: %v", err)})
+		return
+	}
+	message, err := buildStatusMessage(sendCtx, client, req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	response, err := client.SendMessage(
+		sendCtx,
+		types.StatusBroadcastJID,
+		message,
+		whatsmeow.SendRequestExtra{Timeout: timeout - 5*time.Second},
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to send Status: %v", err)})
+		return
+	}
+	log.Printf("Published Status %s on channel %s in %s", response.ID, c.Param("channel_id"), time.Since(startedAt).Round(time.Millisecond))
+
+	ownJID, _ := currentClientJID(client)
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"id":        response.ID,
+		"timestamp": response.Timestamp.Unix(),
+		"jid":       jidString(ownJID),
+	})
+}
+
+func handleReadStatus(c *gin.Context) {
+	var req StatusReadRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	client, ok := clientForChannel(c.Param("channel_id"))
+	if !ok {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+	senderJID, ok := parseJID(req.SenderJID)
+	if !ok || senderJID.IsEmpty() || senderJID.ToNonAD() == types.StatusBroadcastJID {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Status sender JID"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	err := client.MarkRead(
+		ctx,
+		[]types.MessageID{types.MessageID(req.MessageID)},
+		time.Unix(req.Timestamp, 0),
+		types.StatusBroadcastJID,
+		senderJID.ToNonAD(),
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to mark Status as read: %v", err)})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func clientForChannel(channelID string) (*whatsmeow.Client, bool) {
+	clientsMu.RLock()
+	client, exists := clients[channelID]
+	clientsMu.RUnlock()
+	return client, exists && client != nil && client.IsConnected() && client.IsLoggedIn()
+}
+
+func statusSendTimeout() time.Duration {
+	seconds, err := strconv.Atoi(strings.TrimSpace(os.Getenv("WHATSMEOW_STATUS_SEND_TIMEOUT_SECONDS")))
+	if err != nil || seconds < 60 {
+		return defaultStatusSendTimeout
+	}
+	if seconds > 900 {
+		seconds = 900
+	}
+	return time.Duration(seconds) * time.Second
+}
+
+func statusMediaTypeSupported(attachment WhatsmeowAttachment) bool {
+	mediaType := outgoingMediaType(attachment)
+	return mediaType == whatsmeow.MediaImage || mediaType == whatsmeow.MediaVideo
+}
+
+func syncStatusContacts(ctx context.Context, client *whatsmeow.Client, contacts []StatusContact) error {
+	if len(contacts) == 0 || client == nil || client.Store == nil || client.Store.Contacts == nil {
+		return nil
+	}
+
+	entries := make([]store.ContactEntry, 0, len(contacts))
+	seen := make(map[string]struct{}, len(contacts))
+	for _, contact := range contacts {
+		jid, ok := parseJID(contact.JID)
+		if !ok || !isPhoneJID(jid) {
+			continue
+		}
+		jid = jid.ToNonAD()
+		key := jid.String()
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		name := strings.TrimSpace(contact.Name)
+		if name == "" {
+			name = phoneNumberFromJID(jid)
+		}
+		firstName := strings.Fields(name)
+		first := name
+		if len(firstName) > 0 {
+			first = firstName[0]
+		}
+		entries = append(entries, store.ContactEntry{JID: jid, FirstName: first, FullName: name})
+	}
+
+	if len(entries) == 0 {
+		return nil
+	}
+	return client.Store.Contacts.PutAllContactNames(ctx, entries)
+}
+
+func buildStatusMessage(ctx context.Context, client *whatsmeow.Client, req StatusRequest) (*proto.Message, error) {
+	if req.Attachment != nil && req.Attachment.DataBase64 != "" {
+		return buildOutgoingMediaMessage(ctx, client, strings.TrimSpace(req.Content), *req.Attachment, nil)
+	}
+
+	backgroundARGB := req.BackgroundARGB
+	if backgroundARGB == 0 {
+		backgroundARGB = 0xFF0B8467
+	}
+	textARGB := req.TextARGB
+	if textARGB == 0 {
+		textARGB = 0xFFFFFFFF
+	}
+	font := supportedStatusFont(req.Font)
+	return &proto.Message{
+		ExtendedTextMessage: &proto.ExtendedTextMessage{
+			Text:           stringPtr(strings.TrimSpace(req.Content)),
+			TextArgb:       uint32Ptr(textARGB),
+			BackgroundArgb: uint32Ptr(backgroundARGB),
+			Font:           &font,
+		},
+	}, nil
+}
+
+func supportedStatusFont(font int32) proto.ExtendedTextMessage_FontType {
+	switch font {
+	case 0, 1, 2, 6, 7, 8, 9, 10:
+		return proto.ExtendedTextMessage_FontType(font)
+	default:
+		return proto.ExtendedTextMessage_FontType(6)
+	}
 }
 
 func handleSendReaction(c *gin.Context) {
@@ -2164,6 +2388,26 @@ func processHistorySyncForInbox(channelID string, accountID string, client *what
 		return
 	}
 
+	statusCutoff := time.Now().Add(-24 * time.Hour)
+	processedStatuses := 0
+	for _, webMessage := range historySync.Data.GetStatusV3Messages() {
+		if webMessage == nil {
+			continue
+		}
+
+		messageEvent, err := client.ParseWebMessage(types.StatusBroadcastJID, webMessage)
+		if err != nil {
+			log.Printf("Failed to parse Status history message on channel %s: %v", channelID, err)
+			continue
+		}
+		if messageEvent == nil || messageEvent.Info.Timestamp.Before(statusCutoff) {
+			continue
+		}
+
+		processMessageForInbox(channelID, accountID, client, messageEvent)
+		processedStatuses++
+	}
+
 	cutoff := time.Now().Add(-72 * time.Hour)
 	processed := 0
 	for _, conversation := range historySync.Data.GetConversations() {
@@ -2196,6 +2440,9 @@ func processHistorySyncForInbox(channelID string, accountID string, client *what
 	if processed > 0 {
 		log.Printf("Processed %d recent history sync messages on channel %s", processed, channelID)
 	}
+	if processedStatuses > 0 {
+		log.Printf("Processed %d active Status history messages on channel %s", processedStatuses, channelID)
+	}
 }
 
 func parseHistoryChatJID(ids ...string) (types.JID, bool) {
@@ -2212,15 +2459,19 @@ func parseHistoryChatJID(ids ...string) (types.JID, bool) {
 }
 
 func processMessageForInbox(channelID string, accountID string, client *whatsmeow.Client, messageEvent *events.Message) {
+	statusMessage := isStatusMessage(messageEvent.Info)
+	if statusMessage && processDeleteForInbox(channelID, accountID, messageEvent) {
+		return
+	}
+
 	settings, err := getChannelSettings(channelID)
 	if err == nil {
-		isGroup := messageEvent.Info.MessageSource.IsGroup || messageEvent.Info.Sender.Server == "g.us" || messageEvent.Info.Chat.Server == "g.us"
+		isGroup := !statusMessage && (messageEvent.Info.MessageSource.IsGroup || messageEvent.Info.Sender.Server == "g.us" || messageEvent.Info.Chat.Server == "g.us")
 		if settings.IgnoreGroups && isGroup {
 			log.Printf("Ignoring group message from %s on channel %s (IgnoreGroups=true)", messageEvent.Info.Sender.String(), channelID)
 			return
 		}
-		isStatus := messageEvent.Info.Chat.Server == "broadcast" || messageEvent.Info.Sender.Server == "broadcast"
-		if settings.IgnoreStatus && isStatus {
+		if settings.IgnoreStatus && statusMessage {
 			log.Printf("Ignoring status update from %s on channel %s (IgnoreStatus=true)", messageEvent.Info.Sender.String(), channelID)
 			return
 		}
@@ -2231,7 +2482,11 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		}
 	}
 
-	if processDeleteForInbox(channelID, accountID, messageEvent) {
+	if !statusMessage && processDeleteForInbox(channelID, accountID, messageEvent) {
+		return
+	}
+	if statusMessage {
+		processStatusForInbox(channelID, accountID, client, messageEvent)
 		return
 	}
 
@@ -2336,6 +2591,124 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		payload["quoted_file_type"] = quotedMessage.FileType
 	}
 	sendWebhookNotification(accountID, channelID, payload)
+}
+
+func isStatusMessage(info types.MessageInfo) bool {
+	return sameBareJID(info.Chat, types.StatusBroadcastJID)
+}
+
+func processStatusForInbox(channelID string, accountID string, client *whatsmeow.Client, messageEvent *events.Message) {
+	messageText := extractMessageText(messageEvent.Message)
+	attachments := extractMediaAttachments(client, messageEvent.Message)
+	if messageText == "" && len(attachments) == 0 {
+		if hasMediaMessage(messageEvent.Message) {
+			log.Printf("Status media could not be downloaded; media_type=%s message_id=%s", detectedMediaType(messageEvent.Message), messageEvent.Info.ID)
+		}
+		return
+	}
+
+	senderJID := messageEvent.Info.Sender
+	senderAlt := messageEvent.Info.SenderAlt
+	displayJID := firstUsableJID(senderAlt, senderJID)
+	if resolvedJID := resolveStatusPhoneJID(client, displayJID); !resolvedJID.IsEmpty() {
+		displayJID = resolvedJID
+		if senderAlt.IsEmpty() {
+			senderAlt = resolvedJID
+		}
+	}
+	if messageEvent.Info.IsFromMe {
+		if ownJID, _ := currentClientJID(client); !ownJID.IsEmpty() {
+			senderJID = ownJID
+			displayJID = ownJID
+		}
+	}
+	if senderJID.IsEmpty() {
+		senderJID = displayJID
+	}
+
+	payload := map[string]interface{}{
+		"event":                 "status",
+		"sender":                jidString(senderJID),
+		"sender_alt":            jidString(senderAlt),
+		"sender_name":           getContactDisplayName(client, displayJID, messageEvent.Info.PushName),
+		"sender_phone":          phoneNumberFromJID(displayJID),
+		"profile_picture_url":   getProfilePictureURL(client, displayJID),
+		"chat":                  jidString(messageEvent.Info.Chat),
+		"from_me":               messageEvent.Info.IsFromMe,
+		"message_id":            messageEvent.Info.ID,
+		"content":               messageText,
+		"attachments":           attachments,
+		"timestamp":             messageEvent.Info.Timestamp.Unix(),
+		"status_type":           statusType(messageEvent.Message),
+		"status_metadata":       extractStatusMetadata(messageEvent.Message),
+		"status_already_viewed": sourceStatusAlreadyViewed(messageEvent),
+	}
+	log.Printf("Received Status from %s on channel %s: %s", jidString(senderJID), channelID, messageEvent.Info.ID)
+	sendWebhookNotification(accountID, channelID, payload)
+}
+
+func resolveStatusPhoneJID(client *whatsmeow.Client, jid types.JID) types.JID {
+	if isPhoneJID(jid) {
+		return jid.ToNonAD()
+	}
+	if client == nil || client.Store == nil || client.Store.LIDs == nil || jid.Server != types.HiddenUserServer {
+		return types.JID{}
+	}
+
+	phoneJID, err := client.Store.LIDs.GetPNForLID(context.Background(), jid.ToNonAD())
+	if err != nil || !isPhoneJID(phoneJID) {
+		return types.JID{}
+	}
+	return phoneJID.ToNonAD()
+}
+
+func sourceStatusAlreadyViewed(messageEvent *events.Message) bool {
+	return messageEvent.SourceWebMsg != nil && messageEvent.SourceWebMsg.GetStatusAlreadyViewed()
+}
+
+func statusType(message *proto.Message) string {
+	message = unwrapMessage(message)
+	if message == nil {
+		return "text"
+	}
+	switch {
+	case message.GetImageMessage() != nil:
+		return "image"
+	case message.GetVideoMessage() != nil:
+		return "video"
+	case message.GetAudioMessage() != nil:
+		return "audio"
+	default:
+		return "text"
+	}
+}
+
+func extractStatusMetadata(message *proto.Message) map[string]interface{} {
+	message = unwrapMessage(message)
+	metadata := map[string]interface{}{}
+	if message == nil {
+		return metadata
+	}
+
+	if text := message.GetExtendedTextMessage(); text != nil {
+		metadata["background_argb"] = text.GetBackgroundArgb()
+		metadata["text_argb"] = text.GetTextArgb()
+		metadata["font_value"] = int32(text.GetFont())
+	}
+	if image := message.GetImageMessage(); image != nil {
+		metadata["width"] = image.GetWidth()
+		metadata["height"] = image.GetHeight()
+	}
+	if video := message.GetVideoMessage(); video != nil {
+		metadata["width"] = video.GetWidth()
+		metadata["height"] = video.GetHeight()
+		metadata["duration_seconds"] = video.GetSeconds()
+	}
+	if audio := message.GetAudioMessage(); audio != nil {
+		metadata["duration_seconds"] = audio.GetSeconds()
+	}
+
+	return metadata
 }
 
 func processEditForInbox(channelID string, accountID string, messageEvent *events.Message) bool {
@@ -2543,8 +2916,12 @@ func sendDeleteWebhookNotification(
 	participant string,
 	timestamp int64,
 ) {
+	event := "delete"
+	if isStatusMessage(messageEvent.Info) || isStatusChat(chat) {
+		event = "status_delete"
+	}
 	payload := map[string]interface{}{
-		"event":        "delete",
+		"event":        event,
 		"message_id":   messageID,
 		"sender":       jidString(messageEvent.Info.Sender),
 		"sender_alt":   jidString(messageEvent.Info.SenderAlt),
@@ -2559,6 +2936,11 @@ func sendDeleteWebhookNotification(
 	}
 
 	sendWebhookNotification(accountID, channelID, payload)
+}
+
+func isStatusChat(value string) bool {
+	jid, ok := parseJID(value)
+	return ok && sameBareJID(jid, types.StatusBroadcastJID)
 }
 
 func processReactionForInbox(channelID string, accountID string, messageEvent *events.Message) bool {
@@ -3440,6 +3822,10 @@ func optionalUint32Ptr(value uint32) *uint32 {
 	return &value
 }
 
+func uint32Ptr(value uint32) *uint32 {
+	return &value
+}
+
 func int64Ptr(value int64) *int64 {
 	return &value
 }
@@ -3927,7 +4313,16 @@ func sendWebhookNotification(accountID string, channelID string, payload map[str
 
 	go func() {
 		client := &http.Client{Timeout: 60 * time.Second}
-		res, err := client.Post(url, "application/json", bytes.NewBuffer(body))
+		req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
+		if err != nil {
+			log.Printf("Failed to create webhook callback request: %v", err)
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		if token := strings.TrimSpace(os.Getenv("WHATSMEOW_SHARED_SECRET")); token != "" {
+			req.Header.Set("X-Whatsmeow-Internal-Token", token)
+		}
+		res, err := client.Do(req)
 		if err != nil {
 			log.Printf("Failed to send webhook callback: %v", err)
 			return

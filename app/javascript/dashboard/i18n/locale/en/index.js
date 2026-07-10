@@ -42,6 +42,7 @@ import mfa from './mfa.json';
 import onboarding from './onboarding.json';
 import pipelines from './pipelines.json';
 import yearInReview from './yearInReview.json';
+import whatsappStatus from './whatsappStatus.json';
 
 export default {
   ...advancedFilters,
@@ -88,4 +89,5 @@ export default {
   ...onboarding,
   ...pipelines,
   ...yearInReview,
+  ...whatsappStatus,
 };

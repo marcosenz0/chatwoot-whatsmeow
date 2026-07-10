@@ -75,6 +75,12 @@ whatsmeow_purge_old_attachments_job:
   class: 'Whatsmeow::PurgeOldAttachmentsJob'
   queue: housekeeping
 
+# Status media disappears from the UI at expires_at and is purged hourly.
+whatsmeow_purge_expired_statuses_job:
+  cron: '20 * * * *'
+  class: 'Whatsmeow::PurgeExpiredStatusesJob'
+  queue: housekeeping
+
 # executed every 12 hours
 # to remove orphan conversations without contact
 remove_orphan_conversations_job:

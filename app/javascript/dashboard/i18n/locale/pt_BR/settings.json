@@ -303,6 +303,7 @@
     "PIPELINES": "Pipelines",
     "INBOX": "Caixa de Entrada",
     "ALL_CONVERSATIONS": "Todas as conversas",
+    "STATUS": "Status",
     "MENTIONED_CONVERSATIONS": "Menções",
     "PARTICIPATING_CONVERSATIONS": "Participantes",
     "UNATTENDED_CONVERSATIONS": "Não atendidas",

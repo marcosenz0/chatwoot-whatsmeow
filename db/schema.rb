@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_06_101500) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_10_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1467,6 +1467,45 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_06_101500) do
     t.index ["user_id"], name: "index_whatsmeow_stickers_on_user_id"
   end
 
+  create_table "whatsmeow_status_views", force: :cascade do |t|
+    t.bigint "whatsmeow_status_id", null: false
+    t.bigint "user_id", null: false
+    t.datetime "viewed_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_whatsmeow_status_views_on_user_id"
+    t.index ["whatsmeow_status_id", "user_id"], name: "idx_whatsmeow_status_views_on_status_user", unique: true
+    t.index ["whatsmeow_status_id"], name: "index_whatsmeow_status_views_on_whatsmeow_status_id"
+  end
+
+  create_table "whatsmeow_statuses", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "contact_id"
+    t.bigint "created_by_id"
+    t.string "source_id", null: false
+    t.string "sender_jid", null: false
+    t.string "sender_name"
+    t.string "sender_phone"
+    t.integer "status_type", default: 0, null: false
+    t.text "content"
+    t.boolean "from_me", default: false, null: false
+    t.datetime "posted_at", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "read_receipt_sent_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_whatsmeow_statuses_on_account_id"
+    t.index ["contact_id"], name: "index_whatsmeow_statuses_on_contact_id"
+    t.index ["created_by_id"], name: "index_whatsmeow_statuses_on_created_by_id"
+    t.index ["expires_at"], name: "index_whatsmeow_statuses_on_expires_at"
+    t.index ["inbox_id", "expires_at"], name: "index_whatsmeow_statuses_on_inbox_id_and_expires_at"
+    t.index ["inbox_id", "sender_jid", "posted_at"], name: "idx_whatsmeow_statuses_on_inbox_sender_posted"
+    t.index ["inbox_id", "source_id"], name: "index_whatsmeow_statuses_on_inbox_id_and_source_id", unique: true
+    t.index ["inbox_id"], name: "index_whatsmeow_statuses_on_inbox_id"
+  end
+
   create_table "working_hours", force: :cascade do |t|
     t.bigint "inbox_id"
     t.bigint "account_id"
@@ -1507,6 +1546,12 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_06_101500) do
   add_foreign_key "whatsmeow_stickers", "accounts"
   add_foreign_key "whatsmeow_stickers", "attachments"
   add_foreign_key "whatsmeow_stickers", "users"
+  add_foreign_key "whatsmeow_status_views", "users"
+  add_foreign_key "whatsmeow_status_views", "whatsmeow_statuses"
+  add_foreign_key "whatsmeow_statuses", "accounts"
+  add_foreign_key "whatsmeow_statuses", "contacts"
+  add_foreign_key "whatsmeow_statuses", "inboxes"
+  add_foreign_key "whatsmeow_statuses", "users", column: "created_by_id"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
       on("accounts").
       after(:insert).
