@@ -20,7 +20,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'open-change']);
 
 const { t } = useI18n();
 
@@ -58,7 +58,10 @@ const selectInbox = value => emit('update:modelValue', String(value));
 </script>
 
 <template>
-  <DropdownContainer class="w-full !space-y-0 [&>div]:w-full">
+  <DropdownContainer
+    class="w-full !space-y-0 [&>div]:w-full"
+    @close="emit('open-change', false)"
+  >
     <template #trigger="{ toggle, isOpen }">
       <button
         type="button"
@@ -66,7 +69,10 @@ const selectInbox = value => emit('update:modelValue', String(value));
         :class="{ 'border-n-brand bg-n-alpha-1': isOpen }"
         :aria-expanded="isOpen"
         aria-haspopup="listbox"
-        @click="toggle"
+        @click="
+          toggle();
+          emit('open-change', !isOpen);
+        "
       >
         <span
           v-if="isAllSelected"

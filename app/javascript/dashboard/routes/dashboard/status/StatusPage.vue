@@ -41,6 +41,7 @@ const isViewerOpen = ref(false);
 const viewerGroupIndex = ref(0);
 const viewerStatusIndex = ref(0);
 const updatingStatusInboxIds = ref([]);
+const isInboxSelectorOpen = ref(false);
 
 let pollTimer = null;
 let requestToken = 0;
@@ -453,6 +454,7 @@ onBeforeUnmount(() => {
             v-model="selectedInboxId"
             :inboxes="whatsmeowInboxes"
             class="mt-2"
+            @open-change="isInboxSelectorOpen = $event"
           />
 
           <div
@@ -475,7 +477,10 @@ onBeforeUnmount(() => {
           </div>
         </header>
 
-        <div class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+        <div
+          class="min-h-0 flex-1 px-3 py-3"
+          :class="isInboxSelectorOpen ? 'overflow-y-hidden' : 'overflow-y-auto'"
+        >
           <div
             class="group flex min-h-[4.75rem] w-full items-center gap-3 rounded-xl px-3 transition-colors"
             :class="{ 'hover:bg-n-alpha-2': ownGroup || isAdmin }"
