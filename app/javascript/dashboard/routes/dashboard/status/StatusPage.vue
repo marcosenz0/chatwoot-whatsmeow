@@ -160,15 +160,23 @@ const statusGroups = computed(() => {
 
 const ownGroup = computed(() => statusGroups.value.find(group => group.fromMe));
 
-const recentGroups = computed(() =>
+const incomingGroups = computed(() =>
   statusGroups.value
     .filter(group => !group.fromMe)
     .sort((a, b) => b.latestAt - a.latestAt)
 );
 
+const recentGroups = computed(() =>
+  incomingGroups.value.filter(group => !group.viewed)
+);
+
+const viewedGroups = computed(() =>
+  incomingGroups.value.filter(group => group.viewed)
+);
+
 const viewerGroups = computed(() => [
   ...(ownGroup.value ? [ownGroup.value] : []),
-  ...recentGroups.value,
+  ...incomingGroups.value,
 ]);
 
 const ownStatusSubtitle = computed(() => {
@@ -496,19 +504,6 @@ onBeforeUnmount(() => {
                   />
                 </span>
               </button>
-              <button
-                v-if="isAdmin"
-                type="button"
-                class="absolute -bottom-2 -right-2 flex size-11 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-n-brand"
-                :aria-label="t('WHATSAPP_STATUS.ADD_STATUS')"
-                @click.stop="openComposer"
-              >
-                <span
-                  class="flex size-7 items-center justify-center rounded-full border-2 border-n-solid-1 bg-n-brand text-white shadow-sm transition-transform hover:scale-105 motion-reduce:transition-none"
-                >
-                  <Icon icon="i-lucide-plus" class="size-4" />
-                </span>
-              </button>
             </span>
             <button
               type="button"
@@ -524,6 +519,16 @@ onBeforeUnmount(() => {
               <span class="mt-1 block truncate text-xs text-n-slate-11">
                 {{ ownStatusSubtitle }}
               </span>
+            </button>
+            <button
+              v-if="isAdmin"
+              type="button"
+              class="flex size-9 flex-shrink-0 items-center justify-center rounded-lg bg-n-alpha-2 text-n-brand transition-colors hover:bg-n-alpha-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-n-brand"
+              :aria-label="t('WHATSAPP_STATUS.ADD_STATUS')"
+              :title="t('WHATSAPP_STATUS.ADD_STATUS')"
+              @click="openComposer"
+            >
+              <Icon icon="i-lucide-plus" class="size-5" />
             </button>
           </div>
 
@@ -572,70 +577,115 @@ onBeforeUnmount(() => {
             />
           </div>
 
-          <div v-else-if="recentGroups.length" class="flex flex-col gap-1">
-            <button
-              v-for="group in recentGroups"
-              :key="group.key"
-              type="button"
-              class="flex min-h-[4.5rem] w-full items-center gap-3 rounded-xl px-3 text-left transition-colors hover:bg-n-alpha-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-brand"
-              @click="openStatusGroup(group.key)"
-            >
-              <span
-                class="flex flex-shrink-0 rounded-full border-2 p-0.5"
-                :class="group.viewed ? 'border-n-slate-5' : 'border-n-teal-9'"
+          <template v-else>
+            <div v-if="recentGroups.length" class="flex flex-col gap-1">
+              <button
+                v-for="group in recentGroups"
+                :key="group.key"
+                type="button"
+                class="flex min-h-[4.5rem] w-full items-center gap-3 rounded-xl px-3 text-left transition-colors hover:bg-n-alpha-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-brand"
+                @click="openStatusGroup(group.key)"
               >
-                <Avatar
-                  :name="group.name"
-                  :src="group.avatar"
-                  :size="48"
-                  rounded-full
-                />
-              </span>
-              <span class="min-w-0 flex-1">
                 <span
-                  class="block truncate text-sm text-n-slate-12"
-                  :class="group.viewed ? 'font-medium' : 'font-semibold'"
+                  class="flex flex-shrink-0 rounded-full border-2 border-n-teal-9 p-0.5"
                 >
-                  {{ group.name }}
+                  <Avatar
+                    :name="group.name"
+                    :src="group.avatar"
+                    :size="48"
+                    rounded-full
+                  />
                 </span>
-                <span class="mt-1 block truncate text-xs text-n-slate-11">
-                  {{
-                    t('WHATSAPP_STATUS.INBOX_TIME', {
-                      inbox: group.inboxName,
-                      time: formatStatusTime(group.latestAt),
-                    })
-                  }}
+                <span class="min-w-0 flex-1">
+                  <span
+                    class="block truncate text-sm font-semibold text-n-slate-12"
+                  >
+                    {{ group.name }}
+                  </span>
+                  <span class="mt-1 block truncate text-xs text-n-slate-11">
+                    {{
+                      t('WHATSAPP_STATUS.INBOX_TIME', {
+                        inbox: group.inboxName,
+                        time: formatStatusTime(group.latestAt),
+                      })
+                    }}
+                  </span>
                 </span>
-              </span>
-              <span
-                v-if="!group.viewed"
-                class="size-2 flex-shrink-0 rounded-full bg-n-teal-9"
-                aria-hidden="true"
-              />
-            </button>
-          </div>
+                <span
+                  class="size-2 flex-shrink-0 rounded-full bg-n-teal-9"
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
 
-          <div
-            v-else
-            class="mx-2 flex flex-col items-center px-4 py-10 text-center"
-          >
-            <span
-              class="flex size-12 items-center justify-center rounded-full bg-n-alpha-2 text-n-slate-10"
+            <div
+              v-else-if="!viewedGroups.length"
+              class="mx-2 flex flex-col items-center px-4 py-10 text-center"
             >
-              <Icon icon="i-lucide-clock-3" class="size-5" />
-            </span>
-            <h2 class="mb-0 mt-4 text-sm font-semibold text-n-slate-12">
-              {{ t('WHATSAPP_STATUS.NO_RECENT_TITLE') }}
-            </h2>
-            <p class="mb-0 mt-2 max-w-xs text-xs leading-5 text-n-slate-11">
-              <template v-if="hasSpecificInbox">
-                {{ t('WHATSAPP_STATUS.NO_RECENT_DESCRIPTION') }}
-              </template>
-              <template v-else>
-                {{ t('WHATSAPP_STATUS.NO_RECENT_ALL_DESCRIPTION') }}
-              </template>
-            </p>
-          </div>
+              <span
+                class="flex size-12 items-center justify-center rounded-full bg-n-alpha-2 text-n-slate-10"
+              >
+                <Icon icon="i-lucide-clock-3" class="size-5" />
+              </span>
+              <h2 class="mb-0 mt-4 text-sm font-semibold text-n-slate-12">
+                {{ t('WHATSAPP_STATUS.NO_RECENT_TITLE') }}
+              </h2>
+              <p class="mb-0 mt-2 max-w-xs text-xs leading-5 text-n-slate-11">
+                <template v-if="hasSpecificInbox">
+                  {{ t('WHATSAPP_STATUS.NO_RECENT_DESCRIPTION') }}
+                </template>
+                <template v-else>
+                  {{ t('WHATSAPP_STATUS.NO_RECENT_ALL_DESCRIPTION') }}
+                </template>
+              </p>
+            </div>
+
+            <div v-if="viewedGroups.length" class="mt-5">
+              <div class="mb-2 flex items-center px-3">
+                <h2
+                  class="mb-0 text-xs font-semibold uppercase tracking-wide text-n-slate-10"
+                >
+                  {{ t('WHATSAPP_STATUS.VIEWED') }}
+                </h2>
+              </div>
+
+              <div class="flex flex-col gap-1">
+                <button
+                  v-for="group in viewedGroups"
+                  :key="group.key"
+                  type="button"
+                  class="flex min-h-[4.5rem] w-full items-center gap-3 rounded-xl px-3 text-left transition-colors hover:bg-n-alpha-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-brand"
+                  @click="openStatusGroup(group.key)"
+                >
+                  <span
+                    class="flex flex-shrink-0 rounded-full border-2 border-n-slate-5 p-0.5"
+                  >
+                    <Avatar
+                      :name="group.name"
+                      :src="group.avatar"
+                      :size="48"
+                      rounded-full
+                    />
+                  </span>
+                  <span class="min-w-0 flex-1">
+                    <span
+                      class="block truncate text-sm font-medium text-n-slate-12"
+                    >
+                      {{ group.name }}
+                    </span>
+                    <span class="mt-1 block truncate text-xs text-n-slate-11">
+                      {{
+                        t('WHATSAPP_STATUS.INBOX_TIME', {
+                          inbox: group.inboxName,
+                          time: formatStatusTime(group.latestAt),
+                        })
+                      }}
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </template>
         </div>
       </section>
 

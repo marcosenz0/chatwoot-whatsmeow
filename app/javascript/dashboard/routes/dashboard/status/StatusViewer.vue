@@ -8,12 +8,15 @@ import {
   watch,
 } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useAlert } from 'dashboard/composables';
 
 import WhatsmeowStatusesAPI from 'dashboard/api/whatsmeowStatuses';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import TeleportWithDirection from 'dashboard/components-next/TeleportWithDirection.vue';
+import EmojiInput from 'shared/components/emoji/EmojiInput.vue';
+import StatusStickerPicker from './StatusStickerPicker.vue';
 import { useStatusTime } from './useStatusTime';
 
 const props = defineProps({
@@ -47,6 +50,17 @@ const statusIndex = ref(Math.max(props.initialStatusIndex, 0));
 const progress = ref(0);
 const isPaused = ref(false);
 const isMediaLoading = ref(false);
+const hasMediaError = ref(false);
+const isMuted = ref(false);
+const generatedVideoBackdropUrl = ref('');
+const replyText = ref('');
+const isReplying = ref(false);
+const showEmojiPicker = ref(false);
+const showStickerPicker = ref(false);
+const showViewers = ref(false);
+const isLoadingViewers = ref(false);
+const viewers = ref([]);
+const viewersStatusId = ref(null);
 
 let progressFrame = null;
 let progressStartedAt = 0;
@@ -61,6 +75,25 @@ const isVideo = computed(() => currentType.value === 'video');
 const isAudio = computed(() => currentType.value === 'audio');
 const isImage = computed(() => currentType.value === 'image');
 const isDurationMedia = computed(() => isVideo.value || isAudio.value);
+const isMediaBacked = computed(
+  () =>
+    (isVideo.value || isImage.value) && Boolean(currentStatus.value?.media?.url)
+);
+const videoThumbnailUrl = computed(() => {
+  const metadata = currentStatus.value?.metadata || {};
+  const data = metadata.thumbnail_base64;
+  if (!data) return '';
+
+  return `data:${metadata.thumbnail_content_type || 'image/jpeg'};base64,${data}`;
+});
+const videoBackdropUrl = computed(
+  () => videoThumbnailUrl.value || generatedVideoBackdropUrl.value
+);
+const isOwnStatus = computed(() => Boolean(currentStatus.value?.from_me));
+const canReply = computed(() => !isOwnStatus.value);
+const viewerCount = computed(() =>
+  Number(currentStatus.value?.viewer_count || 0)
+);
 const canGoPrevious = computed(
   () => statusIndex.value > 0 || groupIndex.value > 0
 );
@@ -157,6 +190,11 @@ const cancelProgressFrame = () => {
   progressFrame = null;
 };
 
+const closeMenus = () => {
+  showEmojiPicker.value = false;
+  showStickerPicker.value = false;
+};
+
 const nextStatus = () => {
   const group = currentGroup.value;
   if (statusIndex.value < group.items.length - 1) {
@@ -217,6 +255,17 @@ const playCurrentMedia = async () => {
     await mediaRef.value.play();
     isPaused.value = false;
   } catch {
+    if (isVideo.value && !isMuted.value) {
+      isMuted.value = true;
+      await nextTick();
+      try {
+        await mediaRef.value.play();
+        isPaused.value = false;
+        return;
+      } catch {
+        // A user gesture will still be able to start this media.
+      }
+    }
     isPaused.value = true;
   }
 };
@@ -237,7 +286,14 @@ const prepareCurrentStatus = async () => {
   cancelProgressFrame();
   progress.value = 0;
   isPaused.value = false;
+  hasMediaError.value = false;
   isMediaLoading.value = isDurationMedia.value || isImage.value;
+  generatedVideoBackdropUrl.value = '';
+  replyText.value = '';
+  showViewers.value = false;
+  viewers.value = [];
+  viewersStatusId.value = null;
+  closeMenus();
   markCurrentViewed();
   await nextTick();
 
@@ -264,6 +320,12 @@ const togglePause = () => {
   else startTimedProgress();
 };
 
+const toggleMute = () => {
+  isMuted.value = !isMuted.value;
+  if (mediaRef.value) mediaRef.value.muted = isMuted.value;
+  if (!isPaused.value) playCurrentMedia();
+};
+
 const onMediaTimeUpdate = event => {
   const { currentTime, duration } = event.currentTarget;
   progress.value =
@@ -277,8 +339,36 @@ const onMediaPause = event => {
 };
 
 const onMediaReady = () => {
+  hasMediaError.value = false;
   isMediaLoading.value = false;
   if (!isPaused.value) playCurrentMedia();
+};
+
+const captureVideoBackdrop = event => {
+  if (videoThumbnailUrl.value || generatedVideoBackdropUrl.value) return;
+
+  const video = event.currentTarget;
+  if (!video.videoWidth || !video.videoHeight) return;
+
+  try {
+    const canvas = document.createElement('canvas');
+    const width = 96;
+    const height = Math.max(
+      1,
+      Math.round((video.videoHeight / video.videoWidth) * width)
+    );
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d')?.drawImage(video, 0, 0, width, height);
+    generatedVideoBackdropUrl.value = canvas.toDataURL('image/jpeg', 0.65);
+  } catch {
+    // Rendering the foreground video is still the primary experience.
+  }
+};
+
+const onVideoLoaded = event => {
+  captureVideoBackdrop(event);
+  onMediaReady();
 };
 
 const onImageReady = () => {
@@ -288,14 +378,97 @@ const onImageReady = () => {
 
 const onMediaError = () => {
   isMediaLoading.value = false;
+  hasMediaError.value = true;
   isPaused.value = true;
+};
+
+const sendReply = async () => {
+  const content = replyText.value.trim();
+  if (!content || !canReply.value || isReplying.value) return;
+
+  isReplying.value = true;
+  try {
+    await WhatsmeowStatusesAPI.reply(currentStatus.value.id, { content });
+    replyText.value = '';
+    useAlert(t('WHATSAPP_STATUS.VIEWER.REPLY_SENT'));
+  } catch (error) {
+    useAlert(
+      error.response?.data?.message || t('WHATSAPP_STATUS.VIEWER.REPLY_ERROR')
+    );
+  } finally {
+    isReplying.value = false;
+  }
+};
+
+const sendReaction = async emoji => {
+  if (!emoji || !canReply.value || isReplying.value) return;
+
+  closeMenus();
+  isReplying.value = true;
+  try {
+    await WhatsmeowStatusesAPI.reply(currentStatus.value.id, {
+      reaction: emoji,
+    });
+    useAlert(t('WHATSAPP_STATUS.VIEWER.REACTION_SENT'));
+  } catch (error) {
+    useAlert(
+      error.response?.data?.message || t('WHATSAPP_STATUS.VIEWER.REPLY_ERROR')
+    );
+  } finally {
+    isReplying.value = false;
+  }
+};
+
+const sendSticker = async sticker => {
+  if (!sticker?.id || !canReply.value || isReplying.value) return;
+
+  closeMenus();
+  isReplying.value = true;
+  try {
+    await WhatsmeowStatusesAPI.reply(currentStatus.value.id, {
+      sticker_id: sticker.id,
+    });
+    useAlert(t('WHATSAPP_STATUS.VIEWER.STICKER_SENT'));
+  } catch (error) {
+    useAlert(
+      error.response?.data?.message || t('WHATSAPP_STATUS.VIEWER.REPLY_ERROR')
+    );
+  } finally {
+    isReplying.value = false;
+  }
+};
+
+const openViewers = async () => {
+  if (!isOwnStatus.value) return;
+
+  showViewers.value = true;
+  if (viewersStatusId.value === currentStatus.value.id) return;
+
+  isLoadingViewers.value = true;
+  try {
+    const { data } = await WhatsmeowStatusesAPI.getViewers(
+      currentStatus.value.id
+    );
+    viewers.value = data.payload || [];
+    viewersStatusId.value = currentStatus.value.id;
+  } catch (error) {
+    showViewers.value = false;
+    useAlert(
+      error.response?.data?.message || t('WHATSAPP_STATUS.VIEWER.VIEWERS_ERROR')
+    );
+  } finally {
+    isLoadingViewers.value = false;
+  }
 };
 
 const onKeyDown = event => {
   if (event.altKey || event.ctrlKey || event.metaKey) return;
+  if (['INPUT', 'TEXTAREA'].includes(event.target?.tagName)) return;
 
   if (event.key === 'Escape') {
-    emit('close');
+    if (showViewers.value) showViewers.value = false;
+    else if (showEmojiPicker.value || showStickerPicker.value) closeMenus();
+    else emit('close');
   } else if (event.key === 'ArrowRight') {
     nextStatus();
   } else if (event.key === 'ArrowLeft') {
@@ -369,6 +542,7 @@ onBeforeUnmount(() => {
               </p>
             </div>
             <button
+              v-if="isVideo || isAudio"
               type="button"
               class="flex size-11 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               :aria-label="
@@ -380,6 +554,22 @@ onBeforeUnmount(() => {
             >
               <Icon
                 :icon="isPaused ? 'i-lucide-play' : 'i-lucide-pause'"
+                class="size-5"
+              />
+            </button>
+            <button
+              v-if="isVideo || isAudio"
+              type="button"
+              class="flex size-11 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              :aria-label="
+                isMuted
+                  ? t('WHATSAPP_STATUS.VIEWER.UNMUTE')
+                  : t('WHATSAPP_STATUS.VIEWER.MUTE')
+              "
+              @click="toggleMute"
+            >
+              <Icon
+                :icon="isMuted ? 'i-lucide-volume-x' : 'i-lucide-volume-2'"
                 class="size-5"
               />
             </button>
@@ -398,24 +588,38 @@ onBeforeUnmount(() => {
       </header>
 
       <main
-        class="relative flex min-h-0 flex-1 items-center justify-center px-14 pb-6 pt-24 sm:px-24"
+        class="relative flex min-h-0 flex-1 items-center justify-center px-14 pb-24 pt-24 sm:px-24"
       >
         <div
-          v-if="isImage && currentStatus.media?.url"
-          class="absolute inset-0 overflow-hidden"
+          v-if="isMediaBacked"
+          class="pointer-events-none absolute inset-0 overflow-hidden bg-black"
           aria-hidden="true"
         >
           <img
+            v-if="isVideo && videoBackdropUrl"
+            :src="videoBackdropUrl"
+            alt=""
+            class="h-full w-full scale-125 object-cover opacity-80 blur-[52px] saturate-125"
+          />
+          <span
+            v-else-if="isVideo"
+            class="absolute inset-0 bg-gradient-to-br from-n-slate-9 via-black to-n-slate-10"
+          />
+          <img
+            v-else
             :src="currentStatus.media.url"
             alt=""
-            class="h-full w-full scale-110 object-cover opacity-40 blur-3xl"
+            class="h-full w-full scale-125 object-cover opacity-80 blur-[52px] saturate-125"
           />
-          <span class="absolute inset-0 bg-black/50" />
+          <span class="absolute inset-0 bg-black/40" />
+          <span
+            class="absolute inset-0 bg-gradient-to-b from-black/35 via-transparent to-black/75"
+          />
         </div>
 
         <div
           v-if="currentType === 'text'"
-          class="relative z-10 flex aspect-[9/16] max-h-[calc(100dvh-7rem)] w-full max-w-[28rem] items-center justify-center overflow-hidden rounded-md p-8 shadow-2xl"
+          class="relative z-10 flex aspect-[9/16] max-h-[calc(100dvh-9rem)] w-full max-w-[28rem] items-center justify-center overflow-hidden rounded-md p-8 shadow-2xl"
           :class="statusBackgroundClass"
         >
           <p
@@ -428,9 +632,10 @@ onBeforeUnmount(() => {
 
         <div
           v-else
-          class="relative z-10 flex max-h-[calc(100dvh-7rem)] max-w-full items-center justify-center overflow-hidden rounded-md bg-black shadow-2xl"
+          class="relative z-10 flex max-h-[calc(100dvh-9rem)] max-w-full items-center justify-center overflow-hidden rounded-md bg-black shadow-2xl"
           :class="{
-            'aspect-[9/16] w-full max-w-[28rem] bg-n-slate-11': isAudio,
+            'aspect-[9/16] w-full max-w-[28rem] bg-n-slate-11':
+              isAudio || hasMediaError,
           }"
         >
           <Spinner
@@ -438,18 +643,41 @@ onBeforeUnmount(() => {
             :size="32"
             class="absolute z-10 text-white motion-reduce:animate-none"
           />
+          <div
+            v-if="hasMediaError"
+            class="relative flex h-full w-full flex-col items-center justify-center gap-3 overflow-hidden p-8 text-center"
+          >
+            <img
+              v-if="videoBackdropUrl"
+              :src="videoBackdropUrl"
+              alt=""
+              class="absolute inset-0 h-full w-full object-cover opacity-35 blur-sm"
+            />
+            <span class="absolute inset-0 bg-black/55" />
+            <span
+              class="relative z-10 flex size-14 items-center justify-center rounded-full bg-white/10"
+            >
+              <Icon icon="i-lucide-circle-alert" class="size-6 text-white" />
+            </span>
+            <p class="relative mb-0 max-w-xs text-sm leading-6 text-white/80">
+              {{ t('WHATSAPP_STATUS.VIEWER.MEDIA_UNAVAILABLE') }}
+            </p>
+          </div>
           <video
-            v-if="currentType === 'video'"
+            v-else-if="currentType === 'video'"
             ref="mediaRef"
             :key="currentStatus.id"
             :src="currentStatus.media?.url"
+            :muted="isMuted"
             playsinline
-            class="max-h-[calc(100dvh-7rem)] max-w-full object-contain"
+            preload="metadata"
+            class="max-h-[calc(100dvh-9rem)] max-w-full object-contain"
             @timeupdate="onMediaTimeUpdate"
             @ended="nextStatus"
             @playing="isPaused = false"
             @pause="onMediaPause"
             @canplay="onMediaReady"
+            @loadeddata="onVideoLoaded"
             @waiting="isMediaLoading = true"
             @error="onMediaError"
           >
@@ -471,6 +699,7 @@ onBeforeUnmount(() => {
               ref="mediaRef"
               :key="currentStatus.id"
               :src="currentStatus.media?.url"
+              :muted="isMuted"
               controls
               preload="auto"
               class="w-full max-w-sm"
@@ -494,14 +723,14 @@ onBeforeUnmount(() => {
                 name: currentGroup.name,
               })
             "
-            class="max-h-[calc(100dvh-7rem)] max-w-full object-contain"
+            class="max-h-[calc(100dvh-9rem)] max-w-full object-contain"
             @load="onImageReady"
-            @error="onImageReady"
+            @error="onMediaError"
           />
 
           <div
-            v-if="currentStatus.content"
-            class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent px-5 pb-5 pt-12 text-center"
+            v-if="currentStatus.content && !hasMediaError"
+            class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/65 to-transparent px-5 pb-5 pt-12 text-center"
           >
             <p class="mb-0 whitespace-pre-wrap text-sm leading-6 text-white">
               {{ currentStatus.content }}
@@ -509,6 +738,158 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </main>
+
+      <div
+        v-if="canReply"
+        class="absolute inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-4 sm:px-8"
+      >
+        <div class="relative flex w-full max-w-[34rem] items-end gap-2">
+          <StatusStickerPicker
+            :is-open="showStickerPicker"
+            @close="showStickerPicker = false"
+            @select="sendSticker"
+          />
+          <div
+            class="relative flex min-w-0 flex-1 items-center rounded-xl bg-black/70 px-2 shadow-lg ring-1 ring-white/15 backdrop-blur-xl"
+          >
+            <button
+              type="button"
+              class="flex size-10 flex-shrink-0 items-center justify-center rounded-lg text-white/75 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+              :aria-label="t('WHATSAPP_STATUS.VIEWER.ADD_EMOJI')"
+              @click="showEmojiPicker = !showEmojiPicker"
+            >
+              <Icon icon="i-lucide-smile" class="size-5" />
+            </button>
+            <div class="relative flex-shrink-0">
+              <EmojiInput
+                v-if="showEmojiPicker"
+                v-on-clickaway="() => (showEmojiPicker = false)"
+                class="!bottom-14 !left-0 !right-auto !top-auto !w-[calc(100vw-2rem)] sm:!w-80"
+                :on-click="sendReaction"
+              />
+            </div>
+            <button
+              type="button"
+              class="flex size-10 flex-shrink-0 items-center justify-center rounded-lg text-white/75 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+              :aria-label="t('WHATSAPP_STATUS.VIEWER.ADD_STICKER')"
+              @click="showStickerPicker = !showStickerPicker"
+            >
+              <Icon icon="i-lucide-sticker" class="size-5" />
+            </button>
+            <input
+              v-model="replyText"
+              type="text"
+              maxlength="4096"
+              class="reset-base min-h-11 min-w-0 flex-1 bg-transparent px-2 text-sm text-white outline-none placeholder:text-white/55"
+              :placeholder="t('WHATSAPP_STATUS.VIEWER.REPLY_PLACEHOLDER')"
+              @keydown.enter.prevent="sendReply"
+            />
+          </div>
+          <button
+            type="button"
+            class="flex size-11 flex-shrink-0 items-center justify-center rounded-full bg-white text-black shadow-lg transition-transform hover:scale-105 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-40 motion-reduce:transition-none"
+            :disabled="!replyText.trim() || isReplying"
+            :aria-label="t('WHATSAPP_STATUS.VIEWER.SEND_REPLY')"
+            @click="sendReply"
+          >
+            <Icon
+              :icon="isReplying ? 'i-lucide-loader-circle' : 'i-lucide-send'"
+              class="size-5"
+              :class="{ 'animate-spin motion-reduce:animate-none': isReplying }"
+            />
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-else
+        class="absolute inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-4 sm:px-8"
+      >
+        <div class="relative flex w-full max-w-[34rem] justify-center">
+          <button
+            type="button"
+            class="flex min-h-11 items-center gap-2 rounded-full bg-black/70 px-4 text-sm text-white shadow-lg ring-1 ring-white/15 backdrop-blur-xl transition-colors hover:bg-black/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+            :aria-label="t('WHATSAPP_STATUS.VIEWER.SEE_VIEWERS')"
+            @click="openViewers"
+          >
+            <Icon icon="i-lucide-eye" class="size-4" />
+            {{
+              t('WHATSAPP_STATUS.VIEWER.VIEWERS_COUNT', {
+                count: viewerCount,
+              })
+            }}
+          </button>
+
+          <div
+            v-if="showViewers"
+            v-on-clickaway="() => (showViewers = false)"
+            class="absolute bottom-14 left-1/2 z-40 max-h-80 w-full max-w-sm -translate-x-1/2 overflow-hidden rounded-xl border border-white/15 bg-black/95 shadow-2xl backdrop-blur-xl"
+            role="dialog"
+            :aria-label="t('WHATSAPP_STATUS.VIEWER.VIEWERS_TITLE')"
+          >
+            <div
+              class="flex items-center justify-between border-b border-white/10 px-4 py-3"
+            >
+              <div>
+                <p class="mb-0 text-sm font-semibold text-white">
+                  {{ t('WHATSAPP_STATUS.VIEWER.VIEWERS_TITLE') }}
+                </p>
+                <p class="mb-0 mt-0.5 text-xs text-white/60">
+                  {{
+                    t('WHATSAPP_STATUS.VIEWER.VIEWERS_COUNT', {
+                      count: viewers.length,
+                    })
+                  }}
+                </p>
+              </div>
+              <button
+                type="button"
+                class="flex size-9 items-center justify-center rounded-lg text-white/75 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                :aria-label="t('WHATSAPP_STATUS.VIEWER.CLOSE_VIEWERS')"
+                @click="showViewers = false"
+              >
+                <Icon icon="i-lucide-x" class="size-4" />
+              </button>
+            </div>
+            <div class="max-h-64 overflow-y-auto p-2">
+              <div
+                v-if="isLoadingViewers"
+                class="flex h-24 items-center justify-center"
+              >
+                <Spinner :size="22" class="text-white" />
+              </div>
+              <p
+                v-else-if="!viewers.length"
+                class="m-0 px-3 py-8 text-center text-sm text-white/65"
+              >
+                {{ t('WHATSAPP_STATUS.VIEWER.NO_VIEWERS') }}
+              </p>
+              <div v-else class="flex flex-col gap-1">
+                <div
+                  v-for="viewer in viewers"
+                  :key="viewer.id || viewer.viewer_jid"
+                  class="flex min-h-12 items-center gap-3 rounded-lg px-2 py-1.5"
+                >
+                  <Avatar
+                    :name="viewer.contact?.name || viewer.viewer_name"
+                    :src="viewer.contact?.avatar_url"
+                    :size="36"
+                    rounded-full
+                  />
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-sm font-medium text-white">
+                      {{ viewer.contact?.name || viewer.viewer_name }}
+                    </span>
+                    <span class="block truncate text-xs text-white/60">
+                      {{ formatStatusTime(viewer.viewed_at) }}
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <button
         type="button"

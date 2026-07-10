@@ -2,6 +2,7 @@ class Webhooks::WhatsmeowController < ActionController::API
   EVENT_HANDLERS = {
     'message' => :process_message,
     'status' => :process_status,
+    'status_view' => :process_status_view,
     'receipt' => :process_receipt,
     'reaction' => :process_reaction,
     'edit' => :process_edit,
@@ -53,6 +54,10 @@ class Webhooks::WhatsmeowController < ActionController::API
 
   def process_status
     Whatsmeow::IncomingStatusService.new(inbox: inbox, params: params.to_unsafe_hash).perform
+  end
+
+  def process_status_view
+    Whatsmeow::StatusViewReceiptService.new(inbox: inbox, params: params.to_unsafe_hash).perform
   end
 
   def process_receipt

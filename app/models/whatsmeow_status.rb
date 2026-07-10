@@ -5,6 +5,7 @@ class WhatsmeowStatus < ApplicationRecord
   belongs_to :created_by, class_name: 'User', optional: true, inverse_of: :created_whatsmeow_statuses
 
   has_many :views, class_name: 'WhatsmeowStatusView', dependent: :destroy, inverse_of: :whatsmeow_status
+  has_many :status_viewers, class_name: 'WhatsmeowStatusViewer', dependent: :destroy, inverse_of: :whatsmeow_status
   has_one_attached :media
 
   enum :status_type, { text: 0, image: 1, video: 2, audio: 3 }

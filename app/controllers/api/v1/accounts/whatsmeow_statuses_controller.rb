@@ -1,6 +1,6 @@
 class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseController
   before_action :set_inbox, only: [:index, :create]
-  before_action :set_status, only: [:view]
+  before_action :set_status, only: [:view, :reply, :viewers]
 
   def index
     statuses = @inbox.whatsmeow_statuses.active
@@ -10,7 +10,11 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
                                .where(whatsmeow_status_id: statuses.map(&:id))
                                .pluck(:whatsmeow_status_id)
                                .index_with(true)
-    render json: { payload: statuses.map { |status| status_payload(status, viewed_status_ids) } }
+    viewer_counts = WhatsmeowStatusViewer
+                    .where(whatsmeow_status_id: statuses.select(&:from_me?).map(&:id))
+                    .group(:whatsmeow_status_id)
+                    .count
+    render json: { payload: statuses.map { |status| status_payload(status, viewed_status_ids, viewer_counts) } }
   end
 
   def create
@@ -27,6 +31,31 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
     render json: { payload: status_payload(@status.reload, @status.id => true) }
   end
 
+  def reply
+    response = Whatsmeow::StatusReplyService.new(
+      status: @status,
+      params: reply_params,
+      sticker: reply_sticker
+    ).perform
+    render json: { payload: response }
+  rescue ArgumentError, ActiveRecord::RecordInvalid => e
+    render json: { message: e.message }, status: :unprocessable_entity
+  rescue Whatsmeow::SessionClient::Error => e
+    render json: { message: e.message }, status: :bad_gateway
+  end
+
+  def viewers
+    return head :not_found unless @status.from_me?
+
+    viewers = @status.status_viewers
+                     .includes(contact: { avatar_attachment: :blob })
+                     .order(viewed_at: :desc)
+    render json: {
+      payload: viewers.map { |viewer| status_viewer_payload(viewer) },
+      meta: { count: viewers.size }
+    }
+  end
+
   private
 
   def set_inbox
@@ -37,14 +66,24 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
 
   def set_status
     @status = Current.account.whatsmeow_statuses.active.find(params[:id])
-    authorize @status.inbox, :show?
+    authorize @status.inbox, action_name == 'reply' ? :whatsmeow_status? : :show?
   end
 
   def status_params
     params.permit(:inbox_id, :content, :media, :background, :font)
   end
 
-  def status_payload(status, viewed_status_ids)
+  def reply_params
+    params.permit(:content, :reaction, :sticker_id)
+  end
+
+  def reply_sticker
+    return if reply_params[:sticker_id].blank?
+
+    Current.user.whatsmeow_stickers.where(account_id: Current.account.id).find(reply_params[:sticker_id])
+  end
+
+  def status_payload(status, viewed_status_ids, viewer_counts = {})
     {
       id: status.id,
       inbox_id: status.inbox_id,
@@ -60,7 +99,19 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
       posted_at: status.posted_at.to_i,
       expires_at: status.expires_at.to_i,
       viewed: status.metadata['status_already_viewed'] || viewed_status_ids[status.id] || false,
+      viewer_count: status.from_me? ? viewer_counts.fetch(status.id, 0) : 0,
       created_by: status.created_by&.name
+    }
+  end
+
+  def status_viewer_payload(viewer)
+    {
+      id: viewer.id,
+      viewer_jid: viewer.viewer_jid,
+      viewer_name: viewer.viewer_name,
+      viewer_phone: viewer.viewer_phone,
+      contact: contact_payload(viewer.contact),
+      viewed_at: viewer.viewed_at.to_i
     }
   end
 

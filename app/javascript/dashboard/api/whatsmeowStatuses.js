@@ -18,6 +18,14 @@ class WhatsmeowStatusesAPI extends ApiClient {
   markViewed(id) {
     return axios.post(`${this.url}/${id}/view`);
   }
+
+  reply(id, payload) {
+    return axios.post(`${this.url}/${id}/reply`, payload);
+  }
+
+  getViewers(id) {
+    return axios.get(`${this.url}/${id}/viewers`);
+  }
 }
 
 export default new WhatsmeowStatusesAPI();

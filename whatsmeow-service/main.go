@@ -91,6 +91,21 @@ type StatusReadRequest struct {
 	Timestamp int64  `json:"timestamp" binding:"required"`
 }
 
+// StatusReplyRequest represents a reply to a remote WhatsApp Status. Status
+// replies are delivered as direct messages to the Status author, while their
+// message context refers back to status@broadcast.
+type StatusReplyRequest struct {
+	MessageID string               `json:"message_id" binding:"required"`
+	SenderJID string               `json:"sender_jid" binding:"required"`
+	Timestamp int64                `json:"timestamp" binding:"required"`
+	Content   string               `json:"content"`
+	Reaction  string               `json:"reaction"`
+	Sticker   *WhatsmeowAttachment `json:"sticker"`
+	// Attachment is accepted as a compatibility alias for sticker. Only
+	// Whatsmeow sticker attachments are accepted by this endpoint.
+	Attachment *WhatsmeowAttachment `json:"attachment"`
+}
+
 type StatusContact struct {
 	JID  string `json:"jid"`
 	Name string `json:"name"`
@@ -272,6 +287,7 @@ func main() {
 	r.GET("/sessions/:channel_id/check_number", handleCheckNumber)
 	r.POST("/sessions/:channel_id/statuses", internalTokenMiddleware(), handleSendStatus)
 	r.POST("/sessions/:channel_id/statuses/read", internalTokenMiddleware(), handleReadStatus)
+	r.POST("/sessions/:channel_id/statuses/reply", internalTokenMiddleware(), handleReplyToStatus)
 	r.DELETE("/sessions/:channel_id", handleDisconnectSession)
 	r.POST("/messages", handleSendMessage)
 	r.POST("/messages/reaction", handleSendReaction)
@@ -1310,6 +1326,175 @@ func handleReadStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
+func handleReplyToStatus(c *gin.Context) {
+	var req StatusReplyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	req.MessageID = strings.TrimSpace(req.MessageID)
+	req.SenderJID = strings.TrimSpace(req.SenderJID)
+	req.Content = strings.TrimSpace(req.Content)
+	req.Reaction = strings.TrimSpace(req.Reaction)
+	if req.MessageID == "" || req.SenderJID == "" || req.Timestamp <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Status message_id, sender_jid and timestamp are required"})
+		return
+	}
+
+	sticker, replyMode, err := statusReplyMode(req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	client, ok := clientForChannel(c.Param("channel_id"))
+	if !ok {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	statusSender, ok := parseJID(req.SenderJID)
+	if !ok || !isStatusReplySender(statusSender) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid Status sender JID"})
+		return
+	}
+
+	targetJID := statusReplyTarget(client, statusSender)
+	if targetJID.IsEmpty() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Unable to resolve Status sender JID"})
+		return
+	}
+
+	sendCtx, cancelSend := context.WithTimeout(context.Background(), sendMessageTimeout)
+	defer cancelSend()
+
+	contextInfo := statusReplyContextInfo(req.MessageID, statusSender)
+	message, err := buildStatusReplyMessage(sendCtx, client, req, sticker, replyMode, contextInfo, statusSender)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	response, err := client.SendMessage(
+		sendCtx,
+		targetJID,
+		message,
+		whatsmeow.SendRequestExtra{Timeout: sendMessageTimeout - 5*time.Second},
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to send Status reply: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":          true,
+		"id":               response.ID,
+		"timestamp":        response.Timestamp.Unix(),
+		"message_id":       req.MessageID,
+		"source_status_id": req.MessageID,
+		"source_timestamp": req.Timestamp,
+		"mode":             replyMode,
+		"to":               jidString(targetJID),
+	})
+}
+
+func statusReplyMode(req StatusReplyRequest) (*WhatsmeowAttachment, string, error) {
+	stickers := make([]WhatsmeowAttachment, 0, 2)
+	if req.Sticker != nil {
+		stickers = append(stickers, *req.Sticker)
+	}
+	if req.Attachment != nil {
+		stickers = append(stickers, *req.Attachment)
+	}
+
+	modeCount := 0
+	if req.Content != "" {
+		modeCount++
+	}
+	if req.Reaction != "" {
+		modeCount++
+	}
+	if len(stickers) > 0 {
+		modeCount++
+	}
+	if modeCount != 1 {
+		return nil, "", fmt.Errorf("Status reply must contain exactly one of content, reaction or sticker")
+	}
+	if len(stickers) > 1 {
+		return nil, "", fmt.Errorf("Status reply accepts one sticker attachment")
+	}
+	if len(stickers) == 0 {
+		if req.Reaction != "" {
+			return nil, "reaction", nil
+		}
+		return nil, "text", nil
+	}
+
+	sticker := stickers[0]
+	if strings.TrimSpace(sticker.DataBase64) == "" {
+		return nil, "", fmt.Errorf("Status reply sticker data is required")
+	}
+	if !attachmentIsSticker(sticker) && !strings.EqualFold(strings.TrimSpace(sticker.FileType), "sticker") {
+		return nil, "", fmt.Errorf("Status reply attachment must be a Whatsmeow sticker")
+	}
+	if !attachmentIsSticker(sticker) {
+		if sticker.Meta == nil {
+			sticker.Meta = map[string]interface{}{}
+		}
+		sticker.Meta["whatsmeow_sticker"] = true
+	}
+	return &sticker, "sticker", nil
+}
+
+func isStatusReplySender(jid types.JID) bool {
+	if jid.IsEmpty() || sameBareJID(jid, types.StatusBroadcastJID) {
+		return false
+	}
+	return jid.Server == types.DefaultUserServer || jid.Server == types.HiddenUserServer
+}
+
+func statusReplyTarget(client *whatsmeow.Client, sender types.JID) types.JID {
+	if resolved := resolveStatusPhoneJID(client, sender); !resolved.IsEmpty() {
+		return resolved
+	}
+	return sender.ToNonAD()
+}
+
+func statusReplyContextInfo(statusID string, sender types.JID) *proto.ContextInfo {
+	return &proto.ContextInfo{
+		StanzaID:    stringPtr(statusID),
+		Participant: stringPtr(sender.ToNonAD().String()),
+		RemoteJID:   stringPtr(types.StatusBroadcastJID.String()),
+	}
+}
+
+func buildStatusReplyMessage(
+	ctx context.Context,
+	client *whatsmeow.Client,
+	req StatusReplyRequest,
+	sticker *WhatsmeowAttachment,
+	mode string,
+	contextInfo *proto.ContextInfo,
+	statusSender types.JID,
+) (*proto.Message, error) {
+	switch mode {
+	case "text":
+		return &proto.Message{
+			ExtendedTextMessage: &proto.ExtendedTextMessage{
+				Text:        stringPtr(req.Content),
+				ContextInfo: contextInfo,
+			},
+		}, nil
+	case "reaction":
+		return client.BuildReaction(types.StatusBroadcastJID, statusSender.ToNonAD(), types.MessageID(req.MessageID), req.Reaction), nil
+	case "sticker":
+		return buildOutgoingMediaMessage(ctx, client, "", *sticker, contextInfo)
+	default:
+		return nil, fmt.Errorf("Unsupported Status reply mode")
+	}
+}
+
 func clientForChannel(channelID string) (*whatsmeow.Client, bool) {
 	clientsMu.RLock()
 	client, exists := clients[channelID]
@@ -2337,16 +2522,20 @@ func processEventForInbox(channelID string, accountID string, client *whatsmeow.
 		processMessageForInbox(channelID, accountID, client, v)
 
 	case *events.Receipt:
-		processReceiptForInbox(channelID, accountID, v)
+		processReceiptForInbox(channelID, accountID, client, v)
 
 	case *events.HistorySync:
 		processHistorySyncForInbox(channelID, accountID, client, v)
 	}
 }
 
-func processReceiptForInbox(channelID string, accountID string, receipt *events.Receipt) {
+func processReceiptForInbox(channelID string, accountID string, client *whatsmeow.Client, receipt *events.Receipt) {
 	status := receiptStatus(receipt.Type)
 	if status == "" || len(receipt.MessageIDs) == 0 {
+		return
+	}
+	if isOwnStatusViewReceipt(client, receipt, status) {
+		processStatusViewReceiptForInbox(channelID, accountID, client, receipt)
 		return
 	}
 
@@ -2370,6 +2559,61 @@ func processReceiptForInbox(channelID string, accountID string, receipt *events.
 		"timestamp":    receipt.Timestamp.Unix(),
 	}
 	sendWebhookNotification(accountID, channelID, payload)
+}
+
+func isOwnStatusViewReceipt(client *whatsmeow.Client, receipt *events.Receipt, status string) bool {
+	if client == nil || receipt == nil || status != "read" || !sameBareJID(receipt.Chat, types.StatusBroadcastJID) {
+		return false
+	}
+
+	// WhatsApp supplies the Status owner as the receipt's recipient. Whatsmeow
+	// exposes it as MessageSender, while BroadcastListOwner is retained as a
+	// fallback across protocol variants.
+	return isCurrentClientJID(client, receipt.MessageSender) || isCurrentClientJID(client, receipt.BroadcastListOwner)
+}
+
+func processStatusViewReceiptForInbox(channelID string, accountID string, client *whatsmeow.Client, receipt *events.Receipt) {
+	viewerJID := firstUsableJID(receipt.SenderAlt, receipt.Sender)
+	if resolvedJID := resolveStatusPhoneJID(client, viewerJID); !resolvedJID.IsEmpty() {
+		viewerJID = resolvedJID
+	}
+	if viewerJID.IsEmpty() {
+		log.Printf("Skipping Status view receipt with no viewer JID on channel %s", channelID)
+		return
+	}
+	if isCurrentClientJID(client, viewerJID) {
+		return
+	}
+
+	viewerName := getContactDisplayName(client, viewerJID, "")
+	if viewerName == "" {
+		viewerName = firstFriendlyDisplayName(phoneNumberFromJID(viewerJID), jidString(viewerJID))
+	}
+	viewerPhone := phoneNumberFromJID(viewerJID)
+	viewerProfilePictureURL := getProfilePictureURL(client, viewerJID)
+
+	for _, messageID := range receipt.MessageIDs {
+		if messageID == "" {
+			continue
+		}
+
+		payload := map[string]interface{}{
+			"event":               "status_view",
+			"status":              "read",
+			"receipt_type":        string(receipt.Type),
+			"source_status_id":    string(messageID),
+			"message_id":          string(messageID),
+			"viewer_jid":          jidString(viewerJID),
+			"viewer_name":         viewerName,
+			"viewer_phone":        viewerPhone,
+			"profile_picture_url": viewerProfilePictureURL,
+			"chat":                jidString(receipt.Chat),
+			"sender":              jidString(receipt.Sender),
+			"sender_alt":          jidString(receipt.SenderAlt),
+			"timestamp":           receipt.Timestamp.Unix(),
+		}
+		sendWebhookNotification(accountID, channelID, payload)
+	}
 }
 
 func receiptStatus(receiptType types.ReceiptType) string {
@@ -2703,6 +2947,13 @@ func extractStatusMetadata(message *proto.Message) map[string]interface{} {
 		metadata["width"] = video.GetWidth()
 		metadata["height"] = video.GetHeight()
 		metadata["duration_seconds"] = video.GetSeconds()
+		if mimeType := normalizedMIME(video.GetMimetype(), ""); mimeType != "" {
+			metadata["source_mimetype"] = mimeType
+		}
+		if thumbnail := video.GetJPEGThumbnail(); len(thumbnail) > 0 {
+			metadata["thumbnail_base64"] = base64.StdEncoding.EncodeToString(thumbnail)
+			metadata["thumbnail_content_type"] = "image/jpeg"
+		}
 	}
 	if audio := message.GetAudioMessage(); audio != nil {
 		metadata["duration_seconds"] = audio.GetSeconds()
@@ -3474,7 +3725,14 @@ func extractMediaAttachments(client *whatsmeow.Client, message *proto.Message) [
 		return downloadAttachment(client, image, "image", image.GetMimetype(), defaultFileName("image", image.GetMimetype()), nil)
 	}
 	if video := message.GetVideoMessage(); video != nil {
-		return downloadAttachment(client, video, "video", video.GetMimetype(), defaultFileName("video", video.GetMimetype()), nil)
+		return downloadAttachment(
+			client,
+			video,
+			"video",
+			video.GetMimetype(),
+			defaultFileName("video", video.GetMimetype()),
+			videoAttachmentMeta(video),
+		)
 	}
 	if audio := message.GetAudioMessage(); audio != nil {
 		return downloadAttachment(
@@ -3547,6 +3805,35 @@ func audioAttachmentMeta(audio *proto.AudioMessage) map[string]interface{} {
 	}
 
 	return meta
+}
+
+func videoAttachmentMeta(video *proto.VideoMessage) map[string]interface{} {
+	if video == nil {
+		return nil
+	}
+
+	meta := map[string]interface{}{}
+	if video.GetSeconds() > 0 {
+		meta["duration_seconds"] = video.GetSeconds()
+	}
+	if video.GetWidth() > 0 {
+		meta["width"] = video.GetWidth()
+	}
+	if video.GetHeight() > 0 {
+		meta["height"] = video.GetHeight()
+	}
+	if video.GetGifPlayback() {
+		meta["gif_playback"] = true
+	}
+	if mimeType := normalizedMIME(video.GetMimetype(), ""); mimeType != "" {
+		meta["source_mimetype"] = mimeType
+	}
+	if thumbnail := video.GetJPEGThumbnail(); len(thumbnail) > 0 {
+		meta["thumbnail_base64"] = base64.StdEncoding.EncodeToString(thumbnail)
+		meta["thumbnail_content_type"] = "image/jpeg"
+	}
+
+	return compactAttachmentMeta(meta)
 }
 
 func hasMediaMessage(message *proto.Message) bool {
@@ -3624,7 +3911,7 @@ func downloadAttachment(client *whatsmeow.Client, media whatsmeow.DownloadableMe
 		return nil
 	}
 
-	contentType = normalizedMIME(contentType, fallbackMIME(fileType))
+	contentType = normalizedDownloadedMIME(fileType, contentType, data)
 	if fileName == "" {
 		fileName = defaultFileName(fileType, contentType)
 	}
@@ -3767,6 +4054,21 @@ func normalizedMIME(contentType string, fallback string) string {
 		return "audio/ogg"
 	}
 	return contentType
+}
+
+func normalizedDownloadedMIME(fileType string, contentType string, data []byte) string {
+	normalized := normalizedMIME(contentType, "")
+	if !strings.EqualFold(fileType, "video") {
+		return normalizedMIME(contentType, fallbackMIME(fileType))
+	}
+	if strings.HasPrefix(normalized, "video/") {
+		return normalized
+	}
+
+	if detected := normalizedMIME(http.DetectContentType(data), ""); strings.HasPrefix(detected, "video/") {
+		return detected
+	}
+	return fallbackMIME(fileType)
 }
 
 func defaultFileName(fileType string, contentType string) string {
@@ -3979,6 +4281,16 @@ func currentClientJID(client *whatsmeow.Client) (types.JID, string) {
 	}
 	jid := client.Store.ID.ToNonAD()
 	return jid, phoneNumberFromJID(jid)
+}
+
+func isCurrentClientJID(client *whatsmeow.Client, candidate types.JID) bool {
+	if client == nil || client.Store == nil || candidate.IsEmpty() {
+		return false
+	}
+	if ownJID, _ := currentClientJID(client); sameBareJID(candidate, ownJID) {
+		return true
+	}
+	return sameBareJID(candidate, client.Store.LID)
 }
 
 func waitForGroupParticipant(client *whatsmeow.Client, groupJID types.JID, participantJID types.JID) (GroupMemberResponse, bool) {

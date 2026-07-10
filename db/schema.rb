@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_10_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_10_130000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1467,6 +1467,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_10_120000) do
     t.index ["user_id"], name: "index_whatsmeow_stickers_on_user_id"
   end
 
+  create_table "whatsmeow_status_viewers", force: :cascade do |t|
+    t.bigint "whatsmeow_status_id", null: false
+    t.bigint "contact_id"
+    t.string "viewer_jid", null: false
+    t.string "viewer_name"
+    t.string "viewer_phone"
+    t.datetime "viewed_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_whatsmeow_status_viewers_on_contact_id"
+    t.index ["viewed_at"], name: "index_whatsmeow_status_viewers_on_viewed_at"
+    t.index ["whatsmeow_status_id", "viewer_jid"], name: "idx_whatsmeow_status_viewers_on_status_viewer", unique: true
+    t.index ["whatsmeow_status_id"], name: "index_whatsmeow_status_viewers_on_whatsmeow_status_id"
+  end
+
   create_table "whatsmeow_status_views", force: :cascade do |t|
     t.bigint "whatsmeow_status_id", null: false
     t.bigint "user_id", null: false
@@ -1546,6 +1561,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_10_120000) do
   add_foreign_key "whatsmeow_stickers", "accounts"
   add_foreign_key "whatsmeow_stickers", "attachments"
   add_foreign_key "whatsmeow_stickers", "users"
+  add_foreign_key "whatsmeow_status_viewers", "contacts", on_delete: :nullify
+  add_foreign_key "whatsmeow_status_viewers", "whatsmeow_statuses"
   add_foreign_key "whatsmeow_status_views", "users"
   add_foreign_key "whatsmeow_status_views", "whatsmeow_statuses"
   add_foreign_key "whatsmeow_statuses", "accounts"

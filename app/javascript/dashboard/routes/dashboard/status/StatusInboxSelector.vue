@@ -58,7 +58,7 @@ const selectInbox = value => emit('update:modelValue', String(value));
 </script>
 
 <template>
-  <DropdownContainer class="w-full [&>div]:w-full">
+  <DropdownContainer class="w-full !space-y-0 [&>div]:w-full">
     <template #trigger="{ toggle, isOpen }">
       <button
         type="button"
@@ -76,9 +76,9 @@ const selectInbox = value => emit('update:modelValue', String(value));
         </span>
         <span
           v-else-if="selectedInbox"
-          class="flex size-8 flex-shrink-0 items-center justify-center rounded-lg bg-n-alpha-2 text-n-slate-11"
+          class="flex size-8 flex-shrink-0 items-center justify-center text-n-slate-11"
         >
-          <ChannelIcon :inbox="selectedInbox" use-brand-icon class="size-5" />
+          <ChannelIcon :inbox="selectedInbox" class="size-5" />
         </span>
 
         <span class="min-w-0 flex-1">
@@ -99,9 +99,9 @@ const selectInbox = value => emit('update:modelValue', String(value));
     </template>
 
     <DropdownBody
-      class="left-0 top-[3.25rem] z-50 w-full min-w-[20rem] max-w-[calc(100vw-2rem)] [&>ul]:max-h-80 [&>ul]:overflow-x-hidden [&>ul]:overflow-y-auto"
+      class="left-0 top-0 z-50 w-full min-w-[20rem] max-w-[calc(100vw-2rem)] [&>ul]:!bg-n-solid-2 [&>ul]:!backdrop-blur-none"
     >
-      <DropdownSection>
+      <DropdownSection height="max-h-80">
         <DropdownItem
           :click="() => selectInbox('all')"
           role="option"
@@ -147,9 +147,9 @@ const selectInbox = value => emit('update:modelValue', String(value));
         >
           <div class="flex min-h-10 w-full items-center gap-3">
             <span
-              class="flex size-8 flex-shrink-0 items-center justify-center rounded-lg bg-n-alpha-2 text-n-slate-11"
+              class="flex size-8 flex-shrink-0 items-center justify-center text-n-slate-11"
             >
-              <ChannelIcon :inbox="inbox" use-brand-icon class="size-5" />
+              <ChannelIcon :inbox="inbox" class="size-5" />
             </span>
             <span class="min-w-0 flex-1">
               <span class="block truncate text-sm font-medium text-n-slate-12">

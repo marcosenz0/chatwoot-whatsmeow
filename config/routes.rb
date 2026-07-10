@@ -122,6 +122,8 @@ Rails.application.routes.draw do
           end
           resources :whatsmeow_statuses, path: 'whatsmeow/statuses', only: [:index, :create] do
             post :view, on: :member
+            post :reply, on: :member
+            get :viewers, on: :member
           end
           resources :assignable_agents, only: [:index]
           resource :audit_logs, only: [:show]

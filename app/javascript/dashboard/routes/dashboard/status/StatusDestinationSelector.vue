@@ -80,7 +80,7 @@ const toggleInbox = inbox => {
       {{ t('WHATSAPP_STATUS.COMPOSER.PUBLISH_TO') }}
     </span>
 
-    <DropdownContainer class="w-full [&>div]:w-full">
+    <DropdownContainer class="w-full !space-y-0 [&>div]:w-full">
       <template #trigger="{ toggle, isOpen }">
         <button
           type="button"
@@ -115,9 +115,9 @@ const toggleInbox = inbox => {
       </template>
 
       <DropdownBody
-        class="left-0 top-12 z-[60] w-full min-w-[20rem] max-w-[calc(100vw-3rem)] [&>ul]:max-h-72 [&>ul]:overflow-x-hidden [&>ul]:overflow-y-auto"
+        class="left-0 top-0 z-[60] w-full min-w-[20rem] max-w-[calc(100vw-3rem)] [&>ul]:!bg-n-solid-2 [&>ul]:!backdrop-blur-none"
       >
-        <DropdownSection>
+        <DropdownSection height="max-h-72">
           <DropdownItem
             preserve-open
             :click="toggleAll"
@@ -174,9 +174,9 @@ const toggleInbox = inbox => {
           >
             <div class="flex min-h-10 w-full items-center gap-3">
               <span
-                class="flex size-8 flex-shrink-0 items-center justify-center rounded-lg bg-n-alpha-2 text-n-slate-11"
+                class="flex size-8 flex-shrink-0 items-center justify-center text-n-slate-11"
               >
-                <ChannelIcon :inbox="inbox" use-brand-icon class="size-5" />
+                <ChannelIcon :inbox="inbox" class="size-5" />
               </span>
               <span class="min-w-0 flex-1">
                 <span

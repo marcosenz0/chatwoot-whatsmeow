@@ -174,6 +174,10 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Before publishing, Rails sends the selected inbox's valid phone contacts to the local whatsmeow contact store. This makes those contacts eligible for the sender's existing WhatsApp Status privacy mode; whitelist/blacklist choices are still respected.
 - Contact sync influences outgoing Status recipients only. It cannot force another account to send its Status to this session; incoming visibility remains controlled by WhatsApp delivery and the other person's privacy/contact relationship.
 - Set the same `WHATSMEOW_SHARED_SECRET` on Chatwoot and whatsmeow-service to authenticate Status API calls and callback webhooks.
+- Status updates now separate unseen updates from the `Vistos`/Seen section. The permanent action beside `Meu status` keeps publishing additional updates available after the first one.
+- The Status viewer supports text replies, emoji reactions, saved stickers, audio mute/unmute, and the native WhatsApp Status context needed for the reply to appear in the contact's direct chat.
+- Read/played receipts for Status published from this account are stored as per-contact viewers and exposed through the viewer count/list in the Status viewer. A status viewer never creates a Chatwoot conversation.
+- Received video Status media now keeps normalized video MIME metadata and a compact JPEG thumbnail. The viewer uses that thumbnail (or one lightweight frame capture for older records) for the stronger blurred media backdrop without starting a second foreground video decode.
 
 ## Product Decisions
 

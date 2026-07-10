@@ -86,6 +86,15 @@ class Whatsmeow::SessionClient
     )
   end
 
+  def reply_to_status(payload)
+    request(
+      :post,
+      "/sessions/#{@inbox.id}/statuses/reply",
+      body: payload,
+      timeout: 20
+    )
+  end
+
   def self.request(method, path, body: nil, timeout: nil)
     last_error = nil
 
