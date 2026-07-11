@@ -1,0 +1,25 @@
+diff --git a/receipt.go b/receipt.go
+index 083f9ef..9ddf80a 100644
+--- a/receipt.go
++++ b/receipt.go
+@@ -60,6 +60,20 @@ func (cli *Client) parseReceipt(node *waBinary.Node) (*events.Receipt, error) {
+ 	if err != nil {
+ 		return nil, err
+ 	}
++	participant := ag.OptionalJIDOrEmpty("participant")
++	if !participant.IsEmpty() && source.IsFromMe && source.Chat.ToNonAD() == types.StatusBroadcastJID {
++		// Status view receipts may be addressed from our own JID to
++		// status@broadcast while the actual viewer is carried in participant.
++		// parseMessageSource treats that shape as a normal self receipt and
++		// otherwise loses the viewer identity.
++		source.Sender = participant.ToNonAD()
++		source.IsFromMe = false
++		if source.AddressingMode == types.AddressingModeLID {
++			source.SenderAlt = ag.OptionalJIDOrEmpty("participant_pn")
++		} else {
++			source.SenderAlt = ag.OptionalJIDOrEmpty("participant_lid")
++		}
++	}
+ 	receipt := events.Receipt{
+ 		MessageSource: source,
+ 		Timestamp:     ag.UnixTime("t"),

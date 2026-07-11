@@ -2593,6 +2593,17 @@ func processStatusReceiptForInbox(channelID string, accountID string, client *wh
 		ownLID = client.Store.LID.ToNonAD()
 	}
 
+	if isStatusBroadcastReceipt(receipt) {
+		log.Printf(
+			"Received Status view receipt on channel %s (viewer_resolved=%t self_viewer=%t message_count=%d type=%s)",
+			channelID,
+			!viewerJID.IsEmpty(),
+			isCurrentStatusAccountJID(viewerJID, ownJID, ownLID),
+			len(receipt.MessageIDs),
+			receipt.Type,
+		)
+	}
+
 	if viewerJID.IsEmpty() || isCurrentStatusAccountJID(viewerJID, ownJID, ownLID) {
 		return
 	}
