@@ -24,6 +24,12 @@
     "STATUS_ENABLED": "Status was enabled for {inbox}.",
     "STATUS_DISABLED": "Status was disabled for {inbox}.",
     "STATUS_UPDATE_ERROR": "We couldn't update the Status setting. Please try again.",
+    "STATUS_VIEWS_TOGGLE_LABEL": "Show status views for {inbox}",
+    "STATUS_VIEWS_ACTIVE": "People can see when this inbox views their status.",
+    "STATUS_VIEWS_HIDDEN": "Status view confirmations are hidden for this inbox.",
+    "STATUS_VIEWS_ENABLED": "Status views are now shown for {inbox}.",
+    "STATUS_VIEWS_DISABLED": "Status views are now hidden for {inbox}.",
+    "STATUS_VIEWS_UPDATE_ERROR": "We couldn't update the status view setting. Please try again.",
     "RECENT": "Recent",
     "VIEWED": "Seen",
     "NO_RECENT_TITLE": "No recent status updates",
@@ -38,6 +44,14 @@
     "LOADING": "Loading status updates",
     "PUBLISHED": "Your status was published.",
     "PUBLISHED_COUNT": "Your status was published to {count} inboxes.",
+    "REPLY_PREVIEW": {
+      "TITLE": "Reply to your status",
+      "OPEN": "Open the status this message replies to",
+      "TEXT": "Text status",
+      "IMAGE": "Image status",
+      "VIDEO": "Video status",
+      "UNAVAILABLE": "This status is no longer available."
+    },
     "VIEWER": {
       "CLOSE": "Close status viewer",
       "NEXT": "Next status",

@@ -26,6 +26,10 @@ class WhatsmeowStatusesAPI extends ApiClient {
   getViewers(id) {
     return axios.get(`${this.url}/${id}/viewers`);
   }
+
+  preview(id) {
+    return axios.get(`${this.url}/${id}/preview`);
+  }
 }
 
 export default new WhatsmeowStatusesAPI();

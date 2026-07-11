@@ -425,8 +425,17 @@ class Whatsmeow::IncomingMessageService
 
     {
       in_reply_to_external_id: params[:quoted_message_id],
-      whatsmeow_quoted_message: quoted_message
+      whatsmeow_quoted_message: quoted_message,
+      whatsmeow_status_reply: status_reply_reference
     }.compact_blank
+  end
+
+  def status_reply_reference
+    status = @inbox.whatsmeow_statuses.active.find_by(
+      source_id: params[:quoted_message_id],
+      from_me: true
+    )
+    { id: status.id } if status
   end
 
   def attach_files

@@ -24,6 +24,12 @@
     "STATUS_ENABLED": "O Status foi ativado para {inbox}.",
     "STATUS_DISABLED": "O Status foi desativado para {inbox}.",
     "STATUS_UPDATE_ERROR": "Não foi possível atualizar a configuração de Status. Tente novamente.",
+    "STATUS_VIEWS_TOGGLE_LABEL": "Mostrar minhas visualizações em {inbox}",
+    "STATUS_VIEWS_ACTIVE": "As pessoas podem ver quando esta caixa visualiza um status.",
+    "STATUS_VIEWS_HIDDEN": "As confirmações de visualização estão ocultas nesta caixa.",
+    "STATUS_VIEWS_ENABLED": "As visualizações agora serão mostradas para {inbox}.",
+    "STATUS_VIEWS_DISABLED": "As visualizações agora ficarão ocultas para {inbox}.",
+    "STATUS_VIEWS_UPDATE_ERROR": "Não foi possível atualizar a configuração de visualização. Tente novamente.",
     "RECENT": "Recentes",
     "VIEWED": "Vistos",
     "NO_RECENT_TITLE": "Nenhuma atualização recente",
@@ -38,6 +44,14 @@
     "LOADING": "Carregando atualizações de status",
     "PUBLISHED": "Seu status foi publicado.",
     "PUBLISHED_COUNT": "Seu status foi publicado em {count} caixas.",
+    "REPLY_PREVIEW": {
+      "TITLE": "Resposta ao seu status",
+      "OPEN": "Abrir o status ao qual esta mensagem respondeu",
+      "TEXT": "Status de texto",
+      "IMAGE": "Status de imagem",
+      "VIDEO": "Status de vídeo",
+      "UNAVAILABLE": "Este status não está mais disponível."
+    },
     "VIEWER": {
       "CLOSE": "Fechar visualizador de status",
       "NEXT": "Próximo status",

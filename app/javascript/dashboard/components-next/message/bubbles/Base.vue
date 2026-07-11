@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 
 import MessageMeta from '../MessageMeta.vue';
+import WhatsmeowStatusReplyPreview from './WhatsmeowStatusReplyPreview.vue';
 
 import { emitter } from 'shared/helpers/mitt';
 import { useMessageContext } from '../provider.js';
@@ -118,6 +119,14 @@ const quotedMessage = computed(
     contentAttributes.value?.whatsmeow_quoted_message
 );
 
+const statusReply = computed(
+  () =>
+    contentAttributes.value?.whatsmeowStatusReply ||
+    contentAttributes.value?.whatsmeow_status_reply ||
+    null
+);
+const hasStatusReplyPreview = computed(() => Boolean(statusReply.value?.id));
+
 const fallbackReplyTo = computed(() => {
   if (!quotedMessage.value) return null;
 
@@ -162,8 +171,13 @@ const replyToPreview = computed(() => {
       },
     ]"
   >
+    <WhatsmeowStatusReplyPreview
+      v-if="hasStatusReplyPreview"
+      :status-reply="statusReply"
+      class="-mx-1"
+    />
     <div
-      v-if="hasReplyToPreview"
+      v-else-if="hasReplyToPreview"
       class="p-2 -mx-1 mb-2 rounded-lg bg-n-alpha-black1"
       :class="{ 'cursor-pointer': canScrollToReply }"
       @click="scrollToMessage"

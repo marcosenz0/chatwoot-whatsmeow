@@ -22,7 +22,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 	"github.com/skip2/go-qrcode"
 
 	"go.mau.fi/whatsmeow"
@@ -2530,12 +2530,13 @@ func processEventForInbox(channelID string, accountID string, client *whatsmeow.
 }
 
 func processReceiptForInbox(channelID string, accountID string, client *whatsmeow.Client, receipt *events.Receipt) {
-	status := receiptStatus(receipt.Type)
-	if status == "" || len(receipt.MessageIDs) == 0 {
+	if isStatusBroadcastReceipt(receipt) {
+		processStatusReceiptForInbox(channelID, accountID, client, receipt)
 		return
 	}
-	if isOwnStatusViewReceipt(client, receipt, status) {
-		processStatusViewReceiptForInbox(channelID, accountID, client, receipt)
+
+	status := receiptStatus(receipt.Type)
+	if status == "" || len(receipt.MessageIDs) == 0 {
 		return
 	}
 
@@ -2561,29 +2562,201 @@ func processReceiptForInbox(channelID string, accountID string, client *whatsmeo
 	sendWebhookNotification(accountID, channelID, payload)
 }
 
-func isOwnStatusViewReceipt(client *whatsmeow.Client, receipt *events.Receipt, status string) bool {
-	if client == nil || receipt == nil || status != "read" || !sameBareJID(receipt.Chat, types.StatusBroadcastJID) {
-		return false
-	}
-
-	// WhatsApp supplies the Status owner as the receipt's recipient. Whatsmeow
-	// exposes it as MessageSender, while BroadcastListOwner is retained as a
-	// fallback across protocol variants.
-	return isCurrentClientJID(client, receipt.MessageSender) || isCurrentClientJID(client, receipt.BroadcastListOwner)
+func isStatusBroadcastReceipt(receipt *events.Receipt) bool {
+	return receipt != nil && sameBareJID(receipt.Chat, types.StatusBroadcastJID)
 }
 
-func processStatusViewReceiptForInbox(channelID string, accountID string, client *whatsmeow.Client, receipt *events.Receipt) {
+func processStatusReceiptForInbox(channelID string, accountID string, client *whatsmeow.Client, receipt *events.Receipt) {
+	if !isStatusViewReceiptType(receipt.Type) {
+		logUnclassifiedStatusReceipt(channelID, receipt, types.JID{}, "unsupported_receipt_type")
+		return
+	}
+
+	knownOwnStatusIDs, err := ownStatusReceiptMessageIDs(channelID, receipt.MessageIDs)
+	if err != nil {
+		log.Printf("Failed to look up Status receipt IDs on channel %s: %v", channelID, err)
+	}
+
+	viewerJID := statusReceiptViewerJID(client, receipt)
+	ownJID, _ := currentClientJID(client)
+	ownLID := types.JID{}
+	if client != nil && client.Store != nil {
+		ownLID = client.Store.LID.ToNonAD()
+	}
+
+	classification := classifyStatusViewReceipt(receipt, viewerJID, ownJID, ownLID, knownOwnStatusIDs)
+	if len(classification.MessageIDs) == 0 {
+		logUnclassifiedStatusReceipt(channelID, receipt, viewerJID, classification.Reason)
+		return
+	}
+
+	processStatusViewReceiptForInbox(channelID, accountID, client, receipt, classification.ViewerJID, classification.MessageIDs)
+}
+
+func isStatusViewReceiptType(receiptType types.ReceiptType) bool {
+	return receiptType == types.ReceiptTypeRead || receiptType == types.ReceiptTypePlayed
+}
+
+func statusReceiptViewerJID(client *whatsmeow.Client, receipt *events.Receipt) types.JID {
+	if receipt == nil {
+		return types.JID{}
+	}
+
 	viewerJID := firstUsableJID(receipt.SenderAlt, receipt.Sender)
 	if resolvedJID := resolveStatusPhoneJID(client, viewerJID); !resolvedJID.IsEmpty() {
-		viewerJID = resolvedJID
+		return resolvedJID
+	}
+	return viewerJID
+}
+
+type statusViewReceiptClassification struct {
+	ViewerJID  types.JID
+	MessageIDs []types.MessageID
+	Reason     string
+}
+
+func classifyStatusViewReceipt(
+	receipt *events.Receipt,
+	viewerJID types.JID,
+	ownJID types.JID,
+	ownLID types.JID,
+	knownOwnStatusIDs map[types.MessageID]struct{},
+) statusViewReceiptClassification {
+	classification := statusViewReceiptClassification{ViewerJID: viewerJID}
+	if receipt == nil || !isStatusBroadcastReceipt(receipt) {
+		classification.Reason = "not_status_broadcast"
+		return classification
+	}
+	if !isStatusViewReceiptType(receipt.Type) {
+		classification.Reason = "unsupported_receipt_type"
+		return classification
+	}
+	if len(receipt.MessageIDs) == 0 {
+		classification.Reason = "missing_message_ids"
+		return classification
 	}
 	if viewerJID.IsEmpty() {
-		log.Printf("Skipping Status view receipt with no viewer JID on channel %s", channelID)
+		classification.Reason = "missing_participant"
+		return classification
+	}
+	if isCurrentStatusAccountJID(viewerJID, ownJID, ownLID) {
+		// A linked device reporting that we read somebody else's Status is not a
+		// viewer of our own Status.
+		classification.Reason = "self_participant"
+		return classification
+	}
+
+	for _, messageID := range receipt.MessageIDs {
+		if _, ok := knownOwnStatusIDs[messageID]; ok {
+			classification.MessageIDs = append(classification.MessageIDs, messageID)
+		}
+	}
+	if len(classification.MessageIDs) > 0 {
+		return classification
+	}
+
+	// WhatsApp normally exposes the Status owner in the recipient field. In
+	// LID-addressed variants that field can be empty or not match the phone JID,
+	// so it is a compatibility fallback rather than the only proof. The source
+	// IDs above are the authoritative path when the Status is already persisted.
+	if isCurrentStatusAccountJID(receipt.MessageSender, ownJID, ownLID) ||
+		isCurrentStatusAccountJID(receipt.BroadcastListOwner, ownJID, ownLID) {
+		classification.MessageIDs = append(classification.MessageIDs, receipt.MessageIDs...)
+		return classification
+	}
+
+	classification.Reason = "no_matching_own_status"
+	return classification
+}
+
+func isCurrentStatusAccountJID(candidate types.JID, ownJID types.JID, ownLID types.JID) bool {
+	return sameBareJID(candidate, ownJID) || sameBareJID(candidate, ownLID)
+}
+
+func ownStatusReceiptMessageIDs(inboxID string, messageIDs []types.MessageID) (map[types.MessageID]struct{}, error) {
+	knownIDs := make(map[types.MessageID]struct{})
+	if inboxID == "" || len(messageIDs) == 0 {
+		return knownIDs, nil
+	}
+
+	statusIDs := make([]string, 0, len(messageIDs))
+	for _, messageID := range messageIDs {
+		if messageID != "" {
+			statusIDs = append(statusIDs, string(messageID))
+		}
+	}
+	if len(statusIDs) == 0 {
+		return knownIDs, nil
+	}
+
+	dbURI := os.Getenv("DATABASE_URL")
+	if dbURI == "" {
+		dbURI = "postgres://postgres:StagingPassword123!@chatwoot-staging-db:5432/chatwoot_staging?sslmode=disable"
+	}
+	db, err := sql.Open("postgres", dbURI)
+	if err != nil {
+		return knownIDs, err
+	}
+	defer db.Close()
+
+	rows, err := db.Query(`
+		SELECT source_id
+		FROM whatsmeow_statuses
+		WHERE inbox_id = $1 AND from_me = TRUE AND source_id = ANY($2)
+	`, inboxID, pq.Array(statusIDs))
+	if err != nil {
+		return knownIDs, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var sourceID string
+		if err := rows.Scan(&sourceID); err != nil {
+			return knownIDs, err
+		}
+		knownIDs[types.MessageID(sourceID)] = struct{}{}
+	}
+	return knownIDs, rows.Err()
+}
+
+func logUnclassifiedStatusReceipt(channelID string, receipt *events.Receipt, viewerJID types.JID, reason string) {
+	if receipt == nil {
 		return
 	}
-	if isCurrentClientJID(client, viewerJID) {
-		return
+
+	messageIDs := make([]string, 0, min(len(receipt.MessageIDs), 10))
+	for _, messageID := range receipt.MessageIDs {
+		if messageID == "" {
+			continue
+		}
+		messageIDs = append(messageIDs, string(messageID))
+		if len(messageIDs) == 10 {
+			break
+		}
 	}
+
+	log.Printf(
+		"Unclassified WhatsApp Status receipt channel=%s reason=%s type=%s chat=%s participant=%s sender_alt=%s message_sender=%s broadcast_owner=%s ids=%s",
+		channelID,
+		reason,
+		receipt.Type,
+		jidString(receipt.Chat),
+		jidString(receipt.Sender),
+		jidString(receipt.SenderAlt),
+		jidString(receipt.MessageSender),
+		jidString(receipt.BroadcastListOwner),
+		strings.Join(messageIDs, ","),
+	)
+}
+
+func processStatusViewReceiptForInbox(
+	channelID string,
+	accountID string,
+	client *whatsmeow.Client,
+	receipt *events.Receipt,
+	viewerJID types.JID,
+	messageIDs []types.MessageID,
+) {
 
 	viewerName := getContactDisplayName(client, viewerJID, "")
 	if viewerName == "" {
@@ -2592,7 +2765,7 @@ func processStatusViewReceiptForInbox(channelID string, accountID string, client
 	viewerPhone := phoneNumberFromJID(viewerJID)
 	viewerProfilePictureURL := getProfilePictureURL(client, viewerJID)
 
-	for _, messageID := range receipt.MessageIDs {
+	for _, messageID := range messageIDs {
 		if messageID == "" {
 			continue
 		}

@@ -119,6 +119,7 @@ const toggleInbox = inbox => {
       >
         <DropdownSection height="max-h-72">
           <DropdownItem
+            type="button"
             preserve-open
             :click="toggleAll"
             role="checkbox"
@@ -165,6 +166,7 @@ const toggleInbox = inbox => {
           <DropdownItem
             v-for="inbox in inboxes"
             :key="inbox.id"
+            type="button"
             preserve-open
             :click="() => toggleInbox(inbox)"
             role="checkbox"

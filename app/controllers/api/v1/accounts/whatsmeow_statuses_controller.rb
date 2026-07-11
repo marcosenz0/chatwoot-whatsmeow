@@ -1,6 +1,6 @@
 class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseController
   before_action :set_inbox, only: [:index, :create]
-  before_action :set_status, only: [:view, :reply, :viewers]
+  before_action :set_status, only: [:view, :reply, :viewers, :preview]
 
   def index
     statuses = @inbox.whatsmeow_statuses.active
@@ -54,6 +54,15 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
       payload: viewers.map { |viewer| status_viewer_payload(viewer) },
       meta: { count: viewers.size }
     }
+  end
+
+  def preview
+    return head :not_found unless @status.from_me?
+
+    viewer_counts = { @status.id => @status.status_viewers.count }
+    payload = status_payload(@status, {}, viewer_counts)
+    payload[:inbox_name] = @status.inbox.name
+    render json: { payload: payload }
   end
 
   private

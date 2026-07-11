@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_10_130000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_10_150000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -618,6 +618,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_10_130000) do
     t.boolean "read_messages", default: false, null: false
     t.boolean "ignore_groups", default: false, null: false
     t.boolean "ignore_status", default: false, null: false
+    t.boolean "hide_status_views", default: false, null: false
     t.boolean "ignore_newsletters", default: true, null: false
     t.index ["phone_number"], name: "index_channel_whatsmeow_on_phone_number"
   end

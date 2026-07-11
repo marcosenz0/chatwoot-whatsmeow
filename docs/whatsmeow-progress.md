@@ -177,6 +177,9 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Status updates now separate unseen updates from the `Vistos`/Seen section. The permanent action beside `Meu status` keeps publishing additional updates available after the first one.
 - The Status viewer supports text replies, emoji reactions, saved stickers, audio mute/unmute, and the native WhatsApp Status context needed for the reply to appear in the contact's direct chat.
 - Read/played receipts for Status published from this account are stored as per-contact viewers and exposed through the viewer count/list in the Status viewer. A status viewer never creates a Chatwoot conversation.
+- Status receipt classification now accepts both read and played protocol variants, resolves LID participants, and confirms the Status source ID belongs to the inbox before recording a viewer. This avoids counting this account's own reads of somebody else's Status while keeping valid external views.
+- The Status three-dot menu can independently hide or show this inbox's outgoing view confirmations. It defaults to showing them; when hidden, Chatwoot still records the operator's local view but does not ask WhatsApp to send the receipt.
+- WhatsApp replies to an active own Status now retain a Status reference in the direct conversation. The message bubble displays a clickable media/text preview that reopens the original Status context instead of showing an ambiguous generic quoted message.
 - Received video Status media now keeps normalized video MIME metadata and a compact JPEG thumbnail. The viewer uses that thumbnail (or one lightweight frame capture for older records) for the stronger blurred media backdrop without starting a second foreground video decode.
 
 ## Product Decisions

@@ -124,6 +124,7 @@ Rails.application.routes.draw do
             post :view, on: :member
             post :reply, on: :member
             get :viewers, on: :member
+            get :preview, on: :member
           end
           resources :assignable_agents, only: [:index]
           resource :audit_logs, only: [:show]

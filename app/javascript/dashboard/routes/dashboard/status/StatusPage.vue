@@ -320,6 +320,12 @@ const onViewed = statusId => {
   );
 };
 
+const onViewersUpdated = ({ statusId, count }) => {
+  statuses.value = statuses.value.map(status =>
+    status.id === statusId ? { ...status, viewer_count: count } : status
+  );
+};
+
 const setInboxUpdating = (inboxId, isUpdating) => {
   const ids = new Set(updatingStatusInboxIds.value);
   if (isUpdating) ids.add(inboxId);
@@ -344,6 +350,27 @@ const updateStatusEnabled = async ({ inbox, enabled }) => {
     if (enabled) fetchStatuses({ silent: true });
   } catch {
     useAlert(t('WHATSAPP_STATUS.STATUS_UPDATE_ERROR'));
+  } finally {
+    setInboxUpdating(inbox.id, false);
+  }
+};
+
+const updateStatusViewsEnabled = async ({ inbox, enabled }) => {
+  if (!inbox || updatingStatusInboxIds.value.includes(inbox.id)) return;
+
+  setInboxUpdating(inbox.id, true);
+  try {
+    await store.dispatch('inboxes/updateInbox', {
+      id: inbox.id,
+      formData: false,
+      channel: { hide_status_views: !enabled },
+    });
+    const message = enabled
+      ? t('WHATSAPP_STATUS.STATUS_VIEWS_ENABLED', { inbox: inbox.name })
+      : t('WHATSAPP_STATUS.STATUS_VIEWS_DISABLED', { inbox: inbox.name });
+    useAlert(message);
+  } catch {
+    useAlert(t('WHATSAPP_STATUS.STATUS_VIEWS_UPDATE_ERROR'));
   } finally {
     setInboxUpdating(inbox.id, false);
   }
@@ -421,7 +448,7 @@ onBeforeUnmount(() => {
         class="flex h-full min-h-0 w-full flex-col border-n-weak bg-n-solid-1 md:max-w-[26rem] md:border-r"
         :aria-label="t('WHATSAPP_STATUS.TITLE')"
       >
-        <header class="border-b border-n-weak px-5 pb-4 pt-5">
+        <header class="relative z-20 border-b border-n-weak px-5 pb-4 pt-5">
           <div class="flex items-center justify-between gap-3">
             <h1 class="mb-0 text-xl font-semibold text-n-slate-12">
               {{ t('WHATSAPP_STATUS.TITLE') }}
@@ -432,15 +459,7 @@ onBeforeUnmount(() => {
                 :inboxes="targetInboxes"
                 :updating-inbox-ids="updatingStatusInboxIds"
                 @toggle="updateStatusEnabled"
-              />
-              <Button
-                v-if="isAdmin"
-                icon="i-lucide-plus"
-                color="slate"
-                variant="ghost"
-                size="lg"
-                :aria-label="t('WHATSAPP_STATUS.ADD_STATUS')"
-                @click="openComposer"
+                @toggle-views="updateStatusViewsEnabled"
               />
             </div>
           </div>
@@ -728,6 +747,7 @@ onBeforeUnmount(() => {
         :initial-status-index="viewerStatusIndex"
         @close="isViewerOpen = false"
         @viewed="onViewed"
+        @viewers-updated="onViewersUpdated"
       />
     </template>
   </div>

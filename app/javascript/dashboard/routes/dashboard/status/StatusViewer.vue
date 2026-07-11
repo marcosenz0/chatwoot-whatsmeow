@@ -34,7 +34,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['close', 'viewed']);
+const emit = defineEmits(['close', 'viewed', 'viewersUpdated']);
 
 const { t } = useI18n();
 const { formatStatusTime } = useStatusTime();
@@ -60,11 +60,14 @@ const showStickerPicker = ref(false);
 const showViewers = ref(false);
 const isLoadingViewers = ref(false);
 const viewers = ref([]);
-const viewersStatusId = ref(null);
+const viewersCountOverride = ref(null);
 
 let progressFrame = null;
 let progressStartedAt = 0;
 let pausedByVisibility = false;
+let shouldResumeAfterPointerHold = false;
+let activePointerId = null;
+let viewersRefreshTimer = null;
 
 const currentGroup = computed(() => props.groups[groupIndex.value]);
 const currentStatus = computed(
@@ -91,8 +94,9 @@ const videoBackdropUrl = computed(
 );
 const isOwnStatus = computed(() => Boolean(currentStatus.value?.from_me));
 const canReply = computed(() => !isOwnStatus.value);
-const viewerCount = computed(() =>
-  Number(currentStatus.value?.viewer_count || 0)
+const viewerCount = computed(
+  () =>
+    viewersCountOverride.value ?? Number(currentStatus.value?.viewer_count || 0)
 );
 const canGoPrevious = computed(
   () => statusIndex.value > 0 || groupIndex.value > 0
@@ -190,6 +194,13 @@ const cancelProgressFrame = () => {
   progressFrame = null;
 };
 
+const stopViewersRefresh = () => {
+  if (!viewersRefreshTimer) return;
+
+  window.clearInterval(viewersRefreshTimer);
+  viewersRefreshTimer = null;
+};
+
 const closeMenus = () => {
   showEmojiPicker.value = false;
   showStickerPicker.value = false;
@@ -270,6 +281,23 @@ const playCurrentMedia = async () => {
   }
 };
 
+const pauseCurrentStatus = () => {
+  if (isDurationMedia.value && mediaRef.value) mediaRef.value.pause();
+
+  isPaused.value = true;
+  cancelProgressFrame();
+};
+
+const resumeCurrentStatus = () => {
+  if (isDurationMedia.value) {
+    playCurrentMedia();
+    return;
+  }
+
+  isPaused.value = false;
+  startTimedProgress();
+};
+
 const markCurrentViewed = async () => {
   const status = currentStatus.value;
   if (!status || status.from_me || status.viewed) return;
@@ -292,7 +320,8 @@ const prepareCurrentStatus = async () => {
   replyText.value = '';
   showViewers.value = false;
   viewers.value = [];
-  viewersStatusId.value = null;
+  viewersCountOverride.value = null;
+  stopViewersRefresh();
   closeMenus();
   markCurrentViewed();
   await nextTick();
@@ -305,19 +334,8 @@ const prepareCurrentStatus = async () => {
 };
 
 const togglePause = () => {
-  if (isDurationMedia.value && mediaRef.value) {
-    if (mediaRef.value.paused) {
-      playCurrentMedia();
-    } else {
-      mediaRef.value.pause();
-      isPaused.value = true;
-    }
-    return;
-  }
-
-  isPaused.value = !isPaused.value;
-  if (isPaused.value) cancelProgressFrame();
-  else startTimedProgress();
+  if (isPaused.value) resumeCurrentStatus();
+  else pauseCurrentStatus();
 };
 
 const toggleMute = () => {
@@ -382,6 +400,29 @@ const onMediaError = () => {
   isPaused.value = true;
 };
 
+const onMediaPointerDown = event => {
+  if (event.button !== undefined && event.button !== 0) return;
+
+  activePointerId = event.pointerId;
+  shouldResumeAfterPointerHold = !isPaused.value;
+  event.currentTarget?.setPointerCapture?.(event.pointerId);
+  if (shouldResumeAfterPointerHold) pauseCurrentStatus();
+};
+
+const onMediaPointerEnd = event => {
+  if (activePointerId !== null && event.pointerId !== activePointerId) return;
+
+  activePointerId = null;
+  if (shouldResumeAfterPointerHold && isPaused.value) resumeCurrentStatus();
+  shouldResumeAfterPointerHold = false;
+};
+
+const handleViewerClick = event => {
+  if (event.target?.closest?.('[data-status-interactive]')) return;
+
+  emit('close');
+};
+
 const sendReply = async () => {
   const content = replyText.value.trim();
   if (!content || !canReply.value || isReplying.value) return;
@@ -438,27 +479,44 @@ const sendSticker = async sticker => {
   }
 };
 
-const openViewers = async () => {
+const loadViewers = async ({ silent = false } = {}) => {
   if (!isOwnStatus.value) return;
 
-  showViewers.value = true;
-  if (viewersStatusId.value === currentStatus.value.id) return;
-
-  isLoadingViewers.value = true;
+  if (!silent) isLoadingViewers.value = true;
   try {
     const { data } = await WhatsmeowStatusesAPI.getViewers(
       currentStatus.value.id
     );
     viewers.value = data.payload || [];
-    viewersStatusId.value = currentStatus.value.id;
-  } catch (error) {
-    showViewers.value = false;
-    useAlert(
-      error.response?.data?.message || t('WHATSAPP_STATUS.VIEWER.VIEWERS_ERROR')
+    viewersCountOverride.value = Number(
+      data.meta?.count ?? viewers.value.length
     );
+    emit('viewersUpdated', {
+      statusId: currentStatus.value.id,
+      count: viewersCountOverride.value,
+    });
+  } catch (error) {
+    if (!silent) {
+      useAlert(
+        error.response?.data?.message ||
+          t('WHATSAPP_STATUS.VIEWER.VIEWERS_ERROR')
+      );
+    }
   } finally {
-    isLoadingViewers.value = false;
+    if (!silent) isLoadingViewers.value = false;
   }
+};
+
+const openViewers = async () => {
+  if (!isOwnStatus.value) return;
+
+  showViewers.value = true;
+  await loadViewers();
+  stopViewersRefresh();
+  viewersRefreshTimer = window.setInterval(
+    () => loadViewers({ silent: true }),
+    10000
+  );
 };
 
 const onKeyDown = event => {
@@ -491,15 +549,24 @@ const onVisibilityChange = () => {
 
 watch([groupIndex, statusIndex], prepareCurrentStatus, { immediate: true });
 
+watch(showViewers, isOpen => {
+  if (!isOpen) stopViewersRefresh();
+});
+
 onMounted(() => {
   window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('pointerup', onMediaPointerEnd);
+  window.addEventListener('pointercancel', onMediaPointerEnd);
   document.addEventListener('visibilitychange', onVisibilityChange);
   nextTick(() => closeButtonRef.value?.focus());
 });
 
 onBeforeUnmount(() => {
   cancelProgressFrame();
+  stopViewersRefresh();
   window.removeEventListener('keydown', onKeyDown);
+  window.removeEventListener('pointerup', onMediaPointerEnd);
+  window.removeEventListener('pointercancel', onMediaPointerEnd);
   document.removeEventListener('visibilitychange', onVisibilityChange);
 });
 </script>
@@ -511,11 +578,12 @@ onBeforeUnmount(() => {
       aria-modal="true"
       :aria-label="t('WHATSAPP_STATUS.TITLE')"
       class="fixed inset-0 z-[1000] flex min-h-dvh flex-col overflow-hidden bg-black text-white"
+      @click="handleViewerClick"
     >
       <header
         class="absolute inset-x-0 top-0 z-30 flex items-start justify-center px-4 pb-4 pt-4 sm:px-8"
       >
-        <div class="w-full max-w-[34rem] pr-12 sm:pr-0">
+        <div data-status-interactive class="w-full max-w-[34rem] pr-12 sm:pr-0">
           <div class="flex w-full gap-1" aria-hidden="true">
             <progress
               v-for="(_, index) in currentGroup.items"
@@ -542,7 +610,7 @@ onBeforeUnmount(() => {
               </p>
             </div>
             <button
-              v-if="isVideo || isAudio"
+              v-if="currentStatus"
               type="button"
               class="flex size-11 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
               :aria-label="
@@ -579,6 +647,7 @@ onBeforeUnmount(() => {
         <button
           ref="closeButtonRef"
           type="button"
+          data-status-interactive
           class="absolute right-3 top-3 flex size-12 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:right-6 sm:top-4"
           :aria-label="t('WHATSAPP_STATUS.VIEWER.CLOSE')"
           @click="emit('close')"
@@ -619,8 +688,12 @@ onBeforeUnmount(() => {
 
         <div
           v-if="currentType === 'text'"
+          data-status-interactive
           class="relative z-10 flex aspect-[9/16] max-h-[calc(100dvh-9rem)] w-full max-w-[28rem] items-center justify-center overflow-hidden rounded-md p-8 shadow-2xl"
           :class="statusBackgroundClass"
+          @pointerdown="onMediaPointerDown"
+          @pointerup="onMediaPointerEnd"
+          @pointercancel="onMediaPointerEnd"
         >
           <p
             class="mb-0 max-w-full whitespace-pre-wrap break-words text-center text-2xl leading-relaxed sm:text-3xl"
@@ -632,11 +705,15 @@ onBeforeUnmount(() => {
 
         <div
           v-else
+          data-status-interactive
           class="relative z-10 flex max-h-[calc(100dvh-9rem)] max-w-full items-center justify-center overflow-hidden rounded-md bg-black shadow-2xl"
           :class="{
             'aspect-[9/16] w-full max-w-[28rem] bg-n-slate-11':
               isAudio || hasMediaError,
           }"
+          @pointerdown="onMediaPointerDown"
+          @pointerup="onMediaPointerEnd"
+          @pointercancel="onMediaPointerEnd"
         >
           <Spinner
             v-if="isMediaLoading"
@@ -741,6 +818,7 @@ onBeforeUnmount(() => {
 
       <div
         v-if="canReply"
+        data-status-interactive
         class="absolute inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-4 sm:px-8"
       >
         <div class="relative flex w-full max-w-[34rem] items-end gap-2">
@@ -793,16 +871,18 @@ onBeforeUnmount(() => {
             @click="sendReply"
           >
             <Icon
-              :icon="isReplying ? 'i-lucide-loader-circle' : 'i-lucide-send'"
-              class="size-5"
-              :class="{ 'animate-spin motion-reduce:animate-none': isReplying }"
+              v-if="isReplying"
+              icon="i-lucide-loader-circle"
+              class="size-5 animate-spin motion-reduce:animate-none"
             />
+            <Icon v-else icon="i-lucide-send" class="size-5 text-n-slate-12" />
           </button>
         </div>
       </div>
 
       <div
         v-else
+        data-status-interactive
         class="absolute inset-x-0 bottom-0 z-30 flex justify-center px-4 pb-4 sm:px-8"
       >
         <div class="relative flex w-full max-w-[34rem] justify-center">
@@ -893,6 +973,7 @@ onBeforeUnmount(() => {
 
       <button
         type="button"
+        data-status-interactive
         class="absolute left-2 top-1/2 z-20 flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-30 sm:left-6"
         :disabled="!canGoPrevious"
         :aria-label="t('WHATSAPP_STATUS.VIEWER.PREVIOUS')"
@@ -903,6 +984,7 @@ onBeforeUnmount(() => {
 
       <button
         type="button"
+        data-status-interactive
         class="absolute right-2 top-1/2 z-20 flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:right-6"
         :aria-label="t('WHATSAPP_STATUS.VIEWER.NEXT')"
         @click="nextStatus"
