@@ -5,10 +5,10 @@ class Whatsmeow::SendStatusReadReceiptJob < ApplicationJob
 
   def perform(status_id)
     status = WhatsmeowStatus.find_by(id: status_id)
-    return if status.blank? || status.from_me? || status.read_receipt_sent_at.present?
+    return if status.blank? || status.from_me? || status.read_receipt_sent_at.present? || status.inbox.channel.hide_status_views?
 
     status.with_lock do
-      next if status.read_receipt_sent_at.present?
+      next if status.read_receipt_sent_at.present? || status.inbox.channel.hide_status_views?
 
       Whatsmeow::SessionClient.new(inbox: status.inbox).mark_status_read(
         message_id: status.source_id,
