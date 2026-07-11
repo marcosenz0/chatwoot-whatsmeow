@@ -53,6 +53,7 @@ var (
 	groupNameCache      = make(map[string]cacheEntry)
 	groupNameMu         sync.RWMutex
 	dbContainer         *sqlstore.Container
+	statusLookupDB      *sql.DB
 	webhookURL          string
 )
 
@@ -258,6 +259,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
+	statusLookupDB, err = sql.Open("postgres", dbURI)
+	if err != nil {
+		log.Fatalf("Failed to open Status receipt database connection: %v", err)
+	}
+	statusLookupDB.SetMaxOpenConns(5)
+	statusLookupDB.SetMaxIdleConns(2)
 
 	// Auto-restore previous logins
 	go restoreSessions()
@@ -2530,8 +2537,16 @@ func processEventForInbox(channelID string, accountID string, client *whatsmeow.
 }
 
 func processReceiptForInbox(channelID string, accountID string, client *whatsmeow.Client, receipt *events.Receipt) {
+	if receipt == nil {
+		return
+	}
+
+	// Status view receipts are not always delivered with status@broadcast as
+	// the chat. Check every read/played receipt against our persisted outgoing
+	// Status IDs before falling through to the regular message receipt flow.
+	processStatusReceiptForInbox(channelID, accountID, client, receipt)
+
 	if isStatusBroadcastReceipt(receipt) {
-		processStatusReceiptForInbox(channelID, accountID, client, receipt)
 		return
 	}
 
@@ -2567,14 +2582,8 @@ func isStatusBroadcastReceipt(receipt *events.Receipt) bool {
 }
 
 func processStatusReceiptForInbox(channelID string, accountID string, client *whatsmeow.Client, receipt *events.Receipt) {
-	if !isStatusViewReceiptType(receipt.Type) {
-		logUnclassifiedStatusReceipt(channelID, receipt, types.JID{}, "unsupported_receipt_type")
+	if receipt == nil || !isStatusViewReceiptType(receipt.Type) || len(receipt.MessageIDs) == 0 {
 		return
-	}
-
-	knownOwnStatusIDs, err := ownStatusReceiptMessageIDs(channelID, receipt.MessageIDs)
-	if err != nil {
-		log.Printf("Failed to look up Status receipt IDs on channel %s: %v", channelID, err)
 	}
 
 	viewerJID := statusReceiptViewerJID(client, receipt)
@@ -2584,13 +2593,28 @@ func processStatusReceiptForInbox(channelID string, accountID string, client *wh
 		ownLID = client.Store.LID.ToNonAD()
 	}
 
-	classification := classifyStatusViewReceipt(receipt, viewerJID, ownJID, ownLID, knownOwnStatusIDs)
-	if len(classification.MessageIDs) == 0 {
-		logUnclassifiedStatusReceipt(channelID, receipt, viewerJID, classification.Reason)
+	if viewerJID.IsEmpty() || isCurrentStatusAccountJID(viewerJID, ownJID, ownLID) {
 		return
 	}
 
-	processStatusViewReceiptForInbox(channelID, accountID, client, receipt, classification.ViewerJID, classification.MessageIDs)
+	knownOwnStatusIDs, err := ownStatusReceiptMessageIDs(channelID, receipt.MessageIDs)
+	if err != nil {
+		log.Printf("Failed to look up Status receipt IDs on channel %s: %v", channelID, err)
+	}
+
+	messageIDs := matchingStatusReceiptMessageIDs(receipt.MessageIDs, knownOwnStatusIDs)
+	if len(messageIDs) == 0 && statusReceiptCanUseRailsFallback(receipt, ownJID, ownLID) {
+		// Rails is the final authority: StatusViewReceiptService only accepts IDs
+		// that belong to outgoing Status records in this inbox. Forwarding the
+		// candidate IDs here covers LID/owner variants and persistence races.
+		messageIDs = nonEmptyMessageIDs(receipt.MessageIDs)
+	}
+	if len(messageIDs) == 0 {
+		return
+	}
+
+	log.Printf("Forwarding %d Status view receipt candidate(s) on channel %s", len(messageIDs), channelID)
+	processStatusViewReceiptForInbox(channelID, accountID, client, receipt, viewerJID, messageIDs)
 }
 
 func isStatusViewReceiptType(receiptType types.ReceiptType) bool {
@@ -2609,68 +2633,34 @@ func statusReceiptViewerJID(client *whatsmeow.Client, receipt *events.Receipt) t
 	return viewerJID
 }
 
-type statusViewReceiptClassification struct {
-	ViewerJID  types.JID
-	MessageIDs []types.MessageID
-	Reason     string
-}
-
-func classifyStatusViewReceipt(
-	receipt *events.Receipt,
-	viewerJID types.JID,
-	ownJID types.JID,
-	ownLID types.JID,
-	knownOwnStatusIDs map[types.MessageID]struct{},
-) statusViewReceiptClassification {
-	classification := statusViewReceiptClassification{ViewerJID: viewerJID}
-	if receipt == nil || !isStatusBroadcastReceipt(receipt) {
-		classification.Reason = "not_status_broadcast"
-		return classification
-	}
-	if !isStatusViewReceiptType(receipt.Type) {
-		classification.Reason = "unsupported_receipt_type"
-		return classification
-	}
-	if len(receipt.MessageIDs) == 0 {
-		classification.Reason = "missing_message_ids"
-		return classification
-	}
-	if viewerJID.IsEmpty() {
-		classification.Reason = "missing_participant"
-		return classification
-	}
-	if isCurrentStatusAccountJID(viewerJID, ownJID, ownLID) {
-		// A linked device reporting that we read somebody else's Status is not a
-		// viewer of our own Status.
-		classification.Reason = "self_participant"
-		return classification
-	}
-
-	for _, messageID := range receipt.MessageIDs {
-		if _, ok := knownOwnStatusIDs[messageID]; ok {
-			classification.MessageIDs = append(classification.MessageIDs, messageID)
-		}
-	}
-	if len(classification.MessageIDs) > 0 {
-		return classification
-	}
-
-	// WhatsApp normally exposes the Status owner in the recipient field. In
-	// LID-addressed variants that field can be empty or not match the phone JID,
-	// so it is a compatibility fallback rather than the only proof. The source
-	// IDs above are the authoritative path when the Status is already persisted.
-	if isCurrentStatusAccountJID(receipt.MessageSender, ownJID, ownLID) ||
-		isCurrentStatusAccountJID(receipt.BroadcastListOwner, ownJID, ownLID) {
-		classification.MessageIDs = append(classification.MessageIDs, receipt.MessageIDs...)
-		return classification
-	}
-
-	classification.Reason = "no_matching_own_status"
-	return classification
-}
-
 func isCurrentStatusAccountJID(candidate types.JID, ownJID types.JID, ownLID types.JID) bool {
 	return sameBareJID(candidate, ownJID) || sameBareJID(candidate, ownLID)
+}
+
+func matchingStatusReceiptMessageIDs(messageIDs []types.MessageID, knownOwnStatusIDs map[types.MessageID]struct{}) []types.MessageID {
+	matched := make([]types.MessageID, 0, len(messageIDs))
+	for _, messageID := range messageIDs {
+		if _, ok := knownOwnStatusIDs[messageID]; ok {
+			matched = append(matched, messageID)
+		}
+	}
+	return matched
+}
+
+func nonEmptyMessageIDs(messageIDs []types.MessageID) []types.MessageID {
+	result := make([]types.MessageID, 0, len(messageIDs))
+	for _, messageID := range messageIDs {
+		if messageID != "" {
+			result = append(result, messageID)
+		}
+	}
+	return result
+}
+
+func statusReceiptCanUseRailsFallback(receipt *events.Receipt, ownJID types.JID, ownLID types.JID) bool {
+	return isStatusBroadcastReceipt(receipt) ||
+		isCurrentStatusAccountJID(receipt.MessageSender, ownJID, ownLID) ||
+		isCurrentStatusAccountJID(receipt.BroadcastListOwner, ownJID, ownLID)
 }
 
 func ownStatusReceiptMessageIDs(inboxID string, messageIDs []types.MessageID) (map[types.MessageID]struct{}, error) {
@@ -2689,17 +2679,13 @@ func ownStatusReceiptMessageIDs(inboxID string, messageIDs []types.MessageID) (m
 		return knownIDs, nil
 	}
 
-	dbURI := os.Getenv("DATABASE_URL")
-	if dbURI == "" {
-		dbURI = "postgres://postgres:StagingPassword123!@chatwoot-staging-db:5432/chatwoot_staging?sslmode=disable"
+	if statusLookupDB == nil {
+		return knownIDs, errors.New("Status receipt database is not initialized")
 	}
-	db, err := sql.Open("postgres", dbURI)
-	if err != nil {
-		return knownIDs, err
-	}
-	defer db.Close()
 
-	rows, err := db.Query(`
+	queryCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	rows, err := statusLookupDB.QueryContext(queryCtx, `
 		SELECT source_id
 		FROM whatsmeow_statuses
 		WHERE inbox_id = $1 AND from_me = TRUE AND source_id = ANY($2)
@@ -2717,36 +2703,6 @@ func ownStatusReceiptMessageIDs(inboxID string, messageIDs []types.MessageID) (m
 		knownIDs[types.MessageID(sourceID)] = struct{}{}
 	}
 	return knownIDs, rows.Err()
-}
-
-func logUnclassifiedStatusReceipt(channelID string, receipt *events.Receipt, viewerJID types.JID, reason string) {
-	if receipt == nil {
-		return
-	}
-
-	messageIDs := make([]string, 0, min(len(receipt.MessageIDs), 10))
-	for _, messageID := range receipt.MessageIDs {
-		if messageID == "" {
-			continue
-		}
-		messageIDs = append(messageIDs, string(messageID))
-		if len(messageIDs) == 10 {
-			break
-		}
-	}
-
-	log.Printf(
-		"Unclassified WhatsApp Status receipt channel=%s reason=%s type=%s chat=%s participant=%s sender_alt=%s message_sender=%s broadcast_owner=%s ids=%s",
-		channelID,
-		reason,
-		receipt.Type,
-		jidString(receipt.Chat),
-		jidString(receipt.Sender),
-		jidString(receipt.SenderAlt),
-		jidString(receipt.MessageSender),
-		jidString(receipt.BroadcastListOwner),
-		strings.Join(messageIDs, ","),
-	)
 }
 
 func processStatusViewReceiptForInbox(
@@ -3015,6 +2971,8 @@ func isStatusMessage(info types.MessageInfo) bool {
 }
 
 func processStatusForInbox(channelID string, accountID string, client *whatsmeow.Client, messageEvent *events.Message) {
+	processStatusUserReceiptsForInbox(channelID, accountID, client, messageEvent)
+
 	messageText := extractMessageText(messageEvent.Message)
 	attachments := extractMediaAttachments(client, messageEvent.Message)
 	if messageText == "" && len(attachments) == 0 {
@@ -3062,6 +3020,75 @@ func processStatusForInbox(channelID string, accountID string, client *whatsmeow
 	}
 	log.Printf("Received Status from %s on channel %s: %s", jidString(senderJID), channelID, messageEvent.Info.ID)
 	sendWebhookNotification(accountID, channelID, payload)
+}
+
+func processStatusUserReceiptsForInbox(channelID string, accountID string, client *whatsmeow.Client, messageEvent *events.Message) {
+	if messageEvent == nil || !messageEvent.Info.IsFromMe || messageEvent.Info.ID == "" || messageEvent.SourceWebMsg == nil {
+		return
+	}
+
+	ownJID, _ := currentClientJID(client)
+	ownLID := types.JID{}
+	if client != nil && client.Store != nil {
+		ownLID = client.Store.LID.ToNonAD()
+	}
+
+	processed := 0
+	for _, userReceipt := range messageEvent.SourceWebMsg.GetUserReceipt() {
+		if userReceipt == nil {
+			continue
+		}
+
+		receiptType, viewedAt := statusUserReceiptView(userReceipt.GetReadTimestamp(), userReceipt.GetPlayedTimestamp())
+		if viewedAt == 0 {
+			continue
+		}
+
+		viewerJID, ok := parseJID(userReceipt.GetUserJID())
+		if !ok {
+			continue
+		}
+		viewerJID = viewerJID.ToNonAD()
+		if resolvedJID := resolveStatusPhoneJID(client, viewerJID); !resolvedJID.IsEmpty() {
+			viewerJID = resolvedJID
+		}
+		if viewerJID.IsEmpty() || isCurrentStatusAccountJID(viewerJID, ownJID, ownLID) {
+			continue
+		}
+
+		receipt := &events.Receipt{
+			MessageSource: types.MessageSource{
+				Chat:   types.StatusBroadcastJID,
+				Sender: viewerJID,
+			},
+			MessageIDs: []types.MessageID{messageEvent.Info.ID},
+			Timestamp:  time.Unix(viewedAt, 0),
+			Type:       receiptType,
+		}
+		processStatusViewReceiptForInbox(channelID, accountID, client, receipt, viewerJID, receipt.MessageIDs)
+		processed++
+	}
+
+	if processed > 0 {
+		log.Printf("Recovered %d persisted Status view receipt(s) on channel %s", processed, channelID)
+	}
+}
+
+func statusUserReceiptView(readTimestamp int64, playedTimestamp int64) (types.ReceiptType, int64) {
+	if playedTimestamp > 0 {
+		return types.ReceiptTypePlayed, normalizeUnixTimestamp(playedTimestamp)
+	}
+	if readTimestamp > 0 {
+		return types.ReceiptTypeRead, normalizeUnixTimestamp(readTimestamp)
+	}
+	return "", 0
+}
+
+func normalizeUnixTimestamp(timestamp int64) int64 {
+	if timestamp > 10_000_000_000 {
+		return timestamp / 1000
+	}
+	return timestamp
 }
 
 func resolveStatusPhoneJID(client *whatsmeow.Client, jid types.JID) types.JID {
@@ -4788,7 +4815,8 @@ func jidString(jid types.JID) string {
 
 func sendWebhookNotification(accountID string, channelID string, payload map[string]interface{}) {
 	url := fmt.Sprintf(webhookURL, accountID, channelID)
-	log.Printf("Sending webhook payload to: %s", url)
+	eventName := fmt.Sprint(payload["event"])
+	log.Printf("Sending %s webhook payload to channel %s", eventName, channelID)
 
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -4798,21 +4826,42 @@ func sendWebhookNotification(accountID string, channelID string, payload map[str
 
 	go func() {
 		client := &http.Client{Timeout: 60 * time.Second}
-		req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
-		if err != nil {
-			log.Printf("Failed to create webhook callback request: %v", err)
-			return
+		for attempt := 1; attempt <= 4; attempt++ {
+			req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+			if err != nil {
+				log.Printf("Failed to create %s webhook callback request: %v", eventName, err)
+				return
+			}
+			req.Header.Set("Content-Type", "application/json")
+			if token := strings.TrimSpace(os.Getenv("WHATSMEOW_SHARED_SECRET")); token != "" {
+				req.Header.Set("X-Whatsmeow-Internal-Token", token)
+			}
+
+			res, requestErr := client.Do(req)
+			if requestErr == nil {
+				res.Body.Close()
+				if !shouldRetryWebhookStatus(res.StatusCode) {
+					log.Printf("%s webhook callback response status on channel %s: %s", eventName, channelID, res.Status)
+					return
+				}
+			}
+
+			if attempt == 4 {
+				if requestErr != nil {
+					log.Printf("Failed to send %s webhook callback on channel %s after %d attempts: %v", eventName, channelID, attempt, requestErr)
+				} else {
+					log.Printf("Failed to send %s webhook callback on channel %s after %d attempts: HTTP %d", eventName, channelID, attempt, res.StatusCode)
+				}
+				return
+			}
+
+			delay := time.Duration(1<<(attempt-1)) * time.Second
+			log.Printf("Retrying %s webhook callback on channel %s in %s (attempt %d/4)", eventName, channelID, delay, attempt+1)
+			time.Sleep(delay)
 		}
-		req.Header.Set("Content-Type", "application/json")
-		if token := strings.TrimSpace(os.Getenv("WHATSMEOW_SHARED_SECRET")); token != "" {
-			req.Header.Set("X-Whatsmeow-Internal-Token", token)
-		}
-		res, err := client.Do(req)
-		if err != nil {
-			log.Printf("Failed to send webhook callback: %v", err)
-			return
-		}
-		defer res.Body.Close()
-		log.Printf("Webhook callback response status: %s", res.Status)
 	}()
+}
+
+func shouldRetryWebhookStatus(statusCode int) bool {
+	return statusCode == http.StatusRequestTimeout || statusCode == http.StatusTooManyRequests || statusCode >= http.StatusInternalServerError
 }

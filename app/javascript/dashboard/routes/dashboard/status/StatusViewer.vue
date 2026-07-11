@@ -117,6 +117,36 @@ const BACKGROUND_CLASSES = {
   FF30363D: 'bg-n-slate-11',
 };
 
+const TEXT_BACKDROP_CLASSES = {
+  teal: 'bg-gradient-to-br from-n-teal-6 via-n-teal-10 to-n-slate-12',
+  blue: 'bg-gradient-to-br from-n-blue-6 via-n-blue-10 to-n-slate-12',
+  violet: 'bg-gradient-to-br from-n-violet-6 via-n-violet-10 to-n-slate-12',
+  amber: 'bg-gradient-to-br from-n-amber-6 via-n-amber-10 to-n-slate-12',
+  ruby: 'bg-gradient-to-br from-n-ruby-6 via-n-ruby-10 to-n-slate-12',
+  slate: 'bg-gradient-to-br from-n-slate-6 via-n-slate-10 to-n-slate-12',
+  FF0B8467: 'bg-gradient-to-br from-n-teal-6 via-n-teal-10 to-n-slate-12',
+  FF176BCE: 'bg-gradient-to-br from-n-blue-6 via-n-blue-10 to-n-slate-12',
+  FF6750A4: 'bg-gradient-to-br from-n-violet-6 via-n-violet-10 to-n-slate-12',
+  FFB85C00: 'bg-gradient-to-br from-n-amber-6 via-n-amber-10 to-n-slate-12',
+  FFA6294F: 'bg-gradient-to-br from-n-ruby-6 via-n-ruby-10 to-n-slate-12',
+  FF30363D: 'bg-gradient-to-br from-n-slate-6 via-n-slate-10 to-n-slate-12',
+};
+
+const TEXT_SURFACE_CLASSES = {
+  teal: 'bg-gradient-to-br from-n-teal-8 via-n-teal-9 to-n-teal-11',
+  blue: 'bg-gradient-to-br from-n-blue-8 via-n-blue-9 to-n-blue-11',
+  violet: 'bg-gradient-to-br from-n-violet-8 via-n-violet-9 to-n-violet-11',
+  amber: 'bg-gradient-to-br from-n-amber-8 via-n-amber-9 to-n-amber-11',
+  ruby: 'bg-gradient-to-br from-n-ruby-8 via-n-ruby-9 to-n-ruby-11',
+  slate: 'bg-gradient-to-br from-n-slate-8 via-n-slate-9 to-n-slate-11',
+  FF0B8467: 'bg-gradient-to-br from-n-teal-8 via-n-teal-9 to-n-teal-11',
+  FF176BCE: 'bg-gradient-to-br from-n-blue-8 via-n-blue-9 to-n-blue-11',
+  FF6750A4: 'bg-gradient-to-br from-n-violet-8 via-n-violet-9 to-n-violet-11',
+  FFB85C00: 'bg-gradient-to-br from-n-amber-8 via-n-amber-9 to-n-amber-11',
+  FFA6294F: 'bg-gradient-to-br from-n-ruby-8 via-n-ruby-9 to-n-ruby-11',
+  FF30363D: 'bg-gradient-to-br from-n-slate-8 via-n-slate-9 to-n-slate-11',
+};
+
 const FONT_CLASSES = {
   system: 'font-normal',
   bold: 'font-bold',
@@ -141,14 +171,28 @@ const argbKey = value => {
   return number.toString(16).padStart(8, '0').toUpperCase();
 };
 
-const statusBackgroundClass = computed(() => {
+const statusBackgroundKey = computed(() => {
   const metadata = currentStatus.value?.metadata || {};
+  return metadata.background || argbKey(metadata.background_argb);
+});
+
+const statusBackgroundClass = computed(() => {
   return (
-    BACKGROUND_CLASSES[metadata.background] ||
-    BACKGROUND_CLASSES[argbKey(metadata.background_argb)] ||
-    BACKGROUND_CLASSES.slate
+    BACKGROUND_CLASSES[statusBackgroundKey.value] || BACKGROUND_CLASSES.slate
   );
 });
+
+const statusTextBackdropClass = computed(
+  () =>
+    TEXT_BACKDROP_CLASSES[statusBackgroundKey.value] ||
+    TEXT_BACKDROP_CLASSES.slate
+);
+
+const statusTextSurfaceClass = computed(
+  () =>
+    TEXT_SURFACE_CLASSES[statusBackgroundKey.value] ||
+    TEXT_SURFACE_CLASSES.slate
+);
 
 const statusFontClass = computed(() => {
   const metadata = currentStatus.value?.metadata || {};
@@ -687,16 +731,46 @@ onBeforeUnmount(() => {
         </div>
 
         <div
+          v-else-if="currentType === 'text'"
+          class="pointer-events-none absolute inset-0 overflow-hidden bg-black"
+          aria-hidden="true"
+        >
+          <span
+            class="absolute -inset-24 scale-125 blur-[72px] saturate-150"
+            :class="statusBackgroundClass"
+          />
+          <span
+            class="absolute inset-0 opacity-95"
+            :class="statusTextBackdropClass"
+          />
+          <span
+            class="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/65"
+          />
+        </div>
+
+        <div
           v-if="currentType === 'text'"
           data-status-interactive
           class="relative z-10 flex aspect-[9/16] max-h-[calc(100dvh-9rem)] w-full max-w-[28rem] items-center justify-center overflow-hidden rounded-md p-8 shadow-2xl"
-          :class="statusBackgroundClass"
+          :class="[statusBackgroundClass, statusTextSurfaceClass]"
           @pointerdown="onMediaPointerDown"
           @pointerup="onMediaPointerEnd"
           @pointercancel="onMediaPointerEnd"
         >
+          <span
+            aria-hidden="true"
+            class="pointer-events-none absolute -left-20 -top-20 size-56 rounded-full bg-white/20 blur-3xl"
+          />
+          <span
+            aria-hidden="true"
+            class="pointer-events-none absolute -bottom-24 -right-20 size-64 rounded-full bg-black/20 blur-3xl"
+          />
+          <span
+            aria-hidden="true"
+            class="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/30"
+          />
           <p
-            class="mb-0 max-w-full whitespace-pre-wrap break-words text-center text-2xl leading-relaxed sm:text-3xl"
+            class="relative z-10 mb-0 max-w-full whitespace-pre-wrap break-words text-center text-2xl leading-relaxed drop-shadow-2xl sm:text-3xl"
             :class="statusTextClass"
           >
             {{ currentStatus.content }}

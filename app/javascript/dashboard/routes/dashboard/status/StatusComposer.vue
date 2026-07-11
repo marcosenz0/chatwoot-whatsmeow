@@ -6,6 +6,10 @@ import { useAlert } from 'dashboard/composables';
 import WhatsmeowStatusesAPI from 'dashboard/api/whatsmeowStatuses';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import DropdownBody from 'dashboard/components-next/dropdown-menu/base/DropdownBody.vue';
+import DropdownContainer from 'dashboard/components-next/dropdown-menu/base/DropdownContainer.vue';
+import DropdownItem from 'dashboard/components-next/dropdown-menu/base/DropdownItem.vue';
+import DropdownSection from 'dashboard/components-next/dropdown-menu/base/DropdownSection.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import StatusDestinationSelector from './StatusDestinationSelector.vue';
 
@@ -88,6 +92,11 @@ const previewBackgroundClass = computed(
     BACKGROUNDS[0].class
 );
 const previewFontClass = computed(() => FONT_CLASSES[font.value]);
+const selectedFontLabel = computed(
+  () =>
+    fontOptions.value.find(option => option.value === font.value)?.label ||
+    fontOptions.value[0].label
+);
 const isVideo = computed(() => mediaFile.value?.type.startsWith('video/'));
 const connectedInboxIds = computed(() =>
   props.inboxes
@@ -134,6 +143,10 @@ const open = (inboxIds = []) => {
 };
 
 const openFilePicker = () => fileInputRef.value?.click();
+
+const selectFont = value => {
+  font.value = value;
+};
 
 const onFileSelected = event => {
   const [file] = event.target.files;
@@ -324,25 +337,76 @@ defineExpose({ open });
       </fieldset>
 
       <div class="flex flex-col gap-2">
-        <label
-          for="whatsmeow-status-font"
-          class="text-sm font-medium text-n-slate-12"
-        >
+        <span class="text-sm font-medium text-n-slate-12">
           {{ t('WHATSAPP_STATUS.COMPOSER.FONT') }}
-        </label>
-        <select
-          id="whatsmeow-status-font"
-          v-model="font"
-          class="reset-base min-h-11 w-full rounded-lg border-0 bg-n-alpha-black2 px-3 text-sm text-n-slate-12 outline outline-1 -outline-offset-1 outline-n-weak hover:outline-n-slate-6 focus:outline-n-brand"
-        >
-          <option
-            v-for="option in fontOptions"
-            :key="option.value"
-            :value="option.value"
+        </span>
+        <DropdownContainer class="w-full !space-y-0 [&>div]:w-full">
+          <template #trigger="{ toggle, isOpen }">
+            <button
+              type="button"
+              class="reset-base flex min-h-11 w-full items-center gap-3 rounded-lg border border-n-weak bg-n-alpha-black2 px-3 text-left outline-none transition-colors hover:bg-n-alpha-1 focus-visible:border-n-brand focus-visible:ring-1 focus-visible:ring-n-brand"
+              :class="{ 'border-n-brand bg-n-alpha-1': isOpen }"
+              :aria-expanded="isOpen"
+              :aria-label="t('WHATSAPP_STATUS.COMPOSER.FONT')"
+              aria-haspopup="listbox"
+              @click="toggle"
+            >
+              <span
+                class="flex size-8 flex-shrink-0 items-center justify-center rounded-lg bg-n-alpha-2 text-n-slate-12"
+                aria-hidden="true"
+              >
+                <Icon icon="i-lucide-type" class="size-4" />
+              </span>
+              <span class="min-w-0 flex-1">
+                <span
+                  class="block truncate text-sm font-medium text-n-slate-12"
+                >
+                  {{ selectedFontLabel }}
+                </span>
+              </span>
+              <Icon
+                icon="i-lucide-chevron-down"
+                class="size-4 flex-shrink-0 text-n-slate-10 transition-transform duration-200 motion-reduce:transition-none"
+                :class="{ 'rotate-180': isOpen }"
+              />
+            </button>
+          </template>
+
+          <DropdownBody
+            class="left-0 top-0 z-50 w-full min-w-[14rem] [&>ul]:!bg-n-solid-2 [&>ul]:!backdrop-blur-none"
           >
-            {{ option.label }}
-          </option>
-        </select>
+            <DropdownSection>
+              <DropdownItem
+                v-for="option in fontOptions"
+                :key="option.value"
+                :click="() => selectFont(option.value)"
+                role="option"
+                :aria-selected="font === option.value"
+                class="rounded-lg hover:bg-n-alpha-2"
+                :class="{
+                  'bg-n-alpha-2': font === option.value,
+                }"
+              >
+                <div class="flex min-h-10 w-full items-center gap-3">
+                  <span
+                    class="flex size-8 flex-shrink-0 items-center justify-center rounded-lg bg-n-alpha-2 text-n-slate-12"
+                    aria-hidden="true"
+                  >
+                    <Icon icon="i-lucide-type" class="size-4" />
+                  </span>
+                  <span class="min-w-0 flex-1 truncate text-sm text-n-slate-12">
+                    {{ option.label }}
+                  </span>
+                  <Icon
+                    v-if="font === option.value"
+                    icon="i-lucide-check"
+                    class="size-4 flex-shrink-0 text-n-brand"
+                  />
+                </div>
+              </DropdownItem>
+            </DropdownSection>
+          </DropdownBody>
+        </DropdownContainer>
       </div>
     </template>
 

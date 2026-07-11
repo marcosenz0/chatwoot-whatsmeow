@@ -37,96 +37,77 @@ func TestNormalizeGroupInviteCodeRejectsInvalidValues(t *testing.T) {
 	}
 }
 
-func TestClassifyStatusViewReceiptUsesKnownOwnStatusWhenOwnerFieldsAreMissing(t *testing.T) {
-	viewer := types.NewJID("5511999999999", types.DefaultUserServer)
-	own := types.NewJID("5563999999999", types.DefaultUserServer)
-	receipt := &events.Receipt{
-		MessageSource: types.MessageSource{
-			Chat:   types.StatusBroadcastJID,
-			Sender: viewer,
-		},
-		MessageIDs: []types.MessageID{"status-own-id"},
-		Type:       types.ReceiptTypeRead,
-	}
+func TestMatchingStatusReceiptMessageIDsFindsOwnStatusOutsideBroadcastChat(t *testing.T) {
+	messageIDs := []types.MessageID{"regular-message", "status-own-id", ""}
+	knownStatusIDs := map[types.MessageID]struct{}{"status-own-id": {}}
 
-	classification := classifyStatusViewReceipt(
-		receipt,
-		viewer,
-		own,
-		types.JID{},
-		map[types.MessageID]struct{}{"status-own-id": {}},
-	)
+	matched := matchingStatusReceiptMessageIDs(messageIDs, knownStatusIDs)
 
-	if classification.ViewerJID != viewer {
-		t.Fatalf("viewer JID = %s; want %s", classification.ViewerJID, viewer)
-	}
-	if len(classification.MessageIDs) != 1 || classification.MessageIDs[0] != "status-own-id" {
-		t.Fatalf("message IDs = %v; want [status-own-id]", classification.MessageIDs)
+	if len(matched) != 1 || matched[0] != "status-own-id" {
+		t.Fatalf("matched IDs = %v; want [status-own-id]", matched)
 	}
 }
 
-func TestClassifyStatusViewReceiptDoesNotCountOurOwnReadOfAnotherStatus(t *testing.T) {
-	own := types.NewJID("5563999999999", types.DefaultUserServer)
-	ownLID := types.NewJID("101010101010", types.HiddenUserServer)
-	receipt := &events.Receipt{
-		MessageSource: types.MessageSource{
-			Chat:   types.StatusBroadcastJID,
-			Sender: ownLID,
-		},
-		MessageIDs:    []types.MessageID{"remote-status-id"},
-		Type:          types.ReceiptTypeRead,
-		MessageSender: types.NewJID("5511999999999", types.DefaultUserServer),
-	}
+func TestStatusReceiptCanUseRailsFallbackForBroadcast(t *testing.T) {
+	receipt := &events.Receipt{MessageSource: types.MessageSource{Chat: types.StatusBroadcastJID}}
 
-	classification := classifyStatusViewReceipt(receipt, ownLID, own, ownLID, nil)
-
-	if len(classification.MessageIDs) != 0 {
-		t.Fatalf("message IDs = %v; want none", classification.MessageIDs)
-	}
-	if classification.Reason != "self_participant" {
-		t.Fatalf("reason = %q; want self_participant", classification.Reason)
+	if !statusReceiptCanUseRailsFallback(receipt, types.JID{}, types.JID{}) {
+		t.Fatal("expected status broadcast receipt to use Rails fallback")
 	}
 }
 
-func TestClassifyStatusViewReceiptAcceptsPlayedReceiptWithOwnOwnerFallback(t *testing.T) {
-	viewer := types.NewJID("5511999999999", types.DefaultUserServer)
-	ownLID := types.NewJID("101010101010", types.HiddenUserServer)
+func TestStatusReceiptCanUseRailsFallbackForOwnMessageSender(t *testing.T) {
+	own := types.NewJID("5563999999999", types.DefaultUserServer)
 	receipt := &events.Receipt{
-		MessageSource: types.MessageSource{
-			Chat:               types.StatusBroadcastJID,
-			Sender:             viewer,
-			BroadcastListOwner: ownLID,
-		},
-		MessageIDs: []types.MessageID{"status-own-id"},
-		Type:       types.ReceiptTypePlayed,
+		MessageSource: types.MessageSource{Chat: types.NewJID("5511999999999", types.DefaultUserServer)},
+		MessageSender: own,
 	}
 
-	classification := classifyStatusViewReceipt(receipt, viewer, types.JID{}, ownLID, nil)
-
-	if len(classification.MessageIDs) != 1 || classification.MessageIDs[0] != "status-own-id" {
-		t.Fatalf("message IDs = %v; want [status-own-id]", classification.MessageIDs)
+	if !statusReceiptCanUseRailsFallback(receipt, own, types.JID{}) {
+		t.Fatal("expected receipt owned by current account to use Rails fallback")
 	}
 }
 
-func TestClassifyStatusViewReceiptRejectsUnknownExternalStatus(t *testing.T) {
-	viewer := types.NewJID("5511999999999", types.DefaultUserServer)
+func TestStatusReceiptRejectsUnrelatedDirectReceiptFallback(t *testing.T) {
 	own := types.NewJID("5563999999999", types.DefaultUserServer)
 	receipt := &events.Receipt{
-		MessageSource: types.MessageSource{
-			Chat:               types.StatusBroadcastJID,
-			Sender:             viewer,
-			BroadcastListOwner: types.NewJID("5588999999999", types.DefaultUserServer),
-		},
-		MessageIDs: []types.MessageID{"remote-status-id"},
-		Type:       types.ReceiptTypePlayed,
+		MessageSource: types.MessageSource{Chat: types.NewJID("5511999999999", types.DefaultUserServer)},
+		MessageSender: types.NewJID("5588999999999", types.DefaultUserServer),
 	}
 
-	classification := classifyStatusViewReceipt(receipt, viewer, own, types.JID{}, nil)
-
-	if len(classification.MessageIDs) != 0 {
-		t.Fatalf("message IDs = %v; want none", classification.MessageIDs)
+	if statusReceiptCanUseRailsFallback(receipt, own, types.JID{}) {
+		t.Fatal("did not expect unrelated direct receipt to use Rails fallback")
 	}
-	if classification.Reason != "no_matching_own_status" {
-		t.Fatalf("reason = %q; want no_matching_own_status", classification.Reason)
+}
+
+func TestStatusUserReceiptViewPrefersPlayedAndNormalizesMilliseconds(t *testing.T) {
+	receiptType, timestamp := statusUserReceiptView(1_700_000_000, 1_700_000_123_000)
+
+	if receiptType != types.ReceiptTypePlayed {
+		t.Fatalf("receipt type = %q; want played", receiptType)
+	}
+	if timestamp != 1_700_000_123 {
+		t.Fatalf("timestamp = %d; want 1700000123", timestamp)
+	}
+}
+
+func TestStatusUserReceiptViewUsesReadTimestamp(t *testing.T) {
+	receiptType, timestamp := statusUserReceiptView(1_700_000_000, 0)
+
+	if receiptType != types.ReceiptTypeRead || timestamp != 1_700_000_000 {
+		t.Fatalf("receipt = %q/%d; want read/1700000000", receiptType, timestamp)
+	}
+}
+
+func TestShouldRetryWebhookStatus(t *testing.T) {
+	for _, statusCode := range []int{408, 429, 500, 503} {
+		if !shouldRetryWebhookStatus(statusCode) {
+			t.Fatalf("expected HTTP %d to be retried", statusCode)
+		}
+	}
+	for _, statusCode := range []int{200, 201, 400, 401, 404} {
+		if shouldRetryWebhookStatus(statusCode) {
+			t.Fatalf("did not expect HTTP %d to be retried", statusCode)
+		}
 	}
 }
