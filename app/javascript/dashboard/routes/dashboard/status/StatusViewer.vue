@@ -117,7 +117,9 @@ const viewerInboxOptions = computed(() =>
 );
 const selectedViewerInboxLabel = computed(() => {
   if (selectedViewerInboxId.value === ALL_VIEWER_INBOXES) {
-    return t('WHATSAPP_STATUS.ALL_INBOXES');
+    return viewerInboxOptions.value.length === 1
+      ? viewerInboxOptions.value[0].name
+      : t('WHATSAPP_STATUS.ALL_INBOXES');
   }
 
   return (
@@ -717,7 +719,7 @@ onBeforeUnmount(() => {
       role="dialog"
       aria-modal="true"
       :aria-label="t('WHATSAPP_STATUS.TITLE')"
-      class="fixed inset-0 z-[1000] flex min-h-dvh flex-col overflow-hidden bg-black text-white"
+      class="fixed inset-0 z-[1000] flex min-h-dvh flex-col overflow-hidden bg-n-black text-white"
       @click="handleViewerClick"
     >
       <header
@@ -801,7 +803,7 @@ onBeforeUnmount(() => {
       >
         <div
           v-if="isMediaBacked"
-          class="pointer-events-none absolute inset-0 overflow-hidden bg-black"
+          class="pointer-events-none absolute inset-0 overflow-hidden bg-n-black"
           aria-hidden="true"
         >
           <img
@@ -812,7 +814,7 @@ onBeforeUnmount(() => {
           />
           <span
             v-else-if="isVideo"
-            class="absolute inset-0 bg-gradient-to-br from-n-slate-9 via-black to-n-slate-10"
+            class="absolute inset-0 bg-gradient-to-br from-n-slate-9 via-n-black to-n-slate-10"
           />
           <img
             v-else
@@ -820,15 +822,15 @@ onBeforeUnmount(() => {
             alt=""
             class="h-full w-full scale-125 object-cover opacity-80 blur-[52px] saturate-125"
           />
-          <span class="absolute inset-0 bg-black/40" />
+          <span class="absolute inset-0 bg-n-black/40" />
           <span
-            class="absolute inset-0 bg-gradient-to-b from-black/35 via-transparent to-black/75"
+            class="absolute inset-0 bg-gradient-to-b from-n-black/35 via-transparent to-n-black/75"
           />
         </div>
 
         <div
           v-else-if="currentType === 'text'"
-          class="pointer-events-none absolute inset-0 overflow-hidden bg-black"
+          class="pointer-events-none absolute inset-0 overflow-hidden bg-n-black"
           aria-hidden="true"
         >
           <span
@@ -840,7 +842,7 @@ onBeforeUnmount(() => {
             :class="statusTextBackdropClass"
           />
           <span
-            class="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/65"
+            class="absolute inset-0 bg-gradient-to-b from-n-black/20 via-transparent to-n-black/65"
           />
         </div>
 
@@ -859,11 +861,11 @@ onBeforeUnmount(() => {
           />
           <span
             aria-hidden="true"
-            class="pointer-events-none absolute -bottom-24 -right-20 size-64 rounded-full bg-black/20 blur-3xl"
+            class="pointer-events-none absolute -bottom-24 -right-20 size-64 rounded-full bg-n-black/20 blur-3xl"
           />
           <span
             aria-hidden="true"
-            class="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-black/30"
+            class="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/15 via-transparent to-n-black/30"
           />
           <p
             class="relative z-10 mb-0 max-w-full whitespace-pre-wrap break-words text-center text-2xl leading-relaxed drop-shadow-2xl sm:text-3xl"
@@ -876,7 +878,7 @@ onBeforeUnmount(() => {
         <div
           v-else
           data-status-interactive
-          class="relative z-10 flex max-h-[calc(100dvh-9rem)] max-w-full items-center justify-center overflow-hidden rounded-md bg-black shadow-2xl"
+          class="relative z-10 flex max-h-[calc(100dvh-9rem)] max-w-full items-center justify-center overflow-hidden rounded-md bg-n-black shadow-2xl"
           :class="{
             'aspect-[9/16] w-full max-w-[28rem] bg-n-slate-11':
               isAudio || hasMediaError,
@@ -900,7 +902,7 @@ onBeforeUnmount(() => {
               alt=""
               class="absolute inset-0 h-full w-full object-cover opacity-35 blur-sm"
             />
-            <span class="absolute inset-0 bg-black/55" />
+            <span class="absolute inset-0 bg-n-black/55" />
             <span
               class="relative z-10 flex size-14 items-center justify-center rounded-full bg-white/10"
             >
@@ -977,7 +979,7 @@ onBeforeUnmount(() => {
 
           <div
             v-if="currentStatus.content && !hasMediaError"
-            class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/95 via-black/65 to-transparent px-5 pb-5 pt-12 text-center"
+            class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-n-black/95 via-n-black/65 to-transparent px-5 pb-5 pt-12 text-center"
           >
             <p class="mb-0 whitespace-pre-wrap text-sm leading-6 text-white">
               {{ currentStatus.content }}
@@ -998,7 +1000,7 @@ onBeforeUnmount(() => {
             @select="sendSticker"
           />
           <div
-            class="relative flex min-w-0 flex-1 items-center rounded-xl bg-black/70 px-2 shadow-lg ring-1 ring-white/15 backdrop-blur-xl"
+            class="relative flex min-w-0 flex-1 items-center rounded-xl bg-n-black/70 px-2 shadow-lg ring-1 ring-white/15 backdrop-blur-xl"
           >
             <button
               type="button"
@@ -1058,7 +1060,7 @@ onBeforeUnmount(() => {
         <div class="relative flex w-full max-w-[34rem] justify-center">
           <button
             type="button"
-            class="flex min-h-11 items-center gap-2 rounded-full bg-black px-4 text-sm text-white shadow-2xl ring-1 ring-white/30 transition-colors hover:bg-n-slate-12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+            class="flex min-h-11 items-center gap-2 rounded-full bg-n-black px-4 text-sm text-white shadow-2xl ring-1 ring-white/30 transition-colors hover:bg-n-solid-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
             :aria-label="t('WHATSAPP_STATUS.VIEWER.SEE_VIEWERS')"
             @click="openViewers"
           >
@@ -1073,7 +1075,7 @@ onBeforeUnmount(() => {
           <div
             v-if="showViewers"
             v-on-clickaway="() => (showViewers = false)"
-            class="absolute bottom-14 left-1/2 z-40 max-h-80 w-full max-w-sm -translate-x-1/2 overflow-visible rounded-xl border border-white/25 bg-black text-white shadow-2xl ring-1 ring-black/70"
+            class="absolute bottom-14 left-1/2 z-40 max-h-80 w-full max-w-sm -translate-x-1/2 overflow-visible rounded-xl border border-white/25 bg-n-black text-white shadow-2xl ring-1 ring-n-black/70"
             role="dialog"
             :aria-label="t('WHATSAPP_STATUS.VIEWER.VIEWERS_TITLE')"
           >
@@ -1105,7 +1107,7 @@ onBeforeUnmount(() => {
                 </button>
                 <div
                   v-if="showViewerInboxMenu"
-                  class="absolute right-0 top-10 z-50 w-64 overflow-hidden rounded-xl border border-white/20 bg-black p-1.5 shadow-2xl"
+                  class="absolute right-0 top-10 z-50 w-64 overflow-hidden rounded-xl border border-white/20 bg-n-black p-1.5 shadow-2xl"
                   role="menu"
                 >
                   <button
@@ -1160,7 +1162,7 @@ onBeforeUnmount(() => {
                 <Icon icon="i-lucide-x" class="size-4" />
               </button>
             </div>
-            <div class="max-h-64 overflow-y-auto rounded-b-xl bg-black p-2">
+            <div class="max-h-64 overflow-y-auto rounded-b-xl bg-n-black p-2">
               <div
                 v-if="isLoadingViewers"
                 class="flex h-24 items-center justify-center"
@@ -1208,7 +1210,7 @@ onBeforeUnmount(() => {
       <button
         type="button"
         data-status-interactive
-        class="absolute left-2 top-1/2 z-20 flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-30 sm:left-6"
+        class="absolute left-2 top-1/2 z-20 flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-n-black/50 text-white transition-colors hover:bg-n-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-30 sm:left-6"
         :disabled="!canGoPrevious"
         :aria-label="t('WHATSAPP_STATUS.VIEWER.PREVIOUS')"
         @click="previousStatus"
@@ -1219,7 +1221,7 @@ onBeforeUnmount(() => {
       <button
         type="button"
         data-status-interactive
-        class="absolute right-2 top-1/2 z-20 flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:right-6"
+        class="absolute right-2 top-1/2 z-20 flex size-12 -translate-y-1/2 items-center justify-center rounded-full bg-n-black/50 text-white transition-colors hover:bg-n-black/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:right-6"
         :aria-label="t('WHATSAPP_STATUS.VIEWER.NEXT')"
         @click="nextStatus"
       >

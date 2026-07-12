@@ -136,11 +136,11 @@ const toggleStatusViews = inbox => {
               </span>
               <span class="min-w-0 flex-1">
                 <span
-                  class="block truncate text-sm font-medium text-n-slate-12"
+                  class="block text-sm font-medium leading-5 text-n-slate-12"
                 >
                   {{ t('WHATSAPP_STATUS.TITLE') }}
                 </span>
-                <span class="block truncate text-xs text-n-slate-10">
+                <span class="block text-xs leading-4 text-n-slate-10">
                   {{
                     isStatusEnabled(inbox)
                       ? t('WHATSAPP_STATUS.STATUS_ENABLED', {
@@ -194,7 +194,7 @@ const toggleStatusViews = inbox => {
               </span>
               <span class="min-w-0 flex-1">
                 <span
-                  class="block truncate text-sm font-medium text-n-slate-12"
+                  class="block text-sm font-medium leading-5 text-n-slate-12"
                 >
                   {{
                     t('WHATSAPP_STATUS.STATUS_VIEWS_TOGGLE_LABEL', {
@@ -202,7 +202,7 @@ const toggleStatusViews = inbox => {
                     })
                   }}
                 </span>
-                <span class="block truncate text-xs text-n-slate-10">
+                <span class="block text-xs leading-4 text-n-slate-10">
                   {{
                     isStatusViewsEnabled(inbox)
                       ? t('WHATSAPP_STATUS.STATUS_VIEWS_ACTIVE')
