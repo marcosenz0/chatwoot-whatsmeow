@@ -102,12 +102,32 @@ const defaultComposerInboxIds = computed(() => {
 
 const activeStatuses = computed(() => {
   const now = Date.now();
-  return statuses.value.filter(status => status.expires_at * 1000 > now);
+  const active = statuses.value.filter(
+    status => status.expires_at * 1000 > now
+  );
+  const canonicalSourceIds = new Set(
+    active
+      .filter(status => status.record_from_me && status.source_id)
+      .map(status => status.source_id)
+  );
+  const seenMirrorSourceIds = new Set();
+
+  return active.filter(status => {
+    if (!status.from_me || status.record_from_me || !status.source_id) {
+      return true;
+    }
+    if (canonicalSourceIds.has(status.source_id)) return false;
+    if (seenMirrorSourceIds.has(status.source_id)) return false;
+
+    seenMirrorSourceIds.add(status.source_id);
+    return true;
+  });
 });
 
 const groupKeyForStatus = status => {
   if (status.from_me) {
-    const publicationId = status.metadata?.publication_id || status.id;
+    const publicationId =
+      status.metadata?.publication_id || status.source_id || status.id;
     return `current-user:${publicationId}`;
   }
   const inboxPrefix = `inbox:${status.inbox_id}:`;
@@ -246,7 +266,7 @@ const fetchStatuses = async ({ silent = false } = {}) => {
         const { data } = await WhatsmeowStatusesAPI.getAll(inbox.id);
         return (data.payload || []).map(status => ({
           ...status,
-          inbox_name: inbox.name,
+          inbox_name: status.inbox_name || inbox.name,
         }));
       })
     );
@@ -305,8 +325,7 @@ const openStatusGroup = groupKey => {
 };
 
 const openOwnStatus = () => {
-  if (ownGroups.value.length) ownStatusManagerRef.value?.open();
-  else if (isAdmin.value) openComposer();
+  ownStatusManagerRef.value?.open();
 };
 
 const openOwnPublication = groupKey => {
@@ -562,17 +581,14 @@ onBeforeUnmount(() => {
           :class="isInboxSelectorOpen ? 'overflow-y-hidden' : 'overflow-y-auto'"
         >
           <div
-            class="group flex min-h-[4.75rem] w-full items-center gap-3 rounded-xl px-3 transition-colors"
-            :class="{ 'hover:bg-n-alpha-2': ownGroup || isAdmin }"
+            class="flex min-h-[4.75rem] w-full items-center gap-2 rounded-xl"
           >
-            <span class="relative flex-shrink-0">
-              <button
-                type="button"
-                class="rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-n-brand"
-                :aria-label="t('WHATSAPP_STATUS.MY_STATUS')"
-                :disabled="!ownGroup && !isAdmin"
-                @click="openOwnStatus"
-              >
+            <button
+              type="button"
+              class="flex min-h-[4.75rem] min-w-0 flex-1 items-center gap-3 rounded-xl px-3 text-left transition-colors hover:bg-n-alpha-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-n-brand"
+              @click="openOwnStatus"
+            >
+              <span class="relative flex-shrink-0">
                 <span
                   class="flex rounded-full border-2 p-0.5"
                   :class="
@@ -588,21 +604,16 @@ onBeforeUnmount(() => {
                     rounded-full
                   />
                 </span>
-              </button>
-            </span>
-            <button
-              type="button"
-              class="min-h-[4.75rem] min-w-0 flex-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-n-brand"
-              :disabled="!ownGroup && !isAdmin"
-              @click="openOwnStatus"
-            >
-              <span
-                class="block truncate text-sm font-semibold text-n-slate-12"
-              >
-                {{ t('WHATSAPP_STATUS.MY_STATUS') }}
               </span>
-              <span class="mt-1 block truncate text-xs text-n-slate-11">
-                {{ ownStatusSubtitle }}
+              <span class="min-w-0 flex-1">
+                <span
+                  class="block truncate text-sm font-semibold text-n-slate-12"
+                >
+                  {{ t('WHATSAPP_STATUS.MY_STATUS') }}
+                </span>
+                <span class="mt-1 block truncate text-xs text-n-slate-11">
+                  {{ ownStatusSubtitle }}
+                </span>
               </span>
             </button>
             <button

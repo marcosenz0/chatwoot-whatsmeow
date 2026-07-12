@@ -11,7 +11,7 @@
     "TIME_TODAY": "Today at {time}",
     "TIME_YESTERDAY": "Yesterday at {time}",
     "MY_STATUS": "My status",
-    "MY_STATUS_EMPTY": "Click to add a status update",
+    "MY_STATUS_EMPTY": "Open your published status manager",
     "ADMIN_ONLY": "Only administrators can publish status updates.",
     "ADD_STATUS": "Add status update",
     "IGNORE_STATUS_TITLE": "New status updates are being ignored",

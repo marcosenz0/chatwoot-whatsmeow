@@ -202,6 +202,7 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Each own-Status viewer row displays the viewer's phone number beside their name, using the linked contact phone as a fallback when the receipt does not carry one.
 - Own Status publications are grouped by publication instead of mixing every inbox copy into the viewer sequence. The viewer exposes inbox chips to switch copies without leaving the screen.
 - `Meu status` opens a publication manager with previews, per-inbox labels, view totals, open controls, and two-step deletion across the WhatsApp inboxes where that publication was posted.
+- The `Meu status` card always opens the publication manager; only its separate blue plus button opens the composer. Statuses from another connected inbox owned by the same account are recovered as own publications when the original local outgoing record is unavailable, with duplicate mirrors collapsed by WhatsApp source ID.
 - Brazilian viewer phone numbers are formatted as `+55 DD XXXX-XXXX` or `+55 DD XXXXX-XXXX` for easier reading.
 
 ## July 2026 Conversation Search

@@ -42,7 +42,7 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
   end
 
   def viewers
-    return head :not_found unless @status.from_me?
+    return head :not_found unless owned_status_inbox(@status)
 
     viewers = @status.status_viewers
                      .includes(contact: { avatar_attachment: :blob })
@@ -56,19 +56,21 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
   end
 
   def preview
-    return head :not_found unless @status.from_me?
+    status_inbox = owned_status_inbox(@status)
+    return head :not_found unless status_inbox
 
     viewer_counts = { @status.id => @status.status_viewers.to_a.uniq(&:identity_key).size }
     payload = status_payload(@status, {}, viewer_counts)
-    payload[:inbox_name] = @status.inbox.name
+    payload[:inbox_name] = status_inbox.name
     render json: { payload: payload }
   end
 
   def destroy
-    return head :not_found unless @status.from_me?
+    status_inbox = owned_status_inbox(@status)
+    return head :not_found unless status_inbox
 
-    Whatsmeow::SessionClient.new(inbox: @status.inbox).delete_status(@status.source_id)
-    @status.destroy!
+    Whatsmeow::SessionClient.new(inbox: status_inbox).delete_status(@status.source_id)
+    destroy_status_copies(status_inbox)
     head :no_content
   rescue Whatsmeow::SessionClient::Error => e
     render json: { message: e.message }, status: :bad_gateway
@@ -102,14 +104,18 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
   end
 
   def status_payload(status, viewed_status_ids, viewer_counts = {})
+    status_inbox = owned_status_inbox(status)
     {
       id: status.id,
-      inbox_id: status.inbox_id,
+      source_id: status.source_id,
+      inbox_id: status_inbox&.id || status.inbox_id,
+      inbox_name: status_inbox&.name,
       contact: contact_payload(status.contact),
       sender_jid: status.sender_jid,
       sender_name: status.sender_name,
       sender_phone: status.sender_phone,
-      from_me: status.from_me,
+      from_me: status_inbox.present?,
+      record_from_me: status.from_me,
       status_type: status.status_type,
       content: status.content,
       media: media_payload(status),
@@ -120,6 +126,31 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
       viewer_count: status.from_me? ? viewer_counts.fetch(status.id, 0) : 0,
       created_by: status.created_by&.name
     }
+  end
+
+  def owned_status_inbox(status)
+    return status.inbox if status.from_me?
+
+    account_whatsmeow_inboxes_by_phone[normalized_phone(status.sender_phone.presence || status.sender_jid)]
+  end
+
+  def account_whatsmeow_inboxes_by_phone
+    @account_whatsmeow_inboxes_by_phone ||= Current.account.inboxes.includes(:channel).filter_map do |inbox|
+      next unless inbox.channel_type == 'Channel::Whatsmeow'
+
+      phone = normalized_phone(inbox.channel.phone_number)
+      [phone, inbox] if phone.present?
+    end.to_h
+  end
+
+  def normalized_phone(value)
+    value.to_s.split('@').first.split(':').first.delete('^0-9')
+  end
+
+  def destroy_status_copies(status_inbox)
+    Current.account.whatsmeow_statuses.where(source_id: @status.source_id).find_each do |status|
+      status.destroy! if owned_status_inbox(status)&.id == status_inbox.id
+    end
   end
 
   def status_viewer_counts(statuses)
