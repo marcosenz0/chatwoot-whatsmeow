@@ -80,6 +80,7 @@ class Webhooks::WhatsmeowController < ActionController::API
 
   def process_paired
     channel.update!(status: 'connected')
+    Whatsmeow::FullContactSyncJob.perform_later(inbox.id)
     Rails.logger.info("Whatsmeow Channel #{channel.id} paired successfully!")
   end
 

@@ -108,8 +108,13 @@ type StatusReplyRequest struct {
 }
 
 type StatusContact struct {
-	JID  string `json:"jid"`
-	Name string `json:"name"`
+	JID     string `json:"jid"`
+	Name    string `json:"name"`
+	Deleted bool   `json:"deleted"`
+}
+
+type ContactSyncRequest struct {
+	Contacts []StatusContact `json:"contacts"`
 }
 
 type ReactionRequest struct {
@@ -305,6 +310,7 @@ func main() {
 	r.GET("/sessions/:channel_id/profile_picture", handleGetProfilePicture)
 	r.GET("/sessions/:channel_id/check_number", handleCheckNumber)
 	r.POST("/sessions/:channel_id/identities/resolve", internalTokenMiddleware(), handleResolveIdentities)
+	r.POST("/sessions/:channel_id/contacts/sync", internalTokenMiddleware(), handleSyncContacts)
 	r.POST("/sessions/:channel_id/statuses", internalTokenMiddleware(), handleSendStatus)
 	r.POST("/sessions/:channel_id/statuses/read", internalTokenMiddleware(), handleReadStatus)
 	r.POST("/sessions/:channel_id/statuses/reply", internalTokenMiddleware(), handleReplyToStatus)
@@ -1391,6 +1397,30 @@ func handleSendStatus(c *gin.Context) {
 	})
 }
 
+func handleSyncContacts(c *gin.Context) {
+	var req ContactSyncRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	client, ok := storedClientForChannel(c.Param("channel_id"))
+	if !ok {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session store is not available"})
+		return
+	}
+
+	syncCtx, cancelSync := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancelSync()
+	synced, removed, err := syncChatwootContacts(syncCtx, client, req.Contacts)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to sync contacts: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "synced": synced, "removed": removed})
+}
+
 func handleReadStatus(c *gin.Context) {
 	var req StatusReadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1600,6 +1630,13 @@ func clientForChannel(channelID string) (*whatsmeow.Client, bool) {
 	return client, exists && client != nil && client.IsConnected() && client.IsLoggedIn()
 }
 
+func storedClientForChannel(channelID string) (*whatsmeow.Client, bool) {
+	clientsMu.RLock()
+	client, exists := clients[channelID]
+	clientsMu.RUnlock()
+	return client, exists && client != nil && client.Store != nil && client.Store.Contacts != nil
+}
+
 func statusSendTimeout() time.Duration {
 	seconds, err := strconv.Atoi(strings.TrimSpace(os.Getenv("WHATSMEOW_STATUS_SEND_TIMEOUT_SECONDS")))
 	if err != nil || seconds < 60 {
@@ -1651,6 +1688,53 @@ func syncStatusContacts(ctx context.Context, client *whatsmeow.Client, contacts 
 		return nil
 	}
 	return client.Store.Contacts.PutAllContactNames(ctx, entries)
+}
+
+func syncChatwootContacts(ctx context.Context, client *whatsmeow.Client, contacts []StatusContact) (int, int, error) {
+	if len(contacts) == 0 || client == nil || client.Store == nil || client.Store.Contacts == nil {
+		return 0, 0, nil
+	}
+
+	entries := make([]store.ContactEntry, 0, len(contacts))
+	removed := make([]types.JID, 0)
+	seen := make(map[string]struct{}, len(contacts))
+	for _, contact := range contacts {
+		jid, ok := parseJID(contact.JID)
+		if !ok || !isPhoneJID(jid) {
+			continue
+		}
+		jid = jid.ToNonAD()
+		key := jid.String()
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
+
+		if contact.Deleted {
+			removed = append(removed, jid)
+			continue
+		}
+
+		name := strings.TrimSpace(contact.Name)
+		if name == "" {
+			name = phoneNumberFromJID(jid)
+		}
+		first := name
+		if fields := strings.Fields(name); len(fields) > 0 {
+			first = fields[0]
+		}
+		entries = append(entries, store.ContactEntry{JID: jid, FirstName: first, FullName: name})
+	}
+
+	if err := client.Store.Contacts.PutAllContactNames(ctx, entries); err != nil {
+		return 0, 0, err
+	}
+	for _, jid := range removed {
+		if err := client.Store.Contacts.PutContactName(ctx, jid, "", ""); err != nil {
+			return len(entries), 0, err
+		}
+	}
+	return len(entries), len(removed), nil
 }
 
 func buildStatusMessage(ctx context.Context, client *whatsmeow.Client, req StatusRequest) (*proto.Message, error) {

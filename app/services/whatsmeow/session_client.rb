@@ -81,6 +81,14 @@ class Whatsmeow::SessionClient
     )
   end
 
+  def sync_contacts(contacts)
+    request(
+      :post,
+      "/sessions/#{@inbox.id}/contacts/sync",
+      body: { contacts: contacts }
+    )
+  end
+
   def publish_status(payload)
     request(:post, "/sessions/#{@inbox.id}/statuses", body: payload, timeout: self.class.status_timeout)
   end

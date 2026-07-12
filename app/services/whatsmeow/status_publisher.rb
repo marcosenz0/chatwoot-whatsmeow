@@ -144,21 +144,16 @@ class Whatsmeow::StatusPublisher
   end
 
   def audience_contacts
-    contacts = []
-    @inbox.contact_inboxes.includes(:contact).find_each do |contact_inbox|
-      jid = audience_jid(contact_inbox)
+    @inbox.account.contacts.where.not(phone_number: [nil, '']).pluck(:phone_number, :name).filter_map do |phone_number, name|
+      jid = audience_jid(phone_number)
       next if jid.blank?
 
-      contacts << { jid: jid, name: contact_inbox.contact.name.presence || contact_inbox.source_id }
-    end
-    contacts.uniq { |contact| contact[:jid] }
+      { jid: jid, name: name.presence || phone_number }
+    end.uniq { |contact| contact[:jid] }
   end
 
-  def audience_jid(contact_inbox)
-    source_id = contact_inbox.source_id.to_s
-    return source_id if source_id.match?(/\A[1-9]\d{5,14}@s\.whatsapp\.net\z/)
-
-    phone = contact_inbox.contact.phone_number.to_s.delete('^0-9')
+  def audience_jid(phone_number)
+    phone = phone_number.to_s.delete('^0-9')
     return if phone.blank? || !phone.match?(/\A[1-9]\d{5,14}\z/)
 
     "#{phone}@s.whatsapp.net"
