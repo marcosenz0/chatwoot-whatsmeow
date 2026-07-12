@@ -231,6 +231,18 @@ type AddGroupMemberRequest struct {
 	ParticipantPhone string `json:"participant_phone"`
 }
 
+type ResolveIdentitiesRequest struct {
+	JIDs []string `json:"jids" binding:"required"`
+}
+
+type ResolvedIdentityResponse struct {
+	InputJID    string `json:"input_jid"`
+	PhoneJID    string `json:"phone_jid,omitempty"`
+	LIDJID      string `json:"lid_jid,omitempty"`
+	PhoneNumber string `json:"phone_number,omitempty"`
+	Resolved    bool   `json:"resolved"`
+}
+
 type ResolvedGroupParticipant struct {
 	JID               types.JID
 	LIDJID            types.JID
@@ -292,6 +304,7 @@ func main() {
 	r.POST("/sessions/:channel_id/group_members", handleAddGroupMember)
 	r.GET("/sessions/:channel_id/profile_picture", handleGetProfilePicture)
 	r.GET("/sessions/:channel_id/check_number", handleCheckNumber)
+	r.POST("/sessions/:channel_id/identities/resolve", internalTokenMiddleware(), handleResolveIdentities)
 	r.POST("/sessions/:channel_id/statuses", internalTokenMiddleware(), handleSendStatus)
 	r.POST("/sessions/:channel_id/statuses/read", internalTokenMiddleware(), handleReadStatus)
 	r.POST("/sessions/:channel_id/statuses/reply", internalTokenMiddleware(), handleReplyToStatus)
@@ -1155,6 +1168,84 @@ func handleCheckNumber(c *gin.Context) {
 	})
 }
 
+func handleResolveIdentities(c *gin.Context) {
+	var request ResolveIdentitiesRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "jids are required"})
+		return
+	}
+
+	lidStore, err := identityLIDStoreForChannel(c.Param("channel_id"))
+	if err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "WhatsApp identity store is unavailable"})
+		return
+	}
+
+	identities := make([]ResolvedIdentityResponse, 0, len(request.JIDs))
+	for _, rawJID := range request.JIDs {
+		jid, ok := parseJID(strings.TrimSpace(rawJID))
+		if !ok || jid.IsEmpty() {
+			identities = append(identities, ResolvedIdentityResponse{InputJID: rawJID})
+			continue
+		}
+
+		identity := resolveIdentityFromStore(lidStore, jid.ToNonAD())
+		identity.InputJID = jid.ToNonAD().String()
+		identities = append(identities, identity)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"identities": identities})
+}
+
+func identityLIDStoreForChannel(channelID string) (store.LIDStore, error) {
+	clientsMu.RLock()
+	client := clients[channelID]
+	clientsMu.RUnlock()
+	if client != nil && client.Store != nil && client.Store.LIDs != nil {
+		return client.Store.LIDs, nil
+	}
+
+	phoneNumber, err := lookupInboxPhoneNumber(channelID)
+	if err != nil || phoneNumber == "" {
+		return nil, fmt.Errorf("failed to find channel session")
+	}
+
+	devices, err := dbContainer.GetAllDevices(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	for _, device := range devices {
+		if device != nil && device.ID != nil && device.ID.User == phoneNumber && device.LIDs != nil {
+			return device.LIDs, nil
+		}
+	}
+	return nil, fmt.Errorf("failed to find persisted channel session")
+}
+
+func resolveIdentityFromStore(lidStore store.LIDStore, jid types.JID) ResolvedIdentityResponse {
+	identity := ResolvedIdentityResponse{}
+	phoneJID := resolvePhoneJIDFromStore(lidStore, jid)
+	if phoneJID.IsEmpty() {
+		if jid.Server == types.HiddenUserServer {
+			identity.LIDJID = jid.ToNonAD().String()
+		}
+		return identity
+	}
+
+	identity.PhoneJID = phoneJID.ToNonAD().String()
+	identity.PhoneNumber = phoneNumberFromJID(phoneJID)
+	identity.Resolved = identity.PhoneNumber != ""
+	if jid.Server == types.HiddenUserServer {
+		identity.LIDJID = jid.ToNonAD().String()
+	} else if lidStore != nil {
+		lidJID, err := lidStore.GetLIDForPN(context.Background(), phoneJID.ToNonAD())
+		if err == nil && lidJID.Server == types.HiddenUserServer {
+			identity.LIDJID = lidJID.ToNonAD().String()
+		}
+	}
+	return identity
+}
+
 func handleDisconnectSession(c *gin.Context) {
 	channelID := c.Param("channel_id")
 
@@ -1462,7 +1553,7 @@ func isStatusReplySender(jid types.JID) bool {
 }
 
 func statusReplyTarget(client *whatsmeow.Client, sender types.JID) types.JID {
-	if resolved := resolveStatusPhoneJID(client, sender); !resolved.IsEmpty() {
+	if resolved := resolvePhoneJID(client, sender); !resolved.IsEmpty() {
 		return resolved
 	}
 	return sender.ToNonAD()
@@ -2638,7 +2729,7 @@ func statusReceiptViewerJID(client *whatsmeow.Client, receipt *events.Receipt) t
 	}
 
 	viewerJID := firstUsableJID(receipt.SenderAlt, receipt.Sender)
-	if resolvedJID := resolveStatusPhoneJID(client, viewerJID); !resolvedJID.IsEmpty() {
+	if resolvedJID := resolvePhoneJID(client, viewerJID); !resolvedJID.IsEmpty() {
 		return resolvedJID
 	}
 	return viewerJID
@@ -2795,7 +2886,7 @@ func processHistorySyncForInbox(channelID string, accountID string, client *what
 	cutoff := time.Now().Add(-72 * time.Hour)
 	processed := 0
 	for _, conversation := range historySync.Data.GetConversations() {
-		chatJID, ok := parseHistoryChatJID(conversation.GetID(), conversation.GetPnJID(), conversation.GetLidJID())
+		chatJID, ok := parseHistoryChatJID(conversation.GetPnJID(), conversation.GetID(), conversation.GetLidJID())
 		if !ok {
 			log.Printf("Skipping history sync conversation with invalid JID on channel %s: %s", channelID, conversation.GetID())
 			continue
@@ -2899,6 +2990,17 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 
 	isGroup := isGroupMessage(messageEvent.Info)
 	contactJID := preferredContactJID(messageEvent.Info)
+	contactLIDJID := firstLIDJID(
+		messageEvent.Info.Sender,
+		messageEvent.Info.SenderAlt,
+		messageEvent.Info.Chat,
+		messageEvent.Info.RecipientAlt,
+	)
+	if !isGroup {
+		if resolvedJID := resolvePhoneJID(client, contactJID); !resolvedJID.IsEmpty() {
+			contactJID = resolvedJID
+		}
+	}
 	participant := ResolvedGroupParticipant{}
 	groupName := ""
 	if isGroup {
@@ -2951,6 +3053,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		"chat":                jidString(messageEvent.Info.Chat),
 		"chat_phone":          phoneNumberFromJID(messageEvent.Info.Chat),
 		"recipient_alt":       jidString(messageEvent.Info.RecipientAlt),
+		"contact_lid_jid":     jidString(contactLIDJID),
 		"from_me":             messageEvent.Info.IsFromMe,
 		"message_id":          messageEvent.Info.ID,
 		"content":             messageText,
@@ -2996,7 +3099,7 @@ func processStatusForInbox(channelID string, accountID string, client *whatsmeow
 	senderJID := messageEvent.Info.Sender
 	senderAlt := messageEvent.Info.SenderAlt
 	displayJID := firstUsableJID(senderAlt, senderJID)
-	if resolvedJID := resolveStatusPhoneJID(client, displayJID); !resolvedJID.IsEmpty() {
+	if resolvedJID := resolvePhoneJID(client, displayJID); !resolvedJID.IsEmpty() {
 		displayJID = resolvedJID
 		if senderAlt.IsEmpty() {
 			senderAlt = resolvedJID
@@ -3060,7 +3163,7 @@ func processStatusUserReceiptsForInbox(channelID string, accountID string, clien
 			continue
 		}
 		viewerJID = viewerJID.ToNonAD()
-		if resolvedJID := resolveStatusPhoneJID(client, viewerJID); !resolvedJID.IsEmpty() {
+		if resolvedJID := resolvePhoneJID(client, viewerJID); !resolvedJID.IsEmpty() {
 			viewerJID = resolvedJID
 		}
 		if viewerJID.IsEmpty() || isCurrentStatusAccountJID(viewerJID, ownJID, ownLID) {
@@ -3102,15 +3205,47 @@ func normalizeUnixTimestamp(timestamp int64) int64 {
 	return timestamp
 }
 
-func resolveStatusPhoneJID(client *whatsmeow.Client, jid types.JID) types.JID {
+func resolvePhoneJID(client *whatsmeow.Client, jid types.JID) types.JID {
 	if isPhoneJID(jid) {
 		return jid.ToNonAD()
 	}
 	if client == nil || client.Store == nil || client.Store.LIDs == nil || jid.Server != types.HiddenUserServer {
 		return types.JID{}
 	}
+	return resolvePhoneJIDFromStore(client.Store.LIDs, jid)
+}
 
-	phoneJID, err := client.Store.LIDs.GetPNForLID(context.Background(), jid.ToNonAD())
+func lookupInboxPhoneNumber(inboxID string) (string, error) {
+	dbURI := os.Getenv("DATABASE_URL")
+	if dbURI == "" {
+		dbURI = "postgres://postgres:StagingPassword123!@chatwoot-staging-db:5432/chatwoot_staging?sslmode=disable"
+	}
+	db, err := sql.Open("postgres", dbURI)
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
+
+	var phoneNumber string
+	err = db.QueryRow(`
+		SELECT c.phone_number
+		FROM inboxes i
+		JOIN channel_whatsmeow c ON i.channel_id = c.id
+		WHERE i.id = $1 AND i.channel_type = 'Channel::Whatsmeow'
+		LIMIT 1
+	`, inboxID).Scan(&phoneNumber)
+	return strings.TrimPrefix(phoneNumber, "+"), err
+}
+
+func resolvePhoneJIDFromStore(lidStore store.LIDStore, jid types.JID) types.JID {
+	if isPhoneJID(jid) {
+		return jid.ToNonAD()
+	}
+	if lidStore == nil || jid.Server != types.HiddenUserServer {
+		return types.JID{}
+	}
+
+	phoneJID, err := lidStore.GetPNForLID(context.Background(), jid.ToNonAD())
 	if err != nil || !isPhoneJID(phoneJID) {
 		return types.JID{}
 	}

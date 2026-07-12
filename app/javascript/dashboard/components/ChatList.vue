@@ -890,7 +890,10 @@ watch(
   () => resetAndFetchData()
 );
 
-watch(hiddenGroupTabs, () => resetAndFetchData());
+watch(
+  () => hiddenGroupTabs.value.join(','),
+  () => resetAndFetchData()
+);
 
 watch(activeFolder, (newVal, oldVal) => {
   if (newVal !== oldVal) {

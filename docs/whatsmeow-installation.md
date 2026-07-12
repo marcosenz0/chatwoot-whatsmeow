@@ -402,6 +402,20 @@ bundle exec rails db:chatwoot_prepare
 
 ## Rotinas uteis
 
+Reconciliar contatos Whatsmeow antigos que foram criados com identificador `@lid`. O primeiro comando apenas mostra contagens e nao altera dados:
+
+```bash
+bundle exec rails whatsmeow:reconcile_contact_identities ACCOUNT_ID=<id>
+```
+
+Depois de conferir a previa, aplique a reconciliacao:
+
+```bash
+bundle exec rails whatsmeow:reconcile_contact_identities ACCOUNT_ID=<id> APPLY=true
+```
+
+A rotina usa somente mapeamentos PN/LID confirmados pelo armazenamento do whatsmeow. Identidades nao resolvidas sao mantidas sem alteracao.
+
 Sincronizar fotos de perfil dos contatos Whatsmeow existentes:
 
 ```bash

@@ -73,6 +73,14 @@ class Whatsmeow::SessionClient
     request(:get, path)
   end
 
+  def resolve_identities(jids)
+    request(
+      :post,
+      "/sessions/#{@inbox.id}/identities/resolve",
+      body: { jids: jids }
+    )
+  end
+
   def publish_status(payload)
     request(:post, "/sessions/#{@inbox.id}/statuses", body: payload, timeout: self.class.status_timeout)
   end

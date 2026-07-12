@@ -11,6 +11,7 @@ class Whatsmeow::DirectConversationBuilder
     ).perform
 
     contact_inbox = isolate_group_contact_inbox(contact_inbox) if group_profile?(contact_inbox.contact)
+    contact_inbox = resolve_identity(contact_inbox)
     sync_contact_profile(contact_inbox.contact)
     find_or_create_conversation(contact_inbox)
   end
@@ -93,12 +94,23 @@ class Whatsmeow::DirectConversationBuilder
     additional_attributes.fetch('whatsmeow_group', false) || additional_attributes.fetch(:whatsmeow_group, false)
   end
 
+  def resolve_identity(contact_inbox)
+    return contact_inbox if phone_number.blank?
+
+    Whatsmeow::ContactIdentityResolver.new(
+      inbox: inbox,
+      source_ids: source_ids,
+      phone_number: phone_number,
+      contact_attributes: contact_attributes
+    ).perform
+  end
+
   def should_update_name?(contact)
     display_name.present? && (contact.name.blank? || contact.name == contact.phone_number || jid_like?(contact.name))
   end
 
   def source_ids
-    @source_ids ||= [phone_source_id, participant_jid].compact_blank.reject { |source_id| group_jid?(source_id) }.uniq
+    @source_ids ||= [phone_source_id, participant_jid, participant_lid_jid].compact_blank.reject { |source_id| group_jid?(source_id) }.uniq
   end
 
   def contact_attributes

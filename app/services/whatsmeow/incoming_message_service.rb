@@ -81,7 +81,8 @@ class Whatsmeow::IncomingMessageService
       params[:sender],
       params[:sender_alt],
       params[:chat],
-      params[:recipient_alt]
+      params[:recipient_alt],
+      params[:contact_lid_jid]
     ].compact_blank.reject { |source_id| group_source(source_id) }.uniq
   end
 
@@ -106,7 +107,8 @@ class Whatsmeow::IncomingMessageService
       params[:recipient_alt],
       params[:group_jid],
       params[:participant_jid],
-      params[:participant_lid_jid]
+      params[:participant_lid_jid],
+      params[:contact_lid_jid]
     ].compact_blank.uniq
   end
 
@@ -178,6 +180,7 @@ class Whatsmeow::IncomingMessageService
     ).perform
 
     contact_inbox = isolate_contact_inbox(contact_inbox, contact_attributes) if should_isolate_contact_inbox?(contact_inbox)
+    contact_inbox = resolve_direct_identity(contact_inbox, source_ids, phone_number, contact_attributes) unless group_message?
     @contact_inbox = contact_inbox
     @contact = contact_inbox.contact
     sync_contact_profile(@contact, contact_attributes, params[:profile_picture_url], sender_identifier)
@@ -197,6 +200,7 @@ class Whatsmeow::IncomingMessageService
       contact_attributes: participant_contact_attributes
     ).perform
     contact_inbox = isolate_contact_inbox(contact_inbox, participant_contact_attributes) if should_isolate_contact_inbox?(contact_inbox)
+    contact_inbox = resolve_direct_identity(contact_inbox, participant_source_ids, participant_phone_number, participant_contact_attributes)
     contact = contact_inbox.contact
     sync_contact_profile(contact, participant_contact_attributes, params[:participant_profile_picture_url], params[:participant_jid])
     contact
@@ -204,6 +208,17 @@ class Whatsmeow::IncomingMessageService
 
   def should_isolate_contact_inbox?(contact_inbox)
     group_profile?(contact_inbox.contact) && (!group_message? || contact_inbox.source_id != group_jid)
+  end
+
+  def resolve_direct_identity(contact_inbox, identity_source_ids, identity_phone_number, attributes_for_contact)
+    return contact_inbox if identity_phone_number.blank?
+
+    Whatsmeow::ContactIdentityResolver.new(
+      inbox: @inbox,
+      source_ids: identity_source_ids,
+      phone_number: identity_phone_number,
+      contact_attributes: attributes_for_contact
+    ).perform
   end
 
   def isolate_contact_inbox(contact_inbox, attributes_for_contact)

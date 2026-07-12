@@ -161,6 +161,14 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - WhatsApp-registered numbers can open a direct Chatwoot conversation, while all detected numbers can be copied.
 - Brazilian local DDD numbers without country code are normalized to `+55` before the check and before direct-conversation creation.
 
+## July 2026 LID Contact Reconciliation
+
+- Direct messages and history sync now resolve WhatsApp LID identities through whatsmeow's persisted PN/LID mapping before creating Chatwoot contacts.
+- Phone and LID source IDs are attached to one canonical contact. Existing duplicate contacts are merged while human names are preserved and technical names are replaced by the confirmed E.164 phone number.
+- Duplicate non-resolved conversations for the same identity and Whatsmeow inbox are consolidated into the phone-backed conversation. Resolved conversations remain available in the previous-conversations panel.
+- `bundle exec rails whatsmeow:reconcile_contact_identities ACCOUNT_ID=<id>` previews existing LID reconciliation; add `APPLY=true` to persist it.
+- Opening the contact sidebar or its accordion sections no longer resets and reloads the full conversation list.
+
 ## July 2026 WhatsApp Status
 
 - The conversation sidebar now has a Status workspace for each connected `Channel::Whatsmeow` inbox, with own Status publishing and the active updates WhatsApp delivers for that session.
