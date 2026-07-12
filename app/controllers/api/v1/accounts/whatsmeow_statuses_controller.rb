@@ -10,10 +10,7 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
                                .where(whatsmeow_status_id: statuses.map(&:id))
                                .pluck(:whatsmeow_status_id)
                                .index_with(true)
-    viewer_counts = WhatsmeowStatusViewer
-                    .where(whatsmeow_status_id: statuses.select(&:from_me?).map(&:id))
-                    .group(:whatsmeow_status_id)
-                    .count
+    viewer_counts = status_viewer_counts(statuses)
     render json: { payload: statuses.map { |status| status_payload(status, viewed_status_ids, viewer_counts) } }
   end
 
@@ -50,8 +47,10 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
     viewers = @status.status_viewers
                      .includes(contact: { avatar_attachment: :blob })
                      .order(viewed_at: :desc)
+                     .to_a
+                     .uniq(&:identity_key)
     render json: {
-      payload: viewers.map { |viewer| status_viewer_payload(viewer) },
+      payload: viewers.map { |viewer| status_viewer_payload(viewer, @status) },
       meta: { count: viewers.size }
     }
   end
@@ -59,7 +58,7 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
   def preview
     return head :not_found unless @status.from_me?
 
-    viewer_counts = { @status.id => @status.status_viewers.count }
+    viewer_counts = { @status.id => @status.status_viewers.to_a.uniq(&:identity_key).size }
     payload = status_payload(@status, {}, viewer_counts)
     payload[:inbox_name] = @status.inbox.name
     render json: { payload: payload }
@@ -79,7 +78,7 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
   end
 
   def status_params
-    params.permit(:inbox_id, :content, :media, :background, :font)
+    params.permit(:inbox_id, :publication_id, :content, :media, :background, :font)
   end
 
   def reply_params
@@ -113,9 +112,19 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
     }
   end
 
-  def status_viewer_payload(viewer)
+  def status_viewer_counts(statuses)
+    WhatsmeowStatusViewer
+      .where(whatsmeow_status_id: statuses.select(&:from_me?).map(&:id))
+      .group_by(&:whatsmeow_status_id)
+      .transform_values { |viewers| viewers.uniq(&:identity_key).size }
+  end
+
+  def status_viewer_payload(viewer, status)
     {
       id: viewer.id,
+      status_id: viewer.whatsmeow_status_id,
+      inbox_id: status.inbox_id,
+      inbox_name: status.inbox.name,
       viewer_jid: viewer.viewer_jid,
       viewer_name: viewer.viewer_name,
       viewer_phone: viewer.viewer_phone,

@@ -40,6 +40,7 @@ const { t } = useI18n();
 const { formatStatusTime } = useStatusTime();
 
 const TIMED_STATUS_DURATION = 5000;
+const ALL_VIEWER_INBOXES = 'all';
 
 const closeButtonRef = ref(null);
 const mediaRef = ref(null);
@@ -58,9 +59,11 @@ const isReplying = ref(false);
 const showEmojiPicker = ref(false);
 const showStickerPicker = ref(false);
 const showViewers = ref(false);
+const showViewerInboxMenu = ref(false);
 const isLoadingViewers = ref(false);
 const viewers = ref([]);
 const viewersCountOverride = ref(null);
+const selectedViewerInboxId = ref(ALL_VIEWER_INBOXES);
 
 let progressFrame = null;
 let progressStartedAt = 0;
@@ -68,6 +71,7 @@ let pausedByVisibility = false;
 let shouldResumeAfterPointerHold = false;
 let activePointerId = null;
 let viewersRefreshTimer = null;
+let viewersRequestToken = 0;
 
 const currentGroup = computed(() => props.groups[groupIndex.value]);
 const currentStatus = computed(
@@ -94,9 +98,58 @@ const videoBackdropUrl = computed(
 );
 const isOwnStatus = computed(() => Boolean(currentStatus.value?.from_me));
 const canReply = computed(() => !isOwnStatus.value);
+const publicationStatuses = computed(() => {
+  if (!isOwnStatus.value) return [];
+
+  const publicationId = currentStatus.value?.metadata?.publication_id;
+  if (!publicationId) return currentStatus.value ? [currentStatus.value] : [];
+
+  return currentGroup.value.items.filter(
+    status => status.metadata?.publication_id === publicationId
+  );
+});
+const viewerInboxOptions = computed(() =>
+  publicationStatuses.value.map(status => ({
+    id: status.inbox_id,
+    name: status.inbox_name,
+    statusId: status.id,
+  }))
+);
+const selectedViewerInboxLabel = computed(() => {
+  if (selectedViewerInboxId.value === ALL_VIEWER_INBOXES) {
+    return t('WHATSAPP_STATUS.ALL_INBOXES');
+  }
+
+  return (
+    viewerInboxOptions.value.find(
+      inbox => String(inbox.id) === String(selectedViewerInboxId.value)
+    )?.name || currentStatus.value?.inbox_name
+  );
+});
+const viewerPanelMetadataLine = computed(() =>
+  t('WHATSAPP_STATUS.VIEWER.INBOX_TIME', {
+    inbox: selectedViewerInboxLabel.value,
+    time: t('WHATSAPP_STATUS.VIEWER.VIEWERS_COUNT', {
+      count: viewers.value.length,
+    }),
+  })
+);
+const viewerStatusesToLoad = computed(() => {
+  if (selectedViewerInboxId.value === ALL_VIEWER_INBOXES) {
+    return publicationStatuses.value;
+  }
+
+  return publicationStatuses.value.filter(
+    status => String(status.inbox_id) === String(selectedViewerInboxId.value)
+  );
+});
 const viewerCount = computed(
   () =>
-    viewersCountOverride.value ?? Number(currentStatus.value?.viewer_count || 0)
+    viewersCountOverride.value ??
+    publicationStatuses.value.reduce(
+      (count, status) => count + Number(status.viewer_count || 0),
+      0
+    )
 );
 const canGoPrevious = computed(
   () => statusIndex.value > 0 || groupIndex.value > 0
@@ -248,6 +301,7 @@ const stopViewersRefresh = () => {
 const closeMenus = () => {
   showEmojiPicker.value = false;
   showStickerPicker.value = false;
+  showViewerInboxMenu.value = false;
 };
 
 const nextStatus = () => {
@@ -363,6 +417,7 @@ const prepareCurrentStatus = async () => {
   generatedVideoBackdropUrl.value = '';
   replyText.value = '';
   showViewers.value = false;
+  selectedViewerInboxId.value = ALL_VIEWER_INBOXES;
   viewers.value = [];
   viewersCountOverride.value = null;
   stopViewersRefresh();
@@ -526,34 +581,62 @@ const sendSticker = async sticker => {
 const loadViewers = async ({ silent = false } = {}) => {
   if (!isOwnStatus.value) return;
 
+  viewersRequestToken += 1;
+  const requestToken = viewersRequestToken;
   if (!silent) isLoadingViewers.value = true;
   try {
-    const { data } = await WhatsmeowStatusesAPI.getViewers(
-      currentStatus.value.id
+    const requestedStatuses = viewerStatusesToLoad.value;
+    const results = await Promise.allSettled(
+      requestedStatuses.map(status =>
+        WhatsmeowStatusesAPI.getViewers(status.id)
+      )
     );
-    viewers.value = data.payload || [];
-    viewersCountOverride.value = Number(
-      data.meta?.count ?? viewers.value.length
+    if (requestToken !== viewersRequestToken) return;
+
+    const fulfilledResults = results
+      .map((result, index) => ({ result, status: requestedStatuses[index] }))
+      .filter(({ result }) => result.status === 'fulfilled');
+    if (!fulfilledResults.length) throw results[0]?.reason;
+
+    viewers.value = fulfilledResults
+      .flatMap(({ result }) => result.value.data.payload || [])
+      .sort((a, b) => b.viewed_at - a.viewed_at);
+    viewersCountOverride.value = fulfilledResults.reduce(
+      (count, { result }) =>
+        count +
+        Number(
+          result.value.data.meta?.count ??
+            result.value.data.payload?.length ??
+            0
+        ),
+      0
     );
-    emit('viewersUpdated', {
-      statusId: currentStatus.value.id,
-      count: viewersCountOverride.value,
+
+    fulfilledResults.forEach(({ result, status }) => {
+      const data = result.value.data;
+      emit('viewersUpdated', {
+        statusId: status.id,
+        count: Number(data.meta?.count ?? data.payload?.length ?? 0),
+      });
     });
   } catch (error) {
     if (!silent) {
       useAlert(
-        error.response?.data?.message ||
+        error?.response?.data?.message ||
           t('WHATSAPP_STATUS.VIEWER.VIEWERS_ERROR')
       );
     }
   } finally {
-    if (!silent) isLoadingViewers.value = false;
+    if (!silent && requestToken === viewersRequestToken) {
+      isLoadingViewers.value = false;
+    }
   }
 };
 
 const openViewers = async () => {
   if (!isOwnStatus.value) return;
 
+  selectedViewerInboxId.value = ALL_VIEWER_INBOXES;
   showViewers.value = true;
   await loadViewers();
   stopViewersRefresh();
@@ -561,6 +644,13 @@ const openViewers = async () => {
     () => loadViewers({ silent: true }),
     10000
   );
+};
+
+const selectViewerInbox = async inboxId => {
+  selectedViewerInboxId.value = inboxId;
+  showViewerInboxMenu.value = false;
+  viewersCountOverride.value = null;
+  await loadViewers();
 };
 
 const onKeyDown = event => {
@@ -594,7 +684,13 @@ const onVisibilityChange = () => {
 watch([groupIndex, statusIndex], prepareCurrentStatus, { immediate: true });
 
 watch(showViewers, isOpen => {
-  if (!isOpen) stopViewersRefresh();
+  if (isOpen) return;
+
+  viewersRequestToken += 1;
+  stopViewersRefresh();
+  showViewerInboxMenu.value = false;
+  selectedViewerInboxId.value = ALL_VIEWER_INBOXES;
+  viewersCountOverride.value = null;
 });
 
 onMounted(() => {
@@ -962,7 +1058,7 @@ onBeforeUnmount(() => {
         <div class="relative flex w-full max-w-[34rem] justify-center">
           <button
             type="button"
-            class="flex min-h-11 items-center gap-2 rounded-full bg-black/70 px-4 text-sm text-white shadow-lg ring-1 ring-white/15 backdrop-blur-xl transition-colors hover:bg-black/85 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+            class="flex min-h-11 items-center gap-2 rounded-full bg-black px-4 text-sm text-white shadow-2xl ring-1 ring-white/30 transition-colors hover:bg-n-slate-12 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
             :aria-label="t('WHATSAPP_STATUS.VIEWER.SEE_VIEWERS')"
             @click="openViewers"
           >
@@ -977,24 +1073,83 @@ onBeforeUnmount(() => {
           <div
             v-if="showViewers"
             v-on-clickaway="() => (showViewers = false)"
-            class="absolute bottom-14 left-1/2 z-40 max-h-80 w-full max-w-sm -translate-x-1/2 overflow-hidden rounded-xl border border-white/15 bg-black/95 shadow-2xl backdrop-blur-xl"
+            class="absolute bottom-14 left-1/2 z-40 max-h-80 w-full max-w-sm -translate-x-1/2 overflow-visible rounded-xl border border-white/25 bg-black text-white shadow-2xl ring-1 ring-black/70"
             role="dialog"
             :aria-label="t('WHATSAPP_STATUS.VIEWER.VIEWERS_TITLE')"
           >
             <div
-              class="flex items-center justify-between border-b border-white/10 px-4 py-3"
+              class="flex items-center justify-between gap-2 border-b border-white/15 px-4 py-3"
             >
-              <div>
+              <div class="min-w-0 flex-1">
                 <p class="mb-0 text-sm font-semibold text-white">
                   {{ t('WHATSAPP_STATUS.VIEWER.VIEWERS_TITLE') }}
                 </p>
-                <p class="mb-0 mt-0.5 text-xs text-white/60">
-                  {{
-                    t('WHATSAPP_STATUS.VIEWER.VIEWERS_COUNT', {
-                      count: viewers.length,
-                    })
-                  }}
+                <p class="mb-0 mt-0.5 truncate text-xs text-white/70">
+                  {{ viewerPanelMetadataLine }}
                 </p>
+              </div>
+              <div
+                v-if="viewerInboxOptions.length > 1"
+                v-on-clickaway="() => (showViewerInboxMenu = false)"
+                class="relative flex-shrink-0"
+              >
+                <button
+                  type="button"
+                  class="flex size-9 items-center justify-center rounded-lg text-white/80 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+                  :class="{ 'bg-white/10 text-white': showViewerInboxMenu }"
+                  :aria-label="t('WHATSAPP_STATUS.STATUS_SETTINGS')"
+                  :aria-expanded="showViewerInboxMenu"
+                  @click="showViewerInboxMenu = !showViewerInboxMenu"
+                >
+                  <Icon icon="i-lucide-ellipsis-vertical" class="size-4" />
+                </button>
+                <div
+                  v-if="showViewerInboxMenu"
+                  class="absolute right-0 top-10 z-50 w-64 overflow-hidden rounded-xl border border-white/20 bg-black p-1.5 shadow-2xl"
+                  role="menu"
+                >
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    class="reset-base flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-white transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white"
+                    :aria-checked="selectedViewerInboxId === ALL_VIEWER_INBOXES"
+                    @click="selectViewerInbox(ALL_VIEWER_INBOXES)"
+                  >
+                    <Icon
+                      icon="i-lucide-layers-3"
+                      class="size-4 text-white/70"
+                    />
+                    <span class="min-w-0 flex-1 truncate">
+                      {{ t('WHATSAPP_STATUS.ALL_INBOXES') }}
+                    </span>
+                    <Icon
+                      v-if="selectedViewerInboxId === ALL_VIEWER_INBOXES"
+                      icon="i-lucide-check"
+                      class="size-4 text-n-teal-9"
+                    />
+                  </button>
+                  <button
+                    v-for="inbox in viewerInboxOptions"
+                    :key="inbox.statusId"
+                    type="button"
+                    role="menuitemradio"
+                    class="reset-base flex min-h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm text-white transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white"
+                    :aria-checked="
+                      String(selectedViewerInboxId) === String(inbox.id)
+                    "
+                    @click="selectViewerInbox(inbox.id)"
+                  >
+                    <Icon icon="i-lucide-inbox" class="size-4 text-white/70" />
+                    <span class="min-w-0 flex-1 truncate">{{
+                      inbox.name
+                    }}</span>
+                    <Icon
+                      v-if="String(selectedViewerInboxId) === String(inbox.id)"
+                      icon="i-lucide-check"
+                      class="size-4 text-n-teal-9"
+                    />
+                  </button>
+                </div>
               </div>
               <button
                 type="button"
@@ -1005,7 +1160,7 @@ onBeforeUnmount(() => {
                 <Icon icon="i-lucide-x" class="size-4" />
               </button>
             </div>
-            <div class="max-h-64 overflow-y-auto p-2">
+            <div class="max-h-64 overflow-y-auto rounded-b-xl bg-black p-2">
               <div
                 v-if="isLoadingViewers"
                 class="flex h-24 items-center justify-center"
@@ -1021,7 +1176,7 @@ onBeforeUnmount(() => {
               <div v-else class="flex flex-col gap-1">
                 <div
                   v-for="viewer in viewers"
-                  :key="viewer.id || viewer.viewer_jid"
+                  :key="`${viewer.status_id}:${viewer.id || viewer.viewer_jid}`"
                   class="flex min-h-12 items-center gap-3 rounded-lg px-2 py-1.5"
                 >
                   <Avatar
@@ -1034,8 +1189,13 @@ onBeforeUnmount(() => {
                     <span class="block truncate text-sm font-medium text-white">
                       {{ viewer.contact?.name || viewer.viewer_name }}
                     </span>
-                    <span class="block truncate text-xs text-white/60">
-                      {{ formatStatusTime(viewer.viewed_at) }}
+                    <span class="block truncate text-xs text-white/70">
+                      {{
+                        t('WHATSAPP_STATUS.VIEWER.INBOX_TIME', {
+                          inbox: viewer.inbox_name,
+                          time: formatStatusTime(viewer.viewed_at),
+                        })
+                      }}
                     </span>
                   </span>
                 </div>

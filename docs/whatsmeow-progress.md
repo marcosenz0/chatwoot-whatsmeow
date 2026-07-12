@@ -193,6 +193,10 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - The Status three-dot menu can independently hide or show this inbox's outgoing view confirmations. It defaults to showing them; when hidden, Chatwoot still records the operator's local view but does not ask WhatsApp to send the receipt.
 - WhatsApp replies to an active own Status now retain a Status reference in the direct conversation. The message bubble displays a clickable media/text preview that reopens the original Status context instead of showing an ambiguous generic quoted message.
 - Received video Status media now keeps normalized video MIME metadata and a compact JPEG thumbnail. The viewer uses that thumbnail (or one lightweight frame capture for older records) for the stronger blurred media backdrop without starting a second foreground video decode.
+- The Status settings menu groups each WhatsApp inbox in its own expandable card. Status reception and outgoing view-confirmation controls stay inside that inbox instead of rendering as overlapping flat rows.
+- Multi-inbox publications now share a publication identifier. The own-Status viewer totals views across the matching publication, shows the originating inbox on every viewer row, and offers an inbox filter from the viewer panel's three-dot menu.
+- Viewer identity storage and API counts collapse matching contact, phone, PN-JID, and LID receipts for the same Status, preventing multi-device identity variants from inflating the count.
+- The own-Status view counter and viewer panel use an opaque high-contrast surface, keeping the controls and names readable over white or otherwise bright Status media.
 
 ## Product Decisions
 

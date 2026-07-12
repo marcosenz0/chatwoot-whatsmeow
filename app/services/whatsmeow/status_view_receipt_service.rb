@@ -19,14 +19,20 @@ class Whatsmeow::StatusViewReceiptService
   end
 
   def upsert_viewer(status)
-    viewer = status.status_viewers.find_or_initialize_by(viewer_jid: viewer_jid)
-    update_viewer(viewer)
+    viewers = matching_viewers(status).order(:id).to_a
+    viewer = viewers.shift || status.status_viewers.new
+
+    WhatsmeowStatusViewer.transaction do
+      viewers.each(&:destroy!)
+      update_viewer(viewer)
+    end
   rescue ActiveRecord::RecordNotUnique
-    update_viewer(status.status_viewers.find_by!(viewer_jid: viewer_jid))
+    update_viewer(status.status_viewers.find_by!(viewer_jid: canonical_viewer_jid))
   end
 
   def update_viewer(viewer)
     viewer.update!(
+      viewer_jid: canonical_viewer_jid,
       contact: contact,
       viewer_name: viewer_name,
       viewer_phone: viewer_phone,
@@ -40,7 +46,11 @@ class Whatsmeow::StatusViewReceiptService
   end
 
   def viewer_phone
-    @viewer_phone ||= params[:viewer_phone].presence || params[:sender_phone].presence || phone_from_jid(viewer_jid)
+    return @viewer_phone if defined?(@viewer_phone)
+
+    value = params[:viewer_phone].presence || params[:sender_phone].presence || phone_from_jid(viewer_jid)
+    digits = value.to_s.delete('^0-9')
+    @viewer_phone = "+#{digits}" if digits.present?
   end
 
   def viewer_name
@@ -78,6 +88,17 @@ class Whatsmeow::StatusViewReceiptService
     return if viewer_phone.blank?
 
     "#{viewer_phone.delete('^0-9')}@s.whatsapp.net"
+  end
+
+  def canonical_viewer_jid
+    phone_jid || viewer_jid
+  end
+
+  def matching_viewers(status)
+    scope = status.status_viewers.where(viewer_jid: [viewer_jid, phone_jid].compact)
+    scope = scope.or(status.status_viewers.where(contact_id: contact.id)) if contact.present?
+    scope = scope.or(status.status_viewers.where(viewer_phone: viewer_phone)) if viewer_phone.present?
+    scope
   end
 
   def phone_from_jid(value)

@@ -8,7 +8,7 @@ class Whatsmeow::IncomingStatusService
     return unless importable?
 
     status = @inbox.whatsmeow_statuses.find_or_initialize_by(source_id: params[:message_id])
-    status.assign_attributes(status_attributes)
+    status.assign_attributes(status_attributes(status))
     status.read_receipt_sent_at ||= Time.current if already_viewed?
     attach_media(status) if attachment.present? && !status.media.attached?
     status.save!
@@ -39,7 +39,7 @@ class Whatsmeow::IncomingStatusService
     posted_at + 24.hours
   end
 
-  def status_attributes
+  def status_attributes(status)
     {
       account: @inbox.account,
       contact: contact,
@@ -51,7 +51,7 @@ class Whatsmeow::IncomingStatusService
       from_me: boolean_param(:from_me),
       posted_at: posted_at,
       expires_at: expires_at,
-      metadata: metadata
+      metadata: metadata(status.metadata)
     }
   end
 
@@ -92,9 +92,9 @@ class Whatsmeow::IncomingStatusService
     'text'
   end
 
-  def metadata
+  def metadata(existing_metadata)
     status_metadata = params[:status_metadata].respond_to?(:to_h) ? params[:status_metadata].to_h : {}
-    status_metadata.stringify_keys.merge(
+    existing_metadata.to_h.stringify_keys.merge(status_metadata.stringify_keys).merge(
       'profile_picture_url' => params[:profile_picture_url],
       'status_already_viewed' => already_viewed?
     ).compact_blank

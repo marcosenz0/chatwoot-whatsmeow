@@ -111,13 +111,15 @@ class Whatsmeow::StatusPublisher
   end
 
   def status_metadata
-    {
+    metadata = {
       'background' => background,
       'background_argb' => background_argb,
       'text_argb' => 0xFFFFFFFF,
       'font' => font,
       'font_value' => font_value
     }
+    metadata['publication_id'] = params[:publication_id] if params[:publication_id].present?
+    metadata
   end
 
   def background

@@ -171,9 +171,11 @@ const publish = async () => {
 
   isPublishing.value = true;
   try {
+    const publicationId = crypto.randomUUID();
     const publishRequests = selectedInboxIds.value.map(inboxId => {
       const formData = new FormData();
       formData.append('inbox_id', String(inboxId));
+      formData.append('publication_id', publicationId);
       formData.append('content', content.value.trim());
       formData.append('background', background.value);
       formData.append('font', font.value);
