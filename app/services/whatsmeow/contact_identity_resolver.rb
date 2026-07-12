@@ -82,9 +82,7 @@ class Whatsmeow::ContactIdentityResolver
 
   def merge_contacts(canonical_contact, contacts)
     duplicate_contacts = contacts.reject { |contact| contact.id == canonical_contact.id }
-    duplicate_contacts.each do |duplicate_contact|
-      duplicate_contact.update!(phone_number: nil) if duplicate_contact.phone_number == normalized_phone_number
-    end
+    release_duplicate_phone_numbers(duplicate_contacts)
 
     duplicate_contacts.each do |duplicate_contact|
       preserve_avatar(canonical_contact, duplicate_contact)
@@ -99,6 +97,12 @@ class Whatsmeow::ContactIdentityResolver
         mergee_contact: duplicate_contact
       ).perform
       canonical_contact.reload
+    end
+  end
+
+  def release_duplicate_phone_numbers(duplicate_contacts)
+    duplicate_contacts.each do |duplicate_contact|
+      duplicate_contact.update!(phone_number: nil) if duplicate_contact.phone_number == normalized_phone_number
     end
   end
 
