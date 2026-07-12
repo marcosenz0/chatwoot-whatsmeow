@@ -81,9 +81,13 @@ class Whatsmeow::ContactIdentityResolver
   end
 
   def merge_contacts(canonical_contact, contacts)
-    contacts.reject { |contact| contact.id == canonical_contact.id }.each do |duplicate_contact|
-      preserve_avatar(canonical_contact, duplicate_contact)
+    duplicate_contacts = contacts.reject { |contact| contact.id == canonical_contact.id }
+    duplicate_contacts.each do |duplicate_contact|
       duplicate_contact.update!(phone_number: nil) if duplicate_contact.phone_number == normalized_phone_number
+    end
+
+    duplicate_contacts.each do |duplicate_contact|
+      preserve_avatar(canonical_contact, duplicate_contact)
       # These relationships are moved in bulk before ContactMergeAction destroys the duplicate contact.
       # rubocop:disable Rails/SkipsModelValidations
       CsatSurveyResponse.where(contact_id: duplicate_contact.id).update_all(contact_id: canonical_contact.id)
