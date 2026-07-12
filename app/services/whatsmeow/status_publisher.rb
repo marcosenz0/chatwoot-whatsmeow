@@ -2,6 +2,8 @@ require 'base64'
 require 'stringio'
 
 class Whatsmeow::StatusPublisher
+  STATUS_COOLDOWN = 60.seconds
+  ACCOUNT_PUBLISH_INTERVAL = 15.seconds
   BACKGROUNDS = {
     'teal' => 0xFF0B8467,
     'blue' => 0xFF176BCE,
@@ -16,6 +18,7 @@ class Whatsmeow::StatusPublisher
 
   def perform
     validate_payload!
+    acquire_publish_locks!
     response = Whatsmeow::SessionClient.new(inbox: @inbox).publish_status(outbound_payload)
     persist_status(response)
   end
@@ -53,7 +56,8 @@ class Whatsmeow::StatusPublisher
       background_argb: background_argb,
       text_argb: 0xFFFFFFFF,
       font: font_value,
-      contacts: audience_contacts
+      contacts: audience_contacts,
+      managed_contacts: managed_contacts
     }
     payload[:attachment] = attachment_payload if media.present?
     payload
@@ -144,19 +148,54 @@ class Whatsmeow::StatusPublisher
   end
 
   def audience_contacts
-    @inbox.account.contacts.where.not(phone_number: [nil, '']).pluck(:phone_number, :name).filter_map do |phone_number, name|
-      jid = audience_jid(phone_number)
+    contacts = []
+    @inbox.contact_inboxes.includes(:contact).find_each do |contact_inbox|
+      jid = audience_jid(contact_inbox)
       next if jid.blank?
 
-      { jid: jid, name: name.presence || phone_number }
-    end.uniq { |contact| contact[:jid] }
+      contacts << { jid: jid, name: contact_inbox.contact.name.presence || contact_inbox.source_id }
+    end
+    contacts.uniq { |contact| contact[:jid] }
   end
 
-  def audience_jid(phone_number)
-    phone = phone_number.to_s.delete('^0-9')
+  def audience_jid(contact_inbox)
+    source_id = contact_inbox.source_id.to_s
+    return source_id if source_id.match?(/\A[1-9]\d{5,14}@s\.whatsapp\.net\z/)
+
+    phone = contact_inbox.contact.phone_number.to_s.delete('^0-9')
     return if phone.blank? || !phone.match?(/\A[1-9]\d{5,14}\z/)
 
     "#{phone}@s.whatsapp.net"
+  end
+
+  def managed_contacts
+    @inbox.account.contacts.where.not(phone_number: [nil, '']).pluck(:phone_number).filter_map do |phone_number|
+      phone = phone_number.to_s.delete('^0-9')
+      next unless phone.match?(/\A[1-9]\d{5,14}\z/)
+
+      { jid: "#{phone}@s.whatsapp.net" }
+    end
+  end
+
+  def acquire_publish_locks!
+    account_lock_acquired = ::Redis::Alfred.set(
+      account_publish_key,
+      true,
+      nx: true,
+      ex: ACCOUNT_PUBLISH_INTERVAL.to_i
+    )
+    raise ArgumentError, 'Wait 15 seconds before publishing from another inbox.' unless account_lock_acquired
+
+    inbox_lock_acquired = ::Redis::Alfred.set(cooldown_key, true, nx: true, ex: STATUS_COOLDOWN.to_i)
+    raise ArgumentError, 'Wait one minute before publishing another status to this inbox.' unless inbox_lock_acquired
+  end
+
+  def cooldown_key
+    "whatsmeow:status-publish:#{@inbox.id}"
+  end
+
+  def account_publish_key
+    "whatsmeow:status-publish:account:#{@inbox.account_id}"
   end
 
   def maximum_media_size

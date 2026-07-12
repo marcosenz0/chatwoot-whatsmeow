@@ -179,9 +179,10 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - The full-screen viewer advances text/images after five seconds, follows the real video duration, and continues through every update and contact with keyboard and pointer navigation.
 - Opening an incoming Status creates a per-agent local view immediately and sends the WhatsApp read receipt asynchronously, so a disconnected whatsmeow service does not block the viewer.
 - Realtime `status@broadcast` messages and `StatusV3Messages` history snapshots bypass normal conversation/group creation. Status revokes delete the matching Status record.
-- Chatwoot contact creates, name/phone updates, and deletes are synchronized to the local contact store of every Whatsmeow inbox in the account. A newly paired inbox receives a full account contact sync, and Status publishing performs the same full-account sync as a final consistency pass.
-- This local contact store makes all valid account phone contacts eligible for the sender's existing WhatsApp Status privacy mode; whitelist/blacklist choices are still respected. Deletions clear the locally stored contact name so whatsmeow no longer treats that JID as an address-book Status recipient.
-- Contact sync influences outgoing Status recipients only. It cannot force another account to send its Status to this session; incoming visibility remains controlled by WhatsApp delivery and the other person's privacy/contact relationship.
+- Status recipients are scoped to the contacts associated with the publishing inbox. Account-wide contact synchronization was removed because whatsmeow derives Status broadcast participants from its local contact store, making a global sync expand every inbox's broadcast unexpectedly.
+- Before each Status publish, account-managed contact names are cleared from that session in one local batch and only the selected inbox's audience is restored. This prevents contacts injected by an older global sync from remaining eligible recipients.
+- Multi-inbox Status publishing is sequential with a 15-second safety interval. Distributed Redis locks enforce the same account-wide interval on the server and a 60-second cooldown per inbox, including requests made from another tab or API client.
+- Contact storage influences outgoing Status recipients only. It cannot force another account to send its Status to this session; incoming visibility remains controlled by WhatsApp delivery and the other person's privacy/contact relationship.
 - Set the same `WHATSMEOW_SHARED_SECRET` on Chatwoot and whatsmeow-service to authenticate Status API calls and callback webhooks.
 - Status updates now separate unseen updates from the `Vistos`/Seen section. The permanent action beside `Meu status` keeps publishing additional updates available after the first one.
 - The Status viewer supports text replies, emoji reactions, saved stickers, audio mute/unmute, and the native WhatsApp Status context needed for the reply to appear in the contact's direct chat.
@@ -199,6 +200,8 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Viewer identity storage and API counts collapse matching contact, phone, PN-JID, and LID receipts for the same Status, preventing multi-device identity variants from inflating the count.
 - The own-Status view counter and viewer panel use an opaque high-contrast surface, keeping the controls and names readable over white or otherwise bright Status media.
 - Each own-Status viewer row displays the viewer's phone number beside their name, using the linked contact phone as a fallback when the receipt does not carry one.
+- Own Status publications are grouped by publication instead of mixing every inbox copy into the viewer sequence. The viewer exposes inbox chips to switch copies without leaving the screen.
+- `Meu status` opens a publication manager with previews, per-inbox labels, view totals, open controls, and two-step deletion across the WhatsApp inboxes where that publication was posted.
 - Brazilian viewer phone numbers are formatted as `+55 DD XXXX-XXXX` or `+55 DD XXXXX-XXXX` for easier reading.
 
 ## July 2026 Conversation Search

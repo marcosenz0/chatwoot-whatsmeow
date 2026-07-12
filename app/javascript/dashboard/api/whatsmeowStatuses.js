@@ -30,6 +30,10 @@ class WhatsmeowStatusesAPI extends ApiClient {
   preview(id) {
     return axios.get(`${this.url}/${id}/preview`);
   }
+
+  remove(id) {
+    return axios.delete(`${this.url}/${id}`);
+  }
 }
 
 export default new WhatsmeowStatusesAPI();

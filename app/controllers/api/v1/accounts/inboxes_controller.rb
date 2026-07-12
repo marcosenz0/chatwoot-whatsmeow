@@ -277,16 +277,10 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
   def update_whatsmeow_status(payload)
     status = payload['status'].presence
     phone_number = payload['phone_number'].presence
-    became_connected = whatsmeow_became_connected?(status)
     updates = {}
     updates[:status] = status if status.present? && @inbox.channel.status != status
     updates[:phone_number] = phone_number if phone_number.present? && @inbox.channel.phone_number != phone_number
     @inbox.channel.update!(updates) if updates.present?
-    Whatsmeow::FullContactSyncJob.perform_later(@inbox.id) if became_connected
-  end
-
-  def whatsmeow_became_connected?(status)
-    status == 'connected' && @inbox.channel.status != 'connected'
   end
 
   def create_whatsmeow_group_member_activity(group_jid, participant)

@@ -93,6 +93,10 @@ class Whatsmeow::SessionClient
     request(:post, "/sessions/#{@inbox.id}/statuses", body: payload, timeout: self.class.status_timeout)
   end
 
+  def delete_status(message_id)
+    request(:delete, "/sessions/#{@inbox.id}/statuses/#{CGI.escape(message_id)}", timeout: 20)
+  end
+
   def mark_status_read(message_id:, sender_jid:, timestamp:)
     request(
       :post,

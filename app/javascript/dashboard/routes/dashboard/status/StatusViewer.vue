@@ -670,6 +670,15 @@ const selectViewerInbox = async inboxId => {
   await loadViewers();
 };
 
+const selectPublicationInbox = statusId => {
+  const index = currentGroup.value.items.findIndex(
+    status => status.id === statusId
+  );
+  if (index < 0 || index === statusIndex.value) return;
+
+  statusIndex.value = index;
+};
+
 const onKeyDown = event => {
   if (event.altKey || event.ctrlKey || event.metaKey) return;
   if (['INPUT', 'TEXTAREA'].includes(event.target?.tagName)) return;
@@ -797,6 +806,27 @@ onBeforeUnmount(() => {
                 :icon="isMuted ? 'i-lucide-volume-x' : 'i-lucide-volume-2'"
                 class="size-5"
               />
+            </button>
+          </div>
+
+          <div
+            v-if="isOwnStatus && publicationStatuses.length > 1"
+            class="mt-3 flex max-w-full gap-1.5 overflow-x-auto pb-1"
+            :aria-label="t('WHATSAPP_STATUS.VIEWER.PUBLICATION_INBOXES')"
+          >
+            <button
+              v-for="status in publicationStatuses"
+              :key="status.id"
+              type="button"
+              class="flex-shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+              :class="
+                status.id === currentStatus.id
+                  ? 'border-white bg-white text-n-black'
+                  : 'border-white/30 bg-n-black/30 text-white hover:bg-white/10'
+              "
+              @click="selectPublicationInbox(status.id)"
+            >
+              {{ status.inbox_name }}
             </button>
           </div>
         </div>

@@ -20,7 +20,6 @@ class AsyncDispatcher < BaseDispatcher
       ParticipationListener.instance,
       Conversations::UnreadCounts::Listener.instance,
       ReportingEventListener.instance,
-      Whatsmeow::ContactSyncListener.instance,
       WebhookListener.instance
     ]
   end

@@ -1,6 +1,6 @@
 class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseController
   before_action :set_inbox, only: [:index, :create]
-  before_action :set_status, only: [:view, :reply, :viewers, :preview]
+  before_action :set_status, only: [:view, :reply, :viewers, :preview, :destroy]
 
   def index
     statuses = @inbox.whatsmeow_statuses.active
@@ -64,6 +64,16 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
     render json: { payload: payload }
   end
 
+  def destroy
+    return head :not_found unless @status.from_me?
+
+    Whatsmeow::SessionClient.new(inbox: @status.inbox).delete_status(@status.source_id)
+    @status.destroy!
+    head :no_content
+  rescue Whatsmeow::SessionClient::Error => e
+    render json: { message: e.message }, status: :bad_gateway
+  end
+
   private
 
   def set_inbox
@@ -74,7 +84,7 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
 
   def set_status
     @status = Current.account.whatsmeow_statuses.active.find(params[:id])
-    authorize @status.inbox, action_name == 'reply' ? :whatsmeow_status? : :show?
+    authorize @status.inbox, %w[reply destroy].include?(action_name) ? :whatsmeow_status? : :show?
   end
 
   def status_params

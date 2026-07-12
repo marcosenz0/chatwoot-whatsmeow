@@ -120,7 +120,7 @@ Rails.application.routes.draw do
           resources :whatsmeow_stickers, path: 'whatsmeow/stickers', only: [:index, :create, :destroy] do
             post :send, on: :member, action: :send_sticker
           end
-          resources :whatsmeow_statuses, path: 'whatsmeow/statuses', only: [:index, :create] do
+          resources :whatsmeow_statuses, path: 'whatsmeow/statuses', only: [:index, :create, :destroy] do
             post :view, on: :member
             post :reply, on: :member
             get :viewers, on: :member

@@ -33,9 +33,11 @@ const font = ref('bold');
 const mediaFile = ref(null);
 const mediaPreviewUrl = ref('');
 const isPublishing = ref(false);
+const publishingInboxIndex = ref(0);
 const selectedInboxIds = ref([]);
 
 let publishRequestToken = 0;
+const MULTI_INBOX_DELAY = 15000;
 
 const BACKGROUNDS = [
   {
@@ -110,6 +112,19 @@ const canPublish = computed(
       ? Boolean(content.value.trim())
       : Boolean(mediaFile.value))
 );
+const isMultiInboxPublication = computed(
+  () => selectedInboxIds.value.length > 1
+);
+const publicationProgress = computed(() =>
+  t('WHATSAPP_STATUS.COMPOSER.SEQUENTIAL_PROGRESS', {
+    current: publishingInboxIndex.value,
+    total: selectedInboxIds.value.length,
+  })
+);
+const waitForNextInbox = () =>
+  new Promise(resolve => {
+    window.setTimeout(resolve, MULTI_INBOX_DELAY);
+  });
 
 const revokeMediaPreview = () => {
   if (mediaPreviewUrl.value) URL.revokeObjectURL(mediaPreviewUrl.value);
@@ -131,6 +146,7 @@ const resetForm = () => {
   selectedInboxIds.value = [];
   clearMedia();
   isPublishing.value = false;
+  publishingInboxIndex.value = 0;
 };
 
 const open = (inboxIds = []) => {
@@ -172,17 +188,33 @@ const publish = async () => {
   isPublishing.value = true;
   try {
     const publicationId = crypto.randomUUID();
-    const publishRequests = selectedInboxIds.value.map(inboxId => {
-      const formData = new FormData();
-      formData.append('inbox_id', String(inboxId));
-      formData.append('publication_id', publicationId);
-      formData.append('content', content.value.trim());
-      formData.append('background', background.value);
-      formData.append('font', font.value);
-      if (mode.value === 'media') formData.append('media', mediaFile.value);
-      return WhatsmeowStatusesAPI.publish(formData);
-    });
-    const results = await Promise.allSettled(publishRequests);
+    const results = await selectedInboxIds.value.reduce(
+      async (resultsPromise, inboxId, index) => {
+        const publishedResults = await resultsPromise;
+        if (requestToken !== publishRequestToken) return publishedResults;
+        if (index > 0) await waitForNextInbox();
+        if (requestToken !== publishRequestToken) return publishedResults;
+
+        publishingInboxIndex.value = index + 1;
+        const formData = new FormData();
+        formData.append('inbox_id', String(inboxId));
+        formData.append('publication_id', publicationId);
+        formData.append('content', content.value.trim());
+        formData.append('background', background.value);
+        formData.append('font', font.value);
+        if (mode.value === 'media') formData.append('media', mediaFile.value);
+        try {
+          const response = await WhatsmeowStatusesAPI.publish(formData);
+          return [
+            ...publishedResults,
+            { status: 'fulfilled', value: response },
+          ];
+        } catch (reason) {
+          return [...publishedResults, { status: 'rejected', reason }];
+        }
+      },
+      Promise.resolve([])
+    );
     if (requestToken !== publishRequestToken) return;
 
     const publishedStatuses = results
@@ -250,6 +282,26 @@ defineExpose({ open });
     @confirm="publish"
   >
     <StatusDestinationSelector v-model="selectedInboxIds" :inboxes="inboxes" />
+
+    <div
+      v-if="isMultiInboxPublication"
+      class="flex gap-3 rounded-xl border border-n-amber-7 bg-n-amber-3 px-4 py-3 text-n-amber-11"
+      role="status"
+    >
+      <Icon icon="i-lucide-shield-alert" class="mt-0.5 size-4 flex-shrink-0" />
+      <div class="min-w-0">
+        <p class="mb-0 text-sm font-semibold">
+          {{ t('WHATSAPP_STATUS.COMPOSER.SEQUENTIAL_TITLE') }}
+        </p>
+        <p class="mb-0 mt-1 text-xs leading-5">
+          {{
+            isPublishing
+              ? publicationProgress
+              : t('WHATSAPP_STATUS.COMPOSER.SEQUENTIAL_DESCRIPTION')
+          }}
+        </p>
+      </div>
+    </div>
 
     <div class="flex rounded-xl bg-n-alpha-2 p-1" role="tablist">
       <button

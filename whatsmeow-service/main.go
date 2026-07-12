@@ -78,12 +78,13 @@ type MessageRequest struct {
 }
 
 type StatusRequest struct {
-	Content        string               `json:"content"`
-	BackgroundARGB uint32               `json:"background_argb"`
-	TextARGB       uint32               `json:"text_argb"`
-	Font           int32                `json:"font"`
-	Attachment     *WhatsmeowAttachment `json:"attachment"`
-	Contacts       []StatusContact      `json:"contacts"`
+	Content         string               `json:"content"`
+	BackgroundARGB  uint32               `json:"background_argb"`
+	TextARGB        uint32               `json:"text_argb"`
+	Font            int32                `json:"font"`
+	Attachment      *WhatsmeowAttachment `json:"attachment"`
+	Contacts        []StatusContact      `json:"contacts"`
+	ManagedContacts []StatusContact      `json:"managed_contacts"`
 }
 
 type StatusReadRequest struct {
@@ -312,6 +313,7 @@ func main() {
 	r.POST("/sessions/:channel_id/identities/resolve", internalTokenMiddleware(), handleResolveIdentities)
 	r.POST("/sessions/:channel_id/contacts/sync", internalTokenMiddleware(), handleSyncContacts)
 	r.POST("/sessions/:channel_id/statuses", internalTokenMiddleware(), handleSendStatus)
+	r.DELETE("/sessions/:channel_id/statuses/:message_id", internalTokenMiddleware(), handleDeleteStatus)
 	r.POST("/sessions/:channel_id/statuses/read", internalTokenMiddleware(), handleReadStatus)
 	r.POST("/sessions/:channel_id/statuses/reply", internalTokenMiddleware(), handleReplyToStatus)
 	r.DELETE("/sessions/:channel_id", handleDisconnectSession)
@@ -1367,6 +1369,10 @@ func handleSendStatus(c *gin.Context) {
 	log.Printf("Publishing Status on channel %s with %d synced Chatwoot contacts", c.Param("channel_id"), len(req.Contacts))
 	sendCtx, cancelSend := context.WithTimeout(context.Background(), timeout)
 	defer cancelSend()
+	if err := clearStatusContacts(sendCtx, client, req.ManagedContacts); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to clear managed Status contacts: %v", err)})
+		return
+	}
 	if err := syncStatusContacts(sendCtx, client, req.Contacts); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to sync Status contacts: %v", err)})
 		return
@@ -1395,6 +1401,36 @@ func handleSendStatus(c *gin.Context) {
 		"timestamp": response.Timestamp.Unix(),
 		"jid":       jidString(ownJID),
 	})
+}
+
+func handleDeleteStatus(c *gin.Context) {
+	client, ok := clientForChannel(c.Param("channel_id"))
+	if !ok {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	messageID := strings.TrimSpace(c.Param("message_id"))
+	if messageID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Status message ID is required"})
+		return
+	}
+
+	sendCtx, cancelSend := context.WithTimeout(context.Background(), sendMessageTimeout)
+	defer cancelSend()
+	revokeMessage := client.BuildRevoke(types.StatusBroadcastJID, types.EmptyJID, types.MessageID(messageID))
+	resp, err := client.SendMessage(
+		sendCtx,
+		types.StatusBroadcastJID,
+		revokeMessage,
+		whatsmeow.SendRequestExtra{Timeout: sendMessageTimeout - 5*time.Second},
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to delete Status: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "id": resp.ID, "timestamp": resp.Timestamp.Unix()})
 }
 
 func handleSyncContacts(c *gin.Context) {
@@ -1686,6 +1722,28 @@ func syncStatusContacts(ctx context.Context, client *whatsmeow.Client, contacts 
 
 	if len(entries) == 0 {
 		return nil
+	}
+	return client.Store.Contacts.PutAllContactNames(ctx, entries)
+}
+
+func clearStatusContacts(ctx context.Context, client *whatsmeow.Client, contacts []StatusContact) error {
+	if len(contacts) == 0 || client == nil || client.Store == nil || client.Store.Contacts == nil {
+		return nil
+	}
+
+	entries := make([]store.ContactEntry, 0, len(contacts))
+	seen := make(map[string]struct{}, len(contacts))
+	for _, contact := range contacts {
+		jid, ok := parseJID(contact.JID)
+		if !ok || !isPhoneJID(jid) {
+			continue
+		}
+		jid = jid.ToNonAD()
+		if _, exists := seen[jid.String()]; exists {
+			continue
+		}
+		seen[jid.String()] = struct{}{}
+		entries = append(entries, store.ContactEntry{JID: jid})
 	}
 	return client.Store.Contacts.PutAllContactNames(ctx, entries)
 }

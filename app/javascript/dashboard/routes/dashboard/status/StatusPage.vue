@@ -11,6 +11,7 @@ import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
+import OwnStatusManager from './OwnStatusManager.vue';
 import StatusComposer from './StatusComposer.vue';
 import StatusInboxSelector from './StatusInboxSelector.vue';
 import StatusInboxSettingsMenu from './StatusInboxSettingsMenu.vue';
@@ -37,10 +38,12 @@ const isInitializing = ref(true);
 const isLoading = ref(false);
 const hasLoadError = ref(false);
 const composerRef = ref(null);
+const ownStatusManagerRef = ref(null);
 const isViewerOpen = ref(false);
 const viewerGroupIndex = ref(0);
 const viewerStatusIndex = ref(0);
 const updatingStatusInboxIds = ref([]);
+const deletingPublicationKeys = ref([]);
 const isInboxSelectorOpen = ref(false);
 
 let pollTimer = null;
@@ -103,7 +106,10 @@ const activeStatuses = computed(() => {
 });
 
 const groupKeyForStatus = status => {
-  if (status.from_me) return 'current-user';
+  if (status.from_me) {
+    const publicationId = status.metadata?.publication_id || status.id;
+    return `current-user:${publicationId}`;
+  }
   const inboxPrefix = `inbox:${status.inbox_id}:`;
   if (status.contact?.id) return `${inboxPrefix}contact:${status.contact.id}`;
   if (status.sender_phone) return `${inboxPrefix}phone:${status.sender_phone}`;
@@ -159,7 +165,13 @@ const statusGroups = computed(() => {
   });
 });
 
-const ownGroup = computed(() => statusGroups.value.find(group => group.fromMe));
+const ownGroups = computed(() =>
+  statusGroups.value
+    .filter(group => group.fromMe)
+    .sort((a, b) => b.latestAt - a.latestAt)
+);
+
+const ownGroup = computed(() => ownGroups.value[0]);
 
 const incomingGroups = computed(() =>
   statusGroups.value
@@ -176,7 +188,7 @@ const viewedGroups = computed(() =>
 );
 
 const viewerGroups = computed(() => [
-  ...(ownGroup.value ? [ownGroup.value] : []),
+  ...ownGroups.value,
   ...incomingGroups.value,
 ]);
 
@@ -293,8 +305,57 @@ const openStatusGroup = groupKey => {
 };
 
 const openOwnStatus = () => {
-  if (ownGroup.value) openStatusGroup(ownGroup.value.key);
+  if (ownGroups.value.length) ownStatusManagerRef.value?.open();
   else if (isAdmin.value) openComposer();
+};
+
+const openOwnPublication = groupKey => {
+  openStatusGroup(groupKey);
+};
+
+const setPublicationDeleting = (groupKey, isDeleting) => {
+  const keys = new Set(deletingPublicationKeys.value);
+  if (isDeleting) keys.add(groupKey);
+  else keys.delete(groupKey);
+  deletingPublicationKeys.value = Array.from(keys);
+};
+
+const deleteOwnPublication = async groupKey => {
+  const group = ownGroups.value.find(item => item.key === groupKey);
+  if (!group || deletingPublicationKeys.value.includes(groupKey)) return;
+
+  setPublicationDeleting(groupKey, true);
+  try {
+    const results = await Promise.allSettled(
+      group.items.map(status => WhatsmeowStatusesAPI.remove(status.id))
+    );
+    const deletedIds = results.flatMap((result, index) =>
+      result.status === 'fulfilled' ? [group.items[index].id] : []
+    );
+    statuses.value = statuses.value.filter(
+      status => !deletedIds.includes(status.id)
+    );
+
+    const failedCount = results.length - deletedIds.length;
+    if (failedCount === results.length) {
+      const [failure] = results;
+      useAlert(
+        failure.reason?.response?.data?.message ||
+          t('WHATSAPP_STATUS.OWN_MANAGER.DELETE_ERROR')
+      );
+    } else if (failedCount) {
+      useAlert(
+        t('WHATSAPP_STATUS.OWN_MANAGER.DELETE_PARTIAL', {
+          deleted: deletedIds.length,
+          failed: failedCount,
+        })
+      );
+    } else {
+      useAlert(t('WHATSAPP_STATUS.OWN_MANAGER.DELETE_SUCCESS'));
+    }
+  } finally {
+    setPublicationDeleting(groupKey, false);
+  }
 };
 
 const onPublished = publishedStatuses => {
@@ -738,6 +799,14 @@ onBeforeUnmount(() => {
         ref="composerRef"
         :inboxes="whatsmeowInboxes"
         @published="onPublished"
+      />
+
+      <OwnStatusManager
+        ref="ownStatusManagerRef"
+        :groups="ownGroups"
+        :deleting-keys="deletingPublicationKeys"
+        @open-publication="openOwnPublication"
+        @delete-publication="deleteOwnPublication"
       />
 
       <StatusViewer
