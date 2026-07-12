@@ -3,7 +3,7 @@ class Whatsmeow::ContactSyncJob < ApplicationJob
 
   retry_on Whatsmeow::SessionClient::Error, wait: :polynomially_longer, attempts: 5
 
-  def perform(account_id, contact_data, previous_phone_number = nil, deleted = false)
+  def perform(account_id, contact_data, previous_phone_number = nil, deleted: false)
     contacts = sync_entries(contact_data.symbolize_keys, previous_phone_number, deleted)
     return if contacts.blank?
 
