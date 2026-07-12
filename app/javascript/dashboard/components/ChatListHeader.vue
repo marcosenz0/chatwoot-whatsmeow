@@ -7,6 +7,7 @@ import wootConstants from 'dashboard/constants/globals';
 import ConversationBasicFilter from './widgets/conversation/ConversationBasicFilter.vue';
 import SwitchLayout from 'dashboard/routes/dashboard/conversation/search/SwitchLayout.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import NextInput from 'dashboard/components-next/input/Input.vue';
 
 const props = defineProps({
   pageTitle: { type: String, required: true },
@@ -16,6 +17,9 @@ const props = defineProps({
   isOnExpandedLayout: { type: Boolean, required: true },
   conversationStats: { type: Object, required: true },
   isListLoading: { type: Boolean, required: true },
+  isSearchActive: { type: Boolean, default: false },
+  isSearchLoading: { type: Boolean, default: false },
+  searchQuery: { type: String, default: '' },
 });
 
 const emit = defineEmits([
@@ -24,6 +28,8 @@ const emit = defineEmits([
   'resetFilters',
   'basicFilterChange',
   'filtersModal',
+  'toggleSearch',
+  'update:searchQuery',
 ]);
 
 const { uiSettings, updateUISettings } = useUISettings();
@@ -62,7 +68,19 @@ const toggleConversationLayout = () => {
       'border-b border-n-strong': hasAppliedFiltersOrActiveFolders,
     }"
   >
-    <div class="flex items-center justify-center min-w-0">
+    <div v-if="isSearchActive" class="flex-1 min-w-0">
+      <NextInput
+        :model-value="searchQuery"
+        :placeholder="$t('CHAT_LIST.SEARCH.INPUT')"
+        :aria-label="$t('CHAT_LIST.SEARCH.INPUT')"
+        size="sm"
+        autofocus
+        custom-input-class="!h-7 !px-2.5"
+        @update:model-value="emit('update:searchQuery', $event)"
+        @keydown.esc="emit('toggleSearch')"
+      />
+    </div>
+    <div v-else class="flex items-center justify-center min-w-0">
       <h1
         class="text-base font-medium truncate text-n-slate-12"
         :title="pageTitle"
@@ -86,6 +104,16 @@ const toggleConversationLayout = () => {
       </span>
     </div>
     <div class="flex items-center gap-1">
+      <NextButton
+        v-tooltip.top-end="$t('CHAT_LIST.SEARCH.INPUT')"
+        icon="i-lucide-search"
+        :color="isSearchActive ? 'blue' : 'slate'"
+        :is-loading="isSearchLoading"
+        :aria-pressed="isSearchActive"
+        xs
+        faded
+        @click="emit('toggleSearch')"
+      />
       <template v-if="hasAppliedFilters && !hasActiveFolders">
         <div class="relative">
           <NextButton

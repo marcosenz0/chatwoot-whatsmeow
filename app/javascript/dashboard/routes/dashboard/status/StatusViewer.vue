@@ -155,6 +155,19 @@ const viewerCount = computed(
 );
 const viewerPhone = viewer =>
   viewer.viewer_phone || viewer.contact?.phone_number || '';
+const formatViewerPhone = viewer => {
+  const phone = viewerPhone(viewer);
+  const digits = phone.replace(/\D/g, '');
+  if (!digits.startsWith('55') || ![12, 13].includes(digits.length)) {
+    return phone;
+  }
+
+  const areaCode = digits.slice(2, 4);
+  const localNumber = digits.slice(4);
+  const prefix = localNumber.slice(0, -4);
+  const suffix = localNumber.slice(-4);
+  return `+55 ${areaCode} ${prefix}-${suffix}`;
+};
 const canGoPrevious = computed(
   () => statusIndex.value > 0 || groupIndex.value > 0
 );
@@ -1198,7 +1211,7 @@ onBeforeUnmount(() => {
                         v-if="viewerPhone(viewer)"
                         class="shrink-0 text-xs text-white/60"
                       >
-                        {{ viewerPhone(viewer) }}
+                        {{ formatViewerPhone(viewer) }}
                       </span>
                     </span>
                     <span class="block truncate text-xs text-white/70">

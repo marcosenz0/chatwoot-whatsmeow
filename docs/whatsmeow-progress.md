@@ -198,6 +198,11 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Viewer identity storage and API counts collapse matching contact, phone, PN-JID, and LID receipts for the same Status, preventing multi-device identity variants from inflating the count.
 - The own-Status view counter and viewer panel use an opaque high-contrast surface, keeping the controls and names readable over white or otherwise bright Status media.
 - Each own-Status viewer row displays the viewer's phone number beside their name, using the linked contact phone as a fallback when the receipt does not carry one.
+- Brazilian viewer phone numbers are formatted as `+55 DD XXXX-XXXX` or `+55 DD XXXXX-XXXX` for easier reading.
+
+## July 2026 Conversation Search
+
+- Conversation list headers now include a search action before filter, sort, and layout controls. It performs a debounced server-side lookup across accessible conversations by partial contact name, email, phone number, or identifier, including old and resolved conversations that are not loaded in the current list page.
 
 ## Product Decisions
 

@@ -84,10 +84,11 @@ class ConversationFinder
     set_assignee_type
 
     find_all_conversations
-    filter_by_status unless params[:q]
+    filter_by_status unless params[:q] || params[:contact_query].present?
     filter_by_team
     filter_by_labels
     filter_by_query
+    filter_by_contact_query
     filter_by_source_id
   end
 
@@ -160,6 +161,28 @@ class ConversationFinder
                                   .where(messages: { message_type: allowed_message_types }).includes(:messages)
                                   .where('messages.content ILIKE :search', search: "%#{params[:q]}%")
                                   .where(messages: { message_type: allowed_message_types })
+  end
+
+  def filter_by_contact_query
+    query = params[:contact_query].to_s.strip
+    return if query.blank?
+
+    search = "%#{ActiveRecord::Base.sanitize_sql_like(query)}%"
+    conditions = [
+      'contacts.name ILIKE :search',
+      'contacts.email ILIKE :search',
+      'contacts.phone_number ILIKE :search',
+      'contacts.identifier ILIKE :search'
+    ]
+    bindings = { search: search }
+
+    phone_digits = query.delete('^0-9')
+    if phone_digits.present?
+      conditions << "regexp_replace(COALESCE(contacts.phone_number, ''), '[^0-9]', '', 'g') LIKE :phone_search"
+      bindings[:phone_search] = "%#{phone_digits}%"
+    end
+
+    @conversations = @conversations.joins(:contact).where(conditions.join(' OR '), bindings)
   end
 
   def filter_by_status

@@ -22,6 +22,7 @@ class ConversationApi extends ApiClient {
     sortBy,
     updatedWithin,
     hideGroupTabs,
+    contactQuery,
   }) {
     return axios.get(this.url, {
       params: compactParams({
@@ -35,6 +36,7 @@ class ConversationApi extends ApiClient {
         sort_by: sortBy,
         updated_within: updatedWithin,
         hide_group_tabs: hideGroupTabs,
+        contact_query: contactQuery,
       }),
     });
   }
