@@ -197,6 +197,7 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Multi-inbox publications now share a publication identifier. The own-Status viewer totals views across the matching publication, shows the originating inbox on every viewer row, and offers an inbox filter from the viewer panel's three-dot menu.
 - Viewer identity storage and API counts collapse matching contact, phone, PN-JID, and LID receipts for the same Status, preventing multi-device identity variants from inflating the count.
 - The own-Status view counter and viewer panel use an opaque high-contrast surface, keeping the controls and names readable over white or otherwise bright Status media.
+- Each own-Status viewer row displays the viewer's phone number beside their name, using the linked contact phone as a fallback when the receipt does not carry one.
 
 ## Product Decisions
 
