@@ -15,18 +15,25 @@ class Whatsmeow::ContactIdentityReconciliationService
     lid_source_ids = inbox.contact_inboxes.where("source_id LIKE '%@lid'").distinct.pluck(:source_id)
     return if lid_source_ids.blank?
 
-    response = Whatsmeow::SessionClient.new(inbox: inbox).resolve_identities(lid_source_ids)
-    identities = Array(response['identities']).each_with_object({}) do |identity, result|
-      result[identity['input_jid']] = identity
-      result[identity['lid_jid']] = identity if identity['lid_jid'].present?
-    end
+    identities = resolved_identities(inbox, lid_source_ids)
     lid_source_ids.each do |lid_source_id|
-      identity = identities[lid_source_id] || identities[normalized_lid_source_id(lid_source_id)]
-      reconcile_identity(inbox, lid_source_id, identity)
+      reconcile_identity(inbox, lid_source_id, identity_for(identities, lid_source_id))
     end
   rescue Whatsmeow::SessionClient::Error
     @stats[:inboxes_skipped] += 1
     @stats[:unresolved] += lid_source_ids.size
+  end
+
+  def resolved_identities(inbox, lid_source_ids)
+    response = Whatsmeow::SessionClient.new(inbox: inbox).resolve_identities(lid_source_ids)
+    Array(response['identities']).each_with_object({}) do |identity, result|
+      result[identity['input_jid']] = identity
+      result[identity['lid_jid']] = identity if identity['lid_jid'].present?
+    end
+  end
+
+  def identity_for(identities, lid_source_id)
+    identities[lid_source_id] || identities[normalized_lid_source_id(lid_source_id)]
   end
 
   def reconcile_identity(inbox, lid_source_id, identity)
@@ -39,13 +46,21 @@ class Whatsmeow::ContactIdentityReconciliationService
     phone_jid = identity['phone_jid']
     source_ids = [phone_jid, lid_source_id, identity['lid_jid']].compact_blank.uniq
     contact_ids = identity_contact_ids(inbox, source_ids, phone_number)
-    open_conversation_count = identity_open_conversation_count(inbox, source_ids, contact_ids)
-
-    @stats[:resolved] += 1
-    @stats[:contacts_merged] += contact_ids.size - 1 if contact_ids.size > 1
-    @stats[:conversation_groups_merged] += 1 if open_conversation_count > 1
+    track_resolved_identity(inbox, source_ids, contact_ids)
     return if dry_run
 
+    apply_identity(inbox, identity, source_ids, phone_number)
+  end
+
+  def track_resolved_identity(inbox, source_ids, contact_ids)
+    @stats[:resolved] += 1
+    @stats[:contacts_merged] += contact_ids.size - 1 if contact_ids.size > 1
+    return unless identity_open_conversation_count(inbox, source_ids, contact_ids) > 1
+
+    @stats[:conversation_groups_merged] += 1
+  end
+
+  def apply_identity(inbox, identity, source_ids, phone_number)
     Whatsmeow::ContactIdentityResolver.new(
       inbox: inbox,
       source_ids: source_ids,

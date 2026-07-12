@@ -30,8 +30,11 @@ class Whatsmeow::OpenConversationMergeService
     merge_labels(target, source)
     merge_participants(target, source)
     merge_mentions(target, source)
+    # Messages and reporting events must move without emitting duplicate callbacks for historical records.
+    # rubocop:disable Rails/SkipsModelValidations
     source.reporting_events.update_all(conversation_id: target.id)
     source.messages.update_all(conversation_id: target.id)
+    # rubocop:enable Rails/SkipsModelValidations
     source.csat_survey_response&.update!(conversation: target)
     update_activity(target, source)
     source.destroy!

@@ -4,28 +4,37 @@ class Whatsmeow::ContactIdentityResolver
   def perform
     raise ArgumentError, 'Missing WhatsApp phone identity' if normalized_phone_number.blank?
 
-    ActiveRecord::Base.transaction do
-      contact_inboxes = inbox.contact_inboxes.includes(:contact).where(source_id: lookup_source_ids).to_a
-      contacts = contact_inboxes.map(&:contact)
-      phone_contact = inbox.account.contacts.find_by(phone_number: normalized_phone_number)
-      contacts << phone_contact if phone_contact
-      contacts.compact!
-      contacts.uniq!(&:id)
-
-      canonical_contact = phone_contact || phone_contact_inbox(contact_inboxes)&.contact || contacts.first
-      canonical_contact ||= create_contact
-      preferred_name = preferred_contact_name(contacts)
-      merge_contacts(canonical_contact, contacts)
-      update_contact_identity(canonical_contact, preferred_name)
-
-      contact_inboxes = ensure_contact_inboxes(canonical_contact)
-      canonical_contact_inbox = phone_contact_inbox(contact_inboxes) || contact_inboxes.first
-      merge_open_conversations(canonical_contact, canonical_contact_inbox)
-      canonical_contact_inbox
-    end
+    ActiveRecord::Base.transaction { resolve_identity }
   end
 
   private
+
+  def resolve_identity
+    contact_inboxes = inbox.contact_inboxes.includes(:contact).where(source_id: lookup_source_ids).to_a
+    contacts, phone_contact = identity_contacts(contact_inboxes)
+    canonical_contact = canonical_contact_for(contact_inboxes, contacts, phone_contact)
+    preferred_name = preferred_contact_name(contacts)
+    merge_contacts(canonical_contact, contacts)
+    update_contact_identity(canonical_contact, preferred_name)
+    resolve_contact_inbox(canonical_contact)
+  end
+
+  def identity_contacts(contact_inboxes)
+    phone_contact = inbox.account.contacts.find_by(phone_number: normalized_phone_number)
+    contacts = (contact_inboxes.map(&:contact) + [phone_contact]).compact.uniq(&:id)
+    [contacts, phone_contact]
+  end
+
+  def canonical_contact_for(contact_inboxes, contacts, phone_contact)
+    phone_contact || phone_contact_inbox(contact_inboxes)&.contact || contacts.first || create_contact
+  end
+
+  def resolve_contact_inbox(contact)
+    contact_inboxes = ensure_contact_inboxes(contact)
+    canonical_contact_inbox = phone_contact_inbox(contact_inboxes) || contact_inboxes.first
+    merge_open_conversations(contact, canonical_contact_inbox)
+    canonical_contact_inbox
+  end
 
   def normalized_phone_number
     @normalized_phone_number ||= begin
@@ -50,7 +59,7 @@ class Whatsmeow::ContactIdentityResolver
 
   def normalize_source_id(source_id)
     value = source_id.to_s.strip
-    return if value.blank? || !value.include?('@')
+    return if value.blank? || value.exclude?('@')
 
     user, server = value.split('@', 2)
     return unless %w[lid s.whatsapp.net].include?(server)
@@ -74,8 +83,11 @@ class Whatsmeow::ContactIdentityResolver
   def merge_contacts(canonical_contact, contacts)
     contacts.reject { |contact| contact.id == canonical_contact.id }.each do |duplicate_contact|
       preserve_avatar(canonical_contact, duplicate_contact)
+      # These relationships are moved in bulk before ContactMergeAction destroys the duplicate contact.
+      # rubocop:disable Rails/SkipsModelValidations
       CsatSurveyResponse.where(contact_id: duplicate_contact.id).update_all(contact_id: canonical_contact.id)
       WhatsmeowStatus.where(contact_id: duplicate_contact.id).update_all(contact_id: canonical_contact.id)
+      # rubocop:enable Rails/SkipsModelValidations
       ContactMergeAction.new(
         account: inbox.account,
         base_contact: canonical_contact,
