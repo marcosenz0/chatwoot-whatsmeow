@@ -6,12 +6,7 @@ class Whatsmeow::DeleteStatusPublicationJob < ApplicationJob
   def perform(status_id)
     status = WhatsmeowStatus.find_by(id: status_id)
     return if status.blank? || !status.publication_deleting?
-
-    if status.expires_at <= Time.current
-      remove_delivery(status)
-      enqueue_next(status)
-      return
-    end
+    return if remove_expired_delivery(status)
 
     lock = Whatsmeow::StatusPublishLock.new(status: status)
     wait_seconds = lock.acquire
@@ -21,9 +16,6 @@ class Whatsmeow::DeleteStatusPublicationJob < ApplicationJob
     remove_delivery(status)
     finish_lock(lock)
     enqueue_next(status)
-  rescue Whatsmeow::SessionClient::Error => e
-    finish_lock(lock)
-    handle_deletion_error(status, e)
   rescue StandardError => e
     finish_lock(lock)
     handle_deletion_error(status, e)
@@ -58,6 +50,14 @@ class Whatsmeow::DeleteStatusPublicationJob < ApplicationJob
     end
   end
 
+  def remove_expired_delivery(status)
+    return false unless status.expires_at <= Time.current
+
+    remove_delivery(status)
+    enqueue_next(status)
+    true
+  end
+
   def handle_deletion_error(status, error)
     return if status.blank?
 
@@ -78,14 +78,16 @@ class Whatsmeow::DeleteStatusPublicationJob < ApplicationJob
   end
 
   def update_deliveries(status, **attributes)
+    updated = false
     WhatsmeowStatus.transaction do
       deliveries = delivery_scope(status).lock.to_a
       deleting_deliveries = deliveries.select(&:publication_deleting?)
-      return false if deleting_deliveries.empty?
+      next if deleting_deliveries.empty?
 
       deleting_deliveries.each { |delivery| delivery.update!(attributes) }
-      true
+      updated = true
     end
+    updated
   end
 
   def enqueue_next(status)
