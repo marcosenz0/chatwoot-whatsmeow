@@ -120,7 +120,11 @@ class Whatsmeow::SessionClient
   end
 
   def delete_status(message_id)
-    request(:delete, "/sessions/#{@inbox.id}/statuses/#{CGI.escape(message_id)}", timeout: 20)
+    request(
+      :delete,
+      "/sessions/#{@inbox.id}/statuses/#{CGI.escape(message_id)}",
+      timeout: self.class.status_timeout
+    )
   end
 
   def mark_status_read(message_id:, sender_jid:, timestamp:)

@@ -133,7 +133,7 @@ const uniquePublishedStatuses = items =>
   );
 const hasActivePublication = computed(() =>
   statuses.value.some(status =>
-    ['queued', 'processing'].includes(publicationState(status))
+    ['queued', 'processing', 'deleting'].includes(publicationState(status))
   )
 );
 
@@ -432,51 +432,6 @@ const setPublicationDeleting = (groupKey, isDeleting) => {
   deletingPublicationKeys.value = Array.from(keys);
 };
 
-const deleteOwnPublication = async groupKey => {
-  const group = ownGroups.value.find(item => item.key === groupKey);
-  if (!group || deletingPublicationKeys.value.includes(groupKey)) return;
-
-  setPublicationDeleting(groupKey, true);
-  try {
-    const deletionKey = status => status.session_key || status.inbox_id;
-    const uniqueStatuses = Array.from(
-      new Map(group.items.map(status => [deletionKey(status), status])).values()
-    );
-    const results = await Promise.allSettled(
-      uniqueStatuses.map(status => WhatsmeowStatusesAPI.remove(status.id))
-    );
-    const deletedKeys = new Set(
-      results.flatMap((result, index) =>
-        result.status === 'fulfilled'
-          ? [deletionKey(uniqueStatuses[index])]
-          : []
-      )
-    );
-    const deletedIds = group.items
-      .filter(status => deletedKeys.has(deletionKey(status)))
-      .map(status => status.id);
-    statuses.value = statuses.value.filter(
-      status => !deletedIds.includes(status.id)
-    );
-
-    const failedCount = group.items.length - deletedIds.length;
-    if (!deletedIds.length) {
-      useAlert(t('WHATSAPP_STATUS.OWN_MANAGER.DELETE_ERROR'));
-    } else if (failedCount) {
-      useAlert(
-        t('WHATSAPP_STATUS.OWN_MANAGER.DELETE_PARTIAL', {
-          deleted: deletedIds.length,
-          failed: failedCount,
-        })
-      );
-    } else {
-      useAlert(t('WHATSAPP_STATUS.OWN_MANAGER.DELETE_SUCCESS'));
-    }
-  } finally {
-    setPublicationDeleting(groupKey, false);
-  }
-};
-
 const onPublished = publishedStatuses => {
   const nextStatuses = Array.isArray(publishedStatuses)
     ? publishedStatuses
@@ -501,6 +456,24 @@ const onPublished = publishedStatuses => {
   });
 };
 
+const deleteOwnPublication = async groupKey => {
+  const group = ownGroups.value.find(item => item.key === groupKey);
+  if (!group || deletingPublicationKeys.value.includes(groupKey)) return;
+
+  setPublicationDeleting(groupKey, true);
+  try {
+    const { data } = await WhatsmeowStatusesAPI.remove(group.items[0].id);
+    onPublished(data.payload);
+    await fetchStatuses({ silent: true, force: true });
+    useAlert(t('WHATSAPP_STATUS.OWN_MANAGER.DELETE_QUEUED'));
+    startPolling();
+  } catch {
+    useAlert(t('WHATSAPP_STATUS.OWN_MANAGER.DELETE_ERROR'));
+  } finally {
+    setPublicationDeleting(groupKey, false);
+  }
+};
+
 const publicationRetryKey = status =>
   `${status.publication_id || status.id}:${status.session_key || status.inbox_id}`;
 
@@ -515,6 +488,7 @@ const retryOwnPublication = async status => {
   const key = publicationRetryKey(status);
   if (!status?.id || retryingPublicationKeys.value.includes(key)) return;
 
+  const isDeletionRetry = status.publication_state === 'delete_failed';
   setPublicationRetrying(key, true);
   try {
     const { data } = await WhatsmeowStatusesAPI.retry(status.id);
@@ -525,8 +499,8 @@ const retryOwnPublication = async status => {
       return isSameDelivery
         ? {
             ...item,
-            publication_state: 'queued',
-            publish_attempts: 0,
+            publication_state: isDeletionRetry ? 'deleting' : 'queued',
+            publish_attempts: isDeletionRetry ? item.publish_attempts : 0,
             last_error: null,
             next_attempt_at: null,
           }
@@ -534,10 +508,18 @@ const retryOwnPublication = async status => {
     });
     onPublished(data.payload);
     await fetchStatuses({ silent: true, force: true });
-    useAlert(t('WHATSAPP_STATUS.OWN_MANAGER.RETRY_SUCCESS'));
+    useAlert(
+      isDeletionRetry
+        ? t('WHATSAPP_STATUS.OWN_MANAGER.DELETE_RETRY_SUCCESS')
+        : t('WHATSAPP_STATUS.OWN_MANAGER.RETRY_SUCCESS')
+    );
     startPolling();
   } catch {
-    useAlert(t('WHATSAPP_STATUS.OWN_MANAGER.RETRY_ERROR'));
+    useAlert(
+      isDeletionRetry
+        ? t('WHATSAPP_STATUS.OWN_MANAGER.DELETE_RETRY_ERROR')
+        : t('WHATSAPP_STATUS.OWN_MANAGER.RETRY_ERROR')
+    );
   } finally {
     setPublicationRetrying(key, false);
   }

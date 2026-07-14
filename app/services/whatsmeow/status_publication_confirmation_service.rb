@@ -43,6 +43,8 @@ class Whatsmeow::StatusPublicationConfirmationService
   end
 
   def confirm_delivery(status)
+    return if status.publication_deleting? || status.publication_delete_failed?
+
     status.update!(
       sender_jid: sender_jid(status),
       sender_name: status.inbox.name,

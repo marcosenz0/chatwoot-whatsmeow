@@ -23,6 +23,8 @@ class Whatsmeow::RecoverStatusDeliveryJob < ApplicationJob
       status.source_id.present? &&
       status.expires_at > Time.current &&
       !status.publication_published? &&
+      !status.publication_deleting? &&
+      !status.publication_delete_failed? &&
       status.inbox.channel_type == 'Channel::Whatsmeow' &&
       status.inbox.channel.status == 'connected'
   end

@@ -1560,7 +1560,8 @@ func persistStatusPublication(channelID string, messageID string, publishedAt ti
 			next_attempt_at = NULL,
 			updated_at = NOW()
 		FROM status_to_confirm
-		WHERE (status.inbox_id = $1 AND status.source_id = $2)
+		WHERE (
+			(status.inbox_id = $1 AND status.source_id = $2)
 			OR (
 				status_to_confirm.publication_id IS NOT NULL
 				AND status_to_confirm.session_key IS NOT NULL
@@ -1568,6 +1569,8 @@ func persistStatusPublication(channelID string, messageID string, publishedAt ti
 				AND status.publication_id = status_to_confirm.publication_id
 				AND status.session_key = status_to_confirm.session_key
 			)
+		)
+			AND status.publication_state NOT IN (4, 5) -- deleting or delete_failed
 	`, channelID, messageID, publishedAt, publishedAt.Add(24*time.Hour))
 	if err != nil {
 		log.Printf("Failed to persist Status publication confirmation for channel %s: %v", channelID, err)

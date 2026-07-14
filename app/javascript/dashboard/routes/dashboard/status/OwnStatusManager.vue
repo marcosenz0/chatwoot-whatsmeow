@@ -67,13 +67,22 @@ const STATE_VISUALS = {
 };
 
 const firstStatus = group => group.items[0] || {};
+const isDeleting = status => status.publication_state === 'deleting';
+const isDeleteFailed = status => status.publication_state === 'delete_failed';
 const publicationState = status => {
   const state = status.publication_state || 'published';
-  if (state === 'deleting') return 'processing';
-  if (state === 'delete_failed') return 'failed';
+  if (isDeleting(status)) return 'processing';
+  if (isDeleteFailed(status)) return 'failed';
   return STATE_VISUALS[state] ? state : 'published';
 };
 const publicationStateLabel = status => {
+  if (isDeleting(status)) {
+    return t('WHATSAPP_STATUS.OWN_MANAGER.STATE_DELETING');
+  }
+  if (isDeleteFailed(status)) {
+    return t('WHATSAPP_STATUS.OWN_MANAGER.STATE_DELETE_FAILED');
+  }
+
   const state = publicationState(status);
   if (state === 'queued') {
     return t('WHATSAPP_STATUS.OWN_MANAGER.STATE_QUEUED');
@@ -95,9 +104,14 @@ const publicationOverallState = group => {
   if (states.includes('queued')) return 'queued';
   return 'published';
 };
-const publicationOverallStatus = group => ({
-  publication_state: publicationOverallState(group),
-});
+const publicationOverallStatus = group => {
+  if (group.items.some(isDeleting)) return { publication_state: 'deleting' };
+  if (group.items.some(isDeleteFailed)) {
+    return { publication_state: 'delete_failed' };
+  }
+
+  return { publication_state: publicationOverallState(group) };
+};
 const orderedStatuses = group =>
   group.items
     .slice()
@@ -319,7 +333,12 @@ defineExpose({ open, close });
                   v-if="publicationState(status) === 'failed'"
                   class="mb-0 mt-1 line-clamp-2 text-[0.6875rem] leading-4 text-n-ruby-11"
                 >
-                  {{ t('WHATSAPP_STATUS.OWN_MANAGER.FAILURE_DETAIL') }}
+                  <template v-if="isDeleteFailed(status)">
+                    {{ t('WHATSAPP_STATUS.OWN_MANAGER.DELETE_FAILURE_DETAIL') }}
+                  </template>
+                  <template v-else>
+                    {{ t('WHATSAPP_STATUS.OWN_MANAGER.FAILURE_DETAIL') }}
+                  </template>
                 </p>
                 <button
                   v-if="publicationState(status) === 'failed'"

@@ -9,7 +9,7 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
   def perform(status_id)
     status = WhatsmeowStatus.find_by(id: status_id)
     return if status.blank? || status.expires_at <= Time.current
-    return enqueue_next(status) if status.publication_published? || status.publication_failed?
+    return enqueue_next(status) if terminal_publication_state?(status)
 
     lock = Whatsmeow::StatusPublishLock.new(status: status)
     wait_seconds = lock.acquire
@@ -50,7 +50,7 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
 
   def handle_publish_error(status, error)
     status.reload
-    return enqueue_next(status) if status.publication_published?
+    return enqueue_next(status) if terminal_publication_state?(status)
 
     request_delivery_recovery(status)
     if status.publish_attempts < MAX_ATTEMPTS
@@ -80,7 +80,7 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
 
   def handle_infrastructure_error(status, error)
     status.reload
-    return enqueue_next(status) if status.publication_published?
+    return enqueue_next(status) if terminal_publication_state?(status)
 
     request_delivery_recovery(status)
     attempts = status.publish_attempts
@@ -120,11 +120,21 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
       deliveries = delivery_scope(status).lock.to_a
       raise ActiveRecord::RecordNotFound if deliveries.empty?
 
-      return false if deliveries.all?(&:publication_published?)
+      active_deliveries = deliveries.select do |delivery|
+        delivery.publication_queued? || delivery.publication_processing?
+      end
+      return false if active_deliveries.empty?
 
-      deliveries.reject(&:publication_published?).each { |delivery| delivery.update!(attributes) }
+      active_deliveries.each { |delivery| delivery.update!(attributes) }
       true
     end
+  end
+
+  def terminal_publication_state?(status)
+    status.publication_published? ||
+      status.publication_failed? ||
+      status.publication_deleting? ||
+      status.publication_delete_failed?
   end
 
   def enqueue_next(status)

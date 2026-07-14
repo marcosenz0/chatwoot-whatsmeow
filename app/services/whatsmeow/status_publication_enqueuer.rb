@@ -23,7 +23,12 @@ class Whatsmeow::StatusPublicationEnqueuer
   end
 
   def current_delivery
-    pending = statuses.reject { |status| status.publication_published? || status.publication_failed? }
+    pending = statuses.reject do |status|
+      status.publication_published? ||
+        status.publication_failed? ||
+        status.publication_deleting? ||
+        status.publication_delete_failed?
+    end
     position = pending.filter_map(&:publication_position).min
     return [] if position.blank?
 

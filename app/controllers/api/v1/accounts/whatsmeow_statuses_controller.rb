@@ -87,24 +87,34 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
   end
 
   def retry
-    leader = reset_failed_publication
-    return render json: { message: 'Only failed Status publications can be retried' }, status: :unprocessable_entity if leader.blank?
+    if @status.publication_delete_failed?
+      leader = reset_failed_deletion
+      return render json: { message: 'Only failed Status deletions can be retried' }, status: :unprocessable_entity if leader.blank?
 
-    Whatsmeow::PublishStatusJob.perform_later(leader.id)
+      Whatsmeow::DeleteStatusPublicationJob.perform_later(leader.id)
+    else
+      leader = reset_failed_publication
+      return render json: { message: 'Only failed Status publications can be retried' }, status: :unprocessable_entity if leader.blank?
+
+      Whatsmeow::PublishStatusJob.perform_later(leader.id)
+    end
+
     render json: { payload: status_payload(@status.reload, {}) }, status: :accepted
   end
 
   def destroy
+    return head :not_found unless @status.from_me?
+
     status_inbox = owned_status_inbox(@status)
     return head :not_found unless status_inbox
 
-    unless destroy_publication_delivery(status_inbox)
+    statuses = schedule_publication_deletion
+    if statuses.blank?
       return render json: { message: 'Wait for the Status publication to finish before deleting it' }, status: :conflict
     end
 
-    head :no_content
-  rescue Whatsmeow::SessionClient::Error => e
-    render json: { message: e.message }, status: :bad_gateway
+    Whatsmeow::DeleteStatusPublicationJob.perform_later(deletion_leader(statuses).id)
+    render json: { payload: statuses.map { |status| status_payload(status, {}) } }, status: :accepted
   end
 
   private
@@ -192,23 +202,41 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
     Current.account.whatsmeow_statuses.where(publication_id: status.publication_id, session_key: status.session_key)
   end
 
-  def destroy_publication_delivery(status_inbox)
-    deleted = false
-    WhatsmeowStatus.transaction do
-      statuses = publication_delivery_scope(@status).lock.to_a
-      next if statuses.any?(&:publication_processing?)
+  def publication_scope(status)
+    return Current.account.whatsmeow_statuses.where(id: status.id) if status.publication_id.blank?
 
-      delete_published_status(status_inbox, statuses)
-      statuses.each(&:destroy!)
-      deleted = true
-    end
-    deleted
+    Current.account.whatsmeow_statuses.where(publication_id: status.publication_id)
   end
 
-  def delete_published_status(status_inbox, statuses)
-    return unless statuses.any? { |status| status.publication_published? || status.publish_attempts.positive? }
+  def schedule_publication_deletion
+    scheduled_statuses = nil
+    WhatsmeowStatus.transaction do
+      statuses = publication_scope(@status).lock.order(:publication_position, :id).to_a
+      next if statuses.blank? || statuses.any?(&:publication_processing?)
 
-    Whatsmeow::SessionClient.new(inbox: status_inbox).delete_status(@status.source_id)
+      statuses.each { |status| schedule_deletion(status) }
+      scheduled_statuses = statuses
+    end
+    scheduled_statuses
+  end
+
+  def schedule_deletion(status)
+    metadata = status.metadata || {}
+    status.update!(
+      publication_state: :deleting,
+      metadata: metadata.merge(
+        'delete_requires_remote' => metadata.fetch(
+          'delete_requires_remote',
+          status.publication_published? || status.publish_attempts.positive?
+        )
+      ),
+      last_error: nil,
+      next_attempt_at: nil
+    )
+  end
+
+  def deletion_leader(statuses)
+    statuses.min_by { |status| [status.publication_position || 0, status.id] }
   end
 
   def reset_failed_publication
@@ -230,5 +258,19 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
       last_error: nil,
       next_attempt_at: nil
     )
+  end
+
+  def reset_failed_deletion
+    leader = nil
+    WhatsmeowStatus.transaction do
+      statuses = publication_delivery_scope(@status).lock.to_a
+      next unless statuses.present? && statuses.all?(&:publication_delete_failed?)
+
+      statuses.each do |status|
+        status.update!(publication_state: :deleting, last_error: nil, next_attempt_at: nil)
+      end
+      leader = statuses.min_by(&:id)
+    end
+    leader
   end
 end
