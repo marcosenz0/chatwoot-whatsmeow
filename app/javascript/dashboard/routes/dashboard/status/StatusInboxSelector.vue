@@ -44,6 +44,7 @@ const selectedLabel = computed(() =>
 const selectedDescription = computed(() => {
   if (isAllSelected.value) {
     return t('WHATSAPP_STATUS.CONNECTED_COUNT', {
+      count: props.inboxes.length,
       connected: connectedCount.value,
       total: props.inboxes.length,
     });
@@ -127,6 +128,7 @@ const selectInbox = value => emit('update:modelValue', String(value));
               <span class="block truncate text-xs text-n-slate-10">
                 {{
                   t('WHATSAPP_STATUS.CONNECTED_COUNT', {
+                    count: inboxes.length,
                     connected: connectedCount,
                     total: inboxes.length,
                   })

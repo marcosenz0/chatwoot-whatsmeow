@@ -1,9 +1,6 @@
 require 'base64'
-require 'stringio'
 
 class Whatsmeow::StatusPublisher
-  STATUS_COOLDOWN = 60.seconds
-  ACCOUNT_PUBLISH_INTERVAL = 15.seconds
   BACKGROUNDS = {
     'teal' => 0xFF0B8467,
     'blue' => 0xFF176BCE,
@@ -14,146 +11,120 @@ class Whatsmeow::StatusPublisher
   }.freeze
   FONTS = { 'system' => 0, 'bold' => 6, 'serif' => 8, 'modern' => 9, 'mono' => 10 }.freeze
 
-  pattr_initialize [:inbox!, :user!, :params!]
+  pattr_initialize [:status!]
+
+  class << self
+    def presentation_metadata(params)
+      background = BACKGROUNDS.key?(params[:background].to_s) ? params[:background].to_s : 'teal'
+      font = FONTS.key?(params[:font].to_s) ? params[:font].to_s : 'bold'
+
+      {
+        'background' => background,
+        'background_argb' => BACKGROUNDS.fetch(background),
+        'text_argb' => 0xFFFFFFFF,
+        'font' => font,
+        'font_value' => FONTS.fetch(font)
+      }
+    end
+  end
 
   def perform
-    validate_payload!
-    acquire_publish_locks!
-    response = Whatsmeow::SessionClient.new(inbox: @inbox).publish_status(outbound_payload)
-    persist_status(response)
+    validate_status!
+    response = Whatsmeow::SessionClient.new(inbox: status.inbox).publish_status(outbound_payload)
+    persist_response!(response)
   end
 
   private
 
-  def content
-    @content ||= params[:content].to_s.strip
+  delegate :account, to: :status
+
+  def validate_status!
+    raise ArgumentError, 'Status content or media is required' if status.content.blank? && !status.media.attached?
+    raise ArgumentError, 'Status text is too long' if status.content.to_s.length > 700
+
+    validate_media! if status.media.attached?
   end
 
-  def media
-    params[:media]
-  end
-
-  def validate_payload!
-    raise ArgumentError, 'Status content or media is required' if content.blank? && media.blank?
-    raise ArgumentError, 'Status text is too long' if content.length > 700
-    return if media.blank?
-
-    raise ArgumentError, 'Only image and video statuses are supported' unless %w[image video].include?(status_type)
-    raise ArgumentError, 'Status media is too large' if media.size > maximum_media_size
-  end
-
-  def status_type
-    return 'text' if media.blank?
-    return 'image' if media.content_type.to_s.start_with?('image/')
-    return 'video' if media.content_type.to_s.start_with?('video/')
-
-    'file'
+  def validate_media!
+    raise ArgumentError, 'Only image, video and audio statuses are supported' unless status.image? || status.video? || status.audio?
   end
 
   def outbound_payload
     payload = {
-      content: content,
-      background_argb: background_argb,
-      text_argb: 0xFFFFFFFF,
-      font: font_value,
+      message_id: status.source_id,
+      content: status.content.to_s,
+      background_argb: status.metadata['background_argb'],
+      text_argb: status.metadata['text_argb'],
+      font: status.metadata['font_value'],
       contacts: audience_contacts,
       managed_contacts: managed_contacts
     }
-    payload[:attachment] = attachment_payload if media.present?
+    payload[:attachment] = attachment_payload if status.media.attached?
     payload
   end
 
   def attachment_payload
-    media.rewind
-    data = media.read
-    media.rewind
     {
-      file_name: media.original_filename,
-      content_type: media.content_type,
-      file_type: status_type,
-      data_base64: Base64.strict_encode64(data)
+      file_name: status.media.filename.to_s,
+      content_type: status.media.content_type,
+      file_type: status.status_type,
+      recorded_audio: status.audio?,
+      data_base64: Base64.strict_encode64(status.media.download)
     }
   end
 
-  def persist_status(response)
-    source_id = response['id'].presence || raise(Whatsmeow::SessionClient::Error, 'WhatsApp did not return a Status ID')
+  def persist_response!(response)
+    response_id = response['id'].presence || raise(Whatsmeow::SessionClient::Error, 'WhatsApp did not return a Status ID')
+    raise Whatsmeow::SessionClient::Error, 'WhatsApp returned an unexpected Status ID' unless response_id == status.source_id
+
     timestamp = response['timestamp'].to_i
     raise Whatsmeow::SessionClient::Error, 'WhatsApp did not return a valid Status timestamp' unless timestamp.positive?
 
     posted_at = Time.zone.at(timestamp)
-    sender_jid = response['jid'].presence || own_jid
-    status = @inbox.whatsmeow_statuses.find_or_initialize_by(source_id: source_id)
-    save_status(status, posted_at, sender_jid)
-  rescue ActiveRecord::RecordNotUnique
-    status = @inbox.whatsmeow_statuses.find_by!(source_id: source_id)
-    save_status(status, posted_at, sender_jid)
+    sender_jid = response['jid'].presence || own_jid(status.inbox)
+    WhatsmeowStatus.transaction do
+      delivery_statuses.each { |delivery| mark_published(delivery, sender_jid, posted_at) }
+    end
+
+    status.reload
   end
 
-  def save_status(status, posted_at, sender_jid)
-    status.assign_attributes(
-      account: @inbox.account,
-      created_by: @user,
+  def mark_published(delivery, sender_jid, posted_at)
+    delivery.update!(
       sender_jid: sender_jid,
-      sender_name: @inbox.name,
-      sender_phone: @inbox.channel.phone_number,
-      status_type: status_type,
-      content: content.presence,
-      from_me: true,
+      sender_name: delivery.inbox.name,
+      sender_phone: delivery.inbox.channel.phone_number,
       posted_at: posted_at,
       expires_at: posted_at + 24.hours,
-      metadata: status_metadata
+      publication_state: :published,
+      last_error: nil,
+      next_attempt_at: nil
     )
-    attach_media(status) if media.present? && !status.media.attached?
-    status.save!
-    status
   end
 
-  def attach_media(status)
-    media.rewind
-    status.media.attach(io: StringIO.new(media.read), filename: media.original_filename, content_type: media.content_type)
-    media.rewind
+  def delivery_statuses
+    @delivery_statuses ||= if status.publication_id.present? && status.session_key.present?
+                             account.whatsmeow_statuses
+                                    .where(publication_id: status.publication_id, session_key: status.session_key)
+                                    .includes(inbox: :channel)
+                                    .to_a
+                           else
+                             [status]
+                           end
   end
 
-  def status_metadata
-    metadata = {
-      'background' => background,
-      'background_argb' => background_argb,
-      'text_argb' => 0xFFFFFFFF,
-      'font' => font,
-      'font_value' => font_value
-    }
-    metadata['publication_id'] = params[:publication_id] if params[:publication_id].present?
-    metadata
-  end
-
-  def background
-    BACKGROUNDS.key?(params[:background].to_s) ? params[:background].to_s : 'teal'
-  end
-
-  def background_argb
-    BACKGROUNDS.fetch(background)
-  end
-
-  def font
-    FONTS.key?(params[:font].to_s) ? params[:font].to_s : 'bold'
-  end
-
-  def font_value
-    FONTS.fetch(font)
-  end
-
-  def own_jid
-    phone = @inbox.channel.phone_number.to_s.delete('^0-9')
-    "#{phone}@s.whatsapp.net"
+  def target_inboxes
+    @target_inboxes ||= delivery_statuses.map(&:inbox).uniq(&:id)
   end
 
   def audience_contacts
-    contacts = []
-    @inbox.contact_inboxes.includes(:contact).find_each do |contact_inbox|
-      jid = audience_jid(contact_inbox)
-      next if jid.blank?
+    contacts = target_inboxes.flat_map do |inbox|
+      inbox.contact_inboxes.includes(:contact).filter_map do |contact_inbox|
+        jid = audience_jid(contact_inbox)
+        next if jid.blank?
 
-      contacts << { jid: jid, name: contact_inbox.contact.name.presence || contact_inbox.source_id }
+        { jid: jid, name: contact_inbox.contact.name.presence || contact_inbox.source_id }
+      end
     end
     contacts.uniq { |contact| contact[:jid] }
   end
@@ -169,7 +140,7 @@ class Whatsmeow::StatusPublisher
   end
 
   def managed_contacts
-    @inbox.account.contacts.where.not(phone_number: [nil, '']).pluck(:phone_number).filter_map do |phone_number|
+    account.contacts.where.not(phone_number: [nil, '']).pluck(:phone_number).filter_map do |phone_number|
       phone = phone_number.to_s.delete('^0-9')
       next unless phone.match?(/\A[1-9]\d{5,14}\z/)
 
@@ -177,30 +148,8 @@ class Whatsmeow::StatusPublisher
     end
   end
 
-  def acquire_publish_locks!
-    account_lock_acquired = ::Redis::Alfred.set(
-      account_publish_key,
-      true,
-      nx: true,
-      ex: ACCOUNT_PUBLISH_INTERVAL.to_i
-    )
-    raise ArgumentError, 'Wait 15 seconds before publishing from another inbox.' unless account_lock_acquired
-
-    inbox_lock_acquired = ::Redis::Alfred.set(cooldown_key, true, nx: true, ex: STATUS_COOLDOWN.to_i)
-    raise ArgumentError, 'Wait one minute before publishing another status to this inbox.' unless inbox_lock_acquired
-  end
-
-  def cooldown_key
-    "whatsmeow:status-publish:#{@inbox.id}"
-  end
-
-  def account_publish_key
-    "whatsmeow:status-publish:account:#{@inbox.account_id}"
-  end
-
-  def maximum_media_size
-    limit_mb = GlobalConfigService.load('MAXIMUM_FILE_UPLOAD_SIZE', 40).to_i
-    limit_mb = 40 if limit_mb <= 0
-    limit_mb.megabytes
+  def own_jid(inbox)
+    phone = inbox.channel.phone_number.to_s.delete('^0-9')
+    "#{phone}@s.whatsapp.net"
   end
 end

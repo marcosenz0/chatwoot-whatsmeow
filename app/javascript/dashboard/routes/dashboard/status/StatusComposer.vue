@@ -26,6 +26,8 @@ const { t } = useI18n();
 
 const dialogRef = ref(null);
 const fileInputRef = ref(null);
+const textTabRef = ref(null);
+const mediaTabRef = ref(null);
 const mode = ref('text');
 const content = ref('');
 const background = ref('teal');
@@ -33,11 +35,12 @@ const font = ref('bold');
 const mediaFile = ref(null);
 const mediaPreviewUrl = ref('');
 const isPublishing = ref(false);
-const publishingInboxIndex = ref(0);
 const selectedInboxIds = ref([]);
+const publicationId = ref(crypto.randomUUID());
 
 let publishRequestToken = 0;
-const MULTI_INBOX_DELAY = 15000;
+let mediaSelectionVersion = 0;
+let lastAttemptFingerprint = '';
 
 const BACKGROUNDS = [
   {
@@ -100,6 +103,7 @@ const selectedFontLabel = computed(
     fontOptions.value[0].label
 );
 const isVideo = computed(() => mediaFile.value?.type.startsWith('video/'));
+const isAudio = computed(() => mediaFile.value?.type.startsWith('audio/'));
 const connectedInboxIds = computed(() =>
   props.inboxes
     .filter(inbox => (inbox.channel?.status || inbox.status) === 'connected')
@@ -112,20 +116,6 @@ const canPublish = computed(
       ? Boolean(content.value.trim())
       : Boolean(mediaFile.value))
 );
-const isMultiInboxPublication = computed(
-  () => selectedInboxIds.value.length > 1
-);
-const publicationProgress = computed(() =>
-  t('WHATSAPP_STATUS.COMPOSER.SEQUENTIAL_PROGRESS', {
-    current: publishingInboxIndex.value,
-    total: selectedInboxIds.value.length,
-  })
-);
-const waitForNextInbox = () =>
-  new Promise(resolve => {
-    window.setTimeout(resolve, MULTI_INBOX_DELAY);
-  });
-
 const revokeMediaPreview = () => {
   if (mediaPreviewUrl.value) URL.revokeObjectURL(mediaPreviewUrl.value);
   mediaPreviewUrl.value = '';
@@ -139,6 +129,9 @@ const clearMedia = () => {
 
 const resetForm = () => {
   publishRequestToken += 1;
+  mediaSelectionVersion = 0;
+  lastAttemptFingerprint = '';
+  publicationId.value = crypto.randomUUID();
   mode.value = 'text';
   content.value = '';
   background.value = 'teal';
@@ -146,7 +139,6 @@ const resetForm = () => {
   selectedInboxIds.value = [];
   clearMedia();
   isPublishing.value = false;
-  publishingInboxIndex.value = 0;
 };
 
 const open = (inboxIds = []) => {
@@ -164,97 +156,103 @@ const selectFont = value => {
   font.value = value;
 };
 
+const selectMode = (value, { focus = false } = {}) => {
+  mode.value = value;
+  if (focus) {
+    const target = value === 'text' ? textTabRef.value : mediaTabRef.value;
+    target?.focus();
+  }
+};
+
+const onTabKeydown = event => {
+  let targetMode = { Home: 'text', End: 'media' }[event.key];
+  if (['ArrowLeft', 'ArrowRight'].includes(event.key)) {
+    targetMode = mode.value === 'text' ? 'media' : 'text';
+  }
+  if (!targetMode) return;
+
+  event.preventDefault();
+  selectMode(targetMode, { focus: true });
+};
+
 const onFileSelected = event => {
   const [file] = event.target.files;
   if (!file) return;
 
-  if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+  if (
+    !file.type.startsWith('image/') &&
+    !file.type.startsWith('video/') &&
+    !file.type.startsWith('audio/')
+  ) {
     useAlert(t('WHATSAPP_STATUS.COMPOSER.INVALID_FILE'));
     clearMedia();
     return;
   }
 
   revokeMediaPreview();
+  mediaSelectionVersion += 1;
   mediaFile.value = file;
   mediaPreviewUrl.value = URL.createObjectURL(file);
 };
+
+const currentPayloadFingerprint = () =>
+  JSON.stringify({
+    inboxIds: selectedInboxIds.value.map(Number).sort((a, b) => a - b),
+    mode: mode.value,
+    content: content.value.trim(),
+    background: background.value,
+    font: font.value,
+    media:
+      mode.value === 'media' && mediaFile.value
+        ? {
+            name: mediaFile.value.name,
+            size: mediaFile.value.size,
+            type: mediaFile.value.type,
+            lastModified: mediaFile.value.lastModified,
+            selection: mediaSelectionVersion,
+          }
+        : null,
+  });
 
 const publish = async () => {
   if (!canPublish.value || isPublishing.value) return;
 
   publishRequestToken += 1;
   const requestToken = publishRequestToken;
+  const attemptFingerprint = currentPayloadFingerprint();
+  if (lastAttemptFingerprint && lastAttemptFingerprint !== attemptFingerprint) {
+    publicationId.value = crypto.randomUUID();
+  }
+  lastAttemptFingerprint = attemptFingerprint;
 
   isPublishing.value = true;
   try {
-    const publicationId = crypto.randomUUID();
-    const results = await selectedInboxIds.value.reduce(
-      async (resultsPromise, inboxId, index) => {
-        const publishedResults = await resultsPromise;
-        if (requestToken !== publishRequestToken) return publishedResults;
-        if (index > 0) await waitForNextInbox();
-        if (requestToken !== publishRequestToken) return publishedResults;
+    const formData = new FormData();
+    selectedInboxIds.value.forEach(inboxId => {
+      formData.append('inbox_ids[]', String(inboxId));
+    });
+    formData.append('publication_id', publicationId.value);
+    formData.append('content', content.value.trim());
+    formData.append('background', background.value);
+    formData.append('font', font.value);
+    if (mode.value === 'media') formData.append('media', mediaFile.value);
 
-        publishingInboxIndex.value = index + 1;
-        const formData = new FormData();
-        formData.append('inbox_id', String(inboxId));
-        formData.append('publication_id', publicationId);
-        formData.append('content', content.value.trim());
-        formData.append('background', background.value);
-        formData.append('font', font.value);
-        if (mode.value === 'media') formData.append('media', mediaFile.value);
-        try {
-          const response = await WhatsmeowStatusesAPI.publish(formData);
-          return [
-            ...publishedResults,
-            { status: 'fulfilled', value: response },
-          ];
-        } catch (reason) {
-          return [...publishedResults, { status: 'rejected', reason }];
-        }
-      },
-      Promise.resolve([])
-    );
+    const response = await WhatsmeowStatusesAPI.publish(formData);
     if (requestToken !== publishRequestToken) return;
 
-    const publishedStatuses = results
-      .filter(result => result.status === 'fulfilled')
-      .map(result => result.value.data.payload);
-    const failedResults = results.filter(
-      result => result.status === 'rejected'
-    );
-
-    if (publishedStatuses.length) emit('published', publishedStatuses);
-
-    if (failedResults.length === results.length) {
-      const [firstFailure] = failedResults;
-      useAlert(
-        firstFailure.reason?.response?.data?.message ||
-          t('WHATSAPP_STATUS.COMPOSER.ERROR')
-      );
-      return;
-    }
-
-    if (failedResults.length) {
-      useAlert(
-        t('WHATSAPP_STATUS.COMPOSER.PARTIAL_ERROR', {
-          published: publishedStatuses.length,
-          failed: failedResults.length,
-        })
-      );
-    } else {
-      useAlert(
-        t('WHATSAPP_STATUS.PUBLISHED_COUNT', {
-          count: publishedStatuses.length,
-        })
-      );
-    }
-    dialogRef.value?.close();
-  } catch (error) {
-    if (requestToken !== publishRequestToken) return;
+    const queuedStatuses = Array.isArray(response.data.payload)
+      ? response.data.payload
+      : [response.data.payload].filter(Boolean);
+    emit('published', queuedStatuses);
     useAlert(
-      error.response?.data?.message || t('WHATSAPP_STATUS.COMPOSER.ERROR')
+      t('WHATSAPP_STATUS.COMPOSER.QUEUED_COUNT', {
+        count: queuedStatuses.length || selectedInboxIds.value.length,
+      })
     );
+    dialogRef.value?.close();
+  } catch {
+    if (requestToken !== publishRequestToken) return;
+    useAlert(t('WHATSAPP_STATUS.COMPOSER.ERROR'));
   } finally {
     if (requestToken === publishRequestToken) isPublishing.value = false;
   }
@@ -278,33 +276,21 @@ defineExpose({ open });
     :confirm-button-label="t('WHATSAPP_STATUS.COMPOSER.PUBLISH')"
     :disable-confirm-button="!canPublish"
     :is-loading="isPublishing"
+    :prevent-close="isPublishing"
     @close="resetForm"
     @confirm="publish"
   >
     <StatusDestinationSelector v-model="selectedInboxIds" :inboxes="inboxes" />
 
     <div
-      v-if="isMultiInboxPublication"
-      class="flex gap-3 rounded-xl border border-n-amber-7 bg-n-amber-3 px-4 py-3 text-n-amber-11"
-      role="status"
+      class="flex rounded-xl bg-n-alpha-2 p-1"
+      role="tablist"
+      aria-orientation="horizontal"
+      @keydown="onTabKeydown"
     >
-      <Icon icon="i-lucide-shield-alert" class="mt-0.5 size-4 flex-shrink-0" />
-      <div class="min-w-0">
-        <p class="mb-0 text-sm font-semibold">
-          {{ t('WHATSAPP_STATUS.COMPOSER.SEQUENTIAL_TITLE') }}
-        </p>
-        <p class="mb-0 mt-1 text-xs leading-5">
-          {{
-            isPublishing
-              ? publicationProgress
-              : t('WHATSAPP_STATUS.COMPOSER.SEQUENTIAL_DESCRIPTION')
-          }}
-        </p>
-      </div>
-    </div>
-
-    <div class="flex rounded-xl bg-n-alpha-2 p-1" role="tablist">
       <button
+        id="whatsmeow-status-text-tab"
+        ref="textTabRef"
         type="button"
         role="tab"
         class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-brand"
@@ -314,12 +300,16 @@ defineExpose({ open });
             : 'text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12'
         "
         :aria-selected="mode === 'text'"
-        @click="mode = 'text'"
+        aria-controls="whatsmeow-status-text-panel"
+        :tabindex="mode === 'text' ? 0 : -1"
+        @click="selectMode('text')"
       >
         <Icon icon="i-lucide-type" class="size-4" />
         {{ t('WHATSAPP_STATUS.COMPOSER.TEXT_TAB') }}
       </button>
       <button
+        id="whatsmeow-status-media-tab"
+        ref="mediaTabRef"
         type="button"
         role="tab"
         class="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-brand"
@@ -329,14 +319,22 @@ defineExpose({ open });
             : 'text-n-slate-11 hover:bg-n-alpha-2 hover:text-n-slate-12'
         "
         :aria-selected="mode === 'media'"
-        @click="mode = 'media'"
+        aria-controls="whatsmeow-status-media-panel"
+        :tabindex="mode === 'media' ? 0 : -1"
+        @click="selectMode('media')"
       >
         <Icon icon="i-lucide-image" class="size-4" />
         {{ t('WHATSAPP_STATUS.COMPOSER.MEDIA_TAB') }}
       </button>
     </div>
 
-    <template v-if="mode === 'text'">
+    <div
+      v-if="mode === 'text'"
+      id="whatsmeow-status-text-panel"
+      role="tabpanel"
+      aria-labelledby="whatsmeow-status-text-tab"
+      class="flex flex-col gap-6"
+    >
       <div
         class="flex aspect-[9/11] max-h-80 items-center justify-center overflow-hidden rounded-2xl p-8 text-white shadow-inner transition-colors motion-reduce:transition-none"
         :class="previewBackgroundClass"
@@ -462,9 +460,15 @@ defineExpose({ open });
           </DropdownBody>
         </DropdownContainer>
       </div>
-    </template>
+    </div>
 
-    <template v-else>
+    <div
+      v-else
+      id="whatsmeow-status-media-panel"
+      role="tabpanel"
+      aria-labelledby="whatsmeow-status-media-tab"
+      class="flex flex-col gap-6"
+    >
       <div class="flex flex-col gap-2">
         <span class="text-sm font-medium text-n-slate-12">
           {{ t('WHATSAPP_STATUS.COMPOSER.MEDIA_LABEL') }}
@@ -492,8 +496,22 @@ defineExpose({ open });
           v-else
           class="relative flex max-h-80 min-h-52 items-center justify-center overflow-hidden rounded-2xl bg-black"
         >
+          <div
+            v-if="isAudio"
+            class="flex h-52 w-full flex-col items-center justify-center gap-4 bg-n-slate-11 p-6"
+          >
+            <span
+              class="flex size-14 items-center justify-center rounded-full bg-white/10 text-white"
+            >
+              <Icon icon="i-lucide-mic-2" class="size-6" />
+            </span>
+            <span class="text-sm font-medium text-white">
+              {{ t('WHATSAPP_STATUS.COMPOSER.AUDIO_PREVIEW') }}
+            </span>
+            <audio :src="mediaPreviewUrl" controls class="w-full max-w-sm" />
+          </div>
           <video
-            v-if="isVideo"
+            v-else-if="isVideo"
             :src="mediaPreviewUrl"
             controls
             class="max-h-80 w-full object-contain"
@@ -529,7 +547,7 @@ defineExpose({ open });
         <input
           ref="fileInputRef"
           type="file"
-          accept="image/jpeg,image/png,image/webp,video/*"
+          accept="image/jpeg,image/png,image/webp,video/*,audio/*"
           class="hidden"
           @change="onFileSelected"
         />
@@ -551,6 +569,6 @@ defineExpose({ open });
           :placeholder="t('WHATSAPP_STATUS.COMPOSER.CAPTION_PLACEHOLDER')"
         />
       </div>
-    </template>
+    </div>
   </Dialog>
 </template>

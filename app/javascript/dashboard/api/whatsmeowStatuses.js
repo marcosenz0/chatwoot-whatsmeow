@@ -15,6 +15,10 @@ class WhatsmeowStatusesAPI extends ApiClient {
     return axios.post(this.url, formData);
   }
 
+  retry(id) {
+    return axios.post(`${this.url}/${id}/retry`);
+  }
+
   markViewed(id) {
     return axios.post(`${this.url}/${id}/view`);
   }

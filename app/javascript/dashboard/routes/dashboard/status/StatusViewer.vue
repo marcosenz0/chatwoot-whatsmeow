@@ -42,6 +42,7 @@ const { formatStatusTime } = useStatusTime();
 const TIMED_STATUS_DURATION = 5000;
 const ALL_VIEWER_INBOXES = 'all';
 
+const viewerRef = ref(null);
 const closeButtonRef = ref(null);
 const mediaRef = ref(null);
 const groupIndex = ref(
@@ -72,6 +73,7 @@ let shouldResumeAfterPointerHold = false;
 let activePointerId = null;
 let viewersRefreshTimer = null;
 let viewersRequestToken = 0;
+let previouslyFocusedElement = null;
 
 const currentGroup = computed(() => props.groups[groupIndex.value]);
 const currentStatus = computed(
@@ -101,11 +103,15 @@ const canReply = computed(() => !isOwnStatus.value);
 const publicationStatuses = computed(() => {
   if (!isOwnStatus.value) return [];
 
-  const publicationId = currentStatus.value?.metadata?.publication_id;
+  const publicationId =
+    currentStatus.value?.publication_id ||
+    currentStatus.value?.metadata?.publication_id;
   if (!publicationId) return currentStatus.value ? [currentStatus.value] : [];
 
   return currentGroup.value.items.filter(
-    status => status.metadata?.publication_id === publicationId
+    status =>
+      (status.publication_id || status.metadata?.publication_id) ===
+      publicationId
   );
 });
 const viewerInboxOptions = computed(() =>
@@ -548,10 +554,8 @@ const sendReply = async () => {
     await WhatsmeowStatusesAPI.reply(currentStatus.value.id, { content });
     replyText.value = '';
     useAlert(t('WHATSAPP_STATUS.VIEWER.REPLY_SENT'));
-  } catch (error) {
-    useAlert(
-      error.response?.data?.message || t('WHATSAPP_STATUS.VIEWER.REPLY_ERROR')
-    );
+  } catch {
+    useAlert(t('WHATSAPP_STATUS.VIEWER.REPLY_ERROR'));
   } finally {
     isReplying.value = false;
   }
@@ -567,10 +571,8 @@ const sendReaction = async emoji => {
       reaction: emoji,
     });
     useAlert(t('WHATSAPP_STATUS.VIEWER.REACTION_SENT'));
-  } catch (error) {
-    useAlert(
-      error.response?.data?.message || t('WHATSAPP_STATUS.VIEWER.REPLY_ERROR')
-    );
+  } catch {
+    useAlert(t('WHATSAPP_STATUS.VIEWER.REPLY_ERROR'));
   } finally {
     isReplying.value = false;
   }
@@ -586,10 +588,8 @@ const sendSticker = async sticker => {
       sticker_id: sticker.id,
     });
     useAlert(t('WHATSAPP_STATUS.VIEWER.STICKER_SENT'));
-  } catch (error) {
-    useAlert(
-      error.response?.data?.message || t('WHATSAPP_STATUS.VIEWER.REPLY_ERROR')
-    );
+  } catch {
+    useAlert(t('WHATSAPP_STATUS.VIEWER.REPLY_ERROR'));
   } finally {
     isReplying.value = false;
   }
@@ -636,12 +636,9 @@ const loadViewers = async ({ silent = false } = {}) => {
         count: Number(data.meta?.count ?? data.payload?.length ?? 0),
       });
     });
-  } catch (error) {
+  } catch {
     if (!silent) {
-      useAlert(
-        error?.response?.data?.message ||
-          t('WHATSAPP_STATUS.VIEWER.VIEWERS_ERROR')
-      );
+      useAlert(t('WHATSAPP_STATUS.VIEWER.VIEWERS_ERROR'));
     }
   } finally {
     if (!silent && requestToken === viewersRequestToken) {
@@ -681,6 +678,33 @@ const selectPublicationInbox = statusId => {
 
 const onKeyDown = event => {
   if (event.altKey || event.ctrlKey || event.metaKey) return;
+  if (event.key === 'Tab') {
+    const focusableElements = Array.from(
+      viewerRef.value?.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), audio[controls], video[controls], [tabindex]:not([tabindex="-1"])'
+      ) || []
+    ).filter(element => element.offsetParent !== null);
+    if (!focusableElements.length) return;
+
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+    if (
+      event.shiftKey &&
+      (document.activeElement === firstElement ||
+        !viewerRef.value?.contains(document.activeElement))
+    ) {
+      event.preventDefault();
+      lastElement.focus();
+    } else if (
+      !event.shiftKey &&
+      (document.activeElement === lastElement ||
+        !viewerRef.value?.contains(document.activeElement))
+    ) {
+      event.preventDefault();
+      firstElement.focus();
+    }
+    return;
+  }
   if (['INPUT', 'TEXTAREA'].includes(event.target?.tagName)) return;
 
   if (event.key === 'Escape') {
@@ -720,6 +744,7 @@ watch(showViewers, isOpen => {
 });
 
 onMounted(() => {
+  previouslyFocusedElement = document.activeElement;
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('pointerup', onMediaPointerEnd);
   window.addEventListener('pointercancel', onMediaPointerEnd);
@@ -734,12 +759,14 @@ onBeforeUnmount(() => {
   window.removeEventListener('pointerup', onMediaPointerEnd);
   window.removeEventListener('pointercancel', onMediaPointerEnd);
   document.removeEventListener('visibilitychange', onVisibilityChange);
+  if (previouslyFocusedElement?.isConnected) previouslyFocusedElement.focus();
 });
 </script>
 
 <template>
   <TeleportWithDirection to="body">
     <section
+      ref="viewerRef"
       role="dialog"
       aria-modal="true"
       :aria-label="t('WHATSAPP_STATUS.TITLE')"
@@ -1004,6 +1031,9 @@ onBeforeUnmount(() => {
               @canplay="onMediaReady"
               @waiting="isMediaLoading = true"
               @error="onMediaError"
+              @pointerdown.stop
+              @pointerup.stop
+              @pointercancel.stop
             >
               {{ t('WHATSAPP_STATUS.VIEWER.AUDIO_UNAVAILABLE') }}
             </audio>

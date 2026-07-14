@@ -78,6 +78,7 @@ type MessageRequest struct {
 }
 
 type StatusRequest struct {
+	MessageID       string               `json:"message_id"`
 	Content         string               `json:"content"`
 	BackgroundARGB  uint32               `json:"background_argb"`
 	TextARGB        uint32               `json:"text_argb"`
@@ -1349,12 +1350,13 @@ func handleSendStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	req.MessageID = strings.TrimSpace(req.MessageID)
 	if strings.TrimSpace(req.Content) == "" && (req.Attachment == nil || req.Attachment.DataBase64 == "") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Status content or attachment is required"})
 		return
 	}
 	if req.Attachment != nil && !statusMediaTypeSupported(*req.Attachment) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Only image and video Status media is supported"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only image, video and audio Status media is supported"})
 		return
 	}
 
@@ -1362,6 +1364,9 @@ func handleSendStatus(c *gin.Context) {
 	if !ok {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
 		return
+	}
+	if req.MessageID == "" {
+		req.MessageID = client.GenerateMessageID()
 	}
 
 	timeout := statusSendTimeout()
@@ -1386,7 +1391,7 @@ func handleSendStatus(c *gin.Context) {
 		sendCtx,
 		types.StatusBroadcastJID,
 		message,
-		whatsmeow.SendRequestExtra{Timeout: timeout - 5*time.Second},
+		statusSendRequestExtra(req.MessageID, timeout),
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to send Status: %v", err)})
@@ -1686,7 +1691,14 @@ func statusSendTimeout() time.Duration {
 
 func statusMediaTypeSupported(attachment WhatsmeowAttachment) bool {
 	mediaType := outgoingMediaType(attachment)
-	return mediaType == whatsmeow.MediaImage || mediaType == whatsmeow.MediaVideo
+	return mediaType == whatsmeow.MediaImage || mediaType == whatsmeow.MediaVideo || mediaType == whatsmeow.MediaAudio
+}
+
+func statusSendRequestExtra(messageID string, timeout time.Duration) whatsmeow.SendRequestExtra {
+	return whatsmeow.SendRequestExtra{
+		ID:      types.MessageID(messageID),
+		Timeout: timeout - 5*time.Second,
+	}
 }
 
 func syncStatusContacts(ctx context.Context, client *whatsmeow.Client, contacts []StatusContact) error {
@@ -1797,7 +1809,8 @@ func syncChatwootContacts(ctx context.Context, client *whatsmeow.Client, contact
 
 func buildStatusMessage(ctx context.Context, client *whatsmeow.Client, req StatusRequest) (*proto.Message, error) {
 	if req.Attachment != nil && req.Attachment.DataBase64 != "" {
-		return buildOutgoingMediaMessage(ctx, client, strings.TrimSpace(req.Content), *req.Attachment, nil)
+		attachment := prepareStatusAttachment(*req.Attachment)
+		return buildOutgoingMediaMessage(ctx, client, strings.TrimSpace(req.Content), attachment, nil)
 	}
 
 	backgroundARGB := req.BackgroundARGB
@@ -1817,6 +1830,13 @@ func buildStatusMessage(ctx context.Context, client *whatsmeow.Client, req Statu
 			Font:           &font,
 		},
 	}, nil
+}
+
+func prepareStatusAttachment(attachment WhatsmeowAttachment) WhatsmeowAttachment {
+	if outgoingMediaType(attachment) == whatsmeow.MediaAudio {
+		attachment.RecordedAudio = true
+	}
+	return attachment
 }
 
 func supportedStatusFont(font int32) proto.ExtendedTextMessage_FontType {
@@ -2870,11 +2890,41 @@ func statusReceiptViewerJID(client *whatsmeow.Client, receipt *events.Receipt) t
 		return types.JID{}
 	}
 
-	viewerJID := firstUsableJID(receipt.SenderAlt, receipt.Sender)
-	if resolvedJID := resolvePhoneJID(client, viewerJID); !resolvedJID.IsEmpty() {
-		return resolvedJID
+	ownJID, _ := currentClientJID(client)
+	ownLID := types.JID{}
+	if client != nil && client.Store != nil {
+		ownLID = client.Store.LID.ToNonAD()
 	}
-	return viewerJID
+
+	return firstExternalStatusReceiptJID(
+		client,
+		ownJID,
+		ownLID,
+		receipt.SenderAlt,
+		receipt.Sender,
+		receipt.BroadcastListOwner,
+		receipt.MessageSender,
+		receipt.RecipientAlt,
+	)
+}
+
+func firstExternalStatusReceiptJID(client *whatsmeow.Client, ownJID types.JID, ownLID types.JID, candidates ...types.JID) types.JID {
+	for _, candidate := range candidates {
+		candidate = candidate.ToNonAD()
+		if !isStatusReplySender(candidate) || isCurrentStatusAccountJID(candidate, ownJID, ownLID) {
+			continue
+		}
+
+		if resolvedJID := resolvePhoneJID(client, candidate); !resolvedJID.IsEmpty() {
+			candidate = resolvedJID.ToNonAD()
+		}
+		if isCurrentStatusAccountJID(candidate, ownJID, ownLID) {
+			continue
+		}
+		return candidate
+	}
+
+	return types.JID{}
 }
 
 func isCurrentStatusAccountJID(candidate types.JID, ownJID types.JID, ownLID types.JID) bool {

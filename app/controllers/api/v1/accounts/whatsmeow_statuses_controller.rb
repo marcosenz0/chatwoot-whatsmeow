@@ -1,6 +1,11 @@
+require 'digest'
+
 class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseController
-  before_action :set_inbox, only: [:index, :create]
-  before_action :set_status, only: [:view, :reply, :viewers, :preview, :destroy]
+  include Whatsmeow::StatusPayloadable
+
+  before_action :set_inbox, only: [:index]
+  before_action :set_inboxes, only: [:create]
+  before_action :set_status, only: [:view, :reply, :viewers, :preview, :retry, :destroy]
 
   def index
     statuses = @inbox.whatsmeow_statuses.active
@@ -15,12 +20,15 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
   end
 
   def create
-    status = Whatsmeow::StatusPublisher.new(inbox: @inbox, user: Current.user, params: status_params).perform
-    render json: { payload: status_payload(status, {}) }, status: :created
+    statuses = Whatsmeow::StatusPublicationScheduler.new(inboxes: @inboxes, user: Current.user, params: publication_params).perform
+    payload = if legacy_single_inbox_request?
+                status_payload(statuses.first, {})
+              else
+                statuses.map { |status| status_payload(status, {}) }
+              end
+    render json: { payload: payload }, status: :accepted
   rescue ArgumentError, ActiveRecord::RecordInvalid => e
     render json: { message: e.message }, status: :unprocessable_entity
-  rescue Whatsmeow::SessionClient::Error => e
-    render json: { message: e.message }, status: :bad_gateway
   end
 
   def view
@@ -65,12 +73,22 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
     render json: { payload: payload }
   end
 
+  def retry
+    leader = reset_failed_publication
+    return render json: { message: 'Only failed Status publications can be retried' }, status: :unprocessable_entity if leader.blank?
+
+    Whatsmeow::PublishStatusJob.perform_later(leader.id)
+    render json: { payload: status_payload(@status.reload, {}) }, status: :accepted
+  end
+
   def destroy
     status_inbox = owned_status_inbox(@status)
     return head :not_found unless status_inbox
 
-    Whatsmeow::SessionClient.new(inbox: status_inbox).delete_status(@status.source_id)
-    destroy_status_copies(status_inbox)
+    unless destroy_publication_delivery(status_inbox)
+      return render json: { message: 'Wait for the Status publication to finish before deleting it' }, status: :conflict
+    end
+
     head :no_content
   rescue Whatsmeow::SessionClient::Error => e
     render json: { message: e.message }, status: :bad_gateway
@@ -80,17 +98,69 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
 
   def set_inbox
     @inbox = policy_scope(Current.account.inboxes).find(params.require(:inbox_id))
-    authorize @inbox, action_name == 'create' ? :whatsmeow_status? : :show?
+    authorize @inbox, :show?
     head :not_found if @inbox.channel_type != 'Channel::Whatsmeow'
+  end
+
+  def set_inboxes
+    ids = requested_inbox_ids
+    inboxes = accessible_inboxes(ids)
+
+    @inboxes = ids.map { |id| inboxes.fetch(id) }
+    @inboxes.each { |inbox| validate_publishable_inbox!(inbox) }
+  end
+
+  def requested_inbox_ids
+    values = Array(params[:inbox_ids]).presence || Array(params[:inbox_id])
+    values.compact_blank.map(&:to_i).uniq
+  end
+
+  def accessible_inboxes(ids)
+    inboxes = policy_scope(Current.account.inboxes).includes(:channel).where(id: ids).index_by(&:id)
+    raise ActiveRecord::RecordNotFound unless ids.present? && inboxes.size == ids.size
+
+    inboxes
+  end
+
+  def validate_publishable_inbox!(inbox)
+    authorize inbox, :whatsmeow_status?
+    return if inbox.channel_type == 'Channel::Whatsmeow' && inbox.channel.status == 'connected'
+
+    raise ActiveRecord::RecordNotFound
   end
 
   def set_status
     @status = Current.account.whatsmeow_statuses.active.find(params[:id])
-    authorize @status.inbox, %w[reply destroy].include?(action_name) ? :whatsmeow_status? : :show?
+    authorize @status.inbox, %w[reply retry destroy].include?(action_name) ? :whatsmeow_status? : :show?
   end
 
   def status_params
-    params.permit(:inbox_id, :publication_id, :content, :media, :background, :font)
+    params.permit(:inbox_id, :publication_id, :content, :media, :background, :font, inbox_ids: [])
+  end
+
+  def publication_params
+    permitted = status_params.to_h.symbolize_keys
+    return permitted unless legacy_single_inbox_request?
+
+    permitted.merge(publication_id: legacy_publication_id, legacy_single_inbox: true)
+  end
+
+  def legacy_single_inbox_request?
+    params[:inbox_ids].blank? && params[:inbox_id].present?
+  end
+
+  def legacy_publication_id
+    original_id = status_params[:publication_id].presence
+    return if original_id.blank?
+
+    digest = Digest::SHA256.hexdigest([Current.account.id, original_id, legacy_session_key].join(':'))
+    "#{digest[0, 8]}-#{digest[8, 4]}-5#{digest[13, 3]}-a#{digest[17, 3]}-#{digest[20, 12]}"
+  end
+
+  def legacy_session_key
+    inbox = @inboxes.first
+    phone = inbox.channel.phone_number.to_s.delete('^0-9')
+    phone.present? ? "phone:#{phone}" : "inbox:#{inbox.id}"
   end
 
   def reply_params
@@ -103,96 +173,49 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
     Current.user.whatsmeow_stickers.where(account_id: Current.account.id).find(reply_params[:sticker_id])
   end
 
-  def status_payload(status, viewed_status_ids, viewer_counts = {})
-    status_inbox = owned_status_inbox(status)
-    {
-      id: status.id,
-      source_id: status.source_id,
-      inbox_id: status_inbox&.id || status.inbox_id,
-      inbox_name: status_inbox&.name,
-      contact: contact_payload(status.contact),
-      sender_jid: status.sender_jid,
-      sender_name: status.sender_name,
-      sender_phone: status.sender_phone,
-      from_me: status_inbox.present?,
-      record_from_me: status.from_me,
-      status_type: status.status_type,
-      content: status.content,
-      media: media_payload(status),
-      metadata: status.metadata,
-      posted_at: status.posted_at.to_i,
-      expires_at: status.expires_at.to_i,
-      viewed: status.metadata['status_already_viewed'] || viewed_status_ids[status.id] || false,
-      viewer_count: status.from_me? ? viewer_counts.fetch(status.id, 0) : 0,
-      created_by: status.created_by&.name
-    }
+  def publication_delivery_scope(status)
+    return Current.account.whatsmeow_statuses.where(id: status.id) if status.publication_id.blank? || status.session_key.blank?
+
+    Current.account.whatsmeow_statuses.where(publication_id: status.publication_id, session_key: status.session_key)
   end
 
-  def owned_status_inbox(status)
-    return status.inbox if status.from_me?
+  def destroy_publication_delivery(status_inbox)
+    deleted = false
+    WhatsmeowStatus.transaction do
+      statuses = publication_delivery_scope(@status).lock.to_a
+      next if statuses.any?(&:publication_processing?)
 
-    account_whatsmeow_inboxes_by_phone[normalized_phone(status.sender_phone.presence || status.sender_jid)]
-  end
-
-  def account_whatsmeow_inboxes_by_phone
-    @account_whatsmeow_inboxes_by_phone ||= Current.account.inboxes.includes(:channel).filter_map do |inbox|
-      next unless inbox.channel_type == 'Channel::Whatsmeow'
-
-      phone = normalized_phone(inbox.channel.phone_number)
-      [phone, inbox] if phone.present?
-    end.to_h
-  end
-
-  def normalized_phone(value)
-    value.to_s.split('@').first.split(':').first.delete('^0-9')
-  end
-
-  def destroy_status_copies(status_inbox)
-    Current.account.whatsmeow_statuses.where(source_id: @status.source_id).find_each do |status|
-      status.destroy! if owned_status_inbox(status)&.id == status_inbox.id
+      delete_published_status(status_inbox, statuses)
+      statuses.each(&:destroy!)
+      deleted = true
     end
+    deleted
   end
 
-  def status_viewer_counts(statuses)
-    WhatsmeowStatusViewer
-      .where(whatsmeow_status_id: statuses.select(&:from_me?).map(&:id))
-      .group_by(&:whatsmeow_status_id)
-      .transform_values { |viewers| viewers.uniq(&:identity_key).size }
+  def delete_published_status(status_inbox, statuses)
+    return unless statuses.any? { |status| status.publication_published? || status.publish_attempts.positive? }
+
+    Whatsmeow::SessionClient.new(inbox: status_inbox).delete_status(@status.source_id)
   end
 
-  def status_viewer_payload(viewer, status)
-    {
-      id: viewer.id,
-      status_id: viewer.whatsmeow_status_id,
-      inbox_id: status.inbox_id,
-      inbox_name: status.inbox.name,
-      viewer_jid: viewer.viewer_jid,
-      viewer_name: viewer.viewer_name,
-      viewer_phone: viewer.viewer_phone,
-      contact: contact_payload(viewer.contact),
-      viewed_at: viewer.viewed_at.to_i
-    }
+  def reset_failed_publication
+    leader = nil
+    WhatsmeowStatus.transaction do
+      statuses = publication_delivery_scope(@status).lock.to_a
+      next unless statuses.present? && statuses.all?(&:publication_failed?)
+
+      statuses.each { |status| reset_publication_delivery(status) }
+      leader = statuses.min_by(&:id)
+    end
+    leader
   end
 
-  def contact_payload(contact)
-    return if contact.blank?
-
-    {
-      id: contact.id,
-      name: contact.name,
-      phone_number: contact.phone_number,
-      avatar_url: contact.avatar_url
-    }
-  end
-
-  def media_payload(status)
-    return unless status.media.attached?
-
-    {
-      url: url_for(status.media),
-      content_type: status.media.content_type,
-      filename: status.media.filename.to_s,
-      byte_size: status.media.byte_size
-    }
+  def reset_publication_delivery(status)
+    status.update!(
+      publication_state: :queued,
+      publish_attempts: 0,
+      last_error: nil,
+      next_attempt_at: nil
+    )
   end
 end

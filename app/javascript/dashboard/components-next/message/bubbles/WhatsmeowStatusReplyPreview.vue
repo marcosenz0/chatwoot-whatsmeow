@@ -42,6 +42,7 @@ const previewImageUrl = computed(() => {
 const statusIcon = computed(() => {
   if (statusType.value === 'video') return 'i-lucide-video';
   if (statusType.value === 'image') return 'i-lucide-image';
+  if (statusType.value === 'audio') return 'i-lucide-mic-2';
   return 'i-lucide-message-circle';
 });
 const previewText = computed(() => {
@@ -50,6 +51,8 @@ const previewText = computed(() => {
     return t('WHATSAPP_STATUS.REPLY_PREVIEW.VIDEO');
   if (statusType.value === 'image')
     return t('WHATSAPP_STATUS.REPLY_PREVIEW.IMAGE');
+  if (statusType.value === 'audio')
+    return t('WHATSAPP_STATUS.REPLY_PREVIEW.AUDIO');
   return t('WHATSAPP_STATUS.REPLY_PREVIEW.TEXT');
 });
 const viewerGroups = computed(() => {
@@ -75,11 +78,8 @@ const loadStatus = async () => {
     const { data } = await WhatsmeowStatusesAPI.preview(statusId.value);
     status.value = data.payload;
     return status.value;
-  } catch (error) {
-    useAlert(
-      error.response?.data?.message ||
-        t('WHATSAPP_STATUS.REPLY_PREVIEW.UNAVAILABLE')
-    );
+  } catch {
+    useAlert(t('WHATSAPP_STATUS.REPLY_PREVIEW.UNAVAILABLE'));
     return null;
   } finally {
     isLoading.value = false;

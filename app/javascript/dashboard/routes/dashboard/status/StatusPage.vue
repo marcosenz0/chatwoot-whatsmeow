@@ -1,5 +1,12 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
@@ -19,6 +26,7 @@ import StatusViewer from './StatusViewer.vue';
 import { useStatusTime } from './useStatusTime';
 
 const POLL_INTERVAL = 30000;
+const ACTIVE_PUBLICATION_POLL_INTERVAL = 5000;
 const WHATSMEOW_CHANNEL_TYPE = 'Channel::Whatsmeow';
 const ALL_INBOXES = 'all';
 
@@ -42,12 +50,15 @@ const ownStatusManagerRef = ref(null);
 const isViewerOpen = ref(false);
 const viewerGroupIndex = ref(0);
 const viewerStatusIndex = ref(0);
+const shouldReturnToOwnStatusManager = ref(false);
 const updatingStatusInboxIds = ref([]);
 const deletingPublicationKeys = ref([]);
+const retryingPublicationKeys = ref([]);
 const isInboxSelectorOpen = ref(false);
 
 let pollTimer = null;
 let requestToken = 0;
+let isStatusFetchInFlight = false;
 
 const whatsmeowInboxes = computed(() =>
   inboxes.value.filter(inbox => inbox.channel_type === WHATSMEOW_CHANNEL_TYPE)
@@ -100,11 +111,37 @@ const defaultComposerInboxIds = computed(() => {
   return publishableInboxes.filter(isInboxConnected).map(inbox => inbox.id);
 });
 
+const publicationState = status => status.publication_state || 'published';
+const isPublishedStatus = status => publicationState(status) === 'published';
+const uniquePublishedStatuses = items =>
+  Array.from(
+    items
+      .filter(isPublishedStatus)
+      .reduce((statusesBySession, status) => {
+        const key = status.session_key || `inbox:${status.inbox_id}`;
+        const current = statusesBySession.get(key);
+        if (
+          !current ||
+          Number(status.viewer_count || 0) > Number(current.viewer_count || 0)
+        ) {
+          statusesBySession.set(key, status);
+        }
+        return statusesBySession;
+      }, new Map())
+      .values()
+  );
+const hasActivePublication = computed(() =>
+  statuses.value.some(status =>
+    ['queued', 'processing'].includes(publicationState(status))
+  )
+);
+
 const activeStatuses = computed(() => {
   const now = Date.now();
-  const active = statuses.value.filter(
-    status => status.expires_at * 1000 > now
-  );
+  const active = statuses.value.filter(status => {
+    if (!isPublishedStatus(status)) return true;
+    return Number(status.expires_at) * 1000 > now;
+  });
   const canonicalSourceIds = new Set(
     active
       .filter(status => status.record_from_me && status.source_id)
@@ -127,7 +164,10 @@ const activeStatuses = computed(() => {
 const groupKeyForStatus = status => {
   if (status.from_me) {
     const publicationId =
-      status.metadata?.publication_id || status.source_id || status.id;
+      status.publication_id ||
+      status.metadata?.publication_id ||
+      status.source_id ||
+      status.id;
     return `current-user:${publicationId}`;
   }
   const inboxPrefix = `inbox:${status.inbox_id}:`;
@@ -140,7 +180,7 @@ const statusGroups = computed(() => {
   const grouped = new Map();
   const orderedStatuses = activeStatuses.value
     .slice()
-    .sort((a, b) => a.posted_at - b.posted_at);
+    .sort((a, b) => Number(a.posted_at) - Number(b.posted_at));
 
   orderedStatuses.forEach(status => {
     const key = groupKeyForStatus(status);
@@ -207,10 +247,16 @@ const viewedGroups = computed(() =>
   incomingGroups.value.filter(group => group.viewed)
 );
 
-const viewerGroups = computed(() => [
-  ...ownGroups.value,
-  ...incomingGroups.value,
-]);
+const viewerGroups = computed(() =>
+  [...ownGroups.value, ...incomingGroups.value]
+    .map(group => ({
+      ...group,
+      items: group.fromMe
+        ? uniquePublishedStatuses(group.items)
+        : group.items.filter(isPublishedStatus),
+    }))
+    .filter(group => group.items.length)
+);
 
 const ownStatusSubtitle = computed(() => {
   if (ownGroup.value) {
@@ -251,11 +297,14 @@ const syncInboxQuery = inboxId => {
   });
 };
 
-const fetchStatuses = async ({ silent = false } = {}) => {
+const fetchStatuses = async ({ silent = false, force = false } = {}) => {
+  if (silent && isStatusFetchInFlight && !force) return;
+
   const selectedValue = String(selectedInboxId.value);
   const inboxesToFetch = targetInboxes.value.slice();
   if (!inboxesToFetch.length) return;
 
+  isStatusFetchInFlight = true;
   requestToken += 1;
   const token = requestToken;
   if (!silent) isLoading.value = true;
@@ -264,10 +313,14 @@ const fetchStatuses = async ({ silent = false } = {}) => {
     const results = await Promise.allSettled(
       inboxesToFetch.map(async inbox => {
         const { data } = await WhatsmeowStatusesAPI.getAll(inbox.id);
-        return (data.payload || []).map(status => ({
-          ...status,
-          inbox_name: status.inbox_name || inbox.name,
-        }));
+        return {
+          inboxId: inbox.id,
+          statuses: (data.payload || []).map(status => ({
+            ...status,
+            inbox_name: status.inbox_name || inbox.name,
+            fetched_inbox_id: inbox.id,
+          })),
+        };
       })
     );
     if (
@@ -280,14 +333,30 @@ const fetchStatuses = async ({ silent = false } = {}) => {
     const fulfilledResults = results.filter(
       result => result.status === 'fulfilled'
     );
-    statuses.value = fulfilledResults.flatMap(result => result.value);
+    const fulfilledInboxIds = new Set(
+      fulfilledResults.map(result => result.value.inboxId)
+    );
+    const targetInboxIds = new Set(inboxesToFetch.map(inbox => inbox.id));
+    const failedInboxIds = new Set(
+      Array.from(targetInboxIds).filter(id => !fulfilledInboxIds.has(id))
+    );
+    const preservedStatuses = statuses.value.filter(status =>
+      failedInboxIds.has(status.fetched_inbox_id || status.inbox_id)
+    );
+    statuses.value = [
+      ...preservedStatuses,
+      ...fulfilledResults.flatMap(result => result.value.statuses),
+    ];
     hasLoadError.value = fulfilledResults.length === 0;
   } catch {
     if (token === requestToken && (!silent || !statuses.value.length)) {
       hasLoadError.value = true;
     }
   } finally {
-    if (token === requestToken) isLoading.value = false;
+    if (token === requestToken) {
+      isLoading.value = false;
+      isStatusFetchInFlight = false;
+    }
   }
 };
 
@@ -301,9 +370,15 @@ const startPolling = () => {
   stopPolling();
   if (isViewerOpen.value || !selectedInboxId.value) return;
 
-  pollTimer = window.setInterval(() => {
-    if (document.visibilityState === 'visible') fetchStatuses({ silent: true });
-  }, POLL_INTERVAL);
+  pollTimer = window.setInterval(
+    () => {
+      if (document.visibilityState === 'visible')
+        fetchStatuses({ silent: true });
+    },
+    hasActivePublication.value
+      ? ACTIVE_PUBLICATION_POLL_INTERVAL
+      : POLL_INTERVAL
+  );
 };
 
 const openComposer = () => {
@@ -312,7 +387,10 @@ const openComposer = () => {
   }
 };
 
-const openStatusGroup = groupKey => {
+const openStatusGroup = (
+  groupKey,
+  { returnToOwnStatusManager = false } = {}
+) => {
   const index = viewerGroups.value.findIndex(group => group.key === groupKey);
   if (index < 0) return;
 
@@ -321,15 +399,29 @@ const openStatusGroup = groupKey => {
   );
   viewerGroupIndex.value = index;
   viewerStatusIndex.value = firstUnseenIndex >= 0 ? firstUnseenIndex : 0;
+  shouldReturnToOwnStatusManager.value = returnToOwnStatusManager;
   isViewerOpen.value = true;
 };
 
 const openOwnStatus = () => {
   ownStatusManagerRef.value?.open();
+  fetchStatuses({ silent: true, force: true });
 };
 
 const openOwnPublication = groupKey => {
-  openStatusGroup(groupKey);
+  openStatusGroup(groupKey, { returnToOwnStatusManager: true });
+};
+
+const closeStatusViewer = () => {
+  const returnToOwnStatusManager = shouldReturnToOwnStatusManager.value;
+  shouldReturnToOwnStatusManager.value = false;
+  isViewerOpen.value = false;
+  if (returnToOwnStatusManager) {
+    nextTick(() => {
+      ownStatusManagerRef.value?.open();
+      fetchStatuses({ silent: true, force: true });
+    });
+  }
 };
 
 const setPublicationDeleting = (groupKey, isDeleting) => {
@@ -345,23 +437,30 @@ const deleteOwnPublication = async groupKey => {
 
   setPublicationDeleting(groupKey, true);
   try {
+    const deletionKey = status => status.session_key || status.inbox_id;
+    const uniqueStatuses = Array.from(
+      new Map(group.items.map(status => [deletionKey(status), status])).values()
+    );
     const results = await Promise.allSettled(
-      group.items.map(status => WhatsmeowStatusesAPI.remove(status.id))
+      uniqueStatuses.map(status => WhatsmeowStatusesAPI.remove(status.id))
     );
-    const deletedIds = results.flatMap((result, index) =>
-      result.status === 'fulfilled' ? [group.items[index].id] : []
+    const deletedKeys = new Set(
+      results.flatMap((result, index) =>
+        result.status === 'fulfilled'
+          ? [deletionKey(uniqueStatuses[index])]
+          : []
+      )
     );
+    const deletedIds = group.items
+      .filter(status => deletedKeys.has(deletionKey(status)))
+      .map(status => status.id);
     statuses.value = statuses.value.filter(
       status => !deletedIds.includes(status.id)
     );
 
-    const failedCount = results.length - deletedIds.length;
-    if (failedCount === results.length) {
-      const [failure] = results;
-      useAlert(
-        failure.reason?.response?.data?.message ||
-          t('WHATSAPP_STATUS.OWN_MANAGER.DELETE_ERROR')
-      );
+    const failedCount = group.items.length - deletedIds.length;
+    if (!deletedIds.length) {
+      useAlert(t('WHATSAPP_STATUS.OWN_MANAGER.DELETE_ERROR'));
     } else if (failedCount) {
       useAlert(
         t('WHATSAPP_STATUS.OWN_MANAGER.DELETE_PARTIAL', {
@@ -378,11 +477,18 @@ const deleteOwnPublication = async groupKey => {
 };
 
 const onPublished = publishedStatuses => {
-  publishedStatuses.forEach(status => {
+  const nextStatuses = Array.isArray(publishedStatuses)
+    ? publishedStatuses
+    : [publishedStatuses].filter(Boolean);
+
+  nextStatuses.forEach(status => {
     const inbox = whatsmeowInboxes.value.find(
       item => item.id === status.inbox_id
     );
-    const decoratedStatus = { ...status, inbox_name: inbox?.name || '' };
+    const decoratedStatus = {
+      ...status,
+      inbox_name: status.inbox_name || inbox?.name || '',
+    };
     const existingIndex = statuses.value.findIndex(
       item => item.id === status.id
     );
@@ -392,6 +498,48 @@ const onPublished = publishedStatuses => {
       statuses.value.push(decoratedStatus);
     }
   });
+};
+
+const publicationRetryKey = status =>
+  `${status.publication_id || status.id}:${status.session_key || status.inbox_id}`;
+
+const setPublicationRetrying = (key, isRetrying) => {
+  const keys = new Set(retryingPublicationKeys.value);
+  if (isRetrying) keys.add(key);
+  else keys.delete(key);
+  retryingPublicationKeys.value = Array.from(keys);
+};
+
+const retryOwnPublication = async status => {
+  const key = publicationRetryKey(status);
+  if (!status?.id || retryingPublicationKeys.value.includes(key)) return;
+
+  setPublicationRetrying(key, true);
+  try {
+    const { data } = await WhatsmeowStatusesAPI.retry(status.id);
+    statuses.value = statuses.value.map(item => {
+      const isSameDelivery =
+        item.publication_id === status.publication_id &&
+        item.session_key === status.session_key;
+      return isSameDelivery
+        ? {
+            ...item,
+            publication_state: 'queued',
+            publish_attempts: 0,
+            last_error: null,
+            next_attempt_at: null,
+          }
+        : item;
+    });
+    onPublished(data.payload);
+    await fetchStatuses({ silent: true, force: true });
+    useAlert(t('WHATSAPP_STATUS.OWN_MANAGER.RETRY_SUCCESS'));
+    startPolling();
+  } catch {
+    useAlert(t('WHATSAPP_STATUS.OWN_MANAGER.RETRY_ERROR'));
+  } finally {
+    setPublicationRetrying(key, false);
+  }
 };
 
 const onViewed = statusId => {
@@ -481,6 +629,8 @@ watch(isViewerOpen, isOpen => {
   if (isOpen) stopPolling();
   else startPolling();
 });
+
+watch(hasActivePublication, startPolling);
 
 onMounted(async () => {
   if (!inboxes.value.length) await store.dispatch('inboxes/get');
@@ -816,8 +966,10 @@ onBeforeUnmount(() => {
         ref="ownStatusManagerRef"
         :groups="ownGroups"
         :deleting-keys="deletingPublicationKeys"
+        :retrying-keys="retryingPublicationKeys"
         @open-publication="openOwnPublication"
         @delete-publication="deleteOwnPublication"
+        @retry-publication="retryOwnPublication"
       />
 
       <StatusViewer
@@ -825,7 +977,7 @@ onBeforeUnmount(() => {
         :groups="viewerGroups"
         :initial-group-index="viewerGroupIndex"
         :initial-status-index="viewerStatusIndex"
-        @close="isViewerOpen = false"
+        @close="closeStatusViewer"
         @viewed="onViewed"
         @viewers-updated="onViewersUpdated"
       />

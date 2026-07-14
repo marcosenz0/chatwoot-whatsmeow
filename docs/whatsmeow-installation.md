@@ -243,6 +243,8 @@ bundle exec sidekiq -C config/sidekiq.yml
 
 Use as mesmas variaveis do web.
 
+O Sidekiq precisa consumir a fila `default`. As publicacoes de Status usam essa fila de forma duravel mesmo quando o web de staging mantem `ACTIVE_JOB_ADAPTER=async` para outros jobs locais.
+
 ### Whatsmeow service
 
 Build:
@@ -284,9 +286,9 @@ curl http://nome-interno-do-whatsmeow:8080/health
 
 1. Faça commit e push no branch `develop`.
 2. Aguarde o GitHub Actions publicar `ghcr.io/marcosenz0/chatwoot-whatsmeow:develop`.
-3. No Easypanel, redeploy do Chatwoot web e Sidekiq.
-4. Se houve mudanca em `whatsmeow-service`, redeploy tambem do servico Go.
-5. Se houve migration, rode `bundle exec rails db:chatwoot_prepare`.
+3. Se houve mudanca de contrato em `whatsmeow-service`, redeploy primeiro o servico Go e aguarde a restauracao das sessoes.
+4. Se houve migration, rode `bundle exec rails db:chatwoot_prepare`.
+5. No Easypanel, redeploy primeiro o Chatwoot Sidekiq e depois o Chatwoot web.
 
 Para mudancas so de documentacao, nao precisa redeploy.
 

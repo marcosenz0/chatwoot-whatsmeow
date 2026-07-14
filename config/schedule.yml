@@ -81,6 +81,12 @@ whatsmeow_purge_expired_statuses_job:
   class: 'Whatsmeow::PurgeExpiredStatusesJob'
   queue: housekeeping
 
+# Recovers queued or interrupted Status publications without relying on an open browser.
+whatsmeow_recover_status_publications_job:
+  cron: '* * * * *'
+  class: 'Whatsmeow::RecoverStatusPublicationsJob'
+  queue: default
+
 # executed every 12 hours
 # to remove orphan conversations without contact
 remove_orphan_conversations_job:

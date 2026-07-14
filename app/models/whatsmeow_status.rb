@@ -9,6 +9,7 @@ class WhatsmeowStatus < ApplicationRecord
   has_one_attached :media
 
   enum :status_type, { text: 0, image: 1, video: 2, audio: 3 }
+  enum :publication_state, { queued: 0, processing: 1, published: 2, failed: 3 }, prefix: :publication
 
   validates :source_id, presence: true, uniqueness: { scope: :inbox_id }
   validates :sender_jid, :posted_at, :expires_at, presence: true

@@ -2,7 +2,10 @@ package main
 
 import (
 	"testing"
+	"time"
 
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
@@ -77,6 +80,68 @@ func TestStatusReceiptRejectsUnrelatedDirectReceiptFallback(t *testing.T) {
 
 	if statusReceiptCanUseRailsFallback(receipt, own, types.JID{}) {
 		t.Fatal("did not expect unrelated direct receipt to use Rails fallback")
+	}
+}
+
+func TestStatusReceiptViewerJIDUsesBroadcastOwnerWhenSenderIsSelf(t *testing.T) {
+	ownJID := types.NewJID("5563999999999", types.DefaultUserServer)
+	ownLID := types.NewJID("123456789", types.HiddenUserServer)
+	viewerJID := types.NewJID("5511999999999", types.DefaultUserServer)
+	client := &whatsmeow.Client{Store: &store.Device{ID: &ownJID, LID: ownLID}}
+	receipt := &events.Receipt{
+		MessageSource: types.MessageSource{
+			Sender:             ownJID,
+			SenderAlt:          ownLID,
+			BroadcastListOwner: viewerJID,
+		},
+		MessageSender: viewerJID,
+	}
+
+	actual := statusReceiptViewerJID(client, receipt)
+
+	if !sameBareJID(actual, viewerJID) {
+		t.Fatalf("viewer JID = %s; want %s", actual, viewerJID)
+	}
+}
+
+func TestFirstExternalStatusReceiptJIDRejectsSelfOnlyCandidates(t *testing.T) {
+	ownJID := types.NewJID("5563999999999", types.DefaultUserServer)
+	ownLID := types.NewJID("123456789", types.HiddenUserServer)
+
+	actual := firstExternalStatusReceiptJID(nil, ownJID, ownLID, ownJID, ownLID, types.StatusBroadcastJID)
+
+	if !actual.IsEmpty() {
+		t.Fatalf("viewer JID = %s; want empty", actual)
+	}
+}
+
+func TestStatusSendRequestExtraUsesStableMessageID(t *testing.T) {
+	extra := statusSendRequestExtra("stable-status-id", 60*time.Second)
+
+	if extra.ID != types.MessageID("stable-status-id") {
+		t.Fatalf("message ID = %q; want stable-status-id", extra.ID)
+	}
+	if extra.Timeout != 55*time.Second {
+		t.Fatalf("timeout = %s; want 55s", extra.Timeout)
+	}
+}
+
+func TestStatusMediaSupportsRecordedAudio(t *testing.T) {
+	attachment := WhatsmeowAttachment{FileType: "audio", ContentType: "audio/mpeg"}
+
+	if !statusMediaTypeSupported(attachment) {
+		t.Fatal("expected Status audio media to be supported")
+	}
+	if prepared := prepareStatusAttachment(attachment); !prepared.RecordedAudio {
+		t.Fatal("expected Status audio to use the recorded-audio/PTT path")
+	}
+}
+
+func TestPrepareStatusAttachmentLeavesImagesUnchanged(t *testing.T) {
+	attachment := WhatsmeowAttachment{FileType: "image", ContentType: "image/jpeg"}
+
+	if prepared := prepareStatusAttachment(attachment); prepared.RecordedAudio {
+		t.Fatal("did not expect Status image to use the recorded-audio path")
 	}
 }
 

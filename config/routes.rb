@@ -123,6 +123,7 @@ Rails.application.routes.draw do
           resources :whatsmeow_statuses, path: 'whatsmeow/statuses', only: [:index, :create, :destroy] do
             post :view, on: :member
             post :reply, on: :member
+            post :retry, on: :member
             get :viewers, on: :member
             get :preview, on: :member
           end
