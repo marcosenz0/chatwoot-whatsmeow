@@ -5,7 +5,13 @@ class Whatsmeow::DeleteStatusPublicationJob < ApplicationJob
 
   def perform(status_id)
     status = WhatsmeowStatus.find_by(id: status_id)
-    return if status.blank? || status.expires_at <= Time.current || !status.publication_deleting?
+    return if status.blank? || !status.publication_deleting?
+
+    if status.expires_at <= Time.current
+      remove_delivery(status)
+      enqueue_next(status)
+      return
+    end
 
     lock = Whatsmeow::StatusPublishLock.new(status: status)
     wait_seconds = lock.acquire

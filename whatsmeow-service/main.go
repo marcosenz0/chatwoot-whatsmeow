@@ -1582,6 +1582,42 @@ func persistStatusPublication(channelID string, messageID string, publishedAt ti
 	}
 }
 
+func persistStatusDeletion(channelID string, messageID string) {
+	if statusLookupDB == nil || channelID == "" || messageID == "" {
+		return
+	}
+
+	queryCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	result, err := statusLookupDB.ExecContext(queryCtx, `
+		WITH status_to_delete AS (
+			SELECT account_id, publication_id, session_key
+			FROM whatsmeow_statuses
+			WHERE inbox_id = $1 AND source_id = $2
+			LIMIT 1
+		)
+		DELETE FROM whatsmeow_statuses AS status
+		USING status_to_delete
+		WHERE
+			(status.inbox_id = $1 AND status.source_id = $2)
+			OR (
+				status_to_delete.publication_id IS NOT NULL
+				AND status_to_delete.session_key IS NOT NULL
+				AND status.account_id = status_to_delete.account_id
+				AND status.publication_id = status_to_delete.publication_id
+				AND status.session_key = status_to_delete.session_key
+			)
+	`, channelID, messageID)
+	if err != nil {
+		log.Printf("Failed to persist Status deletion confirmation for channel %s: %v", channelID, err)
+		return
+	}
+
+	if deleted, err := result.RowsAffected(); err == nil {
+		log.Printf("Persisted Status deletion confirmation for %d record(s) on channel %s", deleted, channelID)
+	}
+}
+
 func handleDeleteStatus(c *gin.Context) {
 	client, ok := clientForChannel(c.Param("channel_id"))
 	if !ok {
@@ -1595,20 +1631,22 @@ func handleDeleteStatus(c *gin.Context) {
 		return
 	}
 
-	sendCtx, cancelSend := context.WithTimeout(context.Background(), sendMessageTimeout)
+	timeout := statusSendTimeout()
+	sendCtx, cancelSend := context.WithTimeout(context.Background(), timeout)
 	defer cancelSend()
 	revokeMessage := client.BuildRevoke(types.StatusBroadcastJID, types.EmptyJID, types.MessageID(messageID))
 	resp, err := client.SendMessage(
 		sendCtx,
 		types.StatusBroadcastJID,
 		revokeMessage,
-		whatsmeow.SendRequestExtra{Timeout: sendMessageTimeout - 5*time.Second},
+		whatsmeow.SendRequestExtra{Timeout: timeout - 5*time.Second},
 	)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to delete Status: %v", err)})
 		return
 	}
 
+	persistStatusDeletion(c.Param("channel_id"), messageID)
 	c.JSON(http.StatusOK, gin.H{"success": true, "id": resp.ID, "timestamp": resp.Timestamp.Unix()})
 }
 
