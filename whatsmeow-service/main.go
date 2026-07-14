@@ -88,6 +88,12 @@ type StatusRequest struct {
 	ManagedContacts []StatusContact      `json:"managed_contacts"`
 }
 
+type StatusHistorySyncRequest struct {
+	MessageID string `json:"message_id" binding:"required"`
+	Timestamp int64  `json:"timestamp" binding:"required"`
+	FromMe    bool   `json:"from_me"`
+}
+
 type StatusReadRequest struct {
 	MessageID string `json:"message_id" binding:"required"`
 	SenderJID string `json:"sender_jid" binding:"required"`
@@ -314,6 +320,7 @@ func main() {
 	r.POST("/sessions/:channel_id/identities/resolve", internalTokenMiddleware(), handleResolveIdentities)
 	r.POST("/sessions/:channel_id/contacts/sync", internalTokenMiddleware(), handleSyncContacts)
 	r.POST("/sessions/:channel_id/statuses", internalTokenMiddleware(), handleSendStatus)
+	r.POST("/sessions/:channel_id/statuses/sync", internalTokenMiddleware(), handleSyncStatusHistory)
 	r.DELETE("/sessions/:channel_id/statuses/:message_id", internalTokenMiddleware(), handleDeleteStatus)
 	r.POST("/sessions/:channel_id/statuses/read", internalTokenMiddleware(), handleReadStatus)
 	r.POST("/sessions/:channel_id/statuses/reply", internalTokenMiddleware(), handleReplyToStatus)
@@ -1420,6 +1427,44 @@ func handleSendStatus(c *gin.Context) {
 		"timestamp": response.Timestamp.Unix(),
 		"jid":       jidString(ownJID),
 	})
+}
+
+func handleSyncStatusHistory(c *gin.Context) {
+	var req StatusHistorySyncRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	req.MessageID = strings.TrimSpace(req.MessageID)
+	if req.MessageID == "" || req.Timestamp <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Status message_id and timestamp are required"})
+		return
+	}
+
+	client, ok := clientForChannel(c.Param("channel_id"))
+	if !ok {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	anchor := &types.MessageInfo{
+		MessageSource: types.MessageSource{
+			Chat:     types.StatusBroadcastJID,
+			IsFromMe: req.FromMe,
+		},
+		ID:        types.MessageID(req.MessageID),
+		Timestamp: time.Unix(req.Timestamp, 0),
+	}
+	requestCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	response, err := client.SendPeerMessage(requestCtx, client.BuildHistorySyncRequest(anchor, 50))
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("Failed to request Status history: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusAccepted, gin.H{"success": true, "id": response.ID})
 }
 
 func notifyStatusPublished(channelID string, response whatsmeow.SendResponse, requestedMessageID string, ownJID types.JID) {

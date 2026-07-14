@@ -55,6 +55,7 @@ const updatingStatusInboxIds = ref([]);
 const deletingPublicationKeys = ref([]);
 const retryingPublicationKeys = ref([]);
 const isInboxSelectorOpen = ref(false);
+const isSyncingStatuses = ref(false);
 
 let pollTimer = null;
 let requestToken = 0;
@@ -604,6 +605,22 @@ const updateStatusViewsEnabled = async ({ inbox, enabled }) => {
   }
 };
 
+const syncStatuses = async () => {
+  const inboxIds = defaultComposerInboxIds.value;
+  if (isSyncingStatuses.value || !inboxIds.length) return;
+
+  isSyncingStatuses.value = true;
+  try {
+    await WhatsmeowStatusesAPI.sync(inboxIds);
+    useAlert(t('WHATSAPP_STATUS.SYNC_STARTED'));
+    window.setTimeout(() => fetchStatuses({ silent: true, force: true }), 3000);
+  } catch {
+    useAlert(t('WHATSAPP_STATUS.SYNC_ERROR'));
+  } finally {
+    isSyncingStatuses.value = false;
+  }
+};
+
 watch(
   whatsmeowInboxes,
   availableInboxes => {
@@ -684,6 +701,18 @@ onBeforeUnmount(() => {
               {{ t('WHATSAPP_STATUS.TITLE') }}
             </h1>
             <div class="flex items-center gap-1">
+              <Button
+                v-if="isAdmin"
+                v-tooltip.top="t('WHATSAPP_STATUS.SYNC')"
+                icon="i-lucide-refresh-cw"
+                color="slate"
+                variant="ghost"
+                size="lg"
+                :is-loading="isSyncingStatuses"
+                :disabled="!defaultComposerInboxIds.length"
+                :aria-label="t('WHATSAPP_STATUS.SYNC')"
+                @click="syncStatuses"
+              />
               <StatusInboxSettingsMenu
                 v-if="isAdmin"
                 :inboxes="targetInboxes"

@@ -4,7 +4,7 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
   include Whatsmeow::StatusPayloadable
 
   before_action :set_inbox, only: [:index]
-  before_action :set_inboxes, only: [:create]
+  before_action :set_inboxes, only: [:create, :sync]
   before_action :set_status, only: [:view, :reply, :viewers, :preview, :retry, :destroy]
 
   def index
@@ -29,6 +29,11 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
     render json: { payload: payload }, status: :accepted
   rescue ArgumentError, ActiveRecord::RecordInvalid => e
     render json: { message: e.message }, status: :unprocessable_entity
+  end
+
+  def sync
+    @inboxes.each { |inbox| Whatsmeow::SyncStatusHistoryJob.perform_later(inbox.id) }
+    render json: { payload: { inbox_ids: @inboxes.map(&:id) } }, status: :accepted
   end
 
   def view

@@ -15,6 +15,10 @@ class WhatsmeowStatusesAPI extends ApiClient {
     return axios.post(this.url, formData);
   }
 
+  sync(inboxIds) {
+    return axios.post(`${this.url}/sync`, { inbox_ids: inboxIds });
+  }
+
   retry(id) {
     return axios.post(`${this.url}/${id}/retry`);
   }

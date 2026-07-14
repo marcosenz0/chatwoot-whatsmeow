@@ -101,6 +101,15 @@ class Whatsmeow::SessionClient
     request(:post, "/sessions/#{@inbox.id}/statuses", body: payload, timeout: self.class.status_timeout)
   end
 
+  def sync_status_history(message_id:, timestamp:, from_me:)
+    request(
+      :post,
+      "/sessions/#{@inbox.id}/statuses/sync",
+      body: { message_id: message_id, timestamp: timestamp, from_me: from_me },
+      timeout: 20
+    )
+  end
+
   def delete_status(message_id)
     request(:delete, "/sessions/#{@inbox.id}/statuses/#{CGI.escape(message_id)}", timeout: 20)
   end
