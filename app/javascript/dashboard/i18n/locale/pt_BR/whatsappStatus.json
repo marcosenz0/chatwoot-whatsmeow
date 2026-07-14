@@ -22,6 +22,7 @@
     "STATUS_SETTINGS_TITLE": "Status por caixa",
     "SYNC": "Sincronizar status",
     "SYNC_STARTED": "A sincronização foi iniciada. Os status encontrados aparecerão em instantes.",
+    "SYNC_PARTIAL": "A sincronização foi iniciada. {count} caixa sem status recente foi ignorada. | A sincronização foi iniciada. {count} caixas sem status recente foram ignoradas.",
     "SYNC_ERROR": "Não foi possível iniciar a sincronização de status. Tente novamente.",
     "STATUS_TOGGLE_LABEL": "Ativar ou desativar o Status de {inbox}",
     "STATUS_ENABLED": "O Status foi ativado para {inbox}.",

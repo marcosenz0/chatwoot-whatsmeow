@@ -22,6 +22,7 @@
     "STATUS_SETTINGS_TITLE": "Status by inbox",
     "SYNC": "Sync status",
     "SYNC_STARTED": "Status sync has started. Any available updates will appear shortly.",
+    "SYNC_PARTIAL": "Status sync has started. {count} inbox without a recent status was skipped. | Status sync has started. {count} inboxes without a recent status were skipped.",
     "SYNC_ERROR": "We couldn't start the status sync. Please try again.",
     "STATUS_TOGGLE_LABEL": "Toggle Status for {inbox}",
     "STATUS_ENABLED": "Status was enabled for {inbox}.",

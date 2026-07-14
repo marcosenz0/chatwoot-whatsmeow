@@ -611,8 +611,13 @@ const syncStatuses = async () => {
 
   isSyncingStatuses.value = true;
   try {
-    await WhatsmeowStatusesAPI.sync(inboxIds);
-    useAlert(t('WHATSAPP_STATUS.SYNC_STARTED'));
+    const { data } = await WhatsmeowStatusesAPI.sync(inboxIds);
+    const skipped = data.payload?.skipped_inbox_ids?.length || 0;
+    useAlert(
+      skipped
+        ? t('WHATSAPP_STATUS.SYNC_PARTIAL', { count: skipped })
+        : t('WHATSAPP_STATUS.SYNC_STARTED')
+    );
     window.setTimeout(() => fetchStatuses({ silent: true, force: true }), 3000);
   } catch {
     useAlert(t('WHATSAPP_STATUS.SYNC_ERROR'));

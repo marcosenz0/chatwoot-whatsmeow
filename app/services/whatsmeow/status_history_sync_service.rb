@@ -1,8 +1,12 @@
 class Whatsmeow::StatusHistorySyncService
   pattr_initialize [:inbox!]
 
+  def available?
+    anchor.present?
+  end
+
   def perform
-    return false if anchor.blank?
+    return false unless available?
 
     Whatsmeow::SessionClient.new(inbox: inbox).sync_status_history(
       message_id: anchor.source_id,

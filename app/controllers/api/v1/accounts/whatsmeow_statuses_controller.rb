@@ -32,8 +32,16 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
   end
 
   def sync
-    @inboxes.each { |inbox| Whatsmeow::SyncStatusHistoryJob.perform_later(inbox.id) }
-    render json: { payload: { inbox_ids: @inboxes.map(&:id) } }, status: :accepted
+    syncable_inboxes = @inboxes.select do |inbox|
+      Whatsmeow::StatusHistorySyncService.new(inbox: inbox).available?
+    end
+    if syncable_inboxes.blank?
+      return render json: { message: 'No recent Status is available to synchronize this inbox' }, status: :unprocessable_entity
+    end
+
+    syncable_inboxes.each { |inbox| Whatsmeow::SyncStatusHistoryJob.perform_later(inbox.id) }
+    skipped_inbox_ids = @inboxes.map(&:id) - syncable_inboxes.map(&:id)
+    render json: { payload: { inbox_ids: syncable_inboxes.map(&:id), skipped_inbox_ids: skipped_inbox_ids } }, status: :accepted
   end
 
   def view
