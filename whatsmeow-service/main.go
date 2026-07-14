@@ -94,6 +94,10 @@ type StatusHistorySyncRequest struct {
 	FromMe    bool   `json:"from_me"`
 }
 
+type StatusRecoveryRequest struct {
+	MessageID string `json:"message_id" binding:"required"`
+}
+
 type StatusReadRequest struct {
 	MessageID string `json:"message_id" binding:"required"`
 	SenderJID string `json:"sender_jid" binding:"required"`
@@ -321,6 +325,7 @@ func main() {
 	r.POST("/sessions/:channel_id/contacts/sync", internalTokenMiddleware(), handleSyncContacts)
 	r.POST("/sessions/:channel_id/statuses", internalTokenMiddleware(), handleSendStatus)
 	r.POST("/sessions/:channel_id/statuses/sync", internalTokenMiddleware(), handleSyncStatusHistory)
+	r.POST("/sessions/:channel_id/statuses/recover", internalTokenMiddleware(), handleRecoverStatus)
 	r.DELETE("/sessions/:channel_id/statuses/:message_id", internalTokenMiddleware(), handleDeleteStatus)
 	r.POST("/sessions/:channel_id/statuses/read", internalTokenMiddleware(), handleReadStatus)
 	r.POST("/sessions/:channel_id/statuses/reply", internalTokenMiddleware(), handleReplyToStatus)
@@ -1461,6 +1466,45 @@ func handleSyncStatusHistory(c *gin.Context) {
 	response, err := client.SendPeerMessage(requestCtx, client.BuildHistorySyncRequest(anchor, 50))
 	if err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("Failed to request Status history: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusAccepted, gin.H{"success": true, "id": response.ID})
+}
+
+func handleRecoverStatus(c *gin.Context) {
+	var req StatusRecoveryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	req.MessageID = strings.TrimSpace(req.MessageID)
+	if req.MessageID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Status message_id is required"})
+		return
+	}
+
+	client, ok := clientForChannel(c.Param("channel_id"))
+	if !ok {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	ownJID, _ := currentClientJID(client)
+	if ownJID.IsEmpty() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session identity is not available"})
+		return
+	}
+
+	requestCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	response, err := client.SendPeerMessage(
+		requestCtx,
+		client.BuildUnavailableMessageRequest(types.StatusBroadcastJID, ownJID, req.MessageID),
+	)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("Failed to request Status recovery: %v", err)})
 		return
 	}
 
@@ -3410,6 +3454,9 @@ func isStatusMessage(info types.MessageInfo) bool {
 }
 
 func processStatusForInbox(channelID string, accountID string, client *whatsmeow.Client, messageEvent *events.Message) {
+	if messageEvent.Info.IsFromMe && messageEvent.UnavailableRequestID != "" {
+		persistStatusPublication(channelID, string(messageEvent.Info.ID), messageEvent.Info.Timestamp)
+	}
 	processStatusUserReceiptsForInbox(channelID, accountID, client, messageEvent)
 
 	messageText := extractMessageText(messageEvent.Message)

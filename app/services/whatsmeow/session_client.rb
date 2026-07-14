@@ -110,6 +110,15 @@ class Whatsmeow::SessionClient
     )
   end
 
+  def recover_status(message_id:)
+    request(
+      :post,
+      "/sessions/#{@inbox.id}/statuses/recover",
+      body: { message_id: message_id },
+      timeout: 20
+    )
+  end
+
   def delete_status(message_id)
     request(:delete, "/sessions/#{@inbox.id}/statuses/#{CGI.escape(message_id)}", timeout: 20)
   end

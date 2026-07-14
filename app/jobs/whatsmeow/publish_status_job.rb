@@ -52,6 +52,7 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
     status.reload
     return enqueue_next(status) if status.publication_published?
 
+    request_delivery_recovery(status)
     if status.publish_attempts < MAX_ATTEMPTS
       retry_at = Time.current + RETRY_INTERVAL
       return enqueue_next(status) unless update_deliveries(
@@ -81,6 +82,7 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
     status.reload
     return enqueue_next(status) if status.publication_published?
 
+    request_delivery_recovery(status)
     attempts = status.publish_attempts
     attempts += 1 unless status.publication_processing?
     return fail_infrastructure_delivery(status, error, attempts) if attempts >= MAX_ATTEMPTS
@@ -138,5 +140,11 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
     lock&.finish
   rescue StandardError => e
     Rails.logger.error("[Whatsmeow::PublishStatusJob] Failed to finish publish lock: #{e.message}")
+  end
+
+  def request_delivery_recovery(status)
+    Whatsmeow::RecoverStatusDeliveryJob.perform_later(status.id)
+  rescue StandardError => e
+    Rails.logger.error("[Whatsmeow::PublishStatusJob] Failed to request Status recovery: #{e.message}")
   end
 end
