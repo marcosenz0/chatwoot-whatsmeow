@@ -12,6 +12,7 @@ class Whatsmeow::IncomingStatusService
     status.read_receipt_sent_at ||= Time.current if already_viewed?
     attach_media(status) if attachment.present? && !status.media.attached?
     status.save!
+    confirm_publication(status) if boolean_param(:from_me)
     sync_contact_avatar
     status
   rescue ActiveRecord::RecordNotUnique
@@ -169,5 +170,10 @@ class Whatsmeow::IncomingStatusService
     return if contact.blank? || params[:profile_picture_url].blank?
 
     Avatar::AvatarFromUrlJob.perform_later(contact, params[:profile_picture_url], force: false)
+  end
+
+  def confirm_publication(status)
+    Whatsmeow::StatusPublicationConfirmationService.new(inbox: @inbox, params: params).perform
+    status.reload
   end
 end

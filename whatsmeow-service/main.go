@@ -267,7 +267,7 @@ func main() {
 	}
 	webhookURL = os.Getenv("WEBHOOK_URL")
 	if webhookURL == "" {
-		webhookURL = "http://chatwoot-staging:3000/api/v1/accounts/%s/whatsmeow/%s/callback"
+		webhookURL = "http://chatwoot-staging:3000/webhooks/whatsmeow/%s/%s"
 	}
 
 	log.Println("Initializing Whatsmeow Go Service...")
@@ -505,6 +505,26 @@ func lookupAllInboxesAndAccounts(phone string) ([]string, []string, error) {
 	return inboxIDs, accountIDs, nil
 }
 
+func lookupAccountIDForInbox(inboxID string) (string, error) {
+	if statusLookupDB == nil {
+		return "", errors.New("Status database is not initialized")
+	}
+
+	var accountID int
+	queryCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := statusLookupDB.QueryRowContext(queryCtx, `
+		SELECT account_id
+		FROM inboxes
+		WHERE id = $1 AND channel_type = 'Channel::Whatsmeow'
+	`, inboxID).Scan(&accountID)
+	if err != nil {
+		return "", err
+	}
+
+	return strconv.Itoa(accountID), nil
+}
+
 func updateAllChannelsStatusByPhone(phone string, status string) {
 	dbURI := os.Getenv("DATABASE_URL")
 	if dbURI == "" {
@@ -604,6 +624,7 @@ func restoreSessions() {
 		}
 
 		client := whatsmeow.NewClient(device, waLog.Stdout("WhatsmeowClient", "INFO", true))
+		registerEventHandler(client)
 
 		err = client.Connect()
 		if err != nil {
@@ -620,11 +641,6 @@ func restoreSessions() {
 			clients[inboxID] = client
 		}
 		clientsMu.Unlock()
-
-		// Register event handler
-		client.AddEventHandler(func(evt interface{}) {
-			eventHandler(client, evt)
-		})
 
 		log.Printf("Successfully restored and connected: %s (inboxes: %v)", device.ID.String(), inboxIDs)
 	}
@@ -693,6 +709,7 @@ func handleCreateSession(c *gin.Context) {
 	deviceStore := dbContainer.NewDevice()
 
 	client = whatsmeow.NewClient(deviceStore, waLog.Stdout("WhatsmeowClient", "DEBUG", true))
+	registerEventHandler(client)
 	clientsMu.Lock()
 	clients[req.ChannelID] = client
 	clientsMu.Unlock()
@@ -804,10 +821,6 @@ func handleCreateSession(c *gin.Context) {
 		c.JSON(http.StatusOK, payload)
 	}
 
-	// Register event handler for incoming messages
-	client.AddEventHandler(func(evt interface{}) {
-		eventHandler(client, evt)
-	})
 }
 
 func handleGetQR(c *gin.Context) {
@@ -1400,12 +1413,81 @@ func handleSendStatus(c *gin.Context) {
 	log.Printf("Published Status %s on channel %s in %s", response.ID, c.Param("channel_id"), time.Since(startedAt).Round(time.Millisecond))
 
 	ownJID, _ := currentClientJID(client)
+	notifyStatusPublished(c.Param("channel_id"), response, req.MessageID, ownJID)
 	c.JSON(http.StatusOK, gin.H{
 		"success":   true,
 		"id":        response.ID,
 		"timestamp": response.Timestamp.Unix(),
 		"jid":       jidString(ownJID),
 	})
+}
+
+func notifyStatusPublished(channelID string, response whatsmeow.SendResponse, requestedMessageID string, ownJID types.JID) {
+	responseID := string(response.ID)
+	if channelID == "" || requestedMessageID == "" || responseID != requestedMessageID {
+		log.Printf("Skipping Status confirmation for channel %s because the response ID %s does not match the requested ID %s", channelID, responseID, requestedMessageID)
+		return
+	}
+	persistStatusPublication(channelID, requestedMessageID, response.Timestamp)
+
+	accountID, err := lookupAccountIDForInbox(channelID)
+	if err != nil {
+		log.Printf("Failed to look up account for published Status on channel %s: %v", channelID, err)
+		return
+	}
+
+	sendWebhookNotification(accountID, channelID, map[string]interface{}{
+		"event":                "status_published",
+		"message_id":           responseID,
+		"requested_message_id": requestedMessageID,
+		"sender":               jidString(ownJID),
+		"timestamp":            response.Timestamp.Unix(),
+	})
+}
+
+// persistStatusPublication records WhatsApp's acknowledgement before the HTTP
+// response or webhook can be lost. The webhook remains a secondary, idempotent
+// confirmation path for Rails.
+func persistStatusPublication(channelID string, messageID string, publishedAt time.Time) {
+	if statusLookupDB == nil || channelID == "" || messageID == "" || publishedAt.IsZero() {
+		return
+	}
+
+	queryCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	result, err := statusLookupDB.ExecContext(queryCtx, `
+		WITH status_to_confirm AS (
+			SELECT account_id, publication_id, session_key
+			FROM whatsmeow_statuses
+			WHERE inbox_id = $1 AND source_id = $2
+			LIMIT 1
+		)
+		UPDATE whatsmeow_statuses AS status
+		SET from_me = TRUE,
+			posted_at = $3,
+			expires_at = $4,
+			publication_state = 2, -- WhatsmeowStatus.publication_states[:published]
+			last_error = NULL,
+			next_attempt_at = NULL,
+			updated_at = NOW()
+		FROM status_to_confirm
+		WHERE (status.inbox_id = $1 AND status.source_id = $2)
+			OR (
+				status_to_confirm.publication_id IS NOT NULL
+				AND status_to_confirm.session_key IS NOT NULL
+				AND status.account_id = status_to_confirm.account_id
+				AND status.publication_id = status_to_confirm.publication_id
+				AND status.session_key = status_to_confirm.session_key
+			)
+	`, channelID, messageID, publishedAt, publishedAt.Add(24*time.Hour))
+	if err != nil {
+		log.Printf("Failed to persist Status publication confirmation for channel %s: %v", channelID, err)
+		return
+	}
+
+	if updated, err := result.RowsAffected(); err == nil {
+		log.Printf("Persisted Status publication confirmation for %d record(s) on channel %s", updated, channelID)
+	}
 }
 
 func handleDeleteStatus(c *gin.Context) {
@@ -2735,6 +2817,12 @@ func safeDisconnectClient(client *whatsmeow.Client) {
 	client.Disconnect()
 }
 
+func registerEventHandler(client *whatsmeow.Client) {
+	client.AddEventHandler(func(evt interface{}) {
+		eventHandler(client, evt)
+	})
+}
+
 func eventHandler(client *whatsmeow.Client, evt interface{}) {
 	if client.Store.ID == nil {
 		return
@@ -3138,7 +3226,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 			log.Printf("Ignoring group message from %s on channel %s (IgnoreGroups=true)", messageEvent.Info.Sender.String(), channelID)
 			return
 		}
-		if settings.IgnoreStatus && statusMessage {
+		if settings.IgnoreStatus && statusMessage && !messageEvent.Info.IsFromMe {
 			log.Printf("Ignoring status update from %s on channel %s (IgnoreStatus=true)", messageEvent.Info.Sender.String(), channelID)
 			return
 		}

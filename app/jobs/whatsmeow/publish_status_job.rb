@@ -15,7 +15,8 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
     wait_seconds = lock.acquire
     return reschedule(status, wait_seconds) if wait_seconds.positive?
 
-    mark_processing(status)
+    return enqueue_next(status) unless mark_processing(status)
+
     Whatsmeow::StatusPublisher.new(status: status).perform
     finish_lock(lock)
     enqueue_next(status)
@@ -30,11 +31,13 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
   private
 
   def delivery_scope(status)
+    return status.account.whatsmeow_statuses.where(id: status.id) if status.publication_id.blank? || status.session_key.blank?
+
     status.account.whatsmeow_statuses.where(publication_id: status.publication_id, session_key: status.session_key)
   end
 
   def mark_processing(status)
-    update_deliveries(
+    updated = update_deliveries(
       status,
       publication_state: WhatsmeowStatus.publication_states[:processing],
       publish_attempts: status.publish_attempts + 1,
@@ -42,13 +45,16 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
       next_attempt_at: nil
     )
     status.reload
+    updated
   end
 
   def handle_publish_error(status, error)
     status.reload
+    return enqueue_next(status) if status.publication_published?
+
     if status.publish_attempts < MAX_ATTEMPTS
       retry_at = Time.current + RETRY_INTERVAL
-      update_deliveries(
+      return enqueue_next(status) unless update_deliveries(
         status,
         publication_state: WhatsmeowStatus.publication_states[:queued],
         last_error: error.message,
@@ -56,7 +62,8 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
       )
       self.class.set(wait: RETRY_INTERVAL).perform_later(status.id)
     else
-      mark_failed(status, error)
+      return enqueue_next(status) unless mark_failed(status, error)
+
       enqueue_next(status)
     end
   end
@@ -78,7 +85,7 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
     attempts += 1 unless status.publication_processing?
     return fail_infrastructure_delivery(status, error, attempts) if attempts >= MAX_ATTEMPTS
 
-    update_deliveries(
+    return enqueue_next(status) unless update_deliveries(
       status,
       publication_state: WhatsmeowStatus.publication_states[:queued],
       publish_attempts: attempts,
@@ -89,7 +96,7 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
   end
 
   def fail_infrastructure_delivery(status, error, attempts)
-    update_deliveries(
+    return enqueue_next(status) unless update_deliveries(
       status,
       publication_state: WhatsmeowStatus.publication_states[:failed],
       publish_attempts: attempts,
@@ -101,7 +108,8 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
 
   def reschedule(status, wait_seconds)
     retry_at = Time.current + wait_seconds.seconds
-    update_deliveries(status, next_attempt_at: retry_at)
+    return enqueue_next(status) unless update_deliveries(status, next_attempt_at: retry_at)
+
     self.class.set(wait: wait_seconds.seconds).perform_later(status.id)
   end
 
@@ -110,7 +118,10 @@ class Whatsmeow::PublishStatusJob < ApplicationJob
       deliveries = delivery_scope(status).lock.to_a
       raise ActiveRecord::RecordNotFound if deliveries.empty?
 
-      deliveries.each { |delivery| delivery.update!(attributes) }
+      return false if deliveries.all?(&:publication_published?)
+
+      deliveries.reject(&:publication_published?).each { |delivery| delivery.update!(attributes) }
+      true
     end
   end
 
