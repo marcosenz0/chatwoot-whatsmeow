@@ -36,10 +36,12 @@ import (
 )
 
 const (
-	sendMessageTimeout         = 60 * time.Second
-	defaultStatusSendTimeout   = 5 * time.Minute
-	groupMemberProfileFetchMax = 120
-	groupListProfileFetchMax   = 80
+	sendMessageTimeout           = 60 * time.Second
+	defaultStatusSendTimeout     = 5 * time.Minute
+	groupMemberProfileFetchMax   = 120
+	groupListProfileFetchMax     = 80
+	sessionReconnectInitialDelay = 5 * time.Second
+	sessionReconnectMaxDelay     = time.Minute
 )
 
 // Active clients map
@@ -55,6 +57,9 @@ var (
 	dbContainer         *sqlstore.Container
 	statusLookupDB      *sql.DB
 	webhookURL          string
+	reconnectingClients = make(map[*whatsmeow.Client]bool)
+	loggedOutClients    = make(map[*whatsmeow.Client]bool)
+	reconnectMu         sync.Mutex
 )
 
 type cacheEntry struct {
@@ -537,6 +542,46 @@ func lookupAccountIDForInbox(inboxID string) (string, error) {
 	return strconv.Itoa(accountID), nil
 }
 
+func lookupPhoneByInbox(channelID string) (string, error) {
+	dbURI := os.Getenv("DATABASE_URL")
+	if dbURI == "" {
+		dbURI = "postgres://postgres:StagingPassword123!@chatwoot-staging-db:5432/chatwoot_staging?sslmode=disable"
+	}
+	db, err := sql.Open("postgres", dbURI)
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
+
+	var phone string
+	err = db.QueryRow(`
+		SELECT c.phone_number
+		FROM inboxes i
+		JOIN channel_whatsmeow c ON i.channel_id = c.id
+		WHERE i.id = $1 AND i.channel_type = 'Channel::Whatsmeow'
+	`, channelID).Scan(&phone)
+	return phone, err
+}
+
+func storedDeviceForInbox(channelID string) (*store.Device, error) {
+	phone, err := lookupPhoneByInbox(channelID)
+	if err != nil || phone == "" {
+		return nil, err
+	}
+
+	devices, err := dbContainer.GetAllDevices(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	for _, device := range devices {
+		if device.ID != nil && device.ID.User == strings.TrimPrefix(phone, "+") {
+			return device, nil
+		}
+	}
+
+	return nil, nil
+}
+
 func updateAllChannelsStatusByPhone(phone string, status string) {
 	dbURI := os.Getenv("DATABASE_URL")
 	if dbURI == "" {
@@ -614,6 +659,115 @@ func updateChannelPhoneAndStatus(channelID string, phone string, status string) 
 	}
 }
 
+func mapClientToInboxes(client *whatsmeow.Client, inboxIDs []string) {
+	clientsMu.Lock()
+	defer clientsMu.Unlock()
+
+	for _, inboxID := range inboxIDs {
+		clients[inboxID] = client
+	}
+}
+
+func isClientTracked(client *whatsmeow.Client) bool {
+	clientsMu.RLock()
+	defer clientsMu.RUnlock()
+
+	for _, mappedClient := range clients {
+		if mappedClient == client {
+			return true
+		}
+	}
+
+	return false
+}
+
+func reconnectDelay(attempt int) time.Duration {
+	delay := sessionReconnectInitialDelay
+	for retry := 1; retry < attempt && delay < sessionReconnectMaxDelay; retry++ {
+		delay *= 2
+	}
+	if delay > sessionReconnectMaxDelay {
+		return sessionReconnectMaxDelay
+	}
+	return delay
+}
+
+func scheduleReconnect(client *whatsmeow.Client, phone string) {
+	if client == nil || phone == "" {
+		return
+	}
+
+	reconnectMu.Lock()
+	if reconnectingClients[client] || loggedOutClients[client] {
+		reconnectMu.Unlock()
+		return
+	}
+	reconnectingClients[client] = true
+	reconnectMu.Unlock()
+
+	go func() {
+		defer func() {
+			reconnectMu.Lock()
+			delete(reconnectingClients, client)
+			reconnectMu.Unlock()
+		}()
+
+		for attempt := 1; ; attempt++ {
+			time.Sleep(reconnectDelay(attempt))
+
+			reconnectMu.Lock()
+			loggedOut := loggedOutClients[client]
+			reconnectMu.Unlock()
+			if loggedOut || !isClientTracked(client) {
+				return
+			}
+
+			if client.IsConnected() && client.IsLoggedIn() {
+				updateAllChannelsStatusByPhone(phone, "connected")
+				return
+			}
+
+			log.Printf("Reconnecting WhatsApp session %s (attempt %d)", phone, attempt)
+			if err := client.Connect(); err != nil {
+				log.Printf("Failed to reconnect WhatsApp session %s: %v", phone, err)
+				continue
+			}
+
+			if client.IsLoggedIn() {
+				updateAllChannelsStatusByPhone(phone, "connected")
+				return
+			}
+		}
+	}()
+}
+
+func restoreStoredClient(channelID string) (*whatsmeow.Client, bool, error) {
+	device, err := storedDeviceForInbox(channelID)
+	if err != nil || device == nil || device.ID == nil {
+		return nil, false, err
+	}
+
+	phone := device.ID.User
+	inboxIDs, _, err := lookupAllInboxesAndAccounts(phone)
+	if err != nil || len(inboxIDs) == 0 {
+		inboxIDs = []string{channelID}
+	}
+
+	client := whatsmeow.NewClient(device, waLog.Stdout("WhatsmeowClient", "INFO", true))
+	mapClientToInboxes(client, inboxIDs)
+	registerEventHandler(client)
+
+	if err := client.Connect(); err != nil {
+		log.Printf("Failed to reconnect stored session %s for inbox %s: %v", phone, channelID, err)
+		updateAllChannelsStatusByPhone(phone, "disconnected")
+		scheduleReconnect(client, phone)
+		return client, true, nil
+	}
+
+	updateAllChannelsStatusByPhone(phone, "connected")
+	return client, true, nil
+}
+
 func restoreSessions() {
 	devices, err := dbContainer.GetAllDevices(context.Background())
 	if err != nil {
@@ -636,23 +790,18 @@ func restoreSessions() {
 		}
 
 		client := whatsmeow.NewClient(device, waLog.Stdout("WhatsmeowClient", "INFO", true))
+		mapClientToInboxes(client, inboxIDs)
 		registerEventHandler(client)
 
 		err = client.Connect()
 		if err != nil {
 			log.Printf("Failed to connect restored client %s: %v", device.ID.String(), err)
 			updateAllChannelsStatusByPhone(phone, "disconnected")
+			scheduleReconnect(client, phone)
 			continue
 		}
 
 		updateAllChannelsStatusByPhone(phone, "connected")
-
-		// Store client mapping for all associated inboxes
-		clientsMu.Lock()
-		for _, inboxID := range inboxIDs {
-			clients[inboxID] = client
-		}
-		clientsMu.Unlock()
 
 		log.Printf("Successfully restored and connected: %s (inboxes: %v)", device.ID.String(), inboxIDs)
 	}
@@ -700,6 +849,17 @@ func handleCreateSession(c *gin.Context) {
 			c.JSON(http.StatusOK, payload)
 			return
 		}
+
+		if client.Store.ID != nil {
+			scheduleReconnect(client, client.Store.ID.User)
+			c.JSON(http.StatusOK, gin.H{
+				"channel_id":   req.ChannelID,
+				"status":       "connecting",
+				"jid":          client.Store.ID.String(),
+				"phone_number": client.Store.ID.User,
+			})
+			return
+		}
 	}
 
 	if req.ForceNew {
@@ -718,13 +878,34 @@ func handleCreateSession(c *gin.Context) {
 		qrCodesMu.Unlock()
 	}
 
+	if !req.ForceNew {
+		restoredClient, restored, err := restoreStoredClient(req.ChannelID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to restore stored session: %v", err)})
+			return
+		}
+		if restored {
+			payload := gin.H{
+				"channel_id": req.ChannelID,
+				"status":     "connecting",
+			}
+			if restoredClient.IsConnected() && restoredClient.IsLoggedIn() {
+				payload["status"] = "connected"
+			}
+			if restoredClient.Store.ID != nil {
+				payload["jid"] = restoredClient.Store.ID.String()
+				payload["phone_number"] = restoredClient.Store.ID.User
+			}
+			c.JSON(http.StatusOK, payload)
+			return
+		}
+	}
+
 	deviceStore := dbContainer.NewDevice()
 
 	client = whatsmeow.NewClient(deviceStore, waLog.Stdout("WhatsmeowClient", "DEBUG", true))
+	mapClientToInboxes(client, []string{req.ChannelID})
 	registerEventHandler(client)
-	clientsMu.Lock()
-	clients[req.ChannelID] = client
-	clientsMu.Unlock()
 
 	// Start connection and listen for QR code
 	if client.Store.ID == nil {
@@ -766,12 +947,7 @@ func handleCreateSession(c *gin.Context) {
 						phone := client.Store.ID.User
 						updateChannelPhoneAndStatus(req.ChannelID, phone, "connected")
 						inboxIDs, _, _ := lookupAllInboxesAndAccounts(phone)
-						clientsMu.Lock()
-						clients[req.ChannelID] = client
-						for _, ibID := range inboxIDs {
-							clients[ibID] = client
-						}
-						clientsMu.Unlock()
+						mapClientToInboxes(client, append(inboxIDs, req.ChannelID))
 						updateAllChannelsStatusByPhone(phone, "connected")
 					} else {
 						updateChannelStatus(req.ChannelID, "connected")
@@ -804,6 +980,9 @@ func handleCreateSession(c *gin.Context) {
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to connect: %v", err)})
 			updateChannelStatus(req.ChannelID, "disconnected")
+			if client.Store.ID != nil {
+				scheduleReconnect(client, client.Store.ID.User)
+			}
 			return
 		}
 
@@ -811,12 +990,7 @@ func handleCreateSession(c *gin.Context) {
 			phone := client.Store.ID.User
 			updateChannelPhoneAndStatus(req.ChannelID, phone, "connected")
 			inboxIDs, _, _ := lookupAllInboxesAndAccounts(phone)
-			clientsMu.Lock()
-			clients[req.ChannelID] = client
-			for _, ibID := range inboxIDs {
-				clients[ibID] = client
-			}
-			clientsMu.Unlock()
+			mapClientToInboxes(client, append(inboxIDs, req.ChannelID))
 			updateAllChannelsStatusByPhone(phone, "connected")
 		} else {
 			updateChannelStatus(req.ChannelID, "connected")
@@ -2962,12 +3136,19 @@ func eventHandler(client *whatsmeow.Client, evt interface{}) {
 	switch evt.(type) {
 	case *events.Connected:
 		log.Printf("Client %s connected. Updating statuses to connected.", phone)
+		reconnectMu.Lock()
+		delete(loggedOutClients, client)
+		reconnectMu.Unlock()
 		updateAllChannelsStatusByPhone(phone, "connected")
 	case *events.Disconnected:
-		log.Printf("Client %s disconnected. Updating statuses to disconnected.", phone)
+		log.Printf("Client %s disconnected. Scheduling reconnection.", phone)
 		updateAllChannelsStatusByPhone(phone, "disconnected")
+		scheduleReconnect(client, phone)
 	case *events.LoggedOut:
 		log.Printf("Client %s logged out. Updating statuses to disconnected.", phone)
+		reconnectMu.Lock()
+		loggedOutClients[client] = true
+		reconnectMu.Unlock()
 		updateAllChannelsStatusByPhone(phone, "disconnected")
 	}
 
