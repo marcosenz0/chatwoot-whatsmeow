@@ -241,6 +241,15 @@ class ConversationFinder
     params[:page] || 1
   end
 
+  def conversation_results_per_page
+    requested_results = params[:per_page].to_i
+    default_results = ENV.fetch('CONVERSATION_RESULTS_PER_PAGE', '25').to_i
+
+    return default_results if requested_results <= 0
+
+    [requested_results, 100].min
+  end
+
   def conversations_base_query
     @conversations.includes(
       :taggings, :conversation_pipeline, :conversation_pipeline_stage, :inbox,
@@ -259,7 +268,7 @@ class ConversationFinder
     if params[:updated_within].present?
       @conversations.where('conversations.updated_at > ?', Time.zone.now - params[:updated_within].to_i.seconds)
     else
-      @conversations.page(current_page).per(ENV.fetch('CONVERSATION_RESULTS_PER_PAGE', '25').to_i)
+      @conversations.page(current_page).per(conversation_results_per_page)
     end
   end
 end
