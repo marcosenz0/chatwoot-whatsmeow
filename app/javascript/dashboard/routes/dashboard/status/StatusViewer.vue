@@ -851,9 +851,9 @@ onBeforeUnmount(() => {
             <div
               v-if="isVideo || isAudio"
               data-status-interactive
-              class="relative"
+              class="relative w-11 pb-2"
               @mouseenter="showVolumeControl = true"
-              @mouseleave="showVolumeControl = false"
+              @mouseleave="hideVolumeControl"
               @focusin="showVolumeControl = true"
               @focusout="hideVolumeControl"
             >
@@ -874,7 +874,7 @@ onBeforeUnmount(() => {
               </button>
               <div
                 v-show="showVolumeControl"
-                class="absolute right-0 top-full z-20 mt-1 flex w-32 items-center rounded-full bg-n-black/75 px-3 py-2 shadow-lg backdrop-blur"
+                class="absolute right-0 top-[calc(100%-0.5rem)] z-20 flex w-11 flex-col items-center rounded-2xl border border-white/15 bg-n-black/80 px-2.5 py-3 shadow-xl backdrop-blur-md"
               >
                 <input
                   :value="statusVolume"
@@ -882,7 +882,7 @@ onBeforeUnmount(() => {
                   min="0"
                   max="1"
                   step="0.05"
-                  class="h-1 w-full cursor-pointer appearance-none rounded-full accent-n-brand"
+                  class="h-24 w-2 cursor-pointer accent-n-brand [direction:rtl] [writing-mode:vertical-lr]"
                   :aria-label="t('WHATSAPP_STATUS.VIEWER.MUTE')"
                   @input="updateStatusVolume"
                   @pointerdown.stop
