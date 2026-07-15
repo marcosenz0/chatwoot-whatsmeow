@@ -77,6 +77,7 @@ let activePointerId = null;
 let viewersRefreshTimer = null;
 let viewersRequestToken = 0;
 let previouslyFocusedElement = null;
+let volumeControlHideTimer = null;
 
 const currentGroup = computed(() => props.groups[groupIndex.value]);
 const currentStatus = computed(
@@ -450,10 +451,20 @@ const updateStatusVolume = event => {
   applyMediaAudioSettings();
 };
 
+const showVolumeControlPanel = () => {
+  clearTimeout(volumeControlHideTimer);
+  volumeControlHideTimer = null;
+  showVolumeControl.value = true;
+};
+
 const hideVolumeControl = event => {
-  if (!event.currentTarget.contains(event.relatedTarget)) {
+  if (event.currentTarget.contains(event.relatedTarget)) return;
+
+  clearTimeout(volumeControlHideTimer);
+  volumeControlHideTimer = setTimeout(() => {
     showVolumeControl.value = false;
-  }
+    volumeControlHideTimer = null;
+  }, 180);
 };
 
 const prepareCurrentStatus = async () => {
@@ -785,6 +796,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   cancelProgressFrame();
   stopViewersRefresh();
+  clearTimeout(volumeControlHideTimer);
   window.removeEventListener('keydown', onKeyDown);
   window.removeEventListener('pointerup', onMediaPointerEnd);
   window.removeEventListener('pointercancel', onMediaPointerEnd);
@@ -852,9 +864,9 @@ onBeforeUnmount(() => {
               v-if="isVideo || isAudio"
               data-status-interactive
               class="relative w-11 pb-2"
-              @mouseenter="showVolumeControl = true"
+              @mouseenter="showVolumeControlPanel"
               @mouseleave="hideVolumeControl"
-              @focusin="showVolumeControl = true"
+              @focusin="showVolumeControlPanel"
               @focusout="hideVolumeControl"
             >
               <button
@@ -875,6 +887,7 @@ onBeforeUnmount(() => {
               <div
                 v-show="showVolumeControl"
                 class="absolute right-0 top-[calc(100%-0.5rem)] z-20 flex w-11 flex-col items-center rounded-2xl border border-white/15 bg-n-black/80 px-2.5 py-3 shadow-xl backdrop-blur-md"
+                @mouseenter="showVolumeControlPanel"
               >
                 <input
                   :value="statusVolume"
