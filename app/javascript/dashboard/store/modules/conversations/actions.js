@@ -43,10 +43,13 @@ const actions = {
     }
   },
 
-  fetchAllConversations: async ({ commit, state, dispatch }) => {
+  fetchAllConversations: async (
+    { commit, state, dispatch },
+    requestParams = state.conversationFilters
+  ) => {
     commit(types.SET_LIST_LOADING_STATUS);
     try {
-      const params = state.conversationFilters;
+      const params = requestParams;
       const {
         data: { data },
       } = await ConversationApi.get(params);
@@ -56,10 +59,12 @@ const actions = {
         data,
         params.assigneeType
       );
+      return true;
     } catch (error) {
       if (dispatch) {
         commit(types.CLEAR_LIST_LOADING_STATUS);
       }
+      return false;
     }
   },
 

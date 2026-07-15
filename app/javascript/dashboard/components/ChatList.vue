@@ -661,9 +661,19 @@ function onToggleAdvanceFiltersModal() {
   showAdvancedFilters.value = true;
 }
 
-function fetchConversations() {
-  store.dispatch('updateChatListFilters', conversationFilters.value);
-  store.dispatch('fetchAllConversations').then(emitConversationLoaded);
+async function fetchConversations() {
+  const filters = conversationFilters.value;
+  store.dispatch('updateChatListFilters', filters);
+
+  const loaded = await store.dispatch('fetchAllConversations');
+  if (!loaded && props.conversationInbox && filters.hideGroupTabs.length) {
+    await store.dispatch('fetchAllConversations', {
+      ...filters,
+      hideGroupTabs: [],
+    });
+  }
+
+  emitConversationLoaded();
 }
 
 function resetAndFetchData() {

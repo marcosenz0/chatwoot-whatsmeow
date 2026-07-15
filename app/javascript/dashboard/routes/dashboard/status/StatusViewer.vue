@@ -41,6 +41,7 @@ const { formatStatusTime } = useStatusTime();
 
 const TIMED_STATUS_DURATION = 5000;
 const ALL_VIEWER_INBOXES = 'all';
+const DEFAULT_STATUS_VOLUME = 0.5;
 
 const viewerRef = ref(null);
 const closeButtonRef = ref(null);
@@ -54,6 +55,8 @@ const isPaused = ref(false);
 const isMediaLoading = ref(false);
 const hasMediaError = ref(false);
 const isMuted = ref(false);
+const statusVolume = ref(DEFAULT_STATUS_VOLUME);
+const showVolumeControl = ref(false);
 const generatedVideoBackdropUrl = ref('');
 const replyText = ref('');
 const isReplying = ref(false);
@@ -431,6 +434,28 @@ const markCurrentViewed = async () => {
   }
 };
 
+const applyMediaAudioSettings = () => {
+  if (!mediaRef.value) return;
+
+  mediaRef.value.muted = isMuted.value;
+  mediaRef.value.volume = statusVolume.value;
+};
+
+const updateStatusVolume = event => {
+  const volume = Number(event.target.value);
+  statusVolume.value = Number.isFinite(volume)
+    ? Math.min(Math.max(volume, 0), 1)
+    : DEFAULT_STATUS_VOLUME;
+  isMuted.value = statusVolume.value === 0;
+  applyMediaAudioSettings();
+};
+
+const hideVolumeControl = event => {
+  if (!event.currentTarget.contains(event.relatedTarget)) {
+    showVolumeControl.value = false;
+  }
+};
+
 const prepareCurrentStatus = async () => {
   cancelProgressFrame();
   progress.value = 0;
@@ -449,6 +474,7 @@ const prepareCurrentStatus = async () => {
   await nextTick();
 
   if (isDurationMedia.value) {
+    applyMediaAudioSettings();
     await playCurrentMedia();
   } else if (!isImage.value) {
     startTimedProgress();
@@ -461,8 +487,11 @@ const togglePause = () => {
 };
 
 const toggleMute = () => {
+  if (isMuted.value && statusVolume.value === 0) {
+    statusVolume.value = DEFAULT_STATUS_VOLUME;
+  }
   isMuted.value = !isMuted.value;
-  if (mediaRef.value) mediaRef.value.muted = isMuted.value;
+  applyMediaAudioSettings();
   if (!isPaused.value) playCurrentMedia();
 };
 
@@ -481,6 +510,7 @@ const onMediaPause = event => {
 const onMediaReady = () => {
   hasMediaError.value = false;
   isMediaLoading.value = false;
+  applyMediaAudioSettings();
   if (!isPaused.value) playCurrentMedia();
 };
 
@@ -818,22 +848,49 @@ onBeforeUnmount(() => {
                 class="size-5"
               />
             </button>
-            <button
+            <div
               v-if="isVideo || isAudio"
-              type="button"
-              class="flex size-11 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-              :aria-label="
-                isMuted
-                  ? t('WHATSAPP_STATUS.VIEWER.UNMUTE')
-                  : t('WHATSAPP_STATUS.VIEWER.MUTE')
-              "
-              @click="toggleMute"
+              data-status-interactive
+              class="relative"
+              @mouseenter="showVolumeControl = true"
+              @mouseleave="showVolumeControl = false"
+              @focusin="showVolumeControl = true"
+              @focusout="hideVolumeControl"
             >
-              <Icon
-                :icon="isMuted ? 'i-lucide-volume-x' : 'i-lucide-volume-2'"
-                class="size-5"
-              />
-            </button>
+              <button
+                type="button"
+                class="flex size-11 items-center justify-center rounded-full text-white transition-colors hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                :aria-label="
+                  isMuted
+                    ? t('WHATSAPP_STATUS.VIEWER.UNMUTE')
+                    : t('WHATSAPP_STATUS.VIEWER.MUTE')
+                "
+                @click="toggleMute"
+              >
+                <Icon
+                  :icon="isMuted ? 'i-lucide-volume-x' : 'i-lucide-volume-2'"
+                  class="size-5"
+                />
+              </button>
+              <div
+                v-show="showVolumeControl"
+                class="absolute right-0 top-full z-20 mt-1 flex w-32 items-center rounded-full bg-n-black/75 px-3 py-2 shadow-lg backdrop-blur"
+              >
+                <input
+                  :value="statusVolume"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  class="h-1 w-full cursor-pointer appearance-none rounded-full accent-n-brand"
+                  :aria-label="t('WHATSAPP_STATUS.VIEWER.MUTE')"
+                  @input="updateStatusVolume"
+                  @pointerdown.stop
+                  @pointerup.stop
+                  @pointercancel.stop
+                />
+              </div>
+            </div>
           </div>
 
           <div

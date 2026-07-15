@@ -50,6 +50,7 @@ describe('#ConversationAPI', () => {
         hideGroupTabs: ['all'],
       });
       expect(axiosMock.get).toHaveBeenCalledWith('/api/v1/conversations', {
+        timeout: 15000,
         params: {
           inbox_id: 1,
           team_id: 1,
