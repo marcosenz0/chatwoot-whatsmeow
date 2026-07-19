@@ -17,7 +17,7 @@ class Whatsmeow::ContactIdentityIncidentRepairService
     load_contact_names
     report = repair_report
     return report unless apply
-    return report.merge(snapshot_path: nil) if affected_anchors.blank?
+    return report.merge(snapshot_path: nil) if @affected_anchors.blank?
 
     snapshot_path = write_snapshot
     ActiveRecord::Base.transaction { apply_plan }
