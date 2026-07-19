@@ -43,6 +43,10 @@ class Whatsmeow::ContactIdentityReconciliationService
     end
 
     phone_number = identity['phone_number']
+    if own_phone_number?(inbox, phone_number)
+      @stats[:own_identities_skipped] += 1
+      return
+    end
     phone_jid = identity['phone_jid']
     source_ids = [phone_jid, lid_source_id, identity['lid_jid']].compact_blank.uniq
     contact_ids = identity_contact_ids(inbox, source_ids, phone_number)
@@ -64,6 +68,7 @@ class Whatsmeow::ContactIdentityReconciliationService
     Whatsmeow::ContactIdentityResolver.new(
       inbox: inbox,
       source_ids: source_ids,
+      trusted_lid_source_ids: source_ids.select { |source_id| source_id.end_with?('@lid') },
       phone_number: phone_number,
       contact_attributes: {
         name: phone_number,
@@ -91,5 +96,9 @@ class Whatsmeow::ContactIdentityReconciliationService
   def normalized_lid_source_id(source_id)
     user, server = source_id.to_s.split('@', 2)
     "#{user.split(':').first}@#{server}"
+  end
+
+  def own_phone_number?(inbox, phone_number)
+    phone_number.to_s.delete('^0-9') == inbox.channel.phone_number.to_s.delete('^0-9')
   end
 end

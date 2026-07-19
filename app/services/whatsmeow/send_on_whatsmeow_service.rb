@@ -166,41 +166,11 @@ class Whatsmeow::SendOnWhatsmeowService
   end
 
   def resolve_target_identifiers
-    return [source_id] if group_jid?(source_id)
-
-    targets = target_candidates.filter_map do |identifier|
-      phone_jid(identifier) if phone_identifier?(identifier, source_id)
-    end
-    targets += target_candidates.select { |identifier| deliverable_jid?(identifier) }
-    targets = targets.compact_blank.uniq
-    return targets if targets.present?
-
-    missing_target!
-  end
-
-  def target_candidates
-    contact = message.conversation.contact
-    additional_attributes = contact&.additional_attributes || {}
-
-    [
-      additional_attributes['whatsmeow_participant_jid'],
-      contact&.phone_number,
-      additional_attributes['whatsmeow_participant_phone'],
-      source_id,
-      additional_attributes['whatsmeow_participant_lid_jid'],
-      contact&.name
-    ].compact_blank
+    [Whatsmeow::ConversationTargetResolver.new(conversation: message.conversation).perform]
   end
 
   def source_id
     @source_id ||= message.conversation.contact_inbox&.source_id
-  end
-
-  def phone_identifier?(identifier, source_id = nil)
-    return false if non_phone_jid?(identifier)
-
-    digits = identifier.to_s.split('@').first.split(':').first.delete('^0-9')
-    digits.match?(/\A[1-9]\d{1,14}\z/) && digits != lid_digits(source_id)
   end
 
   def phone_jid(identifier)
@@ -218,19 +188,6 @@ class Whatsmeow::SendOnWhatsmeowService
     identifier.to_s.downcase.include?('@g.us')
   end
 
-  def non_phone_jid?(identifier)
-    jid = identifier.to_s.downcase
-    return false unless jid.include?('@')
-
-    jid.exclude?('@s.whatsapp.net')
-  end
-
-  def lid_digits(identifier)
-    return unless identifier.to_s.downcase.include?('@lid')
-
-    identifier.to_s.split('@').first.split(':').first.delete('^0-9')
-  end
-
   def recorded_audio?
     ActiveModel::Type::Boolean.new.cast(message.content_attributes&.dig('whatsmeow_recorded_audio'))
   end
@@ -246,9 +203,5 @@ class Whatsmeow::SendOnWhatsmeowService
 
   def mark_failed(error_message)
     message.update!(status: :failed, content_attributes: (message.content_attributes || {}).merge(external_error: error_message))
-  end
-
-  def missing_target!
-    raise "No deliverable WhatsApp target found for conversation #{message.conversation_id}"
   end
 end

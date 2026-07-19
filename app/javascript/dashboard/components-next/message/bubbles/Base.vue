@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 
 import MessageMeta from '../MessageMeta.vue';
+import WhatsmeowAdPreview from './WhatsmeowAdPreview.vue';
 import WhatsmeowStatusReplyPreview from './WhatsmeowStatusReplyPreview.vue';
 
 import { emitter } from 'shared/helpers/mitt';
@@ -127,6 +128,16 @@ const statusReply = computed(
 );
 const hasStatusReplyPreview = computed(() => Boolean(statusReply.value?.id));
 
+const adContext = computed(
+  () =>
+    contentAttributes.value?.whatsmeowAd ||
+    contentAttributes.value?.whatsmeow_ad ||
+    null
+);
+const hasAdPreview = computed(() =>
+  Boolean(adContext.value && Object.keys(adContext.value).length)
+);
+
 const fallbackReplyTo = computed(() => {
   if (!quotedMessage.value) return null;
 
@@ -171,6 +182,11 @@ const replyToPreview = computed(() => {
       },
     ]"
   >
+    <WhatsmeowAdPreview
+      v-if="hasAdPreview"
+      :ad-context="adContext"
+      class="-mx-1"
+    />
     <WhatsmeowStatusReplyPreview
       v-if="hasStatusReplyPreview"
       :status-reply="statusReply"

@@ -67,6 +67,11 @@
     "MESSAGE_DELETED_BY_ME": "This message was deleted by me",
     "MESSAGE_ORIGINAL": "Original",
     "MESSAGE_EDITED": "Edited",
+    "WHATSMEOW_AD": {
+      "LEAD": "Lead from ad",
+      "TITLE": "Ad",
+      "VIEW": "View ad"
+    },
     "SHOW_MORE": "Show more",
     "SHOW_LESS": "Show less",
     "SUCCESS_DELETE_MESSAGE": "Message deleted successfully",

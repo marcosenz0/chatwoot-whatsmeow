@@ -1,14 +1,271 @@
 package main
 
 import (
+	"context"
+	"strings"
 	"testing"
 	"time"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/binary/proto"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 )
+
+type fakeContactStore struct {
+	contacts map[string]types.ContactInfo
+}
+
+func (f *fakeContactStore) PutPushName(context.Context, types.JID, string) (bool, string, error) {
+	return false, "", nil
+}
+
+func (f *fakeContactStore) PutBusinessName(context.Context, types.JID, string) (bool, string, error) {
+	return false, "", nil
+}
+
+func (f *fakeContactStore) PutContactName(context.Context, types.JID, string, string) error {
+	return nil
+}
+
+func (f *fakeContactStore) PutAllContactNames(context.Context, []store.ContactEntry) error {
+	return nil
+}
+
+func (f *fakeContactStore) PutManyRedactedPhones(context.Context, []store.RedactedPhoneEntry) error {
+	return nil
+}
+
+func (f *fakeContactStore) GetContact(_ context.Context, jid types.JID) (types.ContactInfo, error) {
+	return f.contacts[jid.ToNonAD().String()], nil
+}
+
+func (f *fakeContactStore) GetAllContacts(context.Context) (map[types.JID]types.ContactInfo, error) {
+	return nil, nil
+}
+
+type fakeLIDStore struct {
+	phoneJID types.JID
+	lidJID   types.JID
+}
+
+func (f *fakeLIDStore) PutManyLIDMappings(context.Context, []store.LIDMapping) error {
+	return nil
+}
+
+func (f *fakeLIDStore) PutLIDMapping(context.Context, types.JID, types.JID) error {
+	return nil
+}
+
+func (f *fakeLIDStore) GetPNForLID(_ context.Context, lid types.JID) (types.JID, error) {
+	if sameBareJID(lid, f.lidJID) {
+		return f.phoneJID, nil
+	}
+	return types.JID{}, nil
+}
+
+func (f *fakeLIDStore) GetLIDForPN(_ context.Context, phone types.JID) (types.JID, error) {
+	if sameBareJID(phone, f.phoneJID) {
+		return f.lidJID, nil
+	}
+	return types.JID{}, nil
+}
+
+func (f *fakeLIDStore) GetManyLIDsForPNs(_ context.Context, phones []types.JID) (map[types.JID]types.JID, error) {
+	result := make(map[types.JID]types.JID)
+	for _, phone := range phones {
+		if sameBareJID(phone, f.phoneJID) {
+			result[phone] = f.lidJID
+		}
+	}
+	return result, nil
+}
+
+func TestResolveMessageContactFromMeNeverUsesOwnIdentity(t *testing.T) {
+	ownJID := types.NewJID("5563999999999", types.DefaultUserServer)
+	ownLID := types.NewJID("100000000000001", types.HiddenUserServer)
+	peerJID := types.NewJID("5511925322715", types.DefaultUserServer)
+	peerLID := types.NewJID("200000000000002", types.HiddenUserServer)
+	client := &whatsmeow.Client{Store: &store.Device{ID: &ownJID, LID: ownLID}}
+	info := types.MessageInfo{MessageSource: types.MessageSource{
+		IsFromMe:     true,
+		Sender:       ownLID,
+		SenderAlt:    ownJID,
+		Chat:         peerLID,
+		RecipientAlt: peerJID,
+	}}
+
+	contact := resolveMessageContact(client, info)
+
+	if !sameBareJID(contact.JID, peerJID) {
+		t.Fatalf("contact JID = %s; want %s", contact.JID, peerJID)
+	}
+	if !sameBareJID(contact.LIDJID, peerLID) || !sameBareJID(contact.AltJID, peerLID) {
+		t.Fatalf("contact LID/alt = %s/%s; want %s", contact.LIDJID, contact.AltJID, peerLID)
+	}
+	if contact.PhoneNumber != "+5511925322715" {
+		t.Fatalf("contact phone = %q; want +5511925322715", contact.PhoneNumber)
+	}
+	if isCurrentClientJID(client, contact.JID) || isCurrentClientJID(client, contact.LIDJID) {
+		t.Fatal("resolved contact must not contain an own-account identity")
+	}
+}
+
+func TestResolveMessageContactUsesDeviceSentDestinationFallback(t *testing.T) {
+	ownJID := types.NewJID("5563999999999", types.DefaultUserServer)
+	ownLID := types.NewJID("100000000000001", types.HiddenUserServer)
+	peerJID := types.NewJID("559231998102", types.DefaultUserServer)
+	client := &whatsmeow.Client{Store: &store.Device{ID: &ownJID, LID: ownLID}}
+	info := types.MessageInfo{
+		MessageSource: types.MessageSource{
+			IsFromMe:     true,
+			Sender:       ownLID,
+			RecipientAlt: ownJID,
+			Chat:         ownLID,
+		},
+		DeviceSentMeta: &types.DeviceSentMeta{DestinationJID: peerJID.String()},
+	}
+
+	contact := resolveMessageContact(client, info)
+
+	if !sameBareJID(contact.JID, peerJID) {
+		t.Fatalf("contact JID = %s; want device destination %s", contact.JID, peerJID)
+	}
+}
+
+func TestResolveMessageContactInboundIgnoresRecipientIdentity(t *testing.T) {
+	ownJID := types.NewJID("5563999999999", types.DefaultUserServer)
+	ownLID := types.NewJID("100000000000001", types.HiddenUserServer)
+	peerJID := types.NewJID("553388753501", types.DefaultUserServer)
+	peerLID := types.NewJID("200000000000002", types.HiddenUserServer)
+	unrelatedRecipient := types.NewJID("559231998102", types.DefaultUserServer)
+	client := &whatsmeow.Client{Store: &store.Device{ID: &ownJID, LID: ownLID}}
+	info := types.MessageInfo{MessageSource: types.MessageSource{
+		Sender:       peerLID,
+		SenderAlt:    peerJID,
+		Chat:         peerLID,
+		RecipientAlt: unrelatedRecipient,
+	}}
+
+	contact := resolveMessageContact(client, info)
+
+	if !sameBareJID(contact.JID, peerJID) || !sameBareJID(contact.LIDJID, peerLID) {
+		t.Fatalf("contact JID/LID = %s/%s; want %s/%s", contact.JID, contact.LIDJID, peerJID, peerLID)
+	}
+}
+
+func TestResolveMessageContactHonorsDirectionalPrimaryBeforeLaterPhone(t *testing.T) {
+	ownJID := types.NewJID("5563999999999", types.DefaultUserServer)
+	ownLID := types.NewJID("100000000000001", types.HiddenUserServer)
+	peerJID := types.NewJID("553388753501", types.DefaultUserServer)
+	peerLID := types.NewJID("200000000000002", types.HiddenUserServer)
+	unrelatedJID := types.NewJID("559231998102", types.DefaultUserServer)
+	client := &whatsmeow.Client{Store: &store.Device{
+		ID:   &ownJID,
+		LID:  ownLID,
+		LIDs: &fakeLIDStore{phoneJID: peerJID, lidJID: peerLID},
+	}}
+	info := types.MessageInfo{MessageSource: types.MessageSource{
+		SenderAlt: peerLID,
+		Sender:    unrelatedJID,
+		Chat:      unrelatedJID,
+	}}
+
+	contact := resolveMessageContact(client, info)
+
+	if !sameBareJID(contact.JID, peerJID) {
+		t.Fatalf("contact JID = %s; want mapped primary peer %s", contact.JID, peerJID)
+	}
+}
+
+func TestExtractAdContextSanitizesMetadataAndIncludesThumbnail(t *testing.T) {
+	title := " Anúncio de teste "
+	mediaURL := "https://cdn.example.com/ad.jpg"
+	unsafeSourceURL := "javascript:alert(1)"
+	ctwaClid := "clid-123"
+	mediaType := proto.ContextInfo_ExternalAdReplyInfo_IMAGE
+	showAttribution := true
+	thumbnail := []byte{0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n'}
+	message := &proto.Message{ExtendedTextMessage: &proto.ExtendedTextMessage{ContextInfo: &proto.ContextInfo{
+		ConversionSource:           stringPtr("facebook_ad"),
+		EntryPointConversionSource: stringPtr("ctwa"),
+		ExternalAdReply: &proto.ContextInfo_ExternalAdReplyInfo{
+			Title:             &title,
+			MediaType:         &mediaType,
+			MediaURL:          &mediaURL,
+			SourceURL:         &unsafeSourceURL,
+			CtwaClid:          &ctwaClid,
+			ShowAdAttribution: &showAttribution,
+			Thumbnail:         thumbnail,
+		},
+	}}}
+
+	adContext := extractAdContext(message)
+
+	if adContext == nil {
+		t.Fatal("expected ExternalAdReply context")
+	}
+	if adContext.Title != "Anúncio de teste" || adContext.CTWAClid != ctwaClid || adContext.AdType != "ctwa" {
+		t.Fatalf("unexpected ad metadata: %+v", adContext)
+	}
+	if adContext.MediaURL != mediaURL || adContext.SourceURL != "" {
+		t.Fatalf("sanitized URLs = %q/%q; want media URL and empty unsafe source URL", adContext.MediaURL, adContext.SourceURL)
+	}
+	if adContext.MediaType != "image" || !adContext.ShowAdAttribution {
+		t.Fatalf("unexpected media/ad flags: %+v", adContext)
+	}
+	if !strings.HasPrefix(adContext.ThumbnailDataURL, "data:image/png;base64,") {
+		t.Fatalf("thumbnail data URL = %q; want PNG data URL", adContext.ThumbnailDataURL)
+	}
+}
+
+func TestAdThumbnailDataURLRejectsOversizedThumbnail(t *testing.T) {
+	thumbnail := make([]byte, maxAdThumbnailBytes+1)
+	if actual := adThumbnailDataURL(thumbnail); actual != "" {
+		t.Fatalf("oversized thumbnail data URL = %q; want empty", actual)
+	}
+}
+
+func TestLookupContactFromStoreResolvesPeerAndUsesBestName(t *testing.T) {
+	ownJID := types.NewJID("5563999999999", types.DefaultUserServer)
+	ownLID := types.NewJID("100000000000001", types.HiddenUserServer)
+	peerJID := types.NewJID("5511925322715", types.DefaultUserServer)
+	peerLID := types.NewJID("200000000000002", types.HiddenUserServer)
+	device := &store.Device{
+		ID:  &ownJID,
+		LID: ownLID,
+		LIDs: &fakeLIDStore{
+			phoneJID: peerJID,
+			lidJID:   peerLID,
+		},
+		Contacts: &fakeContactStore{contacts: map[string]types.ContactInfo{
+			peerJID.String(): {Found: true, FullName: "Mayara Variedades"},
+			peerLID.String(): {Found: true, PushName: "Mayara"},
+		}},
+	}
+
+	contact := lookupContactFromStore(context.Background(), device, peerLID)
+
+	if contact.JID != peerJID.String() || contact.PhoneJID != peerJID.String() || contact.LIDJID != peerLID.String() {
+		t.Fatalf("resolved identity = %+v; want peer PN/LID", contact)
+	}
+	if !contact.Found || contact.DisplayName != "Mayara Variedades" || contact.PushName != "Mayara" {
+		t.Fatalf("resolved names = %+v; want full name with LID push-name fallback", contact)
+	}
+}
+
+func TestLookupContactFromStoreRejectsOwnIdentity(t *testing.T) {
+	ownJID := types.NewJID("5563999999999", types.DefaultUserServer)
+	ownLID := types.NewJID("100000000000001", types.HiddenUserServer)
+	device := &store.Device{ID: &ownJID, LID: ownLID, Contacts: &fakeContactStore{}}
+
+	contact := lookupContactFromStore(context.Background(), device, ownLID)
+
+	if contact.JID != "" || contact.Found {
+		t.Fatalf("own-account lookup = %+v; want no contact", contact)
+	}
+}
 
 func TestNormalizeGroupInviteCode(t *testing.T) {
 	tests := map[string]string{

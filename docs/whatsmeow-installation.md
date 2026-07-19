@@ -91,7 +91,7 @@ O `WEBHOOK_URL` precisa manter os dois `%s`. O primeiro recebe o ID da conta e o
 
 Em producao, prefira URL interna entre containers, por exemplo `http://rails:3000/...`. Use URL publica somente se os containers nao estiverem na mesma rede.
 
-`WHATSMEOW_SHARED_SECRET` precisa ser identico no Chatwoot web, Sidekiq e whatsmeow-service. Quando configurado, ele protege os endpoints de Status e os callbacks do Go sem alterar os endpoints legados documentados para automacoes.
+`WHATSMEOW_SHARED_SECRET` precisa ser identico no Chatwoot web, Sidekiq e whatsmeow-service. Sem ele, as rotas internas retornam `503`; `/health`, a consulta de estado da sessao, a verificacao de numero e a foto de perfil continuam publicas para preservar o monitoramento e as automacoes documentadas.
 
 ## Instalacao local sem Docker
 
@@ -410,13 +410,34 @@ Reconciliar contatos Whatsmeow antigos que foram criados com identificador `@lid
 bundle exec rails whatsmeow:reconcile_contact_identities ACCOUNT_ID=<id>
 ```
 
-Depois de conferir a previa, aplique a reconciliacao:
+Depois de conferir a previa, aplique a reconciliacao geral somente para identidades atuais. O LID da propria sessao e aliases nao confirmados sao ignorados:
 
 ```bash
 bundle exec rails whatsmeow:reconcile_contact_identities ACCOUNT_ID=<id> APPLY=true
 ```
 
 A rotina usa somente mapeamentos PN/LID confirmados pelo armazenamento do whatsmeow. Identidades nao resolvidas sao mantidas sem alteracao.
+
+### Reparo do incidente de contatos mesclados
+
+Nao use a reconciliacao geral para separar contatos que ja foram mesclados. Primeiro faca um `pg_dump` consistente e identifique o contato raiz contaminado pela caixa afetada. O reparo de incidente exige caixa e contato explicitos, faz dry-run por padrao e expande o cluster para todas as caixas Whatsmeow da conta:
+
+```bash
+bundle exec rails whatsmeow:repair_contact_identity_incident \
+  ACCOUNT_ID=<account_id> INBOX_ID=<inbox_id> ROOT_CONTACT_ID=<contact_id> \
+  SNAPSHOT_DIR=/app/storage/whatsmeow-identity-repair
+```
+
+Confira cada mapeamento PN/conversa. Para aplicar:
+
+```bash
+bundle exec rails whatsmeow:repair_contact_identity_incident \
+  ACCOUNT_ID=<account_id> INBOX_ID=<inbox_id> ROOT_CONTACT_ID=<contact_id> \
+  SNAPSHOT_DIR=/app/storage/whatsmeow-identity-repair \
+  APPLY=true CONFIRM=split-corrupted-whatsmeow-contacts
+```
+
+O reparo nao apaga mensagens nem conversas. Ele ancora cada conversa no PN de seu `ContactInbox`, associa apenas LIDs confirmados pelo servico atualizado, coloca o LID proprio/aliases nao comprovados em contatos tecnicos sem telefone e executa uma verificacao pos-commit dos remetentes. Guarde o dump PostgreSQL e o snapshot JSON ate terminar a validacao.
 
 Sincronizar fotos de perfil dos contatos Whatsmeow existentes:
 

@@ -169,6 +169,17 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - `bundle exec rails whatsmeow:reconcile_contact_identities ACCOUNT_ID=<id>` previews existing LID reconciliation; add `APPLY=true` to persist it.
 - Opening the contact sidebar or its accordion sections no longer resets and reloads the full conversation list.
 
+## July 2026 Direct-Message Identity Incident Hotfix
+
+- Direct-message identity is now resolved as the external peer by direction. Incoming events use sender addresses; outgoing echoes use recipient/chat addresses and `DeviceSentMeta.DestinationJID`. The connected account's own PN/LID is never published as a contact alias.
+- The Go webhook exposes explicit `contact_jid`, `contact_alt_jid`, `contact_phone`, and peer-only `contact_lid_jid` fields. Rails uses this contract instead of mixing raw sender, chat, and recipient fields.
+- Rails only permits the canonical PN and an explicit peer LID from the new contract to participate in contact reconciliation. Raw legacy LIDs, unknown JID servers, conflicting phones, and the connected account's identity are rejected.
+- Every direct send, reaction, edit, and revoke uses the selected conversation's `contact_inbox.source_id` as its authoritative destination. Contact-level phone/name/participant attributes cannot override it; invalid sources fail closed.
+- The whatsmeow dependency is pinned at `v0.0.0-20260525144132-563bcaa0f632`, which removes stale inverse PN/LID cache entries when mappings change.
+- The incident repair task is dry-run by default and splits an explicitly selected corrupted root contact across all account Whatsmeow inboxes. It preserves conversations/messages, realigns incoming senders, quarantines unverified aliases, refreshes names/avatars, and writes a restricted JSON snapshot before applying.
+- Click-to-WhatsApp ad metadata is stored separately in `content_attributes.whatsmeow_ad`; it never participates in contact identity. The first attributed lead message renders a compact ad card with source, image/video thumbnail, copy, and an external details link when WhatsApp provides them.
+- Session mutations and sensitive whatsmeow routes require the configured internal token and fail closed when it is absent. `/health`, session status, number checks, and profile-picture lookup stay public for existing monitoring and documented automations.
+
 ## July 2026 WhatsApp Status
 
 - The conversation sidebar now has a Status workspace for each connected `Channel::Whatsmeow` inbox, with own Status publishing and the active updates WhatsApp delivers for that session.

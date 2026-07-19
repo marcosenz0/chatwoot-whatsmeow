@@ -101,7 +101,8 @@ class Whatsmeow::DirectConversationBuilder
       inbox: inbox,
       source_ids: source_ids,
       phone_number: phone_number,
-      contact_attributes: contact_attributes
+      contact_attributes: contact_attributes,
+      trusted_lid_source_ids: [participant_lid_jid]
     ).perform
   end
 
@@ -110,7 +111,10 @@ class Whatsmeow::DirectConversationBuilder
   end
 
   def source_ids
-    @source_ids ||= [phone_source_id, participant_jid, participant_lid_jid].compact_blank.reject { |source_id| group_jid?(source_id) }.uniq
+    @source_ids ||= begin
+      identifiers = [phone_source_id, participant_jid, participant_lid_jid]
+      identifiers.compact_blank.reject { |source_id| group_jid?(source_id) }.uniq
+    end
   end
 
   def contact_attributes

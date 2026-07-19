@@ -13,6 +13,6 @@ namespace :whatsmeow do
     mode = apply ? 'Applied' : 'Dry run'
     puts "#{mode}: #{stats[:resolved]} identities resolved, #{stats[:unresolved]} unresolved, " \
          "#{stats[:contacts_merged]} duplicate contacts, #{stats[:conversation_groups_merged]} open conversation groups, " \
-         "#{stats[:inboxes_skipped]} inboxes skipped."
+         "#{stats[:inboxes_skipped]} inboxes skipped, #{stats[:own_identities_skipped]} own identities skipped."
   end
 end

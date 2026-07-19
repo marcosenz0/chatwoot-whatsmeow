@@ -97,6 +97,8 @@ class Whatsmeow::SessionClient
     )
   end
 
+  def lookup_contacts(jids) = request(:post, "/sessions/#{@inbox.id}/contacts/lookup", body: { jids: jids })
+
   def publish_status(payload)
     request(:post, "/sessions/#{@inbox.id}/statuses", body: payload, timeout: self.class.status_timeout)
   end

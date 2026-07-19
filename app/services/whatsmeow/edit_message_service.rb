@@ -87,26 +87,7 @@ class Whatsmeow::EditMessageService
   end
 
   def resolve_target_identifiers
-    return [group_jid].compact_blank if group_message?
-
-    targets = target_candidates.filter_map do |identifier|
-      phone_jid(identifier) if phone_identifier?(identifier, source_id)
-    end
-    targets += target_candidates.select { |identifier| deliverable_jid?(identifier) }
-    targets.compact_blank.uniq.presence || missing_target!
-  end
-
-  def target_candidates
-    additional_attributes = contact&.additional_attributes || {}
-
-    [
-      source_id,
-      contact&.phone_number,
-      additional_attributes['whatsmeow_participant_jid'],
-      additional_attributes['whatsmeow_participant_phone'],
-      additional_attributes['whatsmeow_participant_lid_jid'],
-      contact&.name
-    ].compact_blank
+    [Whatsmeow::ConversationTargetResolver.new(conversation: @message.conversation).perform]
   end
 
   def persist_edit(content:, sender:, from_me:, timestamp: nil)
@@ -162,47 +143,12 @@ class Whatsmeow::EditMessageService
     @params[:sender].presence || @params[:sender_alt].presence || 'whatsapp'
   end
 
-  def phone_identifier?(identifier, source_identifier = nil)
-    return false if non_phone_jid?(identifier)
-
-    digits = identifier.to_s.split('@').first.split(':').first.delete('^0-9')
-    digits.match?(/\A[1-9]\d{1,14}\z/) && digits != lid_digits(source_identifier)
-  end
-
-  def phone_jid(identifier)
-    return if identifier.blank?
-
-    "#{identifier.to_s.split('@').first.split(':').first.delete('^0-9')}@s.whatsapp.net"
-  end
-
-  def deliverable_jid?(identifier)
-    jid = identifier.to_s.downcase
-    jid.include?('@') && jid.exclude?('@newsletter')
-  end
-
   def group_jid?(identifier)
     identifier.to_s.downcase.include?('@g.us')
   end
 
-  def non_phone_jid?(identifier)
-    jid = identifier.to_s.downcase
-    return false unless jid.include?('@')
-
-    jid.exclude?('@s.whatsapp.net')
-  end
-
-  def lid_digits(identifier)
-    return unless identifier.to_s.downcase.include?('@lid')
-
-    identifier.to_s.split('@').first.split(':').first.delete('^0-9')
-  end
-
   def retryable_target_error?(error)
     error.message.include?('server returned error 403') || error.message.include?('Invalid target')
-  end
-
-  def missing_target!
-    raise "No deliverable WhatsApp target found for conversation #{@message.conversation_id}"
   end
 
   def content_attributes

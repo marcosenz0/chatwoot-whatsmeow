@@ -1,5 +1,5 @@
 class Whatsmeow::ContactIdentityResolver
-  pattr_initialize [:inbox!, :source_ids!, :phone_number!, :contact_attributes!]
+  pattr_initialize [:inbox!, :source_ids!, :phone_number!, :contact_attributes!, { trusted_lid_source_ids: [] }]
 
   def perform
     raise ArgumentError, 'Missing WhatsApp phone identity' if normalized_phone_number.blank?
@@ -48,13 +48,39 @@ class Whatsmeow::ContactIdentityResolver
   end
 
   def normalized_source_ids
-    @normalized_source_ids ||= ([phone_source_id] + Array(source_ids)).filter_map do |source_id|
+    @normalized_source_ids ||= ([phone_source_id] + safe_source_ids).filter_map do |source_id|
       normalize_source_id(source_id)
     end.uniq
   end
 
   def lookup_source_ids
-    @lookup_source_ids ||= (normalized_source_ids + Array(source_ids).compact_blank.map(&:to_s)).uniq
+    @lookup_source_ids ||= (normalized_source_ids + safe_source_ids.map(&:to_s)).uniq
+  end
+
+  def safe_source_ids
+    @safe_source_ids ||= Array(source_ids).compact_blank.select do |source_id|
+      normalized_source_id = normalize_source_id(source_id)
+      allowed = safe_normalized_source_id?(normalized_source_id)
+      unless allowed
+        Rails.logger.error(
+          "Whatsmeow: ignored an unverified contact alias for inbox #{inbox.id}; preserving #{phone_source_id} as the contact identity"
+        )
+      end
+      allowed
+    end
+  end
+
+  def safe_normalized_source_id?(source_id)
+    return false if source_id.blank?
+    return trusted_lid_source_id?(source_id) if source_id.end_with?('@lid')
+    return source_id == phone_source_id if source_id.end_with?('@s.whatsapp.net')
+
+    false
+  end
+
+  def trusted_lid_source_id?(source_id)
+    @trusted_lid_source_ids ||= Array(trusted_lid_source_ids).filter_map { |lid_source_id| normalize_source_id(lid_source_id) }
+    @trusted_lid_source_ids.include?(source_id)
   end
 
   def normalize_source_id(source_id)

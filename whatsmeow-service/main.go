@@ -13,6 +13,7 @@ import (
 	"math"
 	"mime"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"sort"
@@ -42,6 +43,9 @@ const (
 	groupListProfileFetchMax     = 80
 	sessionReconnectInitialDelay = 5 * time.Second
 	sessionReconnectMaxDelay     = time.Minute
+	maxAdThumbnailBytes          = 256 * 1024
+	maxAdMetadataRunes           = 8 * 1024
+	maxAdURLRunes                = 4 * 1024
 )
 
 // Active clients map
@@ -171,6 +175,46 @@ type QuotedMessagePayload struct {
 	FileType    string
 }
 
+type MessageContact struct {
+	JID         types.JID
+	AltJID      types.JID
+	LIDJID      types.JID
+	PhoneNumber string
+}
+
+type AdContextPayload struct {
+	Title                              string `json:"title,omitempty"`
+	Body                               string `json:"body,omitempty"`
+	MediaType                          string `json:"media_type,omitempty"`
+	ThumbnailURL                       string `json:"thumbnail_url,omitempty"`
+	MediaURL                           string `json:"media_url,omitempty"`
+	ThumbnailDataURL                   string `json:"thumbnail_data_url,omitempty"`
+	SourceType                         string `json:"source_type,omitempty"`
+	SourceID                           string `json:"source_id,omitempty"`
+	SourceURL                          string `json:"source_url,omitempty"`
+	SourceApp                          string `json:"source_app,omitempty"`
+	CTWAClid                           string `json:"ctwa_clid,omitempty"`
+	Ref                                string `json:"ref,omitempty"`
+	AdType                             string `json:"ad_type,omitempty"`
+	ConversionSource                   string `json:"conversion_source,omitempty"`
+	EntryPointConversionSource         string `json:"entry_point_conversion_source,omitempty"`
+	EntryPointConversionApp            string `json:"entry_point_conversion_app,omitempty"`
+	EntryPointConversionExternalSource string `json:"entry_point_conversion_external_source,omitempty"`
+	EntryPointConversionExternalMedium string `json:"entry_point_conversion_external_medium,omitempty"`
+	OriginalImageURL                   string `json:"original_image_url,omitempty"`
+	WTWAWebsiteURL                     string `json:"wtwa_website_url,omitempty"`
+	AdPreviewURL                       string `json:"ad_preview_url,omitempty"`
+	GreetingMessageBody                string `json:"greeting_message_body,omitempty"`
+	AutomatedGreetingMessageCTAType    string `json:"automated_greeting_message_cta_type,omitempty"`
+	ContainsAutoReply                  bool   `json:"contains_auto_reply,omitempty"`
+	ContainsCTWAFlowsAutoReply         bool   `json:"contains_ctwa_flows_auto_reply,omitempty"`
+	ClickToWhatsAppCall                bool   `json:"click_to_whatsapp_call,omitempty"`
+	ShowAdAttribution                  bool   `json:"show_ad_attribution,omitempty"`
+	AlwaysShowAdAttribution            bool   `json:"always_show_ad_attribution,omitempty"`
+	RenderLargerThumbnail              bool   `json:"render_larger_thumbnail,omitempty"`
+	AutomatedGreetingMessageShown      bool   `json:"automated_greeting_message_shown,omitempty"`
+}
+
 type WhatsmeowAttachment struct {
 	FileName      string                 `json:"file_name"`
 	ContentType   string                 `json:"content_type"`
@@ -257,12 +301,29 @@ type ResolveIdentitiesRequest struct {
 	JIDs []string `json:"jids" binding:"required"`
 }
 
+type ContactLookupRequest struct {
+	JIDs []string `json:"jids" binding:"required"`
+}
+
 type ResolvedIdentityResponse struct {
 	InputJID    string `json:"input_jid"`
 	PhoneJID    string `json:"phone_jid,omitempty"`
 	LIDJID      string `json:"lid_jid,omitempty"`
 	PhoneNumber string `json:"phone_number,omitempty"`
 	Resolved    bool   `json:"resolved"`
+}
+
+type ContactLookupResponse struct {
+	InputJID     string `json:"input_jid"`
+	JID          string `json:"jid,omitempty"`
+	PhoneJID     string `json:"phone_jid,omitempty"`
+	LIDJID       string `json:"lid_jid,omitempty"`
+	DisplayName  string `json:"display_name,omitempty"`
+	FullName     string `json:"full_name,omitempty"`
+	FirstName    string `json:"first_name,omitempty"`
+	BusinessName string `json:"business_name,omitempty"`
+	PushName     string `json:"push_name,omitempty"`
+	Found        bool   `json:"found"`
 }
 
 type ResolvedGroupParticipant struct {
@@ -316,17 +377,18 @@ func main() {
 	})
 
 	// Endpoints
-	r.POST("/sessions", handleCreateSession)
-	r.GET("/sessions/:channel_id/qr", handleGetQR)
+	r.POST("/sessions", internalTokenMiddleware(), handleCreateSession)
+	r.GET("/sessions/:channel_id/qr", internalTokenMiddleware(), handleGetQR)
 	r.GET("/sessions/:channel_id/status", handleGetStatus)
-	r.GET("/sessions/:channel_id/groups", handleGetGroups)
-	r.GET("/sessions/:channel_id/group_invite", handleGetGroupInvite)
-	r.POST("/sessions/:channel_id/group_invite", handleJoinGroupInvite)
-	r.GET("/sessions/:channel_id/group_members", handleGetGroupMembers)
-	r.POST("/sessions/:channel_id/group_members", handleAddGroupMember)
+	r.GET("/sessions/:channel_id/groups", internalTokenMiddleware(), handleGetGroups)
+	r.GET("/sessions/:channel_id/group_invite", internalTokenMiddleware(), handleGetGroupInvite)
+	r.POST("/sessions/:channel_id/group_invite", internalTokenMiddleware(), handleJoinGroupInvite)
+	r.GET("/sessions/:channel_id/group_members", internalTokenMiddleware(), handleGetGroupMembers)
+	r.POST("/sessions/:channel_id/group_members", internalTokenMiddleware(), handleAddGroupMember)
 	r.GET("/sessions/:channel_id/profile_picture", handleGetProfilePicture)
 	r.GET("/sessions/:channel_id/check_number", handleCheckNumber)
 	r.POST("/sessions/:channel_id/identities/resolve", internalTokenMiddleware(), handleResolveIdentities)
+	r.POST("/sessions/:channel_id/contacts/lookup", internalTokenMiddleware(), handleLookupContacts)
 	r.POST("/sessions/:channel_id/contacts/sync", internalTokenMiddleware(), handleSyncContacts)
 	r.POST("/sessions/:channel_id/statuses", internalTokenMiddleware(), handleSendStatus)
 	r.POST("/sessions/:channel_id/statuses/sync", internalTokenMiddleware(), handleSyncStatusHistory)
@@ -334,11 +396,11 @@ func main() {
 	r.DELETE("/sessions/:channel_id/statuses/:message_id", internalTokenMiddleware(), handleDeleteStatus)
 	r.POST("/sessions/:channel_id/statuses/read", internalTokenMiddleware(), handleReadStatus)
 	r.POST("/sessions/:channel_id/statuses/reply", internalTokenMiddleware(), handleReplyToStatus)
-	r.DELETE("/sessions/:channel_id", handleDisconnectSession)
-	r.POST("/messages", handleSendMessage)
-	r.POST("/messages/reaction", handleSendReaction)
-	r.POST("/messages/delete", handleDeleteMessage)
-	r.POST("/messages/edit", handleEditMessage)
+	r.DELETE("/sessions/:channel_id", internalTokenMiddleware(), handleDisconnectSession)
+	r.POST("/messages", internalTokenMiddleware(), handleSendMessage)
+	r.POST("/messages/reaction", internalTokenMiddleware(), handleSendReaction)
+	r.POST("/messages/delete", internalTokenMiddleware(), handleDeleteMessage)
+	r.POST("/messages/edit", internalTokenMiddleware(), handleEditMessage)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -367,7 +429,7 @@ func internalTokenMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		expectedToken := strings.TrimSpace(os.Getenv("WHATSMEOW_SHARED_SECRET"))
 		if expectedToken == "" {
-			c.Next()
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{"error": "Internal token is not configured"})
 			return
 		}
 
@@ -1405,12 +1467,101 @@ func handleResolveIdentities(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"identities": identities})
 }
 
+func handleLookupContacts(c *gin.Context) {
+	var request ContactLookupRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "jids are required"})
+		return
+	}
+
+	device, err := deviceStoreForChannel(c.Param("channel_id"))
+	if err != nil || device.Contacts == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "WhatsApp contact store is unavailable"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+	contacts := make([]ContactLookupResponse, 0, len(request.JIDs))
+	for _, rawJID := range request.JIDs {
+		jid, ok := parseJID(strings.TrimSpace(rawJID))
+		if !ok || jid.IsEmpty() {
+			contacts = append(contacts, ContactLookupResponse{InputJID: rawJID})
+			continue
+		}
+		contacts = append(contacts, lookupContactFromStore(ctx, device, jid.ToNonAD()))
+	}
+
+	c.JSON(http.StatusOK, gin.H{"contacts": contacts})
+}
+
+func lookupContactFromStore(ctx context.Context, device *store.Device, inputJID types.JID) ContactLookupResponse {
+	response := ContactLookupResponse{InputJID: inputJID.ToNonAD().String()}
+	if device == nil || device.Contacts == nil || isCurrentDeviceJID(device, inputJID) {
+		return response
+	}
+
+	identity := resolveIdentityFromStore(device.LIDs, inputJID)
+	response.PhoneJID = identity.PhoneJID
+	response.LIDJID = identity.LIDJID
+	contactJID := inputJID.ToNonAD()
+	if phoneJID, ok := parseJID(identity.PhoneJID); ok {
+		contactJID = phoneJID.ToNonAD()
+	}
+	if isCurrentDeviceJID(device, contactJID) {
+		return ContactLookupResponse{InputJID: response.InputJID}
+	}
+	response.JID = contactJID.String()
+
+	lookupJIDs := []types.JID{contactJID, inputJID}
+	if lidJID, ok := parseJID(identity.LIDJID); ok {
+		lookupJIDs = append(lookupJIDs, lidJID.ToNonAD())
+	}
+	var contactInfo types.ContactInfo
+	seen := make(map[string]struct{}, len(lookupJIDs))
+	for _, lookupJID := range lookupJIDs {
+		lookupJID = lookupJID.ToNonAD()
+		if lookupJID.IsEmpty() || isCurrentDeviceJID(device, lookupJID) {
+			continue
+		}
+		if _, ok := seen[lookupJID.String()]; ok {
+			continue
+		}
+		seen[lookupJID.String()] = struct{}{}
+		storedContact, err := device.Contacts.GetContact(ctx, lookupJID)
+		if err != nil || !storedContact.Found {
+			continue
+		}
+		contactInfo.Found = true
+		contactInfo.FullName = firstNonBlank(contactInfo.FullName, storedContact.FullName)
+		contactInfo.FirstName = firstNonBlank(contactInfo.FirstName, storedContact.FirstName)
+		contactInfo.BusinessName = firstNonBlank(contactInfo.BusinessName, storedContact.BusinessName)
+		contactInfo.PushName = firstNonBlank(contactInfo.PushName, storedContact.PushName)
+	}
+
+	response.Found = contactInfo.Found
+	response.FullName = contactInfo.FullName
+	response.FirstName = contactInfo.FirstName
+	response.BusinessName = contactInfo.BusinessName
+	response.PushName = contactInfo.PushName
+	response.DisplayName = firstFriendlyDisplayName(contactInfo.FullName, contactInfo.FirstName, contactInfo.BusinessName, contactInfo.PushName)
+	return response
+}
+
 func identityLIDStoreForChannel(channelID string) (store.LIDStore, error) {
+	device, err := deviceStoreForChannel(channelID)
+	if err != nil || device.LIDs == nil {
+		return nil, fmt.Errorf("failed to find channel identity store")
+	}
+	return device.LIDs, nil
+}
+
+func deviceStoreForChannel(channelID string) (*store.Device, error) {
 	clientsMu.RLock()
 	client := clients[channelID]
 	clientsMu.RUnlock()
-	if client != nil && client.Store != nil && client.Store.LIDs != nil {
-		return client.Store.LIDs, nil
+	if client != nil && client.Store != nil {
+		return client.Store, nil
 	}
 
 	phoneNumber, err := lookupInboxPhoneNumber(channelID)
@@ -1423,11 +1574,21 @@ func identityLIDStoreForChannel(channelID string) (store.LIDStore, error) {
 		return nil, err
 	}
 	for _, device := range devices {
-		if device != nil && device.ID != nil && device.ID.User == phoneNumber && device.LIDs != nil {
-			return device.LIDs, nil
+		if device != nil && device.ID != nil && device.ID.User == phoneNumber {
+			return device, nil
 		}
 	}
 	return nil, fmt.Errorf("failed to find persisted channel session")
+}
+
+func isCurrentDeviceJID(device *store.Device, candidate types.JID) bool {
+	if device == nil || candidate.IsEmpty() {
+		return false
+	}
+	if device.ID != nil && sameBareJID(candidate, *device.ID) {
+		return true
+	}
+	return sameBareJID(candidate, device.LID)
 }
 
 func resolveIdentityFromStore(lidStore store.LIDStore, jid types.JID) ResolvedIdentityResponse {
@@ -1517,7 +1678,7 @@ func handleSendMessage(c *gin.Context) {
 
 	// Parse target JID
 	targetJID, ok := parseJID(req.To)
-	if !ok {
+	if !ok || isCurrentClientJID(client, targetJID) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid target phone number / JID"})
 		return
 	}
@@ -2251,7 +2412,7 @@ func handleSendReaction(c *gin.Context) {
 	}
 
 	targetJID, ok := parseJID(req.To)
-	if !ok {
+	if !ok || isCurrentClientJID(client, targetJID) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid target phone number / JID"})
 		return
 	}
@@ -2310,7 +2471,7 @@ func handleDeleteMessage(c *gin.Context) {
 	}
 
 	targetJID, ok := parseJID(req.To)
-	if !ok {
+	if !ok || isCurrentClientJID(client, targetJID) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid target phone number / JID"})
 		return
 	}
@@ -2369,7 +2530,7 @@ func handleEditMessage(c *gin.Context) {
 	}
 
 	targetJID, ok := parseJID(req.To)
-	if !ok {
+	if !ok || isCurrentClientJID(client, targetJID) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid target phone number / JID"})
 		return
 	}
@@ -3568,34 +3729,31 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 	attachments := extractMediaAttachments(client, messageEvent.Message)
 	contacts := extractContactCards(client, messageEvent.Message)
 	quotedMessage := extractQuotedMessage(messageEvent.Message)
+	adContext := extractAdContext(messageEvent.Message)
+	if messageText == "" && adContext != nil {
+		messageText = firstNonBlank(adContext.Body, adContext.Title)
+	}
 	if messageText == "" && len(attachments) == 0 && len(contacts) == 0 {
-		if !hasMediaMessage(messageEvent.Message) {
+		if adContext == nil && !hasMediaMessage(messageEvent.Message) {
 			return
 		}
-		log.Printf("Incoming media message had no downloadable attachments; media_type=%s message_id=%s", detectedMediaType(messageEvent.Message), messageEvent.Info.ID)
-		messageText = "Media attachment could not be downloaded."
+		if adContext == nil {
+			log.Printf("Incoming media message had no downloadable attachments; media_type=%s message_id=%s", detectedMediaType(messageEvent.Message), messageEvent.Info.ID)
+			messageText = "Media attachment could not be downloaded."
+		}
 	}
 	if messageText == "" && len(contacts) > 0 {
 		messageText = contactMessageText(contacts)
 	}
 
 	isGroup := isGroupMessage(messageEvent.Info)
-	contactJID := preferredContactJID(messageEvent.Info)
-	contactLIDJID := firstLIDJID(
-		messageEvent.Info.Sender,
-		messageEvent.Info.SenderAlt,
-		messageEvent.Info.Chat,
-		messageEvent.Info.RecipientAlt,
-	)
-	if !isGroup {
-		if resolvedJID := resolvePhoneJID(client, contactJID); !resolvedJID.IsEmpty() {
-			contactJID = resolvedJID
-		}
-	}
+	contact := resolveMessageContact(client, messageEvent.Info)
+	contactJID := contact.JID
 	participant := ResolvedGroupParticipant{}
 	groupName := ""
 	if isGroup {
 		contactJID = messageEvent.Info.Chat.ToNonAD()
+		contact = MessageContact{JID: contactJID}
 		groupName = getGroupName(client, contactJID)
 		participant = resolveGroupParticipant(
 			client,
@@ -3605,11 +3763,12 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 			messageEvent.Info.Sender,
 		)
 	}
+	if contactJID.IsEmpty() {
+		log.Printf("Ignoring message %s on channel %s because no external contact JID could be resolved", messageEvent.Info.ID, channelID)
+		return
+	}
 
 	sender := jidString(contactJID)
-	if sender == "" {
-		sender = jidString(messageEvent.Info.Chat)
-	}
 
 	log.Printf("Received message from %s on channel %s: %s", sender, channelID, messageText)
 
@@ -3639,12 +3798,15 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		"sender":              sender,
 		"sender_alt":          jidString(messageEvent.Info.SenderAlt),
 		"sender_name":         senderName,
-		"sender_phone":        phoneNumberFromJID(contactJID),
+		"sender_phone":        contact.PhoneNumber,
 		"profile_picture_url": getProfilePictureURL(client, contactJID),
 		"chat":                jidString(messageEvent.Info.Chat),
 		"chat_phone":          phoneNumberFromJID(messageEvent.Info.Chat),
 		"recipient_alt":       jidString(messageEvent.Info.RecipientAlt),
-		"contact_lid_jid":     jidString(contactLIDJID),
+		"contact_jid":         jidString(contact.JID),
+		"contact_alt_jid":     jidString(contact.AltJID),
+		"contact_phone":       contact.PhoneNumber,
+		"contact_lid_jid":     jidString(contact.LIDJID),
 		"from_me":             messageEvent.Info.IsFromMe,
 		"message_id":          messageEvent.Info.ID,
 		"content":             messageText,
@@ -3667,6 +3829,9 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		payload["quoted_participant"] = quotedMessage.Participant
 		payload["quoted_content"] = quotedMessage.Content
 		payload["quoted_file_type"] = quotedMessage.FileType
+	}
+	if adContext != nil {
+		payload["ad_context"] = adContext
 	}
 	sendWebhookNotification(accountID, channelID, payload)
 }
@@ -3807,6 +3972,21 @@ func resolvePhoneJID(client *whatsmeow.Client, jid types.JID) types.JID {
 		return types.JID{}
 	}
 	return resolvePhoneJIDFromStore(client.Store.LIDs, jid)
+}
+
+func resolveLIDJID(client *whatsmeow.Client, jid types.JID) types.JID {
+	if jid.Server == types.HiddenUserServer {
+		return jid.ToNonAD()
+	}
+	if client == nil || client.Store == nil || client.Store.LIDs == nil || !isPhoneJID(jid) {
+		return types.JID{}
+	}
+
+	lidJID, err := client.Store.LIDs.GetLIDForPN(context.Background(), jid.ToNonAD())
+	if err != nil || lidJID.Server != types.HiddenUserServer {
+		return types.JID{}
+	}
+	return lidJID.ToNonAD()
 }
 
 func lookupInboxPhoneNumber(inboxID string) (string, error) {
@@ -4219,6 +4399,85 @@ func extractContextInfo(message *proto.Message) *proto.ContextInfo {
 	}
 
 	return nil
+}
+
+func extractAdContext(message *proto.Message) *AdContextPayload {
+	contextInfo := extractContextInfo(message)
+	if contextInfo == nil || contextInfo.GetExternalAdReply() == nil {
+		return nil
+	}
+
+	adReply := contextInfo.GetExternalAdReply()
+	mediaType := ""
+	if adReply.MediaType != nil && adReply.GetMediaType() != proto.ContextInfo_ExternalAdReplyInfo_NONE {
+		mediaType = strings.ToLower(adReply.GetMediaType().String())
+	}
+
+	return &AdContextPayload{
+		Title:                              sanitizeAdMetadata(adReply.GetTitle()),
+		Body:                               sanitizeAdMetadata(adReply.GetBody()),
+		MediaType:                          mediaType,
+		ThumbnailURL:                       sanitizeAdURL(adReply.GetThumbnailURL()),
+		MediaURL:                           sanitizeAdURL(adReply.GetMediaURL()),
+		ThumbnailDataURL:                   adThumbnailDataURL(adReply.GetThumbnail()),
+		SourceType:                         sanitizeAdMetadata(adReply.GetSourceType()),
+		SourceID:                           sanitizeAdMetadata(adReply.GetSourceID()),
+		SourceURL:                          sanitizeAdURL(adReply.GetSourceURL()),
+		SourceApp:                          sanitizeAdMetadata(adReply.GetSourceApp()),
+		CTWAClid:                           sanitizeAdMetadata(adReply.GetCtwaClid()),
+		Ref:                                sanitizeAdMetadata(adReply.GetRef()),
+		AdType:                             strings.ToLower(adReply.GetAdType().String()),
+		ConversionSource:                   sanitizeAdMetadata(contextInfo.GetConversionSource()),
+		EntryPointConversionSource:         sanitizeAdMetadata(contextInfo.GetEntryPointConversionSource()),
+		EntryPointConversionApp:            sanitizeAdMetadata(contextInfo.GetEntryPointConversionApp()),
+		EntryPointConversionExternalSource: sanitizeAdMetadata(contextInfo.GetEntryPointConversionExternalSource()),
+		EntryPointConversionExternalMedium: sanitizeAdMetadata(contextInfo.GetEntryPointConversionExternalMedium()),
+		OriginalImageURL:                   sanitizeAdURL(adReply.GetOriginalImageURL()),
+		WTWAWebsiteURL:                     sanitizeAdURL(adReply.GetWtwaWebsiteURL()),
+		AdPreviewURL:                       sanitizeAdURL(adReply.GetAdPreviewURL()),
+		GreetingMessageBody:                sanitizeAdMetadata(adReply.GetGreetingMessageBody()),
+		AutomatedGreetingMessageCTAType:    sanitizeAdMetadata(adReply.GetAutomatedGreetingMessageCtaType()),
+		ContainsAutoReply:                  adReply.GetContainsAutoReply(),
+		ContainsCTWAFlowsAutoReply:         adReply.GetContainsCtwaFlowsAutoReply(),
+		ClickToWhatsAppCall:                adReply.GetClickToWhatsappCall(),
+		ShowAdAttribution:                  adReply.GetShowAdAttribution(),
+		AlwaysShowAdAttribution:            contextInfo.GetAlwaysShowAdAttribution(),
+		RenderLargerThumbnail:              adReply.GetRenderLargerThumbnail(),
+		AutomatedGreetingMessageShown:      adReply.GetAutomatedGreetingMessageShown(),
+	}
+}
+
+func sanitizeAdMetadata(value string) string {
+	value = strings.TrimSpace(strings.ToValidUTF8(value, ""))
+	runes := []rune(value)
+	if len(runes) > maxAdMetadataRunes {
+		return string(runes[:maxAdMetadataRunes])
+	}
+	return value
+}
+
+func sanitizeAdURL(value string) string {
+	value = strings.TrimSpace(strings.ToValidUTF8(value, ""))
+	runes := []rune(value)
+	if len(runes) == 0 || len(runes) > maxAdURLRunes {
+		return ""
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return ""
+	}
+	return value
+}
+
+func adThumbnailDataURL(thumbnail []byte) string {
+	if len(thumbnail) == 0 || len(thumbnail) > maxAdThumbnailBytes {
+		return ""
+	}
+	contentType := http.DetectContentType(thumbnail)
+	if !strings.HasPrefix(contentType, "image/") {
+		return ""
+	}
+	return fmt.Sprintf("data:%s;base64,%s", contentType, base64.StdEncoding.EncodeToString(thumbnail))
 }
 
 func quotedMessageFileType(message *proto.Message) string {
@@ -5079,11 +5338,92 @@ func optionalBoolPtr(value bool) *bool {
 	return &value
 }
 
-func preferredContactJID(info types.MessageInfo) types.JID {
-	if info.IsFromMe {
-		return firstUsableJID(info.RecipientAlt, info.Chat, info.SenderAlt, info.Sender)
+func resolveMessageContact(client *whatsmeow.Client, info types.MessageInfo) MessageContact {
+	candidates := externalMessageContactCandidates(client, info)
+	if len(candidates) == 0 {
+		return MessageContact{}
 	}
-	return firstUsableJID(info.SenderAlt, info.Sender, info.Chat)
+
+	primaryJID := candidates[0]
+	phoneJID := types.JID{}
+	lidJID := types.JID{}
+	if isPhoneJID(primaryJID) {
+		phoneJID = primaryJID
+		lidJID = resolveLIDJID(client, phoneJID)
+	} else if primaryJID.Server == types.HiddenUserServer {
+		lidJID = primaryJID
+		phoneJID = resolvePhoneJID(client, lidJID)
+		if isCurrentClientJID(client, phoneJID) {
+			phoneJID = types.JID{}
+		}
+	}
+	if phoneJID.IsEmpty() {
+		phoneJID = firstPhoneJID(candidates...)
+	}
+	if lidJID.IsEmpty() {
+		lidJID = firstLIDJID(candidates...)
+	}
+	if lidJID.IsEmpty() && !phoneJID.IsEmpty() {
+		lidJID = resolveLIDJID(client, phoneJID)
+	}
+	if isCurrentClientJID(client, lidJID) {
+		lidJID = types.JID{}
+	}
+
+	contactJID := primaryJID
+	if !phoneJID.IsEmpty() {
+		contactJID = phoneJID
+	}
+	altJID := types.JID{}
+	if !lidJID.IsEmpty() && !sameBareJID(contactJID, lidJID) {
+		altJID = lidJID
+	}
+
+	return MessageContact{
+		JID:         contactJID,
+		AltJID:      altJID,
+		LIDJID:      lidJID,
+		PhoneNumber: phoneNumberFromJID(phoneJID),
+	}
+}
+
+func externalMessageContactCandidates(client *whatsmeow.Client, info types.MessageInfo) []types.JID {
+	candidates := []types.JID{info.SenderAlt, info.Sender, info.Chat}
+	if info.IsFromMe {
+		// Sender and SenderAlt identify the current account on outgoing echoes, not the peer.
+		candidates = []types.JID{info.RecipientAlt, deviceSentDestinationJID(info), info.Chat}
+	}
+
+	external := make([]types.JID, 0, len(candidates))
+	for _, candidate := range candidates {
+		candidate = candidate.ToNonAD()
+		if candidate.IsEmpty() || isCurrentClientJID(client, candidate) || isGroupJID(candidate) || isNewsletterJID(candidate) ||
+			sameBareJID(candidate, types.StatusBroadcastJID) {
+			continue
+		}
+		duplicate := false
+		for _, existing := range external {
+			if sameBareJID(existing, candidate) {
+				duplicate = true
+				break
+			}
+		}
+		if !duplicate {
+			external = append(external, candidate)
+		}
+	}
+	return external
+}
+
+func deviceSentDestinationJID(info types.MessageInfo) types.JID {
+	if info.DeviceSentMeta == nil {
+		return types.JID{}
+	}
+	jid, ok := parseJID(strings.TrimSpace(info.DeviceSentMeta.DestinationJID))
+	if !ok {
+		return types.JID{}
+	}
+	return jid.ToNonAD()
 }
 
 func isGroupMessage(info types.MessageInfo) bool {
@@ -5102,6 +5442,15 @@ func firstUsableJID(candidates ...types.JID) types.JID {
 	}
 	for _, jid := range candidates {
 		if !jid.IsEmpty() {
+			return jid.ToNonAD()
+		}
+	}
+	return types.JID{}
+}
+
+func firstPhoneJID(candidates ...types.JID) types.JID {
+	for _, jid := range candidates {
+		if isPhoneJID(jid) {
 			return jid.ToNonAD()
 		}
 	}
