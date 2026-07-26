@@ -100,5 +100,24 @@ describe('#ConversationAPI', () => {
         template_params: undefined,
       });
     });
+
+    it('appends the native voice-note flag to attachment payloads', () => {
+      const formPayload = buildCreatePayload({
+        message: '',
+        files: [new Blob(['ogg-content'], { type: 'audio/ogg' })],
+        isVoiceMessage: true,
+      });
+
+      expect(formPayload.get('is_voice_message')).toEqual('true');
+    });
+
+    it('does not append the native voice-note flag by default', () => {
+      const formPayload = buildCreatePayload({
+        message: '',
+        files: [new Blob(['audio-content'], { type: 'audio/mpeg' })],
+      });
+
+      expect(formPayload.has('is_voice_message')).toBe(false);
+    });
   });
 });

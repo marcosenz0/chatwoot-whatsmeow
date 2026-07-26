@@ -58,6 +58,11 @@ class Whatsapp::IncomingMessageBaseService
 
   def update_message_with_status(message, status)
     message.status = status[:status]
+    if status[:pricing].present? && @inbox.channel.provider == 'whatsapp_cloud'
+      message.content_attributes = message.content_attributes.merge(
+        'whatsapp_pricing' => status[:pricing].to_h.stringify_keys
+      )
+    end
     if status[:status] == 'failed' && status[:errors].present?
       error = status[:errors]&.first
       message.external_error = "#{error[:code]}: #{error[:title]}"
@@ -159,9 +164,7 @@ class Whatsapp::IncomingMessageBaseService
   end
 
   def create_message(message, source_id: nil)
-    content_attrs = outgoing_echo ? { external_echo: true } : {}
-    content_attrs[:in_reply_to_external_id] = @in_reply_to_external_id if @in_reply_to_external_id.present?
-
+    content_attrs = message_content_attributes(message)
     @message = @conversation.messages.build(
       content: message_content(message),
       account_id: @inbox.account_id,
@@ -173,6 +176,13 @@ class Whatsapp::IncomingMessageBaseService
       source_id: (source_id || message[:id]).to_s,
       content_attributes: content_attrs
     )
+  end
+
+  def message_content_attributes(message)
+    content_attrs = outgoing_echo ? { external_echo: true } : {}
+    content_attrs[:in_reply_to_external_id] = @in_reply_to_external_id if @in_reply_to_external_id.present?
+    content_attrs.merge!(whatsapp_interactive_reply_attributes(message)) if message_type == 'interactive'
+    content_attrs
   end
 
   def attach_contact(contact)

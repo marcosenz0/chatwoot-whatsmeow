@@ -1,4 +1,6 @@
 class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseService
+  DEFAULT_GRAPH_API_VERSION = 'v22.0'.freeze
+
   def send_message(phone_number, message)
     @message = message
 
@@ -34,12 +36,12 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
   def sync_templates
     # ensuring that channels with wrong provider config wouldn't keep trying to sync templates
     whatsapp_channel.mark_message_templates_updated
-    templates = fetch_whatsapp_templates("#{business_account_path}/message_templates?access_token=#{whatsapp_channel.provider_config['api_key']}")
+    templates = fetch_whatsapp_templates("#{business_account_path}/message_templates")
     whatsapp_channel.update(message_templates: templates, message_templates_last_updated: Time.now.utc) if templates.present?
   end
 
   def fetch_whatsapp_templates(url)
-    response = HTTParty.get(url)
+    response = HTTParty.get(url, headers: api_headers)
     return [] unless response.success?
 
     next_url = next_url(response)
@@ -54,7 +56,7 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
   end
 
   def validate_provider_config?
-    response = HTTParty.get("#{business_account_path}/message_templates?access_token=#{whatsapp_channel.provider_config['api_key']}")
+    response = HTTParty.get("#{business_account_path}/message_templates", headers: api_headers)
     response.success?
   end
 
@@ -76,7 +78,15 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
   end
 
   def media_url(media_id)
-    "#{api_base_path}/v13.0/#{media_id}"
+    "#{api_base_path}/#{graph_api_version}/#{media_id}"
+  end
+
+  def graph_api_version
+    GlobalConfigService.load('WHATSAPP_API_VERSION', DEFAULT_GRAPH_API_VERSION)
+  end
+
+  def template_management_path
+    "#{business_account_path}/message_templates"
   end
 
   private
@@ -89,13 +99,12 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     ENV.fetch('WHATSAPP_CLOUD_BASE_URL', 'https://graph.facebook.com')
   end
 
-  # TODO: See if we can unify the API versions and for both paths and make it consistent with out facebook app API versions
   def phone_id_path
-    "#{api_base_path}/v13.0/#{whatsapp_channel.provider_config['phone_number_id']}"
+    "#{api_base_path}/#{graph_api_version}/#{whatsapp_channel.provider_config['phone_number_id']}"
   end
 
   def business_account_path
-    "#{api_base_path}/v14.0/#{whatsapp_channel.provider_config['business_account_id']}"
+    "#{api_base_path}/#{graph_api_version}/#{whatsapp_channel.provider_config['business_account_id']}"
   end
 
   def send_text_message(phone_number, message)
@@ -116,12 +125,9 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
 
   def send_attachment_message(phone_number, message)
     attachment = message.attachments.first
+    normalize_opus_content_type(attachment)
     type = %w[image audio video].include?(attachment.file_type) ? attachment.file_type : 'document'
-    type_content = {
-      'link': attachment.download_url
-    }
-    type_content['caption'] = message.outgoing_content unless %w[audio sticker].include?(type)
-    type_content['filename'] = attachment.file.filename if type == 'document'
+    type_content = build_attachment_content(type, attachment, message)
     response = HTTParty.post(
       "#{phone_id_path}/messages",
       headers: api_headers,
@@ -135,6 +141,27 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     )
 
     process_response(response, message)
+  end
+
+  def voice_message?(type, attachment)
+    type == 'audio' &&
+      attachment.meta&.dig('is_voice_message') &&
+      attachment.file.content_type == 'audio/ogg'
+  end
+
+  def normalize_opus_content_type(attachment)
+    return unless attachment.file.attached?
+    return unless attachment.file.blob.content_type == 'audio/opus'
+
+    attachment.file.blob.update!(content_type: 'audio/ogg')
+  end
+
+  def build_attachment_content(type, attachment, message)
+    type_content = { 'link' => attachment.download_url }
+    type_content['caption'] = message.outgoing_content unless %w[audio sticker].include?(type)
+    type_content['filename'] = attachment.file.filename if type == 'document'
+    type_content['voice'] = true if voice_message?(type, attachment)
+    type_content
   end
 
   def error_message(response)
@@ -190,6 +217,7 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
 
   def send_interactive_text_message(phone_number, message)
     payload = create_payload_based_on_items(message)
+    payload[:action] = JSON.parse(payload[:action]) if payload[:action].is_a?(String)
 
     response = HTTParty.post(
       "#{phone_id_path}/messages",

@@ -21,3 +21,4 @@ json.trigger_rules resource.trigger_rules
 json.trigger_only_during_business_hours resource.trigger_only_during_business_hours
 json.created_at resource.created_at
 json.updated_at resource.updated_at
+json.delivery_summary resource.whatsapp_delivery_summary if resource.inbox.whatsapp?

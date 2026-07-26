@@ -409,6 +409,9 @@ export default {
       return `draft-${this.conversationIdByRoute}-${this.replyType}`;
     },
     audioRecordFormat() {
+      if (this.isAWhatsAppCloudChannel) {
+        return AUDIO_FORMATS.OGG;
+      }
       if (this.isAWhatsAppChannel || this.isATelegramChannel) {
         return AUDIO_FORMATS.MP3;
       }
@@ -1089,13 +1092,17 @@ export default {
     onFinishRecorder(file) {
       this.recordingAudioState = 'stopped';
       this.hasRecordedAudio = true;
-      // Added a new key isRecordedAudio to the file to find it's and recorded audio
-      // Because to filter and show only non recorded audio and other attachments
       const autoRecordedFile = {
         ...file,
         isRecordedAudio: true,
+        isVoiceMessage:
+          this.isAWhatsAppCloudChannel && file.type === AUDIO_FORMATS.OGG,
       };
       return file && this.onFileUpload(autoRecordedFile);
+    },
+    onRecordError() {
+      this.toggleAudioRecorder();
+      useAlert(this.$t('CONVERSATION.REPLYBOX.AUDIO_CONVERSION_FAILED'));
     },
     toggleTyping(status) {
       const conversationId = this.currentChat.id;
@@ -1124,6 +1131,7 @@ export default {
           thumb: reader.result,
           blobSignedId: blob ? blob.signed_id : undefined,
           isRecordedAudio: file?.isRecordedAudio || false,
+          isVoiceMessage: file?.isVoiceMessage || false,
         });
       };
     },
@@ -1152,6 +1160,8 @@ export default {
         this.attachedFiles.forEach(attachment => {
           const isRecordedWhatsmeowAudio =
             this.isAWhatsmeowChannel && attachment?.isRecordedAudio;
+          const isOfficialVoiceMessage =
+            this.isAWhatsAppCloudChannel && attachment?.isVoiceMessage;
           const attachedFile = this.globalConfig.directUploadsEnabled
             ? attachment.blobSignedId
             : attachment.resource.file;
@@ -1159,8 +1169,10 @@ export default {
             conversationId: this.currentChat.id,
             files: [attachedFile],
             private: false,
-            message: isRecordedWhatsmeowAudio ? '' : caption,
+            message:
+              isRecordedWhatsmeowAudio || isOfficialVoiceMessage ? '' : caption,
             sender: this.sender,
+            isVoiceMessage: isOfficialVoiceMessage,
           };
 
           attachmentPayload = this.setReplyToInPayload(attachmentPayload);
@@ -1172,7 +1184,11 @@ export default {
           }
           multipleMessagePayload.push(attachmentPayload);
           // For WhatsApp, only the first attachment gets a caption
-          if (!this.isAnInstagramChannel && !isRecordedWhatsmeowAudio) {
+          if (
+            !this.isAnInstagramChannel &&
+            !isRecordedWhatsmeowAudio &&
+            !isOfficialVoiceMessage
+          ) {
             caption = '';
           }
         });
@@ -1183,12 +1199,16 @@ export default {
       const hasRecordedWhatsmeowAudio =
         this.isAWhatsmeowChannel &&
         this.attachedFiles?.some(file => file?.isRecordedAudio);
+      const hasOfficialVoiceMessage =
+        this.isAWhatsAppCloudChannel &&
+        this.attachedFiles?.some(file => file?.isVoiceMessage);
       // For Instagram and TikTok, text must always be sent as a separate message (no captions on attachments).
       // For WhatsApp, we only need a text message if there are no attachments.
       if (
         ((this.isAnInstagramChannel || this.isATiktokChannel) &&
           this.message) ||
-        (hasRecordedWhatsmeowAudio && this.message) ||
+        ((hasRecordedWhatsmeowAudio || hasOfficialVoiceMessage) &&
+          this.message) ||
         (!(this.isAnInstagramChannel || this.isATiktokChannel) &&
           hasNoAttachments)
       ) {
@@ -1224,6 +1244,9 @@ export default {
             messagePayload.files.push(attachment.blobSignedId);
           } else {
             messagePayload.files.push(attachment.resource.file);
+          }
+          if (this.isAWhatsAppCloudChannel && attachment.isVoiceMessage) {
+            messagePayload.isVoiceMessage = true;
           }
         });
       }
@@ -1388,6 +1411,7 @@ export default {
           :audio-record-format="audioRecordFormat"
           @recorder-progress-changed="onRecordProgressChanged"
           @finish-record="onFinishRecorder"
+          @record-error="onRecordError"
           @play="recordingAudioState = 'playing'"
           @pause="recordingAudioState = 'paused'"
         />

@@ -1,4 +1,5 @@
 import lamejs from '@breezystack/lamejs';
+import { remuxWebmToOgg } from './webmOpusToOgg';
 
 const writeString = (view, offset, string) => {
   // eslint-disable-next-line no-plusplus
@@ -139,6 +140,15 @@ export const convertAudio = async (inputBlob, outputFormat, bitrate = 128) => {
     audio = await convertToWav(inputBlob);
   } else if (outputFormat === 'audio/mp3') {
     audio = await convertToMp3(inputBlob, bitrate);
+  } else if (outputFormat === 'audio/ogg') {
+    const inputType = inputBlob.type.split(';')[0].trim();
+    if (inputType === 'audio/webm' || inputType === 'video/webm') {
+      audio = await remuxWebmToOgg(inputBlob);
+    } else if (inputType === 'audio/ogg') {
+      audio = new Blob([inputBlob], { type: 'audio/ogg' });
+    } else {
+      throw new Error('The browser did not produce an Opus recording');
+    }
   } else {
     throw new Error('Unsupported output format');
   }

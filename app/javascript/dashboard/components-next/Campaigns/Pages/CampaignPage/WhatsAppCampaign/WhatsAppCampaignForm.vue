@@ -30,6 +30,7 @@ const initialState = {
   templateId: null,
   scheduledAt: null,
   selectedAudience: [],
+  consentConfirmed: false,
 };
 
 const state = reactive({ ...initialState });
@@ -65,7 +66,13 @@ const audienceList = computed(() =>
 );
 
 const inboxOptions = computed(() =>
-  mapToOptions(formState.inboxes.value, 'id', 'name')
+  mapToOptions(
+    formState.inboxes.value.filter(
+      inbox => inbox.provider === 'whatsapp_cloud'
+    ),
+    'id',
+    'name'
+  )
 );
 
 const templateOptions = computed(() => {
@@ -105,11 +112,16 @@ const formErrors = computed(() => ({
 }));
 
 const hasRequiredTemplateParams = computed(() => {
-  return templateParserRef.value?.v$?.$invalid === false || true;
+  return (
+    !selectedTemplate.value || templateParserRef.value?.v$?.$invalid === false
+  );
 });
 
 const isSubmitDisabled = computed(
-  () => v$.value.$invalid || !hasRequiredTemplateParams.value
+  () =>
+    v$.value.$invalid ||
+    !hasRequiredTemplateParams.value ||
+    !state.consentConfirmed
 );
 
 const formatToUTCString = localDateTime =>
@@ -149,6 +161,9 @@ const prepareCampaignDetails = () => {
       id,
       type: 'Label',
     })),
+    trigger_rules: {
+      whatsapp_consent_confirmed: true,
+    },
   };
 };
 
@@ -245,7 +260,25 @@ watch(
       :message-type="formErrors.scheduledAt ? 'error' : 'info'"
     />
 
-    <div class="flex gap-3 justify-between items-center w-full">
+    <label
+      class="flex cursor-pointer items-start gap-3 rounded-xl border border-n-amber-7 bg-n-amber-2 p-4"
+    >
+      <input
+        v-model="state.consentConfirmed"
+        type="checkbox"
+        class="reset-base mt-0.5 size-4 rounded border-n-strong text-n-brand focus:ring-n-brand"
+      />
+      <span>
+        <span class="block text-sm font-medium text-n-slate-12">
+          {{ t('CAMPAIGN.WHATSAPP.CREATE.FORM.CONSENT.TITLE') }}
+        </span>
+        <span class="mt-1 block text-xs leading-5 text-n-slate-10">
+          {{ t('CAMPAIGN.WHATSAPP.CREATE.FORM.CONSENT.DESCRIPTION') }}
+        </span>
+      </span>
+    </label>
+
+    <div class="flex w-full items-center justify-between gap-3">
       <Button
         variant="faded"
         color="slate"

@@ -200,7 +200,7 @@ RSpec.describe Inbox do
     let(:inbox) { channel.inbox }
 
     before do
-      stub_request(:get, 'https://graph.facebook.com/v14.0//message_templates?access_token=test_key')
+      stub_request(:get, 'https://graph.facebook.com/v22.0//message_templates')
         .with(
           headers: {
             'Accept' => '*/*',

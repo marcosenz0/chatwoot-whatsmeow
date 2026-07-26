@@ -768,6 +768,12 @@ const menuItems = computed(() => {
           to: accountScopedRoute('automation_list'),
         },
         {
+          name: 'Settings WhatsApp Cloud',
+          label: t('SIDEBAR.WHATSAPP_CLOUD_STUDIO'),
+          icon: 'i-lucide-workflow',
+          to: accountScopedRoute('whatsapp_cloud_studio'),
+        },
+        {
           name: 'Settings Agent Bots',
           label: t('SIDEBAR.AGENT_BOTS'),
           icon: 'i-lucide-bot',

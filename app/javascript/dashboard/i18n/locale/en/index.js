@@ -43,6 +43,7 @@ import onboarding from './onboarding.json';
 import pipelines from './pipelines.json';
 import yearInReview from './yearInReview.json';
 import whatsappStatus from './whatsappStatus.json';
+import whatsappCloudStudio from './whatsappCloudStudio.json';
 
 export default {
   ...advancedFilters,
@@ -90,4 +91,5 @@ export default {
   ...pipelines,
   ...yearInReview,
   ...whatsappStatus,
+  ...whatsappCloudStudio,
 };

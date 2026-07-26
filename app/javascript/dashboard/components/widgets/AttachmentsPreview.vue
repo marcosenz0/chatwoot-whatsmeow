@@ -14,11 +14,15 @@ const props = defineProps({
 const emit = defineEmits(['removeAttachment']);
 
 const nonRecordedAudioAttachments = computed(() => {
-  return props.attachments.filter(attachment => !attachment?.isRecordedAudio);
+  return props.attachments.filter(
+    attachment => !attachment?.isRecordedAudio && !attachment?.isVoiceMessage
+  );
 });
 
 const recordedAudioAttachments = computed(() =>
-  props.attachments.filter(attachment => attachment.isRecordedAudio)
+  props.attachments.filter(
+    attachment => attachment.isRecordedAudio || attachment.isVoiceMessage
+  )
 );
 
 const onRemoveAttachment = itemIndex => {

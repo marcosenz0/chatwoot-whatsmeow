@@ -142,6 +142,17 @@ Rails.application.routes.draw do
           resources :automation_rules, only: [:index, :create, :show, :update, :destroy] do
             post :clone
           end
+          namespace :whatsapp_cloud do
+            resources :templates, only: [:index, :create] do
+              post :sync, on: :collection
+              delete :destroy, on: :collection
+            end
+            resources :automations, only: [:index, :show, :create, :update, :destroy] do
+              post :publish, on: :member
+              post :pause, on: :member
+            end
+            resource :audience_estimate, only: [:show]
+          end
           resources :macros, only: [:index, :create, :show, :update, :destroy] do
             post :execute, on: :member
           end
