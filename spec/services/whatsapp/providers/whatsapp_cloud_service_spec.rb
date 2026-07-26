@@ -103,6 +103,7 @@ describe Whatsapp::Providers::WhatsappCloudService do
           filename: 'voice.ogg',
           content_type: 'audio/ogg'
         )
+        attachment.file.blob.update!(content_type: 'audio/ogg')
 
         request = stub_request(:post, 'https://graph.facebook.com/v22.0/123456789/messages')
                   .with do |web_request|
