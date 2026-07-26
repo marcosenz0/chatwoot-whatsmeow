@@ -104,18 +104,17 @@ describe Whatsapp::Providers::WhatsappCloudService do
           content_type: 'audio/ogg'
         )
 
-        stub_request(:post, 'https://graph.facebook.com/v22.0/123456789/messages')
-          .with(
-            body: hash_including(
-              messaging_product: 'whatsapp',
-              to: '+123456789',
-              type: 'audio',
-              audio: WebMock::API.hash_including(voice: true, link: anything)
-            )
-          )
-          .to_return(status: 200, body: whatsapp_response.to_json, headers: response_headers)
+        request = stub_request(:post, 'https://graph.facebook.com/v22.0/123456789/messages')
+                  .with do |web_request|
+                    payload = JSON.parse(web_request.body)
+                    payload['to'] == '+123456789' &&
+                      payload['type'] == 'audio' &&
+                      payload.dig('audio', 'voice') == true
+                  end
+                  .to_return(status: 200, body: whatsapp_response.to_json, headers: response_headers)
 
         expect(service.send_message('+123456789', message)).to eq 'message_id'
+        expect(request).to have_been_requested
       end
 
       it 'keeps regular audio attachments as regular audio' do
@@ -127,12 +126,11 @@ describe Whatsapp::Providers::WhatsappCloudService do
         )
 
         request = stub_request(:post, 'https://graph.facebook.com/v22.0/123456789/messages')
+                  .with { |web_request| JSON.parse(web_request.body).dig('audio', 'voice').nil? }
                   .to_return(status: 200, body: whatsapp_response.to_json, headers: response_headers)
 
         expect(service.send_message('+123456789', message)).to eq 'message_id'
-        expect(request).to have_been_requested.with do |web_request|
-          JSON.parse(web_request.body).dig('audio', 'voice').nil?
-        end
+        expect(request).to have_been_requested
       end
     end
   end

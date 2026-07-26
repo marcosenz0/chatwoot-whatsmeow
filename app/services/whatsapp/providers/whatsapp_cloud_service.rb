@@ -144,9 +144,11 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
   end
 
   def voice_message?(type, attachment)
+    voice_flag = attachment.meta&.[]('is_voice_message') || attachment.meta&.[](:is_voice_message)
+
     type == 'audio' &&
-      attachment.meta&.dig('is_voice_message') &&
-      attachment.file.content_type == 'audio/ogg'
+      voice_flag &&
+      attachment.file.blob.content_type == 'audio/ogg'
   end
 
   def normalize_opus_content_type(attachment)
