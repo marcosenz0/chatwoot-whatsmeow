@@ -160,10 +160,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="flex h-full w-full flex-col overflow-hidden bg-n-surface-1">
-    <header class="border-b border-n-weak bg-n-surface-1 px-4 py-5 sm:px-6">
+  <section
+    class="flex h-full min-w-0 max-w-full flex-1 flex-col overflow-hidden bg-n-surface-1"
+  >
+    <header
+      class="min-w-0 border-b border-n-weak bg-n-surface-1 px-4 py-5 sm:px-6"
+    >
       <div
-        class="mx-auto flex w-full max-w-[90rem] flex-col gap-5 xl:flex-row xl:items-end xl:justify-between"
+        class="mx-auto flex min-w-0 w-full max-w-[90rem] flex-col gap-5 xl:flex-row xl:items-end xl:justify-between"
       >
         <div class="min-w-0">
           <div class="mb-1 flex items-center gap-2 text-sm text-n-teal-11">
@@ -233,15 +237,17 @@ onMounted(async () => {
 
     <template v-else>
       <nav
-        class="border-b border-n-weak bg-n-surface-1 px-4 sm:px-6"
+        class="min-w-0 border-b border-n-weak bg-n-surface-1 px-4 sm:px-6"
         :aria-label="t('WHATSAPP_CLOUD_STUDIO.TABS.ARIA_LABEL')"
       >
-        <div class="mx-auto flex w-full max-w-[90rem] gap-1 overflow-x-auto">
+        <div
+          class="no-scrollbar mx-auto flex min-w-0 w-full max-w-[90rem] gap-1 overflow-x-auto"
+        >
           <button
             v-for="tab in tabs"
             :key="tab.id"
             type="button"
-            class="flex min-h-11 items-center gap-2 border-b-2 px-4 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-brand"
+            class="flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-brand"
             :class="
               activeTab === tab.id
                 ? 'border-n-brand text-n-blue-11'
@@ -261,7 +267,9 @@ onMounted(async () => {
         </div>
       </nav>
 
-      <main class="flex-1 overflow-auto px-4 py-5 sm:px-6 sm:py-6">
+      <main
+        class="min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-5 sm:px-6 sm:py-6"
+      >
         <div v-if="isLoading" class="flex h-60 items-center justify-center">
           <Spinner />
         </div>
