@@ -107,6 +107,30 @@ RSpec.describe Campaign do
       end
     end
 
+    context 'when official WhatsApp Cloud campaign' do
+      let(:account) { create(:account) }
+      let!(:whatsapp_channel) do
+        create(
+          :channel_whatsapp,
+          account: account,
+          provider: 'whatsapp_cloud',
+          validate_provider_config: false,
+          sync_templates: false
+        )
+      end
+      let(:campaign) { build(:campaign, account: account, inbox: whatsapp_channel.inbox) }
+
+      it 'calls the official campaign service without the legacy account feature' do
+        account.disable_features!(:whatsapp_campaign)
+        campaign_service = double
+        expect(Whatsapp::OneoffCampaignService).to receive(:new).with(campaign: campaign).and_return(campaign_service)
+        expect(campaign_service).to receive(:perform)
+
+        campaign.save!
+        campaign.trigger!
+      end
+    end
+
     context 'when Website campaign' do
       let(:campaign) { build(:campaign) }
 

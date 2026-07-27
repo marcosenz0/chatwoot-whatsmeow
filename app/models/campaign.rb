@@ -94,7 +94,9 @@ class Campaign < ApplicationRecord
     when 'Sms'
       Sms::OneoffSmsCampaignService.new(campaign: self).perform
     when 'Whatsapp'
-      Whatsapp::OneoffCampaignService.new(campaign: self).perform if account.feature_enabled?(:whatsapp_campaign)
+      return unless inbox.channel.provider == 'whatsapp_cloud' || account.feature_enabled?(:whatsapp_campaign)
+
+      Whatsapp::OneoffCampaignService.new(campaign: self).perform
     end
   end
 

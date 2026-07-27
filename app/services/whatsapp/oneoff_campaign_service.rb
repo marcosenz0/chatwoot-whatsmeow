@@ -32,7 +32,6 @@ class Whatsapp::OneoffCampaignService
   def validate_campaign!
     raise "Invalid campaign #{campaign.id}" unless campaign.one_off? && inbox.inbox_type == 'Whatsapp'
     raise 'WhatsApp Cloud provider required' unless channel.provider == 'whatsapp_cloud'
-    raise 'WhatsApp campaigns feature not enabled' unless campaign.account.feature_enabled?(:whatsapp_campaign)
 
     consent_confirmed = ActiveModel::Type::Boolean.new.cast(campaign.trigger_rules['whatsapp_consent_confirmed'])
     raise 'Campaign audience consent must be confirmed' unless consent_confirmed

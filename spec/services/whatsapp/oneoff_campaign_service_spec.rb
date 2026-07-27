@@ -67,10 +67,10 @@ describe Whatsapp::OneoffCampaignService do
       expect { perform_service }.to raise_error('WhatsApp Cloud provider required')
     end
 
-    it 'requires the WhatsApp campaigns feature' do
+    it 'allows official Cloud API campaigns when the account feature is disabled' do
       account.disable_features!(:whatsapp_campaign)
 
-      expect { perform_service }.to raise_error('WhatsApp campaigns feature not enabled')
+      expect { perform_service }.not_to raise_error
     end
 
     context 'without confirmed audience consent' do
