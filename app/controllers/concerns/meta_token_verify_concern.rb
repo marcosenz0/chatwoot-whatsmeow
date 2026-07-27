@@ -22,6 +22,10 @@ module MetaTokenVerifyConcern
     return unless meta_signature_verification_required?
     return if valid_meta_signature?
 
+    Rails.logger.warn(
+      "Rejected Meta webhook signature: header=#{meta_signature_header_state}, " \
+      "configured_secrets=#{meta_app_secrets.compact_blank.length}, body_bytes=#{meta_request_body.bytesize}"
+    )
     head :unauthorized
   end
 
@@ -39,6 +43,14 @@ module MetaTokenVerifyConcern
 
   def meta_request_body
     @meta_request_body ||= request.raw_post
+  end
+
+  def meta_signature_header_state
+    signature = request.headers[META_SIGNATURE_HEADER]
+    return 'missing' if signature.blank?
+    return 'invalid_prefix' unless signature.start_with?(META_SIGNATURE_PREFIX)
+
+    'mismatch'
   end
 
   def meta_app_secrets

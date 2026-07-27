@@ -78,6 +78,21 @@ describe Whatsapp::CloudTemplateService do
     )
   end
 
+  it 'accepts permitted controller parameters' do
+    stub_request(
+      :post,
+      'https://graph.facebook.com/v22.0/123456789/message_templates'
+    ).to_return(
+      status: 200,
+      body: { id: 'template-id', status: 'PENDING' }.to_json,
+      headers: { 'Content-Type' => 'application/json' }
+    )
+
+    parameters = ActionController::Parameters.new(template_attributes).permit!
+
+    expect(service.create!(parameters)).to include('id' => 'template-id')
+  end
+
   it 'surfaces template synchronization failures without changing the cache timestamp' do
     previous_timestamp = channel.reload.message_templates_last_updated
     stub_request(

@@ -21,7 +21,7 @@ class Whatsapp::CloudTemplateService
 
   def create!(attributes)
     ensure_official_cloud_inbox!
-    payload = build_payload(attributes.with_indifferent_access)
+    payload = build_payload(attributes.to_h.with_indifferent_access)
     response = HTTParty.post(
       provider.template_management_path,
       headers: provider.api_headers,
