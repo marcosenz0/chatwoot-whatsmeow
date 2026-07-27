@@ -29,6 +29,9 @@ RSpec.describe Whatsapp::HealthService do
       instance_double(HTTParty::Response, success?: true, parsed_response: phone_health_response)
     )
     allow(Whatsapp::FacebookApiClient).to receive(:new).with('test-token').and_return(facebook_api_client)
+    allow(facebook_api_client).to receive(:debug_token).with('test-token').and_return(
+      'data' => { 'app_id' => 'app-id', 'is_valid' => true }
+    )
     allow(GlobalConfigService).to receive(:load).and_call_original
     allow(GlobalConfigService).to receive(:load).with('WHATSAPP_API_VERSION', 'v22.0').and_return('v22.0')
     allow(GlobalConfigService).to receive(:load).with('WHATSAPP_APP_ID', '').and_return('app-id')
@@ -45,7 +48,11 @@ RSpec.describe Whatsapp::HealthService do
       webhook_subscription_available: true,
       configured_app_id: 'app-id',
       subscribed_app_ids: ['app-id'],
-      configured_app_subscribed: true
+      configured_app_subscribed: true,
+      app_credentials_available: true,
+      access_token_valid: true,
+      access_token_app_id: 'app-id',
+      access_token_matches_configured_app: true
     )
   end
 
@@ -58,6 +65,20 @@ RSpec.describe Whatsapp::HealthService do
       webhook_subscription_available: false,
       subscribed_app_ids: [],
       configured_app_subscribed: false
+    )
+  end
+
+  it 'reports when the configured app credentials cannot validate the token' do
+    allow(facebook_api_client).to receive(:fetch_subscribed_apps).and_return('data' => [])
+    allow(facebook_api_client).to receive(:debug_token).and_raise('Invalid app access token')
+
+    health = described_class.new(channel).fetch_health_status
+
+    expect(health).to include(
+      app_credentials_available: false,
+      access_token_valid: false,
+      access_token_app_id: nil,
+      access_token_matches_configured_app: false
     )
   end
 end
