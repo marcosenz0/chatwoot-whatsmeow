@@ -14,6 +14,7 @@ RSpec.describe Whatsapp::HealthService do
       }
     )
   end
+  let(:access_token) { channel.provider_config['api_key'] }
   let(:facebook_api_client) { instance_double(Whatsapp::FacebookApiClient) }
   let(:phone_health_response) do
     {
@@ -28,8 +29,8 @@ RSpec.describe Whatsapp::HealthService do
     allow(HTTParty).to receive(:get).and_return(
       instance_double(HTTParty::Response, success?: true, parsed_response: phone_health_response)
     )
-    allow(Whatsapp::FacebookApiClient).to receive(:new).with('test-token').and_return(facebook_api_client)
-    allow(facebook_api_client).to receive(:debug_token).with('test-token').and_return(
+    allow(Whatsapp::FacebookApiClient).to receive(:new).with(access_token).and_return(facebook_api_client)
+    allow(facebook_api_client).to receive(:debug_token).with(access_token).and_return(
       'data' => { 'app_id' => 'app-id', 'is_valid' => true }
     )
     allow(GlobalConfigService).to receive(:load).and_call_original
