@@ -9,7 +9,7 @@ class Whatsapp::HealthService
 
   def fetch_health_status
     validate_channel!
-    fetch_phone_health_data
+    fetch_phone_health_data.merge(fetch_webhook_subscription_health)
   end
 
   private
@@ -91,5 +91,30 @@ class Whatsapp::HealthService
     return nil if frontend_url.blank?
 
     "#{frontend_url}/webhooks/whatsapp/#{@channel.phone_number}"
+  end
+
+  def fetch_webhook_subscription_health
+    configured_app_id = GlobalConfigService.load('WHATSAPP_APP_ID', '').to_s
+    waba_id = @channel.provider_config['business_account_id']
+    return subscription_health(configured_app_id, [], false) if waba_id.blank?
+
+    response = Whatsapp::FacebookApiClient.new(@access_token).fetch_subscribed_apps(waba_id)
+    subscribed_app_ids = response.fetch('data', []).filter_map do |app|
+      app.dig('whatsapp_business_api_data', 'id') || app['id']
+    end.map(&:to_s).uniq
+
+    subscription_health(configured_app_id, subscribed_app_ids, true)
+  rescue StandardError => e
+    Rails.logger.error "[WHATSAPP HEALTH] Error fetching subscribed apps: #{e.message}"
+    subscription_health(configured_app_id, [], false)
+  end
+
+  def subscription_health(configured_app_id, subscribed_app_ids, available)
+    {
+      webhook_subscription_available: available,
+      configured_app_id: configured_app_id,
+      subscribed_app_ids: subscribed_app_ids,
+      configured_app_subscribed: configured_app_id.present? && subscribed_app_ids.include?(configured_app_id)
+    }
   end
 end

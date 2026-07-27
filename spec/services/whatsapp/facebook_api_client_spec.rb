@@ -235,6 +235,33 @@ describe Whatsapp::FacebookApiClient do
     end
   end
 
+  describe '#fetch_subscribed_apps' do
+    let(:waba_id) { 'test_waba_id' }
+
+    it 'returns the apps subscribed to the WABA' do
+      stub_request(:get, "https://graph.facebook.com/#{api_version}/#{waba_id}/subscribed_apps")
+        .with(headers: { 'Authorization' => "Bearer #{access_token}", 'Content-Type' => 'application/json' })
+        .to_return(
+          status: 200,
+          body: {
+            data: [{ whatsapp_business_api_data: { id: '123', name: 'WhatsApp App' } }]
+          }.to_json,
+          headers: { 'Content-Type' => 'application/json' }
+        )
+
+      result = api_client.fetch_subscribed_apps(waba_id)
+
+      expect(result.dig('data', 0, 'whatsapp_business_api_data', 'id')).to eq('123')
+    end
+
+    it 'raises an error when the apps cannot be fetched' do
+      stub_request(:get, "https://graph.facebook.com/#{api_version}/#{waba_id}/subscribed_apps")
+        .to_return(status: 400, body: { error: 'Unable to fetch subscribed apps' }.to_json)
+
+      expect { api_client.fetch_subscribed_apps(waba_id) }.to raise_error(/WABA subscribed apps fetch failed/)
+    end
+  end
+
   describe '#unsubscribe_waba_webhook' do
     let(:waba_id) { 'test_waba_id' }
 

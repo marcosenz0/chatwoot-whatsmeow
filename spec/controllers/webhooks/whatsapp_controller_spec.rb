@@ -181,6 +181,16 @@ RSpec.describe 'Webhooks::WhatsappController', type: :request do
       expect(Webhooks::WhatsappEventsJob).not_to have_received(:perform_later)
     end
 
+    it 'accepts a valid signature from a proxy-combined signature header' do
+      allow(Webhooks::WhatsappEventsJob).to receive(:perform_later)
+      expect(Webhooks::WhatsappEventsJob).to receive(:perform_later)
+
+      combined_signature = "sha256=invalid-signature, #{signature_for(body)}"
+      post_whatsapp_webhook('/webhooks/whatsapp/123221321', body, signature: combined_signature)
+
+      expect(response).to have_http_status(:success)
+    end
+
     context 'when phone number is in inactive list' do
       before do
         allow(GlobalConfig).to receive(:get_value).with('INACTIVE_WHATSAPP_NUMBERS').and_return('+1234567890,+9876543210')
