@@ -32,15 +32,15 @@ const isEstimating = ref(false);
 const isCreating = ref(false);
 const estimate = ref(null);
 
-const initialForm = {
+const createInitialForm = () => ({
   title: '',
   templateName: '',
   scheduledAt: '',
   selectedLabelIds: [],
   processedParams: {},
   consentConfirmed: false,
-};
-const form = reactive(structuredClone(initialForm));
+});
+const form = reactive(createInitialForm());
 
 const approvedTemplates = computed(() =>
   props.templates.filter(
@@ -101,7 +101,7 @@ watch(
 );
 
 const resetForm = () => {
-  Object.assign(form, structuredClone(initialForm));
+  Object.assign(form, createInitialForm());
   estimate.value = null;
 };
 
@@ -472,7 +472,7 @@ const deliveryRate = campaign => {
             </div>
             <button
               type="button"
-              class="flex size-9 shrink-0 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
+              class="flex size-9 shrink-0 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 lg:hidden"
               :aria-label="t('WHATSAPP_CLOUD_STUDIO.CLOSE')"
               @click="closeBroadcastForm"
             >
@@ -677,7 +677,7 @@ const deliveryRate = campaign => {
 
           <div class="mt-auto flex gap-2 border-t border-n-weak pt-5">
             <Button
-              class="flex-1"
+              class="shrink-0"
               type="button"
               :label="t('WHATSAPP_CLOUD_STUDIO.CANCEL')"
               color="slate"
@@ -685,7 +685,7 @@ const deliveryRate = campaign => {
               @click="closeBroadcastForm"
             />
             <Button
-              class="flex-1"
+              class="min-w-fit flex-1"
               type="submit"
               :label="t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.FORM.SUBMIT')"
               :is-loading="isCreating"

@@ -125,7 +125,7 @@
         "HEADER": "Cabeçalho de texto (opcional)",
         "HEADER_HINT": "Até 60 caracteres. Este criador simples não aceita variáveis no cabeçalho.",
         "BODY": "Corpo da mensagem",
-        "BODY_PLACEHOLDER": "Olá {first}, seu pedido {second} está pronto.",
+        "BODY_PLACEHOLDER": "Olá __FIRST__, seu pedido __SECOND__ está pronto.",
         "VARIABLE_HINT": "Numere as variáveis em sequência. Cada variável precisa de um valor de exemplo para a análise da Meta.",
         "VARIABLE_SEQUENCE_ERROR": "Use variáveis numéricas consecutivas a partir de 1, sem pular números.",
         "EXAMPLE": "Exemplo para a variável {id}",

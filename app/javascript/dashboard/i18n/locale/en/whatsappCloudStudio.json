@@ -125,7 +125,7 @@
         "HEADER": "Text header (optional)",
         "HEADER_HINT": "Up to 60 characters. Variables are not supported in this simple creator.",
         "BODY": "Message body",
-        "BODY_PLACEHOLDER": "Hello {first}, your order {second} is ready.",
+        "BODY_PLACEHOLDER": "Hello __FIRST__, your order __SECOND__ is ready.",
         "VARIABLE_HINT": "Number variables sequentially. Every variable needs a sample value for Meta review.",
         "VARIABLE_SEQUENCE_ERROR": "Use consecutive numeric variables starting at 1, without gaps.",
         "EXAMPLE": "Example for variable {id}",

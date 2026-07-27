@@ -25,7 +25,7 @@ const templateDialogRef = ref(null);
 const search = ref('');
 const statusFilter = ref('all');
 
-const initialForm = {
+const createInitialForm = () => ({
   name: '',
   language: 'pt_BR',
   category: 'UTILITY',
@@ -34,8 +34,8 @@ const initialForm = {
   footer: '',
   examples: {},
   buttons: [],
-};
-const form = reactive(structuredClone(initialForm));
+});
+const form = reactive(createInitialForm());
 
 const filteredTemplates = computed(() => {
   const term = search.value.toLowerCase().trim();
@@ -97,10 +97,9 @@ const canSubmit = computed(
 );
 
 const bodyPlaceholder = computed(() =>
-  t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.BODY_PLACEHOLDER', {
-    first: '{{1}}',
-    second: '{{2}}',
-  })
+  t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.BODY_PLACEHOLDER')
+    .replace('__FIRST__', '{{1}}')
+    .replace('__SECOND__', '{{2}}')
 );
 
 const formattedLastSync = computed(() =>
@@ -156,7 +155,7 @@ const bodyText = template =>
   template.components?.find(component => component.type === 'BODY')?.text || '';
 
 const resetForm = () => {
-  Object.assign(form, structuredClone(initialForm));
+  Object.assign(form, createInitialForm());
 };
 
 const openTemplateForm = () => {
