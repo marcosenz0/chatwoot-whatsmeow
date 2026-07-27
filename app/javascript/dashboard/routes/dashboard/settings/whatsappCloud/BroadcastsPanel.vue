@@ -6,7 +6,16 @@ import { useStore } from 'dashboard/composables/store';
 import { useAlert } from 'dashboard/composables';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { whatsappCloudAudienceEstimateAPI } from 'dashboard/api/whatsappCloudStudio';
+import StudioSelect from './StudioSelect.vue';
+import StudioTemplateParameterFields from './StudioTemplateParameterFields.vue';
+import {
+  hydrateStudioTemplateParameters,
+  isStudioTemplateSupported,
+  renderTemplateBody,
+  templateParametersComplete,
+} from './templateParameterUtils';
 
 const props = defineProps({
   inbox: { type: Object, required: true },
@@ -18,7 +27,7 @@ const props = defineProps({
 const { t } = useI18n();
 const store = useStore();
 
-const showCreateForm = ref(false);
+const broadcastDialogRef = ref(null);
 const isEstimating = ref(false);
 const isCreating = ref(false);
 const estimate = ref(null);
@@ -28,36 +37,36 @@ const initialForm = {
   templateName: '',
   scheduledAt: '',
   selectedLabelIds: [],
-  variables: {},
+  processedParams: {},
   consentConfirmed: false,
 };
 const form = reactive(structuredClone(initialForm));
 
 const approvedTemplates = computed(() =>
   props.templates.filter(
-    template =>
-      template.status?.toLowerCase() === 'approved' &&
-      template.category !== 'AUTHENTICATION'
+    template => template.status?.toLowerCase() === 'approved'
+  )
+);
+
+const supportedTemplates = computed(() =>
+  approvedTemplates.value.filter(isStudioTemplateSupported)
+);
+
+const unsupportedTemplates = computed(() =>
+  approvedTemplates.value.filter(
+    template => !isStudioTemplateSupported(template)
   )
 );
 
 const selectedTemplate = computed(() =>
-  approvedTemplates.value.find(template => template.name === form.templateName)
+  supportedTemplates.value.find(
+    template => `${template.name}|${template.language}` === form.templateName
+  )
 );
 
-const templateBody = computed(
-  () =>
-    selectedTemplate.value?.components?.find(
-      component => component.type === 'BODY'
-    )?.text || ''
+const templateBody = computed(() =>
+  renderTemplateBody(selectedTemplate.value, form.processedParams)
 );
-
-const variableIds = computed(() => {
-  const matches = [...templateBody.value.matchAll(/\{\{(\d+)\}\}/g)].map(
-    match => Number(match[1])
-  );
-  return [...new Set(matches)].sort((first, second) => first - second);
-});
 
 const officialCampaigns = computed(() =>
   props.campaigns
@@ -78,13 +87,15 @@ const canSubmit = computed(
     form.scheduledAt &&
     form.selectedLabelIds.length &&
     form.consentConfirmed &&
-    variableIds.value.every(id => form.variables[id]?.trim())
+    templateParametersComplete(form.processedParams, { allowLiquid: true })
 );
 
 watch(
   () => form.templateName,
   () => {
-    form.variables = {};
+    form.processedParams = selectedTemplate.value
+      ? hydrateStudioTemplateParameters(selectedTemplate.value)
+      : {};
     estimate.value = null;
   }
 );
@@ -94,8 +105,23 @@ const resetForm = () => {
   estimate.value = null;
 };
 
+const openBroadcastForm = () => {
+  resetForm();
+  broadcastDialogRef.value?.open();
+};
+
+const closeBroadcastForm = () => {
+  broadcastDialogRef.value?.close();
+};
+
 const calculateEstimate = async () => {
-  if (!form.selectedLabelIds.length || !selectedTemplate.value) return;
+  if (
+    isEstimating.value ||
+    !form.selectedLabelIds.length ||
+    !selectedTemplate.value
+  ) {
+    return;
+  }
   isEstimating.value = true;
   try {
     const response = await whatsappCloudAudienceEstimateAPI.getEstimate({
@@ -112,7 +138,7 @@ const calculateEstimate = async () => {
 };
 
 const createBroadcast = async () => {
-  if (!canSubmit.value) return;
+  if (!canSubmit.value || isCreating.value) return;
   isCreating.value = true;
   try {
     await store.dispatch('campaigns/create', {
@@ -127,20 +153,17 @@ const createBroadcast = async () => {
         namespace: selectedTemplate.value.namespace || '',
         category: selectedTemplate.value.category,
         language: selectedTemplate.value.language,
-        processed_params: {
-          body: Object.fromEntries(
-            variableIds.value.map(id => [String(id), form.variables[id]])
-          ),
-        },
+        processed_params: JSON.parse(JSON.stringify(form.processedParams)),
       },
     });
     await store.dispatch('campaigns/get');
     resetForm();
-    showCreateForm.value = false;
+    closeBroadcastForm();
     useAlert(t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.CREATED'));
   } catch (error) {
     useAlert(
       error?.response?.data?.message ||
+        error?.response?.data?.error ||
         t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.CREATE_ERROR')
     );
   } finally {
@@ -165,8 +188,37 @@ const statusLabel = status => {
   return labels[status];
 };
 
+const categoryLabel = category => {
+  const labels = {
+    UTILITY: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.UTILITY'),
+    MARKETING: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.MARKETING'),
+    AUTHENTICATION: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.AUTHENTICATION'),
+  };
+  return labels[category?.toUpperCase()] || category;
+};
+
+const languageLabel = language => {
+  const labels = {
+    pt_BR: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.LANGUAGE_PT_BR'),
+    en_US: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.LANGUAGE_EN_US'),
+    es: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.LANGUAGE_ES'),
+  };
+  return labels[language] || language;
+};
+
 const templateOptionLabel = template =>
-  `${template.name} - ${template.category} - ${template.language}`;
+  `${template.name} - ${categoryLabel(template.category)} - ${languageLabel(
+    template.language
+  )}`;
+
+const selectableTemplateLabel = template => {
+  const label = templateOptionLabel(template);
+  return isStudioTemplateSupported(template)
+    ? label
+    : `${label} - ${t(
+        'WHATSAPP_CLOUD_STUDIO.TEMPLATE_PARAMETERS.UNSUPPORTED_OPTION'
+      )}`;
+};
 
 const currency = value =>
   Number(value || 0).toLocaleString('pt-BR', {
@@ -195,8 +247,26 @@ const deliveryRate = campaign => {
       <Button
         :label="t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.NEW')"
         icon="i-lucide-send"
-        @click="showCreateForm = true"
+        :disabled="!supportedTemplates.length"
+        @click="openBroadcastForm"
       />
+    </div>
+
+    <div
+      v-if="unsupportedTemplates.length"
+      class="mb-5 flex items-start gap-3 rounded-xl border border-n-amber-7 bg-n-amber-2 p-4 text-sm text-n-amber-11"
+    >
+      <span
+        class="i-lucide-triangle-alert mt-0.5 size-4 shrink-0"
+        aria-hidden="true"
+      />
+      <p>
+        {{
+          t('WHATSAPP_CLOUD_STUDIO.TEMPLATE_PARAMETERS.UNSUPPORTED_TEMPLATES', {
+            count: unsupportedTemplates.length,
+          })
+        }}
+      </p>
     </div>
 
     <div class="mb-5 grid gap-4 lg:grid-cols-3">
@@ -355,7 +425,10 @@ const deliveryRate = campaign => {
                 </div>
               </td>
               <td class="px-4 py-4 text-n-ruby-11">
-                {{ campaign.delivery_summary?.failed || 0 }}
+                {{
+                  (campaign.delivery_summary?.failed || 0) +
+                  (campaign.delivery_summary?.skipped || 0)
+                }}
               </td>
               <td class="px-4 py-4 font-medium text-n-slate-12">
                 {{ currency(campaign.delivery_summary?.estimated_cost) }}
@@ -376,19 +449,18 @@ const deliveryRate = campaign => {
       </div>
     </div>
 
-    <div
-      v-if="showCreateForm"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-n-alpha-black6 p-4"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.FORM.TITLE')"
-      @click.self="showCreateForm = false"
+    <Dialog
+      ref="broadcastDialogRef"
+      width="3xl"
+      :show-cancel-button="false"
+      :show-confirm-button="false"
+      @confirm="createBroadcast"
+      @close="resetForm"
     >
-      <form
-        class="grid max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-2xl border border-n-weak bg-n-solid-1 shadow-xl lg:grid-cols-[minmax(0,1fr)_22rem]"
-        @submit.prevent="createBroadcast"
+      <div
+        class="grid max-h-[80vh] min-h-0 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_18rem] lg:overflow-hidden"
       >
-        <div class="overflow-y-auto p-6">
+        <div class="lg:overflow-y-auto lg:pr-5">
           <div class="flex items-start justify-between gap-4">
             <div>
               <h3 class="text-lg font-semibold text-n-slate-12">
@@ -400,9 +472,9 @@ const deliveryRate = campaign => {
             </div>
             <button
               type="button"
-              class="flex size-9 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 lg:hidden"
+              class="flex size-9 shrink-0 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
               :aria-label="t('WHATSAPP_CLOUD_STUDIO.CLOSE')"
-              @click="showCreateForm = false"
+              @click="closeBroadcastForm"
             >
               <span class="i-lucide-x size-4" aria-hidden="true" />
             </button>
@@ -416,18 +488,14 @@ const deliveryRate = campaign => {
               <input
                 v-model="form.title"
                 required
-                class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand"
+                class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
               />
             </label>
             <label
               class="flex flex-col gap-1 text-sm font-medium text-n-slate-11"
             >
               {{ t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.FORM.TEMPLATE') }}
-              <select
-                v-model="form.templateName"
-                required
-                class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand"
-              >
+              <StudioSelect v-model="form.templateName" required>
                 <option value="">
                   {{
                     t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.FORM.SELECT_TEMPLATE')
@@ -436,11 +504,12 @@ const deliveryRate = campaign => {
                 <option
                   v-for="template in approvedTemplates"
                   :key="`${template.name}-${template.language}`"
-                  :value="template.name"
+                  :value="`${template.name}|${template.language}`"
+                  :disabled="!isStudioTemplateSupported(template)"
                 >
-                  {{ templateOptionLabel(template) }}
+                  {{ selectableTemplateLabel(template) }}
                 </option>
-              </select>
+              </StudioSelect>
             </label>
 
             <div
@@ -454,7 +523,7 @@ const deliveryRate = campaign => {
                 <span
                   class="rounded-full bg-n-amber-3 px-2 py-1 font-medium text-n-amber-11"
                 >
-                  {{ selectedTemplate.category }}
+                  {{ categoryLabel(selectedTemplate.category) }}
                 </span>
               </div>
               <p class="whitespace-pre-wrap text-sm leading-6 text-n-slate-12">
@@ -462,27 +531,12 @@ const deliveryRate = campaign => {
               </p>
             </div>
 
-            <div v-if="variableIds.length" class="grid gap-3 sm:grid-cols-2">
-              <label
-                v-for="variableId in variableIds"
-                :key="variableId"
-                class="flex flex-col gap-1 text-sm font-medium text-n-slate-11"
-              >
-                {{
-                  t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.FORM.VARIABLE', {
-                    id: variableId,
-                  })
-                }}
-                <input
-                  v-model="form.variables[variableId]"
-                  required
-                  class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand"
-                  :placeholder="
-                    t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.FORM.LIQUID_HINT')
-                  "
-                />
-              </label>
-            </div>
+            <StudioTemplateParameterFields
+              v-if="selectedTemplate"
+              v-model="form.processedParams"
+              :template="selectedTemplate"
+              allow-liquid
+            />
 
             <label
               class="flex flex-col gap-1 text-sm font-medium text-n-slate-11"
@@ -492,7 +546,7 @@ const deliveryRate = campaign => {
                 v-model="form.selectedLabelIds"
                 multiple
                 required
-                class="min-h-32 rounded-lg border border-n-strong bg-n-alpha-1 px-3 py-2 text-n-slate-12 outline-none focus:border-n-brand"
+                class="reset-base !mb-0 min-h-32 w-full rounded-xl border border-n-strong bg-n-alpha-1 bg-none px-3 py-2 text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
                 @change="estimate = null"
               >
                 <option
@@ -517,7 +571,7 @@ const deliveryRate = campaign => {
                 required
                 type="datetime-local"
                 :min="currentDateTime"
-                class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand"
+                class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
               />
             </label>
 
@@ -545,7 +599,9 @@ const deliveryRate = campaign => {
           </div>
         </div>
 
-        <aside class="flex flex-col border-l border-n-weak bg-n-alpha-2 p-6">
+        <aside
+          class="mt-6 flex flex-col border-t border-n-weak pt-5 lg:mt-0 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0"
+        >
           <div class="flex items-center justify-between">
             <h4 class="text-sm font-semibold text-n-slate-12">
               {{ t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.ESTIMATE.TITLE') }}
@@ -554,13 +610,14 @@ const deliveryRate = campaign => {
               type="button"
               class="hidden size-9 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-3 hover:text-n-slate-12 lg:flex"
               :aria-label="t('WHATSAPP_CLOUD_STUDIO.CLOSE')"
-              @click="showCreateForm = false"
+              @click="closeBroadcastForm"
             >
               <span class="i-lucide-x size-4" aria-hidden="true" />
             </button>
           </div>
           <Button
             class="mt-4 w-full"
+            type="button"
             :label="t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.ESTIMATE.CALCULATE')"
             icon="i-lucide-calculator"
             color="slate"
@@ -594,7 +651,7 @@ const deliveryRate = campaign => {
                 <div
                   class="mt-1 truncate text-xs font-semibold text-n-amber-11"
                 >
-                  {{ estimate.category }}
+                  {{ categoryLabel(estimate.category) }}
                 </div>
               </div>
             </div>
@@ -625,7 +682,7 @@ const deliveryRate = campaign => {
               :label="t('WHATSAPP_CLOUD_STUDIO.CANCEL')"
               color="slate"
               variant="ghost"
-              @click="showCreateForm = false"
+              @click="closeBroadcastForm"
             />
             <Button
               class="flex-1"
@@ -636,7 +693,7 @@ const deliveryRate = campaign => {
             />
           </div>
         </aside>
-      </form>
-    </div>
+      </div>
+    </Dialog>
   </section>
 </template>

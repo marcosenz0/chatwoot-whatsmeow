@@ -41,6 +41,7 @@ import sla from './sla.json';
 import snooze from './snooze.json';
 import teamsSettings from './teamsSettings.json';
 import webhooks from './webhooks.json';
+import whatsappCloudStudio from './whatsappCloudStudio.json';
 import whatsappTemplates from './whatsappTemplates.json';
 import yearInReview from './yearInReview.json';
 import whatsappStatus from './whatsappStatus.json';
@@ -89,6 +90,7 @@ export default {
   ...snooze,
   ...teamsSettings,
   ...webhooks,
+  ...whatsappCloudStudio,
   ...whatsappTemplates,
   ...yearInReview,
   ...whatsappStatus,

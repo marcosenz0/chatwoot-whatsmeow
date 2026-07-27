@@ -6,6 +6,7 @@ import { useAlert } from 'dashboard/composables';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
+import StudioSelect from './StudioSelect.vue';
 import OverviewPanel from './OverviewPanel.vue';
 import TemplatesPanel from './TemplatesPanel.vue';
 import FlowsPanel from './FlowsPanel.vue';
@@ -28,6 +29,8 @@ const automations = ref([]);
 const templatesLastUpdatedAt = ref(null);
 const isLoading = ref(false);
 const isRefreshing = ref(false);
+let inboxLoadRequest = 0;
+let refreshRequest = 0;
 
 const officialInboxes = computed(() =>
   inboxes.value.filter(
@@ -40,6 +43,12 @@ const officialInboxes = computed(() =>
 const selectedInbox = computed(() =>
   officialInboxes.value.find(
     inbox => inbox.id === Number(selectedInboxId.value)
+  )
+);
+
+const officialCampaigns = computed(() =>
+  campaigns.value.filter(
+    campaign => campaign.inbox?.id === Number(selectedInboxId.value)
   )
 );
 
@@ -65,50 +74,66 @@ const tabs = computed(() => [
     id: 'broadcasts',
     label: t('WHATSAPP_CLOUD_STUDIO.TABS.BROADCASTS'),
     icon: 'i-lucide-send',
-    count: campaigns.value.length,
+    count: officialCampaigns.value.length,
   },
 ]);
 
-const loadInboxData = async () => {
-  if (!selectedInboxId.value) return;
+const isCurrentInbox = inboxId =>
+  Number(selectedInboxId.value) === Number(inboxId);
+
+const loadInboxData = async inboxId => {
+  if (!inboxId) return false;
+  inboxLoadRequest += 1;
+  const requestId = inboxLoadRequest;
   isLoading.value = true;
   try {
     const [templatesResponse, automationsResponse] = await Promise.all([
-      whatsappCloudTemplatesAPI.getForInbox(selectedInboxId.value),
-      whatsappCloudAutomationsAPI.getForInbox(selectedInboxId.value),
+      whatsappCloudTemplatesAPI.getForInbox(inboxId),
+      whatsappCloudAutomationsAPI.getForInbox(inboxId),
     ]);
+    if (requestId !== inboxLoadRequest || !isCurrentInbox(inboxId)) {
+      return false;
+    }
     templates.value = templatesResponse.data.templates || [];
     templatesLastUpdatedAt.value = templatesResponse.data.last_updated_at;
     automations.value = automationsResponse.data || [];
+    return true;
   } catch (error) {
-    useAlert(
-      error?.response?.data?.message ||
-        t('WHATSAPP_CLOUD_STUDIO.API.LOAD_ERROR')
-    );
+    if (requestId === inboxLoadRequest && isCurrentInbox(inboxId)) {
+      useAlert(t('WHATSAPP_CLOUD_STUDIO.API.LOAD_ERROR'));
+    }
+    return false;
   } finally {
-    isLoading.value = false;
+    if (requestId === inboxLoadRequest) {
+      isLoading.value = false;
+    }
   }
 };
 
 const refreshAll = async () => {
   if (!selectedInboxId.value) return;
+  const inboxId = selectedInboxId.value;
+  refreshRequest += 1;
+  const requestId = refreshRequest;
   isRefreshing.value = true;
   try {
-    const response = await whatsappCloudTemplatesAPI.sync(
-      selectedInboxId.value
-    );
+    const response = await whatsappCloudTemplatesAPI.sync(inboxId);
+    if (requestId !== refreshRequest || !isCurrentInbox(inboxId)) return;
     templates.value = response.data.templates || [];
     templatesLastUpdatedAt.value = response.data.last_updated_at;
-    await loadInboxData();
+    const inboxLoaded = await loadInboxData(inboxId);
+    if (!inboxLoaded || !isCurrentInbox(inboxId)) return;
     await store.dispatch('campaigns/get');
+    if (requestId !== refreshRequest || !isCurrentInbox(inboxId)) return;
     useAlert(t('WHATSAPP_CLOUD_STUDIO.API.REFRESHED'));
-  } catch (error) {
-    useAlert(
-      error?.response?.data?.message ||
-        t('WHATSAPP_CLOUD_STUDIO.API.LOAD_ERROR')
-    );
+  } catch {
+    if (requestId === refreshRequest && isCurrentInbox(inboxId)) {
+      useAlert(t('WHATSAPP_CLOUD_STUDIO.API.LOAD_ERROR'));
+    }
   } finally {
-    isRefreshing.value = false;
+    if (requestId === refreshRequest) {
+      isRefreshing.value = false;
+    }
   }
 };
 
@@ -122,7 +147,7 @@ const updateAutomations = records => {
   automations.value = records;
 };
 
-watch(selectedInboxId, loadInboxData);
+watch(selectedInboxId, inboxId => loadInboxData(inboxId));
 
 onMounted(async () => {
   await Promise.all([
@@ -136,11 +161,11 @@ onMounted(async () => {
 
 <template>
   <section class="flex h-full w-full flex-col overflow-hidden bg-n-surface-1">
-    <header class="border-b border-n-weak bg-n-surface-1 px-6 py-5">
+    <header class="border-b border-n-weak bg-n-surface-1 px-4 py-5 sm:px-6">
       <div
-        class="mx-auto flex w-full max-w-[90rem] flex-wrap items-start justify-between gap-4"
+        class="mx-auto flex w-full max-w-[90rem] flex-col gap-5 xl:flex-row xl:items-end xl:justify-between"
       >
-        <div>
+        <div class="min-w-0">
           <div class="mb-1 flex items-center gap-2 text-sm text-n-teal-11">
             <span class="i-logos-whatsapp-icon size-4" aria-hidden="true" />
             <span>{{ t('WHATSAPP_CLOUD_STUDIO.OFFICIAL_ONLY') }}</span>
@@ -152,14 +177,16 @@ onMounted(async () => {
             {{ t('WHATSAPP_CLOUD_STUDIO.DESCRIPTION') }}
           </p>
         </div>
-        <div class="flex min-w-64 items-end gap-2">
+        <div
+          class="grid w-full gap-2 sm:grid-cols-[minmax(14rem,20rem)_auto] sm:items-end xl:w-auto"
+        >
           <label
-            class="flex min-w-56 flex-1 flex-col gap-1 text-xs font-medium text-n-slate-11"
+            class="flex min-w-0 flex-col gap-1.5 text-xs font-medium text-n-slate-11"
           >
             {{ t('WHATSAPP_CLOUD_STUDIO.INBOX_LABEL') }}
-            <select
+            <StudioSelect
               v-model="selectedInboxId"
-              class="h-10 rounded-lg border border-n-strong bg-n-alpha-2 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+              :aria-label="t('WHATSAPP_CLOUD_STUDIO.INBOX_LABEL')"
             >
               <option
                 v-for="inbox in officialInboxes"
@@ -168,15 +195,16 @@ onMounted(async () => {
               >
                 {{ inbox.name }}
               </option>
-            </select>
+            </StudioSelect>
           </label>
           <Button
+            class="!h-11 w-full sm:w-auto"
             :label="t('WHATSAPP_CLOUD_STUDIO.REFRESH')"
             icon="i-lucide-refresh-cw"
             color="slate"
             variant="outline"
             :is-loading="isRefreshing"
-            :disabled="!selectedInboxId"
+            :disabled="!selectedInboxId || isRefreshing"
             @click="refreshAll"
           />
         </div>
@@ -205,7 +233,7 @@ onMounted(async () => {
 
     <template v-else>
       <nav
-        class="border-b border-n-weak bg-n-surface-1 px-6"
+        class="border-b border-n-weak bg-n-surface-1 px-4 sm:px-6"
         :aria-label="t('WHATSAPP_CLOUD_STUDIO.TABS.ARIA_LABEL')"
       >
         <div class="mx-auto flex w-full max-w-[90rem] gap-1 overflow-x-auto">
@@ -233,7 +261,7 @@ onMounted(async () => {
         </div>
       </nav>
 
-      <main class="flex-1 overflow-auto px-6 py-6">
+      <main class="flex-1 overflow-auto px-4 py-5 sm:px-6 sm:py-6">
         <div v-if="isLoading" class="flex h-60 items-center justify-center">
           <Spinner />
         </div>
@@ -243,7 +271,7 @@ onMounted(async () => {
             :inbox="selectedInbox"
             :templates="templates"
             :automations="automations"
-            :campaigns="campaigns"
+            :campaigns="officialCampaigns"
             :templates-last-updated-at="templatesLastUpdatedAt"
             @open-tab="activeTab = $event"
           />
@@ -266,7 +294,7 @@ onMounted(async () => {
             :inbox="selectedInbox"
             :templates="templates"
             :labels="labels"
-            :campaigns="campaigns"
+            :campaigns="officialCampaigns"
           />
         </div>
       </main>

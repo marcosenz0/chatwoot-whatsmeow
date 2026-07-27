@@ -190,6 +190,10 @@
             "PLACEHOLDER": "Por favor, selecione a hora",
             "ERROR": "Horário de agendamento obrigatório"
           },
+          "CONSENT": {
+            "TITLE": "Confirmo que este público autorizou a receção de mensagens pelo WhatsApp",
+            "DESCRIPTION": "Envie mensagens apenas aos contactos que aceitaram receber este tipo de comunicação. Os contactos que cancelaram a receção ou que não devem ser contactados serão ignorados."
+          },
           "BUTTONS": {
             "CREATE": "Criar",
             "CANCEL": "Cancelar"

@@ -1,0 +1,407 @@
+import { flushPromises, mount } from '@vue/test-utils';
+import { defineComponent, h, nextTick, reactive, ref } from 'vue';
+import { createI18n } from 'vue-i18n';
+
+import BroadcastsPanel from '../BroadcastsPanel.vue';
+import FlowEditor from '../FlowEditor.vue';
+import TemplatesPanel from '../TemplatesPanel.vue';
+import englishMessages from 'dashboard/i18n/locale/en/whatsappCloudStudio.json';
+import portugueseMessages from 'dashboard/i18n/locale/pt/whatsappCloudStudio.json';
+import brazilianPortugueseMessages from 'dashboard/i18n/locale/pt_BR/whatsappCloudStudio.json';
+import { whatsappCloudTemplatesAPI } from 'dashboard/api/whatsappCloudStudio';
+import { templateParametersComplete } from '../templateParameterUtils';
+
+vi.mock('dashboard/api/whatsappCloudStudio', () => ({
+  whatsappCloudTemplatesAPI: {
+    createForInbox: vi.fn(),
+    deleteForInbox: vi.fn(),
+    sync: vi.fn(),
+  },
+  whatsappCloudAudienceEstimateAPI: {
+    getEstimate: vi.fn(),
+  },
+}));
+
+vi.mock('dashboard/composables', () => ({
+  useAlert: vi.fn(),
+}));
+
+vi.mock('dashboard/composables/store', () => ({
+  useStore: () => ({ dispatch: vi.fn() }),
+}));
+
+const buttonByText = (wrapper, label) =>
+  wrapper.findAll('button').find(button => button.text().includes(label));
+
+const TeleportStub = {
+  setup(_, { slots }) {
+    return () => h('div', slots.default?.());
+  },
+};
+
+const DialogStub = defineComponent({
+  emits: ['close', 'confirm'],
+  setup(_, { emit, expose, slots }) {
+    const isOpen = ref(false);
+    expose({
+      open: () => {
+        isOpen.value = true;
+      },
+      close: () => {
+        isOpen.value = false;
+        emit('close');
+      },
+    });
+    return () =>
+      isOpen.value
+        ? h(
+            'form',
+            {
+              role: 'dialog',
+              onSubmit: event => {
+                event.preventDefault();
+                emit('confirm');
+              },
+            },
+            slots.default?.()
+          )
+        : undefined;
+  },
+});
+
+const translationKeys = (object, prefix = '') =>
+  Object.entries(object).flatMap(([key, value]) => {
+    const path = prefix ? `${prefix}.${key}` : key;
+    return typeof value === 'object' ? translationKeys(value, path) : [path];
+  });
+
+describe('WhatsApp Cloud Studio panels', () => {
+  beforeAll(() => {
+    HTMLDialogElement.prototype.showModal = function showModal() {
+      this.setAttribute('open', '');
+    };
+    HTMLDialogElement.prototype.close = function close() {
+      this.removeAttribute('open');
+      this.dispatchEvent(new Event('close'));
+    };
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    document.body.innerHTML = '';
+  });
+
+  it.each([
+    ['en', englishMessages],
+    ['pt', portugueseMessages],
+    ['pt_BR', brazilianPortugueseMessages],
+  ])('compiles every %s translation without message-syntax errors', locale => {
+    const messages = {
+      en: englishMessages,
+      pt: portugueseMessages,
+      pt_BR: brazilianPortugueseMessages,
+    };
+    const i18n = createI18n({
+      legacy: false,
+      locale,
+      missingWarn: false,
+      fallbackWarn: false,
+      messages,
+    });
+
+    translationKeys(messages[locale]).forEach(key => {
+      // eslint-disable-next-line @intlify/vue-i18n/no-dynamic-keys
+      expect(() => i18n.global.t(key)).not.toThrow();
+    });
+  });
+
+  it('validates media URLs and copy-code values before enabling a send', () => {
+    expect(
+      templateParametersComplete({
+        header: { media_type: 'image', media_url: 'not-a-url' },
+      })
+    ).toBe(false);
+    expect(
+      templateParametersComplete({
+        header: {
+          media_type: 'image',
+          media_url: 'https://example.com/header.png',
+        },
+      })
+    ).toBe(true);
+    expect(
+      templateParametersComplete(
+        {
+          header: {
+            media_type: 'image',
+            media_url: '{{ contact.custom_attributes.header_url }}',
+          },
+        },
+        { allowLiquid: true }
+      )
+    ).toBe(true);
+    expect(
+      templateParametersComplete({
+        buttons: [{ type: 'copy_code', index: 0, parameter: '' }],
+      })
+    ).toBe(false);
+  });
+
+  it('opens the template form and renders numbered-variable syntax safely', async () => {
+    const wrapper = mount(TemplatesPanel, {
+      attachTo: document.body,
+      props: {
+        inbox: { id: 29 },
+        templates: [],
+      },
+      global: {
+        stubs: {
+          Dialog: DialogStub,
+        },
+      },
+    });
+
+    await buttonByText(wrapper, 'New template').trigger('click');
+    await nextTick();
+
+    const bodyInput = document.body.querySelector('textarea');
+    expect(bodyInput).not.toBeNull();
+    expect(bodyInput.placeholder).toContain('{{1}}');
+    expect(document.body.textContent).toContain('Create message template');
+
+    wrapper.unmount();
+  });
+
+  it('submits a valid template from the visible Meta action', async () => {
+    whatsappCloudTemplatesAPI.createForInbox.mockResolvedValue({
+      data: { templates: [] },
+    });
+    const wrapper = mount(TemplatesPanel, {
+      props: {
+        inbox: { id: 29 },
+        templates: [],
+      },
+      global: {
+        stubs: {
+          Dialog: DialogStub,
+        },
+      },
+    });
+
+    await buttonByText(wrapper, 'New template').trigger('click');
+    await nextTick();
+    await wrapper.find('input[pattern]').setValue('order_update');
+    await wrapper.find('textarea').setValue('Hello {{1}}');
+    await wrapper.find('input[required]:not([pattern])').setValue('Marcos');
+    const submitButton = buttonByText(wrapper, 'Submit to Meta');
+    expect(submitButton.attributes('type')).toBe('submit');
+    await wrapper.find('[role="dialog"]').trigger('submit');
+    await flushPromises();
+
+    expect(whatsappCloudTemplatesAPI.createForInbox).toHaveBeenCalledWith(
+      29,
+      expect.objectContaining({
+        name: 'order_update',
+        components: expect.arrayContaining([
+          expect.objectContaining({ type: 'BODY', text: 'Hello {{1}}' }),
+        ]),
+      })
+    );
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('clones reactive flows and saves template variables and quick replies', async () => {
+    const flow = reactive({
+      id: null,
+      inbox_id: 29,
+      name: 'Template journey',
+      description: '',
+      status: 'draft',
+      trigger_type: 'keyword',
+      trigger_config: { keywords: ['status'] },
+      definition: {
+        nodes: [
+          {
+            id: 'trigger',
+            type: 'trigger',
+            position: { x: 80, y: 220 },
+            config: {},
+          },
+          {
+            id: 'message',
+            type: 'message',
+            position: { x: 420, y: 220 },
+            config: {
+              mode: 'template',
+              template_name: '',
+              language: '',
+              buttons: [],
+              processed_params: {},
+            },
+          },
+          {
+            id: 'end',
+            type: 'end',
+            position: { x: 760, y: 220 },
+            config: {},
+          },
+        ],
+        edges: [
+          {
+            id: 'edge-trigger',
+            source: 'trigger',
+            target: 'message',
+            source_handle: 'default',
+          },
+          {
+            id: 'edge-message',
+            source: 'message',
+            target: 'end',
+            source_handle: 'default',
+          },
+        ],
+      },
+    });
+    const templates = [
+      {
+        name: 'order_update',
+        language: 'pt_BR',
+        category: 'UTILITY',
+        status: 'APPROVED',
+        components: [
+          { type: 'BODY', text: 'Olá {{1}}, seu pedido está pronto.' },
+          {
+            type: 'BUTTONS',
+            buttons: [{ type: 'QUICK_REPLY', text: 'Ver pedido' }],
+          },
+        ],
+      },
+    ];
+
+    const wrapper = mount(FlowEditor, {
+      props: { flow, templates },
+      global: {
+        stubs: {
+          TeleportWithDirection: TeleportStub,
+        },
+      },
+    });
+
+    await wrapper.find('[data-test-id="flow-node-message"]').trigger('click');
+    await nextTick();
+
+    const selects = wrapper.findAll('select');
+    await selects[1].setValue('order_update|pt_BR');
+    await nextTick();
+
+    expect(
+      buttonByText(wrapper, 'Publish').attributes('disabled')
+    ).toBeDefined();
+    const variableInput = wrapper.find(
+      'input[placeholder="Enter the value sent to this contact"]'
+    );
+    expect(variableInput.exists()).toBe(true);
+    await variableInput.setValue('Marcos');
+    await nextTick();
+    expect(
+      buttonByText(wrapper, 'Publish').attributes('disabled')
+    ).toBeUndefined();
+    await buttonByText(wrapper, 'Save draft').trigger('click');
+    await flushPromises();
+
+    const payload = wrapper.emitted('save')[0][0];
+    const messageNode = payload.definition.nodes.find(
+      node => node.id === 'message'
+    );
+    expect(messageNode.config.processed_params.body).toEqual({
+      1: 'Marcos',
+    });
+    expect(messageNode.config.processed_params.buttons).toEqual([
+      {
+        type: 'quick_reply',
+        index: 0,
+        payload: 'template_reply_0',
+      },
+    ]);
+
+    wrapper.unmount();
+  });
+
+  it('keeps cost calculation separate from broadcast submission', async () => {
+    const wrapper = mount(BroadcastsPanel, {
+      props: {
+        inbox: { id: 29 },
+        templates: [
+          {
+            name: 'hello_world',
+            language: 'en_US',
+            category: 'UTILITY',
+            status: 'APPROVED',
+            components: [{ type: 'BODY', text: 'Hello' }],
+          },
+        ],
+        labels: [{ id: 1, title: 'Cliente' }],
+        campaigns: [],
+      },
+      global: {
+        stubs: {
+          Dialog: DialogStub,
+        },
+      },
+    });
+
+    await buttonByText(wrapper, 'New broadcast').trigger('click');
+    await nextTick();
+
+    const estimateButton = buttonByText(wrapper, 'Calculate estimate');
+    expect(estimateButton.exists()).toBe(true);
+    expect(estimateButton.attributes('type')).toBe('button');
+
+    wrapper.unmount();
+  });
+
+  it('submits a complete broadcast from its visible action button', async () => {
+    const wrapper = mount(BroadcastsPanel, {
+      props: {
+        inbox: { id: 29 },
+        templates: [
+          {
+            name: 'hello_world',
+            language: 'en_US',
+            category: 'UTILITY',
+            status: 'APPROVED',
+            components: [{ type: 'BODY', text: 'Hello' }],
+          },
+        ],
+        labels: [{ id: 1, title: 'Cliente' }],
+        campaigns: [],
+      },
+      global: {
+        stubs: {
+          Dialog: DialogStub,
+        },
+      },
+    });
+
+    await buttonByText(wrapper, 'New broadcast').trigger('click');
+    await nextTick();
+    await wrapper.find('input:not([type])').setValue('Test broadcast');
+    await wrapper.find('select:not([multiple])').setValue('hello_world|en_US');
+    await wrapper.find('select[multiple]').setValue(['1']);
+    await wrapper
+      .find('input[type="datetime-local"]')
+      .setValue('2099-01-01T12:00');
+    await wrapper.find('input[type="checkbox"]').setValue(true);
+    await nextTick();
+
+    const createButton = buttonByText(wrapper, 'Schedule broadcast');
+    expect(createButton.attributes('type')).toBe('submit');
+    expect(createButton.attributes('disabled')).toBeUndefined();
+    await wrapper.find('[role="dialog"]').trigger('submit');
+    await flushPromises();
+
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+});

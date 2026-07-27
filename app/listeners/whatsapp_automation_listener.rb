@@ -6,10 +6,30 @@ class WhatsappAutomationListener < BaseListener
   end
 
   def message_updated(event)
-    sync_campaign_delivery(event.data[:message])
+    message = event.data[:message]
+    sync_campaign_delivery(message)
+    resume_automation_run(message)
   end
 
   private
+
+  def resume_automation_run(message)
+    return unless official_whatsapp_cloud_message?(message)
+    return unless message.failed? || message.source_id.present? || message.delivered? || message.read?
+
+    WhatsappAutomationRun.unfinished
+                         .where(account_id: message.account_id, conversation_id: message.conversation_id)
+                         .where("context ->> 'awaiting_message_id' = ?", message.id.to_s)
+                         .find_each do |run|
+      Whatsapp::Automation::RunJob.perform_later(run.id)
+    end
+  end
+
+  def official_whatsapp_cloud_message?(message)
+    message.outgoing? &&
+      message.inbox.channel_type == 'Channel::Whatsapp' &&
+      message.inbox.channel.provider == 'whatsapp_cloud'
+  end
 
   def sync_campaign_delivery(message)
     delivery = WhatsappCampaignDelivery.find_by(message_id: message.id)

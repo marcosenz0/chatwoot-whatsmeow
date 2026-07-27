@@ -36,11 +36,7 @@ module Whatsapp::IncomingMessageServiceHelpers
   def whatsapp_interactive_reply_attributes(message)
     return {} unless inbox.channel.provider == 'whatsapp_cloud'
 
-    reply_type, reply = if message.dig(:interactive, :button_reply).present?
-                          ['button_reply', message.dig(:interactive, :button_reply)]
-                        elsif message.dig(:interactive, :list_reply).present?
-                          ['list_reply', message.dig(:interactive, :list_reply)]
-                        end
+    reply_type, reply = whatsapp_reply_details(message)
     return {} if reply.blank?
 
     {
@@ -51,6 +47,22 @@ module Whatsapp::IncomingMessageServiceHelpers
         description: reply[:description]
       }.compact
     }
+  end
+
+  def whatsapp_reply_details(message)
+    if message[:button].present?
+      return [
+        'button',
+        {
+          id: message.dig(:button, :payload),
+          title: message.dig(:button, :text)
+        }
+      ]
+    end
+    return ['button_reply', message.dig(:interactive, :button_reply)] if message.dig(:interactive, :button_reply).present?
+    return ['list_reply', message.dig(:interactive, :list_reply)] if message.dig(:interactive, :list_reply).present?
+
+    []
   end
 
   def file_content_type(file_type)

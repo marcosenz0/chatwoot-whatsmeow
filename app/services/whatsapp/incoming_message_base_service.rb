@@ -181,7 +181,7 @@ class Whatsapp::IncomingMessageBaseService
   def message_content_attributes(message)
     content_attrs = outgoing_echo ? { external_echo: true } : {}
     content_attrs[:in_reply_to_external_id] = @in_reply_to_external_id if @in_reply_to_external_id.present?
-    content_attrs.merge!(whatsapp_interactive_reply_attributes(message)) if message_type == 'interactive'
+    content_attrs.merge!(whatsapp_interactive_reply_attributes(message)) if message_type.in?(%w[interactive button])
     content_attrs
   end
 

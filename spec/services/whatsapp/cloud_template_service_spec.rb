@@ -78,6 +78,23 @@ describe Whatsapp::CloudTemplateService do
     )
   end
 
+  it 'surfaces template synchronization failures without changing the cache timestamp' do
+    previous_timestamp = channel.reload.message_templates_last_updated
+    stub_request(
+      :get,
+      'https://graph.facebook.com/v22.0/123456789/message_templates'
+    )
+      .to_return(
+        status: 401,
+        headers: { 'Content-Type' => 'application/json' },
+        body: { error: { message: 'Invalid access token' } }.to_json
+      )
+
+    expect { service.sync! }
+      .to raise_error(described_class::Error, 'Invalid access token')
+    expect(channel.reload.message_templates_last_updated).to eq(previous_timestamp)
+  end
+
   context 'with a Whatsmeow inbox' do
     let(:inbox) { create(:channel_whatsmeow).inbox }
 

@@ -17,6 +17,7 @@ describe Whatsapp::IncomingMessageWhatsappCloudService do
               contacts: [{ profile: { name: 'Sojan Jose' }, wa_id: '2423423243' }],
               messages: [{
                 from: '2423423243',
+                id: 'wamid.cloud-media-message',
                 image: {
                   id: 'b1c68f38-8734-4ad3-b4a1-ef0c10d683',
                   mime_type: 'image/jpeg',
@@ -56,6 +57,36 @@ describe Whatsapp::IncomingMessageWhatsappCloudService do
         expect(whatsapp_channel.inbox.messages.first.content).to eq('Check out my product!')
         expect(whatsapp_channel.inbox.messages.first.attachments.present?).to be false
         expect(whatsapp_channel.authorization_error_count).to eq(1)
+      end
+
+      [429, 503].each do |status|
+        it "raises a retryable error and succeeds on retry when metadata returns #{status}" do
+          stub_media_url_request(status: status)
+
+          expect { described_class.new(inbox: whatsapp_channel.inbox, params: params).perform }
+            .to raise_error(described_class::MediaDownloadError, /metadata request failed with HTTP #{status}/)
+          expect(whatsapp_channel.inbox.messages).to be_empty
+
+          stub_media_url_request
+          stub_sample_png_request
+
+          expect { described_class.new(inbox: whatsapp_channel.inbox, params: params).perform }.not_to raise_error
+          expect_message_has_attachment
+        end
+
+        it "raises a retryable error and succeeds on retry when the media download returns #{status}" do
+          stub_media_url_request
+          stub_sample_png_request(status: status)
+
+          expect { described_class.new(inbox: whatsapp_channel.inbox, params: params).perform }
+            .to raise_error(described_class::MediaDownloadError)
+          expect(whatsapp_channel.inbox.messages).to be_empty
+
+          stub_sample_png_request
+
+          expect { described_class.new(inbox: whatsapp_channel.inbox, params: params).perform }.not_to raise_error
+          expect_message_has_attachment
+        end
       end
     end
 
@@ -257,15 +288,51 @@ describe Whatsapp::IncomingMessageWhatsappCloudService do
         end
       end
     end
+
+    it 'preserves template quick-reply payloads for automation branches' do
+      button_params = {
+        phone_number: whatsapp_channel.phone_number,
+        object: 'whatsapp_business_account',
+        entry: [{
+          changes: [{
+            value: {
+              contacts: [{ profile: { name: 'Cloud contact' }, wa_id: '15551234567' }],
+              messages: [{
+                from: '15551234567',
+                id: 'wamid.template-button',
+                timestamp: '1770407830',
+                type: 'button',
+                button: {
+                  payload: 'template_reply_0',
+                  text: 'Sim'
+                }
+              }]
+            }
+          }]
+        }]
+      }.with_indifferent_access
+
+      described_class.new(inbox: whatsapp_channel.inbox, params: button_params).perform
+
+      message = whatsapp_channel.inbox.messages.find_by!(source_id: 'wamid.template-button')
+      expect(message.content_attributes['whatsapp_interactive_reply']).to eq(
+        'type' => 'button',
+        'id' => 'template_reply_0',
+        'title' => 'Sim'
+      )
+    end
   end
 
   # Métodos auxiliares para reduzir o tamanho do exemplo
 
-  def stub_media_url_request
-    stub_request(
+  def stub_media_url_request(status: 200)
+    request = stub_request(
       :get,
       whatsapp_channel.media_url('b1c68f38-8734-4ad3-b4a1-ef0c10d683')
-    ).to_return(
+    )
+    return request.to_return(status: status) unless status == 200
+
+    request.to_return(
       status: 200,
       body: {
         messaging_product: 'whatsapp',
@@ -279,10 +346,14 @@ describe Whatsapp::IncomingMessageWhatsappCloudService do
     )
   end
 
-  def stub_sample_png_request
-    stub_request(:get, 'https://chatwoot-assets.local/sample.png').to_return(
+  def stub_sample_png_request(status: 200)
+    request = stub_request(:get, 'https://chatwoot-assets.local/sample.png')
+    return request.to_return(status: status) unless status == 200
+
+    request.to_return(
       status: 200,
-      body: File.read('spec/assets/sample.png')
+      body: File.read('spec/assets/sample.png'),
+      headers: { 'Content-Type' => 'image/png' }
     )
   end
 

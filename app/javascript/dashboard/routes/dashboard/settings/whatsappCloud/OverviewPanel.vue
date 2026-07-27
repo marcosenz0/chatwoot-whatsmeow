@@ -115,7 +115,7 @@ const formattedLastSync = computed(() => {
         </p>
       </div>
       <div
-        class="grid min-w-72 gap-2 rounded-xl border border-n-weak bg-n-alpha-1 p-4 text-sm"
+        class="grid w-full min-w-0 gap-2 rounded-xl border border-n-weak bg-n-alpha-1 p-4 text-sm lg:min-w-72"
       >
         <div class="flex items-center justify-between gap-4">
           <span class="text-n-slate-10">

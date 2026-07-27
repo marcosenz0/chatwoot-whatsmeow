@@ -222,6 +222,15 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 
 - Conversation list headers now include a search action before filter, sort, and layout controls. It performs a debounced server-side lookup across accessible conversations by partial contact name, email, phone number, or identifier, including old and resolved conversations that are not loaded in the current list page.
 
+## July 2026 Official WhatsApp Cloud Studio
+
+- The official `Channel::Whatsapp` Cloud API inbox has a Portuguese Studio for synchronized Meta templates, visual customer journeys, consent-based broadcasts, delivery summaries, and Brazilian cost estimates. The interface filters strictly to `provider: whatsapp_cloud`; Whatsmeow inboxes and services are unchanged.
+- Template creation supports text headers, numbered body variables with Meta review examples, footers, quick replies, static website buttons, and phone buttons. Specialized authentication/native Meta Flow templates remain visible but disabled where the Studio cannot build their required payload safely.
+- Journeys can be saved while incomplete, but publication validates the graph, trigger, customer-service window mode, approved synchronized template, media header, named or numbered values, URL/copy-code/quick-reply parameters, branches, reachability, and cycles.
+- Outgoing journey and campaign processing now waits for a provider message ID or delivery status instead of treating local message creation as Meta acceptance. Failed sends remain failed, and paused or replaced journeys cancel unfinished runs.
+- Official Cloud media webhook failures that are safe to retry now roll back message deduplication and retry instead of permanently creating an attachment-less message. Cloud webhooks fail closed on missing or invalid Meta signatures; 360dialog behavior is unchanged.
+- Composer recordings for official Cloud inboxes are remuxed to OGG/Opus and sent with Meta's voice-note flag. Uploaded audio remains a regular audio attachment.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

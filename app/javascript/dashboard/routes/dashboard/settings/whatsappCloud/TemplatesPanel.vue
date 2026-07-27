@@ -5,7 +5,10 @@ import { format } from 'date-fns';
 import { useAlert } from 'dashboard/composables';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { whatsappCloudTemplatesAPI } from 'dashboard/api/whatsappCloudStudio';
+import StudioSearchInput from './StudioSearchInput.vue';
+import StudioSelect from './StudioSelect.vue';
 
 const props = defineProps({
   inbox: { type: Object, required: true },
@@ -18,7 +21,7 @@ const { t } = useI18n();
 
 const isCreating = ref(false);
 const isSyncing = ref(false);
-const showCreateForm = ref(false);
+const templateDialogRef = ref(null);
 const search = ref('');
 const statusFilter = ref('all');
 
@@ -26,9 +29,10 @@ const initialForm = {
   name: '',
   language: 'pt_BR',
   category: 'UTILITY',
+  header: '',
   body: '',
   footer: '',
-  examples: [],
+  examples: {},
   buttons: [],
 };
 const form = reactive(structuredClone(initialForm));
@@ -56,11 +60,47 @@ const bodyVariableIds = computed(() => {
   return [...new Set(matches)].sort((first, second) => first - second);
 });
 
+const variablesAreSequential = computed(() =>
+  bodyVariableIds.value.every((id, index) => id === index + 1)
+);
+
+const validHttpUrl = value => {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) && !value.includes('{{');
+  } catch {
+    return false;
+  }
+};
+
+const validPhoneNumber = value => /^\+?[1-9]\d{6,14}$/.test(value);
+
+const buttonIsValid = button => {
+  const text = button.text.trim();
+  if (!text) return false;
+  if (button.type === 'QUICK_REPLY') return text.length <= 20;
+  if (button.type === 'URL') return validHttpUrl(button.url.trim());
+  if (button.type === 'PHONE_NUMBER') {
+    return validPhoneNumber(button.phone_number.trim());
+  }
+  return false;
+};
+
 const canSubmit = computed(
   () =>
     form.name.trim() &&
     form.body.trim() &&
-    bodyVariableIds.value.every(id => form.examples[id - 1]?.trim())
+    !form.header.includes('{{') &&
+    variablesAreSequential.value &&
+    bodyVariableIds.value.every(id => form.examples[id]?.trim()) &&
+    form.buttons.every(buttonIsValid)
+);
+
+const bodyPlaceholder = computed(() =>
+  t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.BODY_PLACEHOLDER', {
+    first: '{{1}}',
+    second: '{{2}}',
+  })
 );
 
 const formattedLastSync = computed(() =>
@@ -70,7 +110,9 @@ const formattedLastSync = computed(() =>
 );
 
 watch(bodyVariableIds, ids => {
-  form.examples = ids.map(id => form.examples[id - 1] || '');
+  form.examples = Object.fromEntries(
+    ids.map(id => [id, form.examples[id] || ''])
+  );
 });
 
 const statusTone = status => {
@@ -81,11 +123,49 @@ const statusTone = status => {
   return 'bg-n-blue-3 text-n-blue-11';
 };
 
+const statusLabel = status => {
+  const labels = {
+    APPROVED: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.STATUS.APPROVED'),
+    PENDING: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.STATUS.PENDING'),
+    REJECTED: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.STATUS.REJECTED'),
+    PAUSED: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.STATUS.PAUSED'),
+    DISABLED: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.STATUS.DISABLED'),
+  };
+  return labels[status?.toUpperCase()] || status;
+};
+
+const categoryLabel = category => {
+  const labels = {
+    UTILITY: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.UTILITY'),
+    MARKETING: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.MARKETING'),
+    AUTHENTICATION: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.AUTHENTICATION'),
+  };
+  return labels[category?.toUpperCase()] || category;
+};
+
+const languageLabel = language => {
+  const labels = {
+    pt_BR: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.LANGUAGE_PT_BR'),
+    en_US: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.LANGUAGE_EN_US'),
+    es: t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.LANGUAGE_ES'),
+  };
+  return labels[language] || language;
+};
+
 const bodyText = template =>
   template.components?.find(component => component.type === 'BODY')?.text || '';
 
 const resetForm = () => {
   Object.assign(form, structuredClone(initialForm));
+};
+
+const openTemplateForm = () => {
+  resetForm();
+  templateDialogRef.value?.open();
+};
+
+const closeTemplateForm = () => {
+  templateDialogRef.value?.close();
 };
 
 const addButton = () => {
@@ -102,10 +182,18 @@ const buildTemplatePayload = () => {
   const body = { type: 'BODY', text: form.body.trim() };
   if (bodyVariableIds.value.length) {
     body.example = {
-      body_text: [bodyVariableIds.value.map(id => form.examples[id - 1])],
+      body_text: [bodyVariableIds.value.map(id => form.examples[id])],
     };
   }
-  const components = [body];
+  const components = [];
+  if (form.header.trim()) {
+    components.push({
+      type: 'HEADER',
+      format: 'TEXT',
+      text: form.header.trim(),
+    });
+  }
+  components.push(body);
   if (form.footer.trim()) {
     components.push({ type: 'FOOTER', text: form.footer.trim() });
   }
@@ -114,10 +202,12 @@ const buildTemplatePayload = () => {
       type: 'BUTTONS',
       buttons: form.buttons.map(button => ({
         type: button.type,
-        text: button.text,
-        url: button.type === 'URL' ? button.url : undefined,
+        text: button.text.trim(),
+        url: button.type === 'URL' ? button.url.trim() : undefined,
         phone_number:
-          button.type === 'PHONE_NUMBER' ? button.phone_number : undefined,
+          button.type === 'PHONE_NUMBER'
+            ? button.phone_number.trim()
+            : undefined,
       })),
     });
   }
@@ -130,7 +220,7 @@ const buildTemplatePayload = () => {
 };
 
 const createTemplate = async () => {
-  if (!canSubmit.value) return;
+  if (!canSubmit.value || isCreating.value) return;
   isCreating.value = true;
   try {
     const response = await whatsappCloudTemplatesAPI.createForInbox(
@@ -139,11 +229,12 @@ const createTemplate = async () => {
     );
     emit('update', { templates: response.data.templates });
     resetForm();
-    showCreateForm.value = false;
+    closeTemplateForm();
     useAlert(t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.CREATED'));
   } catch (error) {
     useAlert(
       error?.response?.data?.message ||
+        error?.response?.data?.error ||
         t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.CREATE_ERROR')
     );
   } finally {
@@ -152,6 +243,8 @@ const createTemplate = async () => {
 };
 
 const syncTemplates = async () => {
+  if (isSyncing.value) return;
+
   isSyncing.value = true;
   try {
     const response = await whatsappCloudTemplatesAPI.sync(props.inbox.id);
@@ -160,6 +253,7 @@ const syncTemplates = async () => {
   } catch (error) {
     useAlert(
       error?.response?.data?.message ||
+        error?.response?.data?.error ||
         t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.SYNC_ERROR')
     );
   } finally {
@@ -188,6 +282,7 @@ const deleteTemplate = async template => {
   } catch (error) {
     useAlert(
       error?.response?.data?.message ||
+        error?.response?.data?.error ||
         t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.DELETE_ERROR')
     );
   }
@@ -225,34 +320,24 @@ const deleteTemplate = async template => {
           <Button
             :label="t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.NEW')"
             icon="i-lucide-plus"
-            @click="showCreateForm = true"
+            @click="openTemplateForm"
           />
         </div>
       </div>
 
-      <div class="mb-4 flex flex-wrap gap-3">
-        <label class="relative min-w-64 flex-1">
-          <span
-            class="i-lucide-search absolute left-3 top-3 size-4 text-n-slate-9"
-            aria-hidden="true"
-          />
-          <span class="sr-only">
-            {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.SEARCH_LABEL') }}
-          </span>
-          <input
-            v-model="search"
-            type="search"
-            class="h-10 w-full rounded-lg border border-n-strong bg-n-alpha-1 pl-9 pr-3 text-sm text-n-slate-12 outline-none focus:border-n-brand"
-            :placeholder="t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.SEARCH')"
-          />
-        </label>
-        <label>
+      <div class="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
+        <StudioSearchInput
+          v-model="search"
+          :label="t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.SEARCH_LABEL')"
+          :placeholder="t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.SEARCH')"
+        />
+        <label class="min-w-0">
           <span class="sr-only">
             {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.STATUS_LABEL') }}
           </span>
-          <select
+          <StudioSelect
             v-model="statusFilter"
-            class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+            :aria-label="t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.STATUS_LABEL')"
           >
             <option value="all">
               {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.STATUS.ALL') }}
@@ -266,7 +351,13 @@ const deleteTemplate = async template => {
             <option value="rejected">
               {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.STATUS.REJECTED') }}
             </option>
-          </select>
+            <option value="paused">
+              {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.STATUS.PAUSED') }}
+            </option>
+            <option value="disabled">
+              {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.STATUS.DISABLED') }}
+            </option>
+          </StudioSelect>
         </label>
       </div>
 
@@ -326,17 +417,17 @@ const deleteTemplate = async template => {
                   </div>
                 </td>
                 <td class="px-4 py-4 text-n-slate-11">
-                  {{ template.category }}
+                  {{ categoryLabel(template.category) }}
                 </td>
                 <td class="px-4 py-4 text-n-slate-11">
-                  {{ template.language }}
+                  {{ languageLabel(template.language) }}
                 </td>
                 <td class="px-4 py-4">
                   <span
                     class="inline-flex rounded-full px-2 py-1 text-xs font-medium"
                     :class="statusTone(template.status)"
                   >
-                    {{ template.status }}
+                    {{ statusLabel(template.status) }}
                   </span>
                 </td>
                 <td class="px-4 py-4 text-right">
@@ -410,18 +501,16 @@ const deleteTemplate = async template => {
       </div>
     </aside>
 
-    <div
-      v-if="showCreateForm"
-      class="fixed inset-0 z-50 flex items-center justify-center bg-n-alpha-black6 p-4"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.TITLE')"
-      @click.self="showCreateForm = false"
+    <Dialog
+      ref="templateDialogRef"
+      width="2xl"
+      overflow-y-auto
+      :show-cancel-button="false"
+      :show-confirm-button="false"
+      @confirm="createTemplate"
+      @close="resetForm"
     >
-      <form
-        class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-n-weak bg-n-solid-1 p-6 shadow-xl"
-        @submit.prevent="createTemplate"
-      >
+      <div class="max-h-[78vh] overflow-y-auto pr-1">
         <div class="flex items-start justify-between gap-4">
           <div>
             <h3 class="text-lg font-semibold text-n-slate-12">
@@ -435,7 +524,7 @@ const deleteTemplate = async template => {
             type="button"
             class="flex size-9 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
             :aria-label="t('WHATSAPP_CLOUD_STUDIO.CLOSE')"
-            @click="showCreateForm = false"
+            @click="closeTemplateForm"
           >
             <span class="i-lucide-x size-4" aria-hidden="true" />
           </button>
@@ -450,7 +539,7 @@ const deleteTemplate = async template => {
               v-model="form.name"
               required
               pattern="[a-z0-9_]+"
-              class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand"
+              class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
               :placeholder="
                 t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.NAME_PLACEHOLDER')
               "
@@ -460,9 +549,9 @@ const deleteTemplate = async template => {
             class="flex flex-col gap-1 text-sm font-medium text-n-slate-11"
           >
             {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.LANGUAGE') }}
-            <select
+            <StudioSelect
               v-model="form.language"
-              class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand"
+              :aria-label="t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.LANGUAGE')"
             >
               <option value="pt_BR">
                 {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.LANGUAGE_PT_BR') }}
@@ -473,15 +562,15 @@ const deleteTemplate = async template => {
               <option value="es">
                 {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.LANGUAGE_ES') }}
               </option>
-            </select>
+            </StudioSelect>
           </label>
           <label
             class="flex flex-col gap-1 text-sm font-medium text-n-slate-11 sm:col-span-2"
           >
             {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.CATEGORY') }}
-            <select
+            <StudioSelect
               v-model="form.category"
-              class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand"
+              :aria-label="t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.CATEGORY')"
             >
               <option value="UTILITY">
                 {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.UTILITY') }}
@@ -489,10 +578,20 @@ const deleteTemplate = async template => {
               <option value="MARKETING">
                 {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.MARKETING') }}
               </option>
-              <option value="AUTHENTICATION">
-                {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.AUTHENTICATION') }}
-              </option>
-            </select>
+            </StudioSelect>
+          </label>
+          <label
+            class="flex flex-col gap-1 text-sm font-medium text-n-slate-11 sm:col-span-2"
+          >
+            {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.HEADER') }}
+            <input
+              v-model="form.header"
+              maxlength="60"
+              class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
+            />
+            <span class="text-xs font-normal text-n-slate-9">
+              {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.HEADER_HINT') }}
+            </span>
           </label>
           <label
             class="flex flex-col gap-1 text-sm font-medium text-n-slate-11 sm:col-span-2"
@@ -502,13 +601,22 @@ const deleteTemplate = async template => {
               v-model="form.body"
               required
               rows="5"
-              class="resize-none rounded-lg border border-n-strong bg-n-alpha-1 px-3 py-2 text-n-slate-12 outline-none focus:border-n-brand"
-              :placeholder="
-                t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.BODY_PLACEHOLDER')
-              "
+              maxlength="1024"
+              class="reset-base !mb-0 min-h-28 resize-y rounded-xl border border-n-strong bg-n-alpha-1 px-3 py-2 text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
+              :placeholder="bodyPlaceholder"
             />
             <span class="text-xs font-normal text-n-slate-9">
               {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.VARIABLE_HINT') }}
+            </span>
+            <span
+              v-if="!variablesAreSequential"
+              class="text-xs font-normal text-n-ruby-11"
+            >
+              {{
+                t(
+                  'WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.VARIABLE_SEQUENCE_ERROR'
+                )
+              }}
             </span>
           </label>
 
@@ -523,9 +631,9 @@ const deleteTemplate = async template => {
               })
             }}
             <input
-              v-model="form.examples[variableId - 1]"
+              v-model="form.examples[variableId]"
               required
-              class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand"
+              class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
             />
           </label>
 
@@ -535,7 +643,8 @@ const deleteTemplate = async template => {
             {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.FOOTER') }}
             <input
               v-model="form.footer"
-              class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand"
+              maxlength="60"
+              class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
             />
           </label>
         </div>
@@ -567,9 +676,8 @@ const deleteTemplate = async template => {
               :key="index"
               class="grid gap-3 rounded-xl border border-n-weak bg-n-alpha-2 p-3 sm:grid-cols-[10rem_1fr_auto]"
             >
-              <select
+              <StudioSelect
                 v-model="button.type"
-                class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-2 text-sm text-n-slate-12 outline-none focus:border-n-brand"
                 :aria-label="
                   t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.BUTTON_TYPE')
                 "
@@ -583,12 +691,13 @@ const deleteTemplate = async template => {
                 <option value="PHONE_NUMBER">
                   {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.PHONE') }}
                 </option>
-              </select>
+              </StudioSelect>
               <div class="grid gap-2">
                 <input
                   v-model="button.text"
                   required
-                  class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+                  :maxlength="button.type === 'QUICK_REPLY' ? 20 : 25"
+                  class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
                   :placeholder="
                     t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.BUTTON_TEXT')
                   "
@@ -598,7 +707,7 @@ const deleteTemplate = async template => {
                   v-model="button.url"
                   required
                   type="url"
-                  class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+                  class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
                   :placeholder="
                     t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.URL_PLACEHOLDER')
                   "
@@ -607,11 +716,22 @@ const deleteTemplate = async template => {
                   v-if="button.type === 'PHONE_NUMBER'"
                   v-model="button.phone_number"
                   required
-                  class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+                  type="tel"
+                  class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
                   :placeholder="
                     t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.PHONE_PLACEHOLDER')
                   "
                 />
+                <span
+                  v-if="!buttonIsValid(button)"
+                  class="text-xs text-n-ruby-11"
+                >
+                  {{
+                    t(
+                      'WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.BUTTON_VALIDATION_ERROR'
+                    )
+                  }}
+                </span>
               </div>
               <button
                 type="button"
@@ -633,7 +753,7 @@ const deleteTemplate = async template => {
             :label="t('WHATSAPP_CLOUD_STUDIO.CANCEL')"
             color="slate"
             variant="ghost"
-            @click="showCreateForm = false"
+            @click="closeTemplateForm"
           />
           <Button
             type="submit"
@@ -642,7 +762,7 @@ const deleteTemplate = async template => {
             :disabled="!canSubmit || isCreating"
           />
         </div>
-      </form>
-    </div>
+      </div>
+    </Dialog>
   </div>
 </template>

@@ -15,6 +15,8 @@ class Whatsapp::CloudTemplateService
     ensure_official_cloud_inbox!
     channel.sync_templates
     channel.reload.message_templates || []
+  rescue Whatsapp::Providers::WhatsappCloudService::TemplateSyncError => e
+    raise Error, e.message
   end
 
   def create!(attributes)

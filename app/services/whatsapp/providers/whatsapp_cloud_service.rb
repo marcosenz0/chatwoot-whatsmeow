@@ -1,4 +1,6 @@
 class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseService
+  class TemplateSyncError < StandardError; end
+
   DEFAULT_GRAPH_API_VERSION = 'v22.0'.freeze
 
   def send_message(phone_number, message)
@@ -34,21 +36,23 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
   end
 
   def sync_templates
-    # ensuring that channels with wrong provider config wouldn't keep trying to sync templates
-    whatsapp_channel.mark_message_templates_updated
     templates = fetch_whatsapp_templates("#{business_account_path}/message_templates")
-    whatsapp_channel.update(message_templates: templates, message_templates_last_updated: Time.now.utc) if templates.present?
+    whatsapp_channel.update!(
+      message_templates: templates,
+      message_templates_last_updated: Time.current
+    )
   end
 
   def fetch_whatsapp_templates(url)
     response = HTTParty.get(url, headers: api_headers)
-    return [] unless response.success?
+    raise TemplateSyncError, template_sync_error(response) unless response.success?
 
     next_url = next_url(response)
+    templates = Array(response['data'])
 
-    return response['data'] + fetch_whatsapp_templates(next_url) if next_url.present?
+    return templates + fetch_whatsapp_templates(next_url) if next_url.present?
 
-    response['data']
+    templates
   end
 
   def next_url(response)
@@ -169,6 +173,10 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
   def error_message(response)
     # https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes/#sample-response
     response.parsed_response&.dig('error', 'message')
+  end
+
+  def template_sync_error(response)
+    error_message(response).presence || "WhatsApp template sync failed with status #{response.code}"
   end
 
   def template_body_parameters(template_info)

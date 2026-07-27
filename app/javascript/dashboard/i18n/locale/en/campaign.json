@@ -126,10 +126,6 @@
             "PLACEHOLDER": "Please select the time",
             "ERROR": "Scheduled time is required"
           },
-          "CONSENT": {
-            "TITLE": "I confirm this audience has valid WhatsApp opt-in",
-            "DESCRIPTION": "Only message contacts who agreed to receive this type of communication. Opted-out and do-not-contact records are skipped."
-          },
           "BUTTONS": {
             "CREATE": "Create",
             "CANCEL": "Cancel"
@@ -193,6 +189,10 @@
             "LABEL": "Scheduled time",
             "PLACEHOLDER": "Please select the time",
             "ERROR": "Scheduled time is required"
+          },
+          "CONSENT": {
+            "TITLE": "I confirm this audience has valid WhatsApp opt-in",
+            "DESCRIPTION": "Only message contacts who agreed to receive this type of communication. Opted-out and do-not-contact records are skipped."
           },
           "BUTTONS": {
             "CREATE": "Create",

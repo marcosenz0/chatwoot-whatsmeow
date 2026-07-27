@@ -1,11 +1,14 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, toRaw } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { formatDistanceToNow } from 'date-fns';
+import { enUS, es, pt, ptBR } from 'date-fns/locale';
 import { useAlert } from 'dashboard/composables';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import FlowEditor from './FlowEditor.vue';
+import StudioSearchInput from './StudioSearchInput.vue';
+import StudioSelect from './StudioSelect.vue';
 import { whatsappCloudAutomationsAPI } from 'dashboard/api/whatsappCloudStudio';
 
 const props = defineProps({
@@ -15,13 +18,54 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['update']);
-const { t } = useI18n();
+const { t, locale } = useI18n();
 
 const editingFlow = ref(null);
 const isSaving = ref(false);
 const isPublishing = ref(false);
 const search = ref('');
 const statusFilter = ref('all');
+
+const cloneFlow = flow => JSON.parse(JSON.stringify(toRaw(flow)));
+
+const flowErrorMessage = (error, fallbackKey) => {
+  const responseError =
+    error?.response?.data?.error ||
+    error?.response?.data?.message ||
+    error?.response?.data?.errors;
+  const details = (
+    Array.isArray(responseError) ? responseError.join(' ') : responseError || ''
+  ).toLowerCase();
+
+  if (details.includes('keyword')) {
+    return t('WHATSAPP_CLOUD_STUDIO.FLOWS.VALIDATION.KEYWORD');
+  }
+  if (
+    ['connection', 'unreachable', 'cycle', 'edge'].some(term =>
+      details.includes(term)
+    )
+  ) {
+    return t('WHATSAPP_CLOUD_STUDIO.FLOWS.VALIDATION.CONNECTIONS');
+  }
+  if (details.includes('template')) {
+    return t('WHATSAPP_CLOUD_STUDIO.FLOWS.VALIDATION.TEMPLATE');
+  }
+  if (
+    ['message', 'node', 'button', 'condition', 'action', 'wait'].some(term =>
+      details.includes(term)
+    )
+  ) {
+    return t('WHATSAPP_CLOUD_STUDIO.FLOWS.VALIDATION.NODE');
+  }
+  return fallbackKey === 'WHATSAPP_CLOUD_STUDIO.FLOWS.PUBLISH_ERROR'
+    ? t('WHATSAPP_CLOUD_STUDIO.FLOWS.PUBLISH_ERROR')
+    : t('WHATSAPP_CLOUD_STUDIO.FLOWS.SAVE_ERROR');
+};
+
+const dateLocale = computed(() => {
+  const locales = { pt_BR: ptBR, pt, es, en: enUS };
+  return locales[locale.value] || enUS;
+});
 
 const filteredAutomations = computed(() => {
   const term = search.value.toLowerCase().trim();
@@ -92,6 +136,10 @@ const newFlow = () => {
   };
 };
 
+const editFlow = flow => {
+  editingFlow.value = cloneFlow(flow);
+};
+
 const refresh = async () => {
   const response = await whatsappCloudAutomationsAPI.getForInbox(
     props.inbox.id
@@ -112,21 +160,20 @@ const persistFlow = async payload => {
 };
 
 const saveFlow = async payload => {
+  if (isSaving.value || isPublishing.value) return;
   isSaving.value = true;
   try {
     await persistFlow(payload);
     useAlert(t('WHATSAPP_CLOUD_STUDIO.FLOWS.SAVED'));
   } catch (error) {
-    useAlert(
-      error?.response?.data?.message ||
-        t('WHATSAPP_CLOUD_STUDIO.FLOWS.SAVE_ERROR')
-    );
+    useAlert(flowErrorMessage(error, 'WHATSAPP_CLOUD_STUDIO.FLOWS.SAVE_ERROR'));
   } finally {
     isSaving.value = false;
   }
 };
 
 const publishFlow = async payload => {
+  if (isSaving.value || isPublishing.value) return;
   isPublishing.value = true;
   try {
     const savedFlow = await persistFlow(payload);
@@ -135,11 +182,8 @@ const publishFlow = async payload => {
     await refresh();
     useAlert(t('WHATSAPP_CLOUD_STUDIO.FLOWS.PUBLISHED'));
   } catch (error) {
-    const messages = error?.response?.data?.errors;
     useAlert(
-      (Array.isArray(messages) ? messages.join(', ') : messages) ||
-        error?.response?.data?.message ||
-        t('WHATSAPP_CLOUD_STUDIO.FLOWS.PUBLISH_ERROR')
+      flowErrorMessage(error, 'WHATSAPP_CLOUD_STUDIO.FLOWS.PUBLISH_ERROR')
     );
   } finally {
     isPublishing.value = false;
@@ -154,11 +198,8 @@ const toggleFlow = async flow => {
       await whatsappCloudAutomationsAPI.publish(flow.id);
     }
     await refresh();
-  } catch (error) {
-    useAlert(
-      error?.response?.data?.message ||
-        t('WHATSAPP_CLOUD_STUDIO.FLOWS.STATUS_ERROR')
-    );
+  } catch {
+    useAlert(t('WHATSAPP_CLOUD_STUDIO.FLOWS.STATUS_ERROR'));
   }
 };
 
@@ -196,7 +237,10 @@ const statusLabel = status => {
 };
 
 const relativeTime = value =>
-  formatDistanceToNow(new Date(value), { addSuffix: true });
+  formatDistanceToNow(new Date(value), {
+    addSuffix: true,
+    locale: dateLocale.value,
+  });
 </script>
 
 <template>
@@ -217,29 +261,19 @@ const relativeTime = value =>
       />
     </div>
 
-    <div class="mb-4 flex flex-wrap gap-3">
-      <label class="relative min-w-64 flex-1">
-        <span
-          class="i-lucide-search absolute left-3 top-3 size-4 text-n-slate-9"
-          aria-hidden="true"
-        />
-        <span class="sr-only">
-          {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.SEARCH_LABEL') }}
-        </span>
-        <input
-          v-model="search"
-          type="search"
-          class="h-10 w-full rounded-lg border border-n-strong bg-n-alpha-1 pl-9 pr-3 text-sm text-n-slate-12 outline-none focus:border-n-brand"
-          :placeholder="t('WHATSAPP_CLOUD_STUDIO.FLOWS.SEARCH')"
-        />
-      </label>
-      <label>
+    <div class="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem]">
+      <StudioSearchInput
+        v-model="search"
+        :label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.SEARCH_LABEL')"
+        :placeholder="t('WHATSAPP_CLOUD_STUDIO.FLOWS.SEARCH')"
+      />
+      <label class="min-w-0">
         <span class="sr-only">
           {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.STATUS_LABEL') }}
         </span>
-        <select
+        <StudioSelect
           v-model="statusFilter"
-          class="h-10 rounded-lg border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand"
+          :aria-label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.STATUS_LABEL')"
         >
           <option value="all">
             {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.STATUS.ALL') }}
@@ -253,7 +287,7 @@ const relativeTime = value =>
           <option value="paused">
             {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.STATUS.PAUSED') }}
           </option>
-        </select>
+        </StudioSelect>
       </label>
     </div>
 
@@ -365,7 +399,7 @@ const relativeTime = value =>
               type="button"
               class="flex size-9 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-3 hover:text-n-blue-11"
               :aria-label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDIT')"
-              @click="editingFlow = structuredClone(flow)"
+              @click="editFlow(flow)"
             >
               <span class="i-lucide-pencil size-4" aria-hidden="true" />
             </button>

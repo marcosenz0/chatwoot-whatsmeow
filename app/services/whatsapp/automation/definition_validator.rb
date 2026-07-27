@@ -3,6 +3,9 @@ class Whatsapp::Automation::DefinitionValidator
   # a compact, explicit contract.
   # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/PerceivedComplexity
   SUPPORTED_NODE_TYPES = %w[trigger message wait condition action end].freeze
+  CONDITION_FIELDS = %w[last_button_id name email phone_number].freeze
+  CONDITION_OPERATORS = %w[equals not_equals contains present].freeze
+  ACTIONS = %w[add_label remove_label open_conversation resolve_conversation].freeze
 
   def initialize(definition, publish: false)
     @definition = definition
@@ -57,30 +60,38 @@ class Whatsapp::Automation::DefinitionValidator
       validate_message_node(id, config)
     when 'wait'
       duration = config[:duration].to_i
-      errors << "wait node #{id} needs a duration between 1 and 43,200 minutes" unless duration.between?(1, 43_200)
+      errors << "wait node #{id} needs a duration between 1 and 43,200 minutes" if publish && !duration.between?(1, 43_200)
     when 'condition'
-      errors << "condition node #{id} needs a field" if config[:field].blank?
-      errors << "condition node #{id} needs an operator" if config[:operator].blank?
+      errors << "condition node #{id} needs a field" if publish && config[:field].blank?
+      errors << "condition node #{id} needs an operator" if publish && config[:operator].blank?
+      errors << "condition node #{id} has an unsupported field" if config[:field].present? && !supported_condition_field?(config[:field])
+      errors << "condition node #{id} has an unsupported operator" if config[:operator].present? && CONDITION_OPERATORS.exclude?(config[:operator])
+      errors << "condition node #{id} needs a comparison value" if publish && config[:operator] != 'present' && config[:value].blank?
     when 'action'
-      errors << "action node #{id} needs an action" unless %w[add_label remove_label open_conversation resolve_conversation].include?(config[:action])
+      errors << "action node #{id} needs an action" if publish && config[:action].blank?
+      errors << "action node #{id} has an unsupported action" if config[:action].present? && ACTIONS.exclude?(config[:action])
+      errors << "action node #{id} needs a label" if publish && config[:action].in?(%w[add_label remove_label]) && config[:value].blank?
     end
   end
 
   def validate_message_node(id, config)
     mode = config[:mode].presence || 'session'
     errors << "message node #{id} has an unsupported mode" unless %w[session template].include?(mode)
-    errors << "message node #{id} needs text" if mode == 'session' && config[:text].blank?
-    errors << "template node #{id} needs a template name" if mode == 'template' && config[:template_name].blank?
+    errors << "message node #{id} needs text" if publish && mode == 'session' && config[:text].blank?
+    errors << "message node #{id} exceeds 4,096 characters" if mode == 'session' && config[:text].to_s.length > 4096
+    errors << "template node #{id} needs a template name" if publish && mode == 'template' && config[:template_name].blank?
+    validate_template_variables(id, config) if publish && mode == 'template'
 
     buttons = Array(config[:buttons])
     errors << "message node #{id} supports at most three reply buttons" if buttons.length > 3
     return if buttons.empty?
 
-    button_ids = buttons.filter_map { |button| button['id'] || button[:id] }
-    button_titles = buttons.filter_map { |button| button['title'] || button[:title] }
+    button_ids = buttons.map { |button| button['id'] || button[:id] }
+    button_titles = buttons.map { |button| button['title'] || button[:title] }
     valid_button_ids = button_ids.length == buttons.length && button_ids.uniq.length == button_ids.length
-    errors << "message node #{id} button ids must be present and unique" unless valid_button_ids
-    errors << "message node #{id} button titles must be present" unless button_titles.length == buttons.length
+    errors << "message node #{id} button ids must be present and unique" unless valid_button_ids && button_ids.all?(&:present?)
+    errors << "message node #{id} button titles must be present" if publish && !button_titles.all?(&:present?)
+    errors << "message node #{id} button titles cannot exceed 20 characters" if button_titles.any? { |title| title.to_s.length > 20 }
   end
 
   def validate_edges
@@ -97,6 +108,70 @@ class Whatsapp::Automation::DefinitionValidator
     errors << 'needs exactly one trigger node' unless nodes.count { |node| (node['type'] || node[:type]) == 'trigger' } == 1
     errors << 'needs at least one message node' unless nodes.any? { |node| (node['type'] || node[:type]) == 'message' }
     errors << 'contains a cycle; published flows must terminate' if cyclic?
+    validate_connections
+    validate_reachability
+  end
+
+  def validate_template_variables(id, config)
+    variable_ids = config[:preview_text].to_s.scan(/\{\{([^}]+)\}\}/).flatten.map(&:strip).uniq
+    return if variable_ids.empty?
+
+    body_params = config.dig(:processed_params, :body).to_h.with_indifferent_access
+    missing_ids = variable_ids.reject { |variable_id| body_params[variable_id].present? }
+    errors << "template node #{id} needs values for variables #{missing_ids.join(', ')}" if missing_ids.any?
+  end
+
+  def supported_condition_field?(field)
+    CONDITION_FIELDS.include?(field) || field.to_s.start_with?('custom.')
+  end
+
+  def validate_connections
+    grouped_edges = edges.group_by do |edge|
+      [edge['source'] || edge[:source], (edge['source_handle'] || edge[:source_handle]).presence || 'default']
+    end
+    grouped_edges.each do |(source, handle), records|
+      errors << "node #{source} has more than one connection from #{handle}" if records.length > 1
+    end
+
+    nodes.each do |node|
+      id = node['id'] || node[:id]
+      type = node['type'] || node[:type]
+      config = (node['config'] || node[:config] || {}).with_indifferent_access
+      expected_handles = expected_source_handles(type, config)
+      expected_handles.each do |handle|
+        errors << "node #{id} needs a connection from #{handle}" if grouped_edges[[id, handle]].blank?
+      end
+    end
+  end
+
+  def expected_source_handles(type, config)
+    return [] if type == 'end'
+    return %w[true false] if type == 'condition'
+
+    buttons = Array(config[:buttons])
+    return buttons.filter_map { |button| button['id'] || button[:id] } if type == 'message' && buttons.any?
+
+    ['default']
+  end
+
+  def validate_reachability
+    trigger = nodes.find { |node| (node['type'] || node[:type]) == 'trigger' }
+    return if trigger.blank?
+
+    adjacency = edges.group_by { |edge| edge['source'] || edge[:source] }
+    reachable = Set.new
+    queue = [trigger['id'] || trigger[:id]]
+    until queue.empty?
+      current = queue.shift
+      next unless reachable.add?(current)
+
+      queue.concat(Array(adjacency[current]).map { |edge| edge['target'] || edge[:target] })
+    end
+    unreachable = nodes.filter_map do |node|
+      id = node['id'] || node[:id]
+      id unless reachable.include?(id)
+    end
+    errors << "contains unreachable nodes: #{unreachable.join(', ')}" if unreachable.any?
   end
 
   def cyclic?

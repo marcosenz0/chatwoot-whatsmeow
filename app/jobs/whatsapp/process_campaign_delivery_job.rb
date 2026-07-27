@@ -7,7 +7,7 @@ class Whatsapp::ProcessCampaignDeliveryJob < ApplicationJob
     return unless claim_delivery(delivery)
 
     message = build_message(delivery)
-    mark_as_sent(delivery, message)
+    associate_message(delivery, message)
     delivery.sync_from_message!
   rescue StandardError => e
     handle_failure(delivery, e)
@@ -30,13 +30,8 @@ class Whatsapp::ProcessCampaignDeliveryJob < ApplicationJob
     claimed
   end
 
-  def mark_as_sent(delivery, message)
-    delivery.update!(
-      message: message,
-      status: :sent,
-      source_id: message.source_id,
-      sent_at: Time.current
-    )
+  def associate_message(delivery, message)
+    delivery.update!(message: message)
   end
 
   def handle_failure(delivery, error)

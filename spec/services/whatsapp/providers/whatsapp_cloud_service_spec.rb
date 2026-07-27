@@ -266,13 +266,45 @@ describe Whatsapp::Providers::WhatsappCloudService do
         expect(whatsapp_channel.reload.message_templates_last_updated).not_to eq(timstamp)
       end
 
-      it 'updates message_templates_last_updated even when template request fails' do
-        stub_request(:get, 'https://graph.facebook.com/v22.0/123456789/message_templates')
-          .to_return(status: 401)
+      it 'replaces a stale cache when the API returns an empty list' do
+        whatsapp_channel.update!(
+          message_templates: [{ id: 'stale-template', name: 'stale_template' }],
+          message_templates_last_updated: 1.day.ago
+        )
+        previous_timestamp = whatsapp_channel.reload.message_templates_last_updated
 
-        timstamp = whatsapp_channel.reload.message_templates_last_updated
-        subject.sync_templates
-        expect(whatsapp_channel.reload.message_templates_last_updated).not_to eq(timstamp)
+        stub_request(:get, 'https://graph.facebook.com/v22.0/123456789/message_templates')
+          .to_return(
+            status: 200,
+            headers: response_headers,
+            body: { data: [] }.to_json
+          )
+
+        expect(subject.sync_templates).to be(true)
+        expect(whatsapp_channel.reload.message_templates).to eq([])
+        expect(whatsapp_channel.message_templates_last_updated).to be > previous_timestamp
+      end
+
+      it 'preserves the cache and timestamp when the template request fails' do
+        whatsapp_channel.update!(
+          message_templates: [{ id: 'cached-template', name: 'cached_template' }],
+          message_templates_last_updated: 1.day.ago
+        )
+        previous_templates = whatsapp_channel.reload.message_templates
+        previous_timestamp = whatsapp_channel.message_templates_last_updated
+
+        stub_request(:get, 'https://graph.facebook.com/v22.0/123456789/message_templates')
+          .to_return(
+            status: 401,
+            headers: response_headers,
+            body: { error: { message: 'Invalid access token' } }.to_json
+          )
+
+        expect { subject.sync_templates }
+          .to raise_error(described_class::TemplateSyncError, 'Invalid access token')
+
+        expect(whatsapp_channel.reload.message_templates).to eq(previous_templates)
+        expect(whatsapp_channel.message_templates_last_updated).to eq(previous_timestamp)
       end
     end
   end

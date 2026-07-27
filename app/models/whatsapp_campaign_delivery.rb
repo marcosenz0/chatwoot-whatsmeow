@@ -40,7 +40,9 @@ class WhatsappCampaignDelivery < ApplicationRecord
     when 'read' then { status: :read, read_at: Time.current }
     when 'delivered' then { status: :delivered, delivered_at: Time.current }
     when 'failed' then { status: :failed, failed_at: Time.current }
-    when 'sent' then { status: :sent, sent_at: sent_at || Time.current }
+    when 'sent'
+      # Outgoing messages default to sent before the provider call; source_id confirms provider acceptance.
+      message.source_id.present? ? { status: :sent, sent_at: sent_at || Time.current } : {}
     else {}
     end
   end

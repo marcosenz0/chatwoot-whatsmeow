@@ -1,17 +1,14 @@
+# The runner intentionally keeps graph traversal and node execution together so
+# a locked run has a single owner for every state transition.
+# rubocop:disable Metrics/ClassLength
 class Whatsapp::Automation::Runner
   MAX_STEPS_PER_EXECUTION = 50
 
   pattr_initialize [:run!]
 
   def perform
-    return if run.status.in?(%w[completed failed cancelled waiting_reply])
-    return reschedule_waiting_run if run.waiting? && run.next_run_at&.future?
-
-    run.update!(status: :running, next_run_at: nil)
-    execute_nodes
-  rescue StandardError => e
-    run.update!(status: :failed, last_error: e.message)
-    ChatwootExceptionTracker.new(e, account: run.account).capture_exception
+    execution_error = execute_with_lock
+    ChatwootExceptionTracker.new(execution_error, account: run.account).capture_exception if execution_error
   ensure
     Current.reset
   end
@@ -20,6 +17,31 @@ class Whatsapp::Automation::Runner
 
   delegate :whatsapp_automation, :contact, to: :run
   delegate :inbox, to: :whatsapp_automation
+
+  def execute_with_lock
+    execution_error = nil
+
+    run.with_lock do
+      next if execution_deferred?
+
+      run.update!(status: :running, next_run_at: nil)
+      execute_nodes
+    rescue StandardError => e
+      run.update!(status: :failed, last_error: e.message)
+      execution_error = e
+    end
+
+    execution_error
+  end
+
+  def execution_deferred?
+    return true if run.status.in?(%w[completed failed cancelled])
+    return cancel_disabled_run unless whatsapp_automation.reload.enabled?
+    return true if run.waiting_reply?
+    return reschedule_waiting_run if run.waiting? && run.next_run_at&.future?
+
+    false
+  end
 
   def execute_nodes
     MAX_STEPS_PER_EXECUTION.times do
@@ -47,21 +69,66 @@ class Whatsapp::Automation::Runner
 
   def execute_message_node(node)
     config = node.fetch('config', {}).with_indifferent_access
+    awaiting_message = awaiting_message_for(node)
+    return resume_after_message_delivery(node, config, awaiting_message) if awaiting_message.present?
+
     conversation = ensure_conversation
     message = build_message(conversation, config)
-    run.update!(conversation: conversation, context: run.context.merge('last_outgoing_message_id' => message.id))
+    run.update!(
+      conversation: conversation,
+      current_node_id: node['id'],
+      context: run.context.merge(
+        'last_outgoing_message_id' => message.id,
+        'awaiting_message_id' => message.id,
+        'awaiting_node_id' => node['id']
+      )
+    )
+    false
+  end
 
+  def awaiting_message_for(node)
+    message_id = run.context['awaiting_message_id']
+    return if message_id.blank?
+
+    awaiting_node_id = run.context['awaiting_node_id']
+    raise "Run is awaiting a message from node #{awaiting_node_id}" if awaiting_node_id != node['id']
+
+    Message.find_by!(
+      id: message_id,
+      account_id: run.account_id,
+      conversation_id: run.conversation_id
+    )
+  end
+
+  def resume_after_message_delivery(node, config, message)
+    return fail_run_for_message(message) if message.failed?
+    return false unless message_accepted_by_provider?(message)
+
+    context = run.context.except('awaiting_message_id', 'awaiting_node_id')
     buttons = Array(config[:buttons])
+
     if buttons.present?
       run.update!(
         status: :waiting_reply,
         current_node_id: node['id'],
-        context: run.context.merge('expected_buttons' => buttons.as_json)
+        context: context.merge('expected_buttons' => buttons.as_json)
       )
       return false
     end
 
+    run.update!(context: context)
     advance_from(node['id'])
+  end
+
+  def message_accepted_by_provider?(message)
+    # Outgoing messages start as sent before the provider call; source_id confirms Meta accepted them.
+    message.source_id.present? || message.delivered? || message.read?
+  end
+
+  def fail_run_for_message(message)
+    error = message.external_error.presence || "WhatsApp message #{message.id} failed"
+    run.update!(status: :failed, last_error: error)
+    false
   end
 
   def build_message(conversation, config)
@@ -206,6 +273,10 @@ class Whatsapp::Automation::Runner
     Whatsapp::Automation::RunJob.set(wait_until: run.next_run_at).perform_later(run.id)
   end
 
+  def cancel_disabled_run
+    run.update!(status: :cancelled, next_run_at: nil)
+  end
+
   def nodes_by_id
     @nodes_by_id ||= whatsapp_automation.definition.fetch('nodes', []).index_by { |node| node['id'] }
   end
@@ -214,3 +285,4 @@ class Whatsapp::Automation::Runner
     @edges ||= whatsapp_automation.definition.fetch('edges', [])
   end
 end
+# rubocop:enable Metrics/ClassLength

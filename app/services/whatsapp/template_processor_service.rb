@@ -41,7 +41,7 @@ class Whatsapp::TemplateProcessorService
     processed_params ||= template_params['processed_params']
     components = []
 
-    components.concat(process_header_components(processed_params))
+    components.concat(process_header_components(processed_params, template))
     components.concat(process_body_components(processed_params, template))
     components.concat(process_footer_components(processed_params))
     components.concat(process_button_components(processed_params))
@@ -49,14 +49,14 @@ class Whatsapp::TemplateProcessorService
     @template_params = components
   end
 
-  def process_header_components(processed_params)
+  def process_header_components(processed_params, template)
     return [] if processed_params['header'].blank?
 
-    header_params = build_header_params(processed_params['header'])
+    header_params = build_header_params(processed_params['header'], template)
     header_params.present? ? [{ type: 'header', parameters: header_params }] : []
   end
 
-  def build_header_params(header_data)
+  def build_header_params(header_data, template)
     header_params = []
     header_data.each do |key, value|
       next if value.blank?
@@ -66,10 +66,16 @@ class Whatsapp::TemplateProcessorService
         media_param = parameter_builder.build_media_parameter(value, header_data['media_type'], media_name)
         header_params << media_param if media_param
       elsif key != 'media_type' && key != 'media_name'
-        header_params << parameter_builder.build_parameter(value)
+        header_params << header_parameter(template, key, value)
       end
     end
     header_params
+  end
+
+  def header_parameter(template, key, value)
+    return parameter_builder.build_named_parameter(key, value) if template['parameter_format'].to_s.casecmp?('NAMED')
+
+    parameter_builder.build_parameter(value)
   end
 
   def media_url_with_type?(key, header_data)
@@ -111,17 +117,23 @@ class Whatsapp::TemplateProcessorService
     button_params = processed_params['buttons'].filter_map.with_index do |button, index|
       next if button.blank?
 
-      if button['type'] == 'url' || button['parameter'].present?
-        {
-          type: 'button',
-          sub_type: button['type'] || 'url',
-          index: index,
-          parameters: [parameter_builder.build_button_parameter(button)]
-        }
-      end
+      button = button.with_indifferent_access
+      button_type = button[:type].to_s.downcase
+      next unless supported_button_parameter?(button_type, button)
+
+      {
+        type: 'button',
+        sub_type: button_type.presence || 'url',
+        index: button[:index].presence || index,
+        parameters: [parameter_builder.build_button_parameter(button)]
+      }
     end
 
     button_params.compact
+  end
+
+  def supported_button_parameter?(button_type, button)
+    %w[url copy_code quick_reply].include?(button_type) || button[:parameter].present?
   end
 
   def parameter_builder

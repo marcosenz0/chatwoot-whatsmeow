@@ -8,6 +8,23 @@
     "CLOSE": "Close",
     "CANCEL": "Cancel",
     "NOT_AVAILABLE": "Not available",
+    "TEMPLATE_PARAMETERS": {
+      "MEDIA_URL": "{format} header media URL",
+      "MEDIA_URL_PLACEHOLDER": "Public HTTPS URL",
+      "MEDIA_NAME": "Document filename (optional)",
+      "MEDIA_NAME_PLACEHOLDER": "document.pdf",
+      "HEADER_VARIABLE": "Header variable {variable}",
+      "BODY_VARIABLE": "Message variable {variable}",
+      "VALUE_PLACEHOLDER": "Enter the value sent to this contact",
+      "URL_BUTTON": "Dynamic value for “{button}”",
+      "COPY_CODE": "Coupon code for “{button}”",
+      "LIQUID_HINT": "Use a fixed value or a supported Liquid contact variable. Media must resolve to a public HTTPS URL.",
+      "STATIC_HINT": "Use the exact value to send. Media must use a public HTTPS URL.",
+      "INCOMPLETE_SELECTED": "Complete all required template values before publishing this journey.",
+      "UNSUPPORTED_OPTION": "not supported in this studio",
+      "UNSUPPORTED_SELECTED": "This template uses a component that this automation editor cannot send safely. Select another approved template.",
+      "UNSUPPORTED_TEMPLATES": "{count} approved template(s) use specialized Meta components and are disabled here to prevent failed sends."
+    },
     "API": {
       "LOAD_ERROR": "Could not load the official WhatsApp workspace.",
       "REFRESHED": "Official WhatsApp data refreshed."
@@ -19,7 +36,7 @@
     "TABS": {
       "ARIA_LABEL": "WhatsApp Cloud Studio sections",
       "OVERVIEW": "Overview",
-      "FLOWS": "Flows",
+      "FLOWS": "Automation journeys",
       "TEMPLATES": "Templates",
       "BROADCASTS": "Broadcasts"
     },
@@ -90,7 +107,7 @@
         "UTILITY": "Utility",
         "UTILITY_DESCRIPTION": "Transactional updates tied to a user request, order, account, or service.",
         "AUTHENTICATION": "Authentication",
-        "AUTHENTICATION_DESCRIPTION": "One-time passcodes and identity verification."
+        "AUTHENTICATION_DESCRIPTION": "One-time passcodes require Meta's specialized OTP configuration and are not created by this form."
       },
       "FORM": {
         "TITLE": "Create message template",
@@ -105,9 +122,12 @@
         "UTILITY": "Utility",
         "MARKETING": "Marketing",
         "AUTHENTICATION": "Authentication",
+        "HEADER": "Text header (optional)",
+        "HEADER_HINT": "Up to 60 characters. Variables are not supported in this simple creator.",
         "BODY": "Message body",
-        "BODY_PLACEHOLDER": "Hello {{1}}, your order {{2}} is ready.",
+        "BODY_PLACEHOLDER": "Hello {first}, your order {second} is ready.",
         "VARIABLE_HINT": "Number variables sequentially. Every variable needs a sample value for Meta review.",
+        "VARIABLE_SEQUENCE_ERROR": "Use consecutive numeric variables starting at 1, without gaps.",
         "EXAMPLE": "Example for variable {id}",
         "FOOTER": "Footer (optional)",
         "BUTTONS": "Buttons",
@@ -120,6 +140,7 @@
         "BUTTON_TEXT": "Button label",
         "URL_PLACEHOLDER": "https://example.com",
         "PHONE_PLACEHOLDER": "+5511999999999",
+        "BUTTON_VALIDATION_ERROR": "Complete this button with a valid label and destination.",
         "REMOVE_BUTTON": "Remove button",
         "SUBMIT": "Submit to Meta"
       },
@@ -133,8 +154,8 @@
       "DELETE_ERROR": "Could not delete this template."
     },
     "FLOWS": {
-      "TITLE": "Customer journeys",
-      "DESCRIPTION": "Build official WhatsApp journeys with messages, templates, waits, conditions, and actions.",
+      "TITLE": "Automation journeys",
+      "DESCRIPTION": "Build Chatwoot automations for this official inbox with messages, templates, waits, conditions, and actions. These journeys are separate from Meta's native WhatsApp Flows forms.",
       "NEW": "New flow",
       "NEW_FLOW_NAME": "Untitled WhatsApp flow",
       "SEARCH_LABEL": "Search flows",
@@ -166,6 +187,12 @@
       "PUBLISHED": "Flow validated and published.",
       "PUBLISH_ERROR": "The flow could not be published. Check that every required block is configured and connected.",
       "STATUS_ERROR": "Could not update the flow status.",
+      "VALIDATION": {
+        "KEYWORD": "Add at least one keyword before publishing this flow.",
+        "CONNECTIONS": "Connect every required path and remove unreachable blocks before publishing.",
+        "TEMPLATE": "Select a supported approved template and fill all of its required parameters.",
+        "NODE": "Finish configuring the required fields in every block before publishing."
+      },
       "NODE_TYPES": {
         "TRIGGER": "Trigger",
         "MESSAGE": "Message",
@@ -210,6 +237,8 @@
         "MESSAGE_TEXT": "Message text",
         "TEMPLATE": "Approved template",
         "SELECT_TEMPLATE": "Select a template",
+        "TEMPLATE_VARIABLE": "Value for template variable {id}",
+        "TEMPLATE_VARIABLE_HINT": "Enter the value sent to this contact",
         "REPLY_BUTTONS": "Reply buttons",
         "ADD_BUTTON": "Add reply button",
         "BUTTON_TITLE": "Button text",
