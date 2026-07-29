@@ -90,13 +90,29 @@ describe Whatsapp::Automation::Runner do
       expect(messages.reload.count).to eq(1)
     end
 
-    it 'stores the automation and run identifiers on the outgoing message' do
-      described_class.new(run: run).perform
-
-      message = conversation.messages.outgoing.find_by!(
-        "content_attributes ->> 'whatsapp_automation_id' = ?",
-        automation.id.to_s
+    it 'passes the automation and run identifiers to the outgoing message builder' do
+      expected_attributes = {
+        whatsapp_automation_id: automation.id,
+        whatsapp_automation_run_id: run.id
+      }
+      message = create(
+        :message,
+        account: account,
+        inbox: inbox,
+        conversation: conversation,
+        message_type: :outgoing,
+        content_attributes: expected_attributes
       )
+      builder = instance_double(Messages::MessageBuilder, perform: message)
+
+      expect(Messages::MessageBuilder).to receive(:new) do |_sender, builder_conversation, params|
+        expect(builder_conversation).to eq(conversation)
+        expect(params.dig(:content_attributes, :whatsapp_automation_id)).to eq(automation.id)
+        expect(params.dig(:content_attributes, :whatsapp_automation_run_id)).to eq(run.id)
+        builder
+      end
+
+      described_class.new(run: run).perform
 
       expect(message.content_attributes).to include(
         'whatsapp_automation_id' => automation.id,

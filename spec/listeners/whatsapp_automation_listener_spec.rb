@@ -127,11 +127,8 @@ describe WhatsappAutomationListener do
 
     it 'marks a completed run as failed by the run id stored on its outgoing message' do
       run.update!(status: :completed, current_node_id: nil)
-      message.update!(
-        status: :failed,
-        external_error: 'Late delivery failure',
-        content_attributes: message.content_attributes.merge('whatsapp_automation_run_id' => run.id)
-      )
+      message.update!(content_attributes: message.content_attributes.merge('whatsapp_automation_run_id' => run.id))
+      message.update!(status: :failed, external_error: 'Late delivery failure')
 
       listener.message_updated(event)
 

@@ -19,13 +19,13 @@ class WhatsappAutomationListener < BaseListener
 
     return fail_automation_runs(message) if message.failed?
 
-    automation_runs_for_message(message, unfinished: true).find_each do |run|
+    provider_pending_runs_for_message(message).find_each do |run|
       Whatsapp::Automation::RunJob.perform_later(run.id)
     end
   end
 
   def fail_automation_runs(message)
-    automation_runs_for_message(message, unfinished: false).find_each do |run|
+    failure_runs_for_message(message).find_each do |run|
       run.with_lock do
         next if run.failed? || run.cancelled?
 
@@ -38,19 +38,27 @@ class WhatsappAutomationListener < BaseListener
     end
   end
 
-  def automation_runs_for_message(message, unfinished:)
-    relation = WhatsappAutomationRun.where(
-      account_id: message.account_id,
-      conversation_id: message.conversation_id
-    )
-    relation = relation.unfinished if unfinished
+  def provider_pending_runs_for_message(message)
+    automation_runs_scope(message)
+      .unfinished
+      .where("context ->> 'awaiting_message_id' = ?", message.id.to_s)
+  end
 
+  def failure_runs_for_message(message)
+    relation = automation_runs_scope(message)
     run_id = message.content_attributes&.dig('whatsapp_automation_run_id')
     return relation.where(id: run_id) if run_id.present?
 
     relation.where(
       "context ->> 'awaiting_message_id' = :message_id OR context ->> 'last_outgoing_message_id' = :message_id",
       message_id: message.id.to_s
+    )
+  end
+
+  def automation_runs_scope(message)
+    WhatsappAutomationRun.where(
+      account_id: message.account_id,
+      conversation_id: message.conversation_id
     )
   end
 
