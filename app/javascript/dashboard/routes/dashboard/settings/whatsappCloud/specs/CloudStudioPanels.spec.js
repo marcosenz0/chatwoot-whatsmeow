@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils';
+import { config, flushPromises, mount } from '@vue/test-utils';
 import { defineComponent, h, nextTick, reactive, ref } from 'vue';
 import { createI18n } from 'vue-i18n';
 
@@ -324,6 +324,173 @@ describe('WhatsApp Cloud Studio panels', () => {
         payload: 'template_reply_0',
       },
     ]);
+
+    wrapper.unmount();
+  });
+
+  it('renders condition summaries in Brazilian Portuguese', async () => {
+    const testI18n = config.global.plugins.find(
+      plugin => plugin?.global?.locale
+    );
+    const previousLocale = testI18n.global.locale.value;
+    testI18n.global.locale.value = 'pt_BR';
+    const flow = {
+      id: null,
+      inbox_id: 29,
+      name: 'Funil de condição',
+      description: '',
+      status: 'draft',
+      trigger_type: 'any_message',
+      trigger_config: {},
+      definition: {
+        nodes: [
+          {
+            id: 'trigger',
+            type: 'trigger',
+            position: { x: 80, y: 220 },
+            config: {},
+          },
+          {
+            id: 'condition',
+            type: 'condition',
+            position: { x: 420, y: 220 },
+            config: {
+              field: 'last_button_id',
+              operator: 'equals',
+              value: 'template_reply_0',
+            },
+          },
+        ],
+        edges: [],
+      },
+    };
+
+    const wrapper = mount(FlowEditor, {
+      props: { flow },
+      global: {
+        stubs: {
+          TeleportWithDirection: TeleportStub,
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain('Último botão selecionado - É igual a');
+    expect(wrapper.text()).not.toContain('last_button_id - equals');
+
+    wrapper.unmount();
+    testI18n.global.locale.value = previousLocale;
+  });
+
+  it('asks before discarding unsaved flow changes', async () => {
+    const flow = {
+      id: null,
+      inbox_id: 29,
+      name: 'Draft journey',
+      description: '',
+      status: 'draft',
+      trigger_type: 'any_message',
+      trigger_config: {},
+      definition: {
+        nodes: [
+          {
+            id: 'trigger',
+            type: 'trigger',
+            position: { x: 80, y: 220 },
+            config: {},
+          },
+        ],
+        edges: [],
+      },
+    };
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const wrapper = mount(FlowEditor, {
+      props: { flow },
+      global: {
+        stubs: {
+          TeleportWithDirection: TeleportStub,
+        },
+      },
+    });
+
+    await wrapper
+      .find('input[aria-label="Flow name"]')
+      .setValue('Changed journey');
+    await wrapper.find('button[aria-label="Close"]').trigger('click');
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Discard the unsaved changes to this flow?'
+    );
+    expect(wrapper.emitted('close')).toBeUndefined();
+
+    confirmSpy.mockReturnValue(true);
+    await wrapper.find('button[aria-label="Close"]').trigger('click');
+    expect(wrapper.emitted('close')).toHaveLength(1);
+
+    confirmSpy.mockRestore();
+    wrapper.unmount();
+  });
+
+  it('uses compact mobile flow layout and touch-friendly editor actions', () => {
+    const flow = {
+      id: null,
+      inbox_id: 29,
+      name: 'Responsive journey',
+      description: '',
+      status: 'draft',
+      trigger_type: 'any_message',
+      trigger_config: {},
+      definition: {
+        nodes: [
+          {
+            id: 'trigger',
+            type: 'trigger',
+            position: { x: 80, y: 220 },
+            config: {},
+          },
+        ],
+        edges: [],
+      },
+    };
+    const wrapper = mount(FlowEditor, {
+      props: { flow },
+      global: {
+        stubs: {
+          TeleportWithDirection: TeleportStub,
+        },
+      },
+    });
+
+    const toolbox = wrapper.find('aside .grid-cols-2');
+    const canvas = wrapper.find('svg');
+    const closeButton = wrapper.find('button[aria-label="Close"]');
+
+    expect(toolbox.exists()).toBe(true);
+    expect(toolbox.classes()).toContain('sm:grid-cols-3');
+    expect(canvas.classes()).toContain('min-w-[64rem]');
+    expect(canvas.classes()).toContain('min-h-[38rem]');
+    expect(closeButton.classes()).toContain('size-11');
+
+    wrapper.unmount();
+  });
+
+  it('stacks template actions on narrow screens', () => {
+    const wrapper = mount(TemplatesPanel, {
+      props: {
+        inbox: { id: 29 },
+        templates: [],
+      },
+      global: {
+        stubs: {
+          Dialog: DialogStub,
+        },
+      },
+    });
+    const syncButton = buttonByText(wrapper, 'Sync from Meta');
+    const newButton = buttonByText(wrapper, 'New template');
+
+    expect(syncButton.element.parentElement.classList).toContain('grid');
+    expect(syncButton.classes()).toContain('w-full');
+    expect(newButton.classes()).toContain('w-full');
 
     wrapper.unmount();
   });

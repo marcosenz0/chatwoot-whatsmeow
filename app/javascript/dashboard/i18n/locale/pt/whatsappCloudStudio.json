@@ -212,6 +212,7 @@
         "FLOW_NAME": "Nome do funil",
         "SAVE_DRAFT": "Guardar rascunho",
         "PUBLISH": "Publicar funil",
+        "DISCARD_CONFIRM": "Descartar as alterações não guardadas deste funil?",
         "BLOCKS": "Blocos",
         "CONNECT_HELP_TITLE": "Ligue o funil",
         "CONNECT_HELP": "Selecione o conector de saída de um bloco e, depois, o conector de entrada do bloco seguinte.",

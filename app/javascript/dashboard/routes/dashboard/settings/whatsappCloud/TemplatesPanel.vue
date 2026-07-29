@@ -307,8 +307,9 @@ const deleteTemplate = async template => {
             }}
           </p>
         </div>
-        <div class="flex gap-2">
+        <div class="grid w-full gap-2 sm:flex sm:w-auto">
           <Button
+            class="w-full sm:w-auto"
             :label="t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.SYNC')"
             icon="i-lucide-refresh-cw"
             color="slate"
@@ -317,6 +318,7 @@ const deleteTemplate = async template => {
             @click="syncTemplates"
           />
           <Button
+            class="w-full sm:w-auto"
             :label="t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.NEW')"
             icon="i-lucide-plus"
             @click="openTemplateForm"
@@ -510,7 +512,7 @@ const deleteTemplate = async template => {
       @close="resetForm"
     >
       <div class="max-h-[78vh] overflow-y-auto pr-1">
-        <div class="flex items-start justify-between gap-4">
+        <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 class="text-lg font-semibold text-n-slate-12">
               {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.TITLE') }}
@@ -521,7 +523,7 @@ const deleteTemplate = async template => {
           </div>
           <button
             type="button"
-            class="flex size-9 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
+            class="flex size-11 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
             :aria-label="t('WHATSAPP_CLOUD_STUDIO.CLOSE')"
             @click="closeTemplateForm"
           >
@@ -649,7 +651,7 @@ const deleteTemplate = async template => {
         </div>
 
         <div class="mt-6">
-          <div class="flex items-center justify-between">
+          <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h4 class="text-sm font-semibold text-n-slate-12">
                 {{ t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.BUTTONS') }}
@@ -660,6 +662,7 @@ const deleteTemplate = async template => {
             </div>
             <Button
               v-if="form.buttons.length < 3"
+              class="w-full sm:w-auto"
               type="button"
               :label="t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.ADD_BUTTON')"
               icon="i-lucide-plus"
@@ -734,7 +737,7 @@ const deleteTemplate = async template => {
               </div>
               <button
                 type="button"
-                class="flex size-10 items-center justify-center rounded-lg text-n-ruby-11 hover:bg-n-ruby-3"
+                class="flex size-11 items-center justify-center rounded-lg text-n-ruby-11 hover:bg-n-ruby-3"
                 :aria-label="
                   t('WHATSAPP_CLOUD_STUDIO.TEMPLATES.FORM.REMOVE_BUTTON')
                 "

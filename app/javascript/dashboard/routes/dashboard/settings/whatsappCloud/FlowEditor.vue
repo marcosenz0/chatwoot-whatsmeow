@@ -25,6 +25,7 @@ const { t } = useI18n();
 
 const cloneFlow = flow => JSON.parse(JSON.stringify(toRaw(flow)));
 const draft = reactive(cloneFlow(props.flow));
+const savedDraftSnapshot = ref(JSON.stringify(cloneFlow(props.flow)));
 const selectedNodeId = ref(
   draft.definition.nodes.find(node => node.type === 'trigger')?.id || null
 );
@@ -134,11 +135,16 @@ const selectedTemplateParametersIncomplete = computed(
     )
 );
 
+const hasUnsavedChanges = computed(
+  () => JSON.stringify(toRaw(draft)) !== savedDraftSnapshot.value
+);
+
 watch(
   () => props.flow,
   flow => {
     const clonedFlow = cloneFlow(flow);
     Object.assign(draft, clonedFlow);
+    savedDraftSnapshot.value = JSON.stringify(clonedFlow);
     selectedNodeId.value =
       clonedFlow.definition.nodes.find(node => node.type === 'trigger')?.id ||
       null;
@@ -187,6 +193,26 @@ const actionLabel = action => {
   return labels[action];
 };
 
+const conditionFieldLabel = field => {
+  const labels = {
+    last_button_id: t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.LAST_BUTTON'),
+    name: t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CONTACT_NAME'),
+    email: t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CONTACT_EMAIL'),
+    phone_number: t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CONTACT_PHONE'),
+  };
+  return labels[field] || field;
+};
+
+const conditionOperatorLabel = operator => {
+  const labels = {
+    equals: t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.EQUALS'),
+    not_equals: t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.NOT_EQUALS'),
+    contains: t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CONTAINS'),
+    present: t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.PRESENT'),
+  };
+  return labels[operator] || operator;
+};
+
 const conditionHandleLabel = handle =>
   handle === 'true'
     ? t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.TRUE_HANDLE')
@@ -226,7 +252,9 @@ const nodeSubtitle = node => {
   }
   if (node.type === 'condition') {
     return node.config.field
-      ? `${node.config.field} - ${node.config.operator}`
+      ? `${conditionFieldLabel(node.config.field)} - ${conditionOperatorLabel(
+          node.config.operator
+        )}`
       : t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CONFIGURE_CONDITION');
   }
   if (node.type === 'action') {
@@ -462,6 +490,18 @@ const removeReplyButton = index => {
   selectedNode.value.config.buttons.splice(index, 1);
 };
 
+const requestClose = () => {
+  if (props.isSaving || props.isPublishing) return;
+  if (
+    hasUnsavedChanges.value &&
+    // eslint-disable-next-line no-alert
+    !window.confirm(t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.DISCARD_CONFIRM'))
+  ) {
+    return;
+  }
+  emit('close');
+};
+
 const preparePayload = () => ({
   name: draft.name,
   description: draft.description,
@@ -479,6 +519,7 @@ const preparePayload = () => ({
       role="dialog"
       aria-modal="true"
       :aria-label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.TITLE')"
+      @keydown.esc="requestClose"
     >
       <header
         class="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-n-weak px-4 py-3 sm:px-5"
@@ -486,10 +527,10 @@ const preparePayload = () => ({
         <div class="flex min-w-0 items-center gap-3">
           <button
             type="button"
-            class="flex size-10 shrink-0 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
+            class="flex size-11 shrink-0 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="isSaving || isPublishing"
             :aria-label="t('WHATSAPP_CLOUD_STUDIO.CLOSE')"
-            @click="emit('close')"
+            @click="requestClose"
           >
             <span class="i-lucide-arrow-left size-5" aria-hidden="true" />
           </button>
@@ -538,10 +579,10 @@ const preparePayload = () => ({
       </header>
 
       <div
-        class="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(34rem,1fr)_auto] overflow-auto lg:grid-cols-[13rem_minmax(40rem,1fr)_18rem] lg:grid-rows-1 xl:grid-cols-[15rem_minmax(0,1fr)_20rem]"
+        class="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(26rem,1fr)_auto] overflow-x-hidden overflow-y-auto sm:grid-rows-[auto_minmax(32rem,1fr)_auto] lg:grid-cols-[13rem_minmax(40rem,1fr)_18rem] lg:grid-rows-1 xl:grid-cols-[15rem_minmax(0,1fr)_20rem]"
       >
         <aside
-          class="overflow-x-auto border-b border-n-weak bg-n-alpha-1 p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r"
+          class="border-b border-n-weak bg-n-alpha-1 p-4 lg:overflow-y-auto lg:border-b-0 lg:border-r"
         >
           <h2
             class="text-xs font-semibold uppercase tracking-wide text-n-slate-9"
@@ -549,7 +590,7 @@ const preparePayload = () => ({
             {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.BLOCKS') }}
           </h2>
           <div
-            class="mt-3 grid min-w-[38rem] grid-cols-5 gap-2 lg:min-w-0 lg:grid-cols-1"
+            class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1"
           >
             <button
               v-for="nodeType in nodeTypes"
@@ -589,7 +630,7 @@ const preparePayload = () => ({
         </aside>
 
         <div
-          class="relative min-h-[34rem] min-w-0 overflow-auto bg-n-surface-2 lg:min-h-0"
+          class="relative min-h-[26rem] min-w-0 overflow-auto bg-n-surface-2 sm:min-h-[32rem] lg:min-h-0"
         >
           <div
             v-if="pendingConnection"
@@ -602,7 +643,7 @@ const preparePayload = () => ({
             {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.SELECT_TARGET') }}
             <button
               type="button"
-              class="ml-1 rounded p-0.5 hover:bg-white/20"
+              class="ml-1 flex size-11 items-center justify-center rounded-lg hover:bg-white/20"
               :aria-label="t('WHATSAPP_CLOUD_STUDIO.CANCEL')"
               @click="pendingConnection = null"
             >
@@ -613,7 +654,7 @@ const preparePayload = () => ({
           <svg
             ref="svgRef"
             viewBox="0 0 1600 900"
-            class="block min-h-[50rem] min-w-[90rem] select-none"
+            class="block min-h-[38rem] min-w-[64rem] select-none sm:min-h-[44rem] sm:min-w-[72rem] lg:min-h-[50rem] lg:min-w-[80rem] xl:min-w-[90rem]"
             :aria-label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CANVAS')"
           >
             <defs>
@@ -812,7 +853,7 @@ const preparePayload = () => ({
               <button
                 v-if="selectedNode.type !== 'trigger'"
                 type="button"
-                class="flex size-9 items-center justify-center rounded-lg text-n-ruby-11 hover:bg-n-ruby-3"
+                class="flex size-11 items-center justify-center rounded-lg text-n-ruby-11 hover:bg-n-ruby-3"
                 :aria-label="
                   t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.DELETE_NODE')
                 "
@@ -966,7 +1007,7 @@ const preparePayload = () => ({
                   <button
                     v-if="selectedNode.config.buttons.length < 3"
                     type="button"
-                    class="text-xs font-medium text-n-blue-11 hover:underline"
+                    class="inline-flex min-h-11 items-center rounded-lg px-2 text-xs font-medium text-n-blue-11 hover:bg-n-blue-3 hover:underline"
                     @click="addReplyButton"
                   >
                     {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.ADD_BUTTON') }}
@@ -987,7 +1028,7 @@ const preparePayload = () => ({
                     />
                     <button
                       type="button"
-                      class="flex size-9 items-center justify-center rounded-md text-n-ruby-11 hover:bg-n-ruby-3"
+                      class="flex size-11 items-center justify-center rounded-md text-n-ruby-11 hover:bg-n-ruby-3"
                       :aria-label="
                         t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.REMOVE_BUTTON')
                       "
@@ -1074,14 +1115,14 @@ const preparePayload = () => ({
               <div class="grid grid-cols-2 gap-2 pt-1 text-xs">
                 <button
                   type="button"
-                  class="rounded-lg border border-n-teal-7 bg-n-teal-2 px-2 py-2 font-medium text-n-teal-11"
+                  class="min-h-11 rounded-lg border border-n-teal-7 bg-n-teal-2 px-2 py-2 font-medium text-n-teal-11"
                   @click="startConnection(selectedNode.id, 'true')"
                 >
                   {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.TRUE_BRANCH') }}
                 </button>
                 <button
                   type="button"
-                  class="rounded-lg border border-n-ruby-7 bg-n-ruby-2 px-2 py-2 font-medium text-n-ruby-11"
+                  class="min-h-11 rounded-lg border border-n-ruby-7 bg-n-ruby-2 px-2 py-2 font-medium text-n-ruby-11"
                   @click="startConnection(selectedNode.id, 'false')"
                 >
                   {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.FALSE_BRANCH') }}

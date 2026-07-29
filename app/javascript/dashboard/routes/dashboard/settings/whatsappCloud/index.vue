@@ -149,13 +149,25 @@ const updateAutomations = records => {
 
 watch(selectedInboxId, inboxId => loadInboxData(inboxId));
 
+watch(
+  officialInboxes,
+  inboxList => {
+    const selectedInboxStillExists = inboxList.some(inbox =>
+      isCurrentInbox(inbox.id)
+    );
+    if (!selectedInboxStillExists) {
+      selectedInboxId.value = inboxList[0]?.id || null;
+    }
+  },
+  { immediate: true }
+);
+
 onMounted(async () => {
   await Promise.all([
     store.dispatch('inboxes/get'),
     store.dispatch('labels/get'),
     store.dispatch('campaigns/get'),
   ]);
-  selectedInboxId.value = officialInboxes.value[0]?.id || null;
 });
 </script>
 
@@ -233,6 +245,13 @@ onMounted(async () => {
           {{ t('WHATSAPP_CLOUD_STUDIO.EMPTY.DESCRIPTION') }}
         </p>
       </div>
+    </div>
+
+    <div
+      v-else-if="!selectedInbox"
+      class="flex flex-1 items-center justify-center p-8"
+    >
+      <Spinner />
     </div>
 
     <template v-else>

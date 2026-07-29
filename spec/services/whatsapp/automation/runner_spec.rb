@@ -90,6 +90,20 @@ describe Whatsapp::Automation::Runner do
       expect(messages.reload.count).to eq(1)
     end
 
+    it 'stores the automation and run identifiers on the outgoing message' do
+      described_class.new(run: run).perform
+
+      message = conversation.messages.outgoing.find_by!(
+        "content_attributes ->> 'whatsapp_automation_id' = ?",
+        automation.id.to_s
+      )
+
+      expect(message.content_attributes).to include(
+        'whatsapp_automation_id' => automation.id,
+        'whatsapp_automation_run_id' => run.id
+      )
+    end
+
     it 'keeps a pending message paused without sending it again' do
       described_class.new(run: run).perform
       pending_message_id = run.reload.context['awaiting_message_id']

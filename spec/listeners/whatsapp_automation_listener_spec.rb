@@ -83,12 +83,15 @@ describe WhatsappAutomationListener do
       end.to have_enqueued_job(Whatsapp::Automation::RunJob).with(run.id)
     end
 
-    it 'resumes the run when the outgoing message fails' do
-      message.update!(status: :failed)
+    it 'fails the run when the outgoing message fails' do
+      message.update!(status: :failed, external_error: 'Meta rejected the message')
 
       expect do
         listener.message_updated(event)
-      end.to have_enqueued_job(Whatsapp::Automation::RunJob).with(run.id)
+      end.not_to have_enqueued_job(Whatsapp::Automation::RunJob)
+
+      expect(run.reload).to be_failed
+      expect(run.last_error).to eq('Meta rejected the message')
     end
 
     it 'does not resume while the outgoing message is still pending provider acceptance' do
@@ -104,6 +107,36 @@ describe WhatsappAutomationListener do
       expect do
         listener.message_updated(event)
       end.not_to have_enqueued_job(Whatsapp::Automation::RunJob)
+    end
+
+    it 'fails a reply-waiting run when Meta rejects the accepted button message asynchronously' do
+      run.update!(
+        status: :waiting_reply,
+        context: run.context.except('awaiting_message_id', 'awaiting_node_id').merge(
+          'last_outgoing_message_id' => message.id,
+          'expected_buttons' => [{ 'id' => 'yes', 'title' => 'Sim' }]
+        )
+      )
+      message.update!(source_id: 'wamid.accepted', status: :failed, external_error: 'Asynchronous delivery failure')
+
+      listener.message_updated(event)
+
+      expect(run.reload).to be_failed
+      expect(run.last_error).to eq('Asynchronous delivery failure')
+    end
+
+    it 'marks a completed run as failed by the run id stored on its outgoing message' do
+      run.update!(status: :completed, current_node_id: nil)
+      message.update!(
+        status: :failed,
+        external_error: 'Late delivery failure',
+        content_attributes: message.content_attributes.merge('whatsapp_automation_run_id' => run.id)
+      )
+
+      listener.message_updated(event)
+
+      expect(run.reload).to be_failed
+      expect(run.last_error).to eq('Late delivery failure')
     end
   end
 end

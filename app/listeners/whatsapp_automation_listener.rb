@@ -17,12 +17,41 @@ class WhatsappAutomationListener < BaseListener
     return unless official_whatsapp_cloud_message?(message)
     return unless message.failed? || message.source_id.present? || message.delivered? || message.read?
 
-    WhatsappAutomationRun.unfinished
-                         .where(account_id: message.account_id, conversation_id: message.conversation_id)
-                         .where("context ->> 'awaiting_message_id' = ?", message.id.to_s)
-                         .find_each do |run|
+    return fail_automation_runs(message) if message.failed?
+
+    automation_runs_for_message(message, unfinished: true).find_each do |run|
       Whatsapp::Automation::RunJob.perform_later(run.id)
     end
+  end
+
+  def fail_automation_runs(message)
+    automation_runs_for_message(message, unfinished: false).find_each do |run|
+      run.with_lock do
+        next if run.failed? || run.cancelled?
+
+        run.update!(
+          status: :failed,
+          next_run_at: nil,
+          last_error: message.external_error.presence || "WhatsApp message #{message.id} failed"
+        )
+      end
+    end
+  end
+
+  def automation_runs_for_message(message, unfinished:)
+    relation = WhatsappAutomationRun.where(
+      account_id: message.account_id,
+      conversation_id: message.conversation_id
+    )
+    relation = relation.unfinished if unfinished
+
+    run_id = message.content_attributes&.dig('whatsapp_automation_run_id')
+    return relation.where(id: run_id) if run_id.present?
+
+    relation.where(
+      "context ->> 'awaiting_message_id' = :message_id OR context ->> 'last_outgoing_message_id' = :message_id",
+      message_id: message.id.to_s
+    )
   end
 
   def official_whatsapp_cloud_message?(message)

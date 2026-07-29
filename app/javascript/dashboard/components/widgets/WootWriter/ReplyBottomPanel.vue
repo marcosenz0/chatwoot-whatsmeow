@@ -7,6 +7,7 @@ import * as ActiveStorage from 'activestorage';
 import inboxMixin from 'shared/mixins/inboxMixin';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import { getAllowedFileTypesByChannel } from '@chatwoot/utils';
+import { appendWhatsAppCloudMimeAliases } from 'shared/helpers/FileHelper';
 import VideoCallButton from '../VideoCallButton.vue';
 import { INBOX_TYPES } from 'dashboard/helper/inbox';
 import { mapGetters } from 'vuex';
@@ -233,10 +234,14 @@ export default {
         channelType = INBOX_TYPES.WHATSAPP;
       }
 
-      return getAllowedFileTypesByChannel({
+      const allowedFileTypes = getAllowedFileTypesByChannel({
         channelType,
         medium: this.inbox?.medium,
       });
+
+      return this.isAWhatsAppCloudChannel
+        ? appendWhatsAppCloudMimeAliases(allowedFileTypes)
+        : allowedFileTypes;
     },
     enableDragAndDrop() {
       return !this.newConversationModalActive;

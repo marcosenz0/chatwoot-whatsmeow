@@ -138,7 +138,7 @@ class Whatsapp::Automation::Runner
     params = {
       content: config[:text].presence || config[:preview_text].presence || config[:template_name],
       private: false,
-      content_attributes: { whatsapp_automation_id: whatsapp_automation.id }
+      content_attributes: automation_content_attributes
     }
     params.merge!(session_message_params(config)) if mode == 'session'
     params[:template_params] = template_params(config) if mode == 'template'
@@ -159,10 +159,16 @@ class Whatsapp::Automation::Runner
 
     {
       content_type: 'input_select',
-      content_attributes: {
-        whatsapp_automation_id: whatsapp_automation.id,
+      content_attributes: automation_content_attributes.merge(
         items: buttons.map { |button| { title: button['title'], value: button['id'] } }
-      }
+      )
+    }
+  end
+
+  def automation_content_attributes
+    {
+      whatsapp_automation_id: whatsapp_automation.id,
+      whatsapp_automation_run_id: run.id
     }
   end
 

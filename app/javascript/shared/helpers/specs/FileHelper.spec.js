@@ -5,6 +5,7 @@ import {
   checkFileSizeLimit,
   resolveMaximumFileUploadSize,
   isFileTypeAllowedForChannel,
+  appendWhatsAppCloudMimeAliases,
 } from '../FileHelper';
 
 describe('#File Helpers', () => {
@@ -217,6 +218,42 @@ describe('#File Helpers', () => {
           })
         ).toBe(true);
       });
+
+      it.each([
+        ['voice.mp3', 'audio/mpeg'],
+        ['voice.m4a', 'audio/mp4'],
+        ['video.3gp', 'video/3gpp'],
+      ])(
+        'should allow official WhatsApp MIME alias %s without changing other WhatsApp inboxes',
+        (name, type) => {
+          const file = { name, type, size: 1000 };
+          const channelOptions = { channelType: 'Channel::Whatsapp' };
+
+          expect(
+            isFileTypeAllowedForChannel(file, {
+              ...channelOptions,
+              isWhatsAppCloudChannel: true,
+            })
+          ).toBe(true);
+          expect(isFileTypeAllowedForChannel(file, channelOptions)).toBe(false);
+        }
+      );
+
+      it.each([
+        ['voice.mp3', 'audio/mp3'],
+        ['voice.m4a', 'audio/m4a'],
+        ['video.3gp', 'video/3gp'],
+      ])('should preserve legacy WhatsApp MIME type %s', (name, type) => {
+        expect(
+          isFileTypeAllowedForChannel(
+            { name, type, size: 1000 },
+            {
+              channelType: 'Channel::Whatsapp',
+              isWhatsAppCloudChannel: true,
+            }
+          )
+        ).toBe(true);
+      });
     });
 
     describe('private note file types', () => {
@@ -243,6 +280,23 @@ describe('#File Helpers', () => {
           })
         ).toBe(true);
       });
+    });
+  });
+
+  describe('appendWhatsAppCloudMimeAliases', () => {
+    it('should append canonical aliases while retaining and deduplicating legacy types', () => {
+      const allowedTypes = appendWhatsAppCloudMimeAliases(
+        'audio/mp3, audio/m4a, video/3gp, audio/mpeg'
+      ).split(', ');
+
+      expect(allowedTypes).toEqual([
+        'audio/mp3',
+        'audio/m4a',
+        'video/3gp',
+        'audio/mpeg',
+        'audio/mp4',
+        'video/3gpp',
+      ]);
     });
   });
 });

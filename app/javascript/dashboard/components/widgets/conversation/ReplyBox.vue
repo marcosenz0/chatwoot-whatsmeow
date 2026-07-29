@@ -761,6 +761,7 @@ export default {
             conversationType: this.conversationType,
             isInstagramChannel: this.isAnInstagramChannel,
             isOnPrivateNote: this.isOnPrivateNote,
+            isWhatsAppCloudChannel: this.isAWhatsAppCloudChannel,
           });
 
           if (!isAllowed) {

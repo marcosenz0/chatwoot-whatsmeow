@@ -2,6 +2,22 @@ import { getAllowedFileTypesByChannel } from '@chatwoot/utils';
 import { INBOX_TYPES } from 'dashboard/helper/inbox';
 
 export const DEFAULT_MAXIMUM_FILE_UPLOAD_SIZE = 40;
+export const WHATSAPP_CLOUD_MIME_ALIASES = [
+  'audio/mpeg',
+  'audio/mp4',
+  'video/3gpp',
+];
+
+export const appendWhatsAppCloudMimeAliases = allowedFileTypes => {
+  const allowedTypes = allowedFileTypes
+    .split(',')
+    .map(type => type.trim())
+    .filter(Boolean);
+
+  return [...new Set([...allowedTypes, ...WHATSAPP_CLOUD_MIME_ALIASES])].join(
+    ', '
+  );
+};
 
 export const formatBytes = (bytes, decimals = 2) => {
   if (bytes === 0) return '0 Bytes';
@@ -44,6 +60,7 @@ export const resolveMaximumFileUploadSize = value => {
  * @param {string} options.conversationType - The conversation type (for Instagram DM detection)
  * @param {boolean} options.isInstagramChannel - Whether it's an Instagram channel
  * @param {boolean} options.isOnPrivateNote - Whether composing a private note (uses broader file type list)
+ * @param {boolean} options.isWhatsAppCloudChannel - Whether the inbox uses the official WhatsApp Cloud API
  * @returns {boolean} - True if file type is allowed, false otherwise
  */
 export const isFileTypeAllowedForChannel = (file, options = {}) => {
@@ -55,9 +72,10 @@ export const isFileTypeAllowedForChannel = (file, options = {}) => {
     conversationType,
     isInstagramChannel,
     isOnPrivateNote,
+    isWhatsAppCloudChannel,
   } = options;
 
-  const allowedFileTypes = isOnPrivateNote
+  let allowedFileTypes = isOnPrivateNote
     ? getAllowedFileTypesByChannel()
     : getAllowedFileTypesByChannel({
         channelType:
@@ -66,6 +84,10 @@ export const isFileTypeAllowedForChannel = (file, options = {}) => {
             : originalChannelType,
         medium,
       });
+
+  if (isWhatsAppCloudChannel && !isOnPrivateNote) {
+    allowedFileTypes = appendWhatsAppCloudMimeAliases(allowedFileTypes);
+  }
 
   // Convert to array and validate
   const allowedTypesArray = allowedFileTypes.split(',').map(t => t.trim());

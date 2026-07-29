@@ -45,7 +45,7 @@ class Whatsapp::IncomingMessageWhatsappCloudService < Whatsapp::IncomingMessageB
     # This url response will be failure if the access token has expired.
     if response.unauthorized?
       inbox.channel.authorization_error!
-      return
+      raise MediaDownloadError, 'WhatsApp media metadata request failed with HTTP 401'
     end
 
     raise MediaDownloadError, "WhatsApp media metadata request failed with HTTP #{response.code}" unless response.success?

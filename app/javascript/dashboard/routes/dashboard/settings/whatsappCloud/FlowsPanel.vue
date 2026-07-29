@@ -379,7 +379,7 @@ const relativeTime = value =>
           <div class="flex items-center gap-1">
             <button
               type="button"
-              class="flex size-9 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-3 hover:text-n-slate-12"
+              class="flex size-11 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-3 hover:text-n-slate-12"
               :aria-label="
                 flow.status === 'active'
                   ? t('WHATSAPP_CLOUD_STUDIO.FLOWS.PAUSE')
@@ -397,7 +397,7 @@ const relativeTime = value =>
             </button>
             <button
               type="button"
-              class="flex size-9 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-3 hover:text-n-blue-11"
+              class="flex size-11 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-3 hover:text-n-blue-11"
               :aria-label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDIT')"
               @click="editFlow(flow)"
             >
@@ -405,7 +405,7 @@ const relativeTime = value =>
             </button>
             <button
               type="button"
-              class="flex size-9 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-ruby-3 hover:text-n-ruby-11"
+              class="flex size-11 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-ruby-3 hover:text-n-ruby-11"
               :aria-label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.DELETE')"
               @click="deleteFlow(flow)"
             >

@@ -1,6 +1,8 @@
 # Mostly modeled after the intial implementation of the service based on 360 Dialog
 # https://docs.360dialog.com/whatsapp-api/whatsapp-api/media
 # https://developers.facebook.com/docs/whatsapp/api/media/
+# This service keeps the shared message-ingestion pipeline together for all WhatsApp providers.
+# rubocop:disable Metrics/ClassLength
 class Whatsapp::IncomingMessageBaseService
   include ::Whatsapp::IncomingMessageServiceHelpers
   include ::Whatsapp::IncomingMessageIdentifierHelper
@@ -47,27 +49,42 @@ class Whatsapp::IncomingMessageBaseService
   end
 
   def process_statuses
-    status = @processed_params[:statuses].first
-    return unless find_message_by_source_id(status[:id])
+    statuses = Array(@processed_params[:statuses])
+    statuses = statuses.first(1) unless whatsapp_cloud?
+    statuses.each { |status| process_status(status.with_indifferent_access) }
+  end
 
-    update_whatsapp_identifiers_from_status(status)
-    update_message_with_status(@message, status)
+  def process_status(status)
+    unless find_message_by_source_id(status[:id])
+      raise Whatsapp::CloudMessageStatusService::MessageNotFoundError, status[:id] if whatsapp_cloud? && status[:id].present?
+
+      return
+    end
+
+    if whatsapp_cloud?
+      @message.with_lock do
+        update_whatsapp_identifiers_from_status(status)
+        Whatsapp::CloudMessageStatusService.new(message: @message, status: status).perform
+      end
+    else
+      update_whatsapp_identifiers_from_status(status)
+      update_message_with_status(@message, status)
+    end
   rescue ArgumentError => e
     Rails.logger.error "Error while processing whatsapp status update #{e.message}"
   end
 
   def update_message_with_status(message, status)
     message.status = status[:status]
-    if status[:pricing].present? && @inbox.channel.provider == 'whatsapp_cloud'
-      message.content_attributes = message.content_attributes.merge(
-        'whatsapp_pricing' => status[:pricing].to_h.stringify_keys
-      )
-    end
     if status[:status] == 'failed' && status[:errors].present?
       error = status[:errors]&.first
       message.external_error = "#{error[:code]}: #{error[:title]}"
     end
     message.save!
+  end
+
+  def whatsapp_cloud?
+    @inbox.channel.provider == 'whatsapp_cloud'
   end
 
   def create_messages
@@ -225,3 +242,4 @@ class Whatsapp::IncomingMessageBaseService
     @contact.name == phone_number || @contact.name == formatted_phone_number
   end
 end
+# rubocop:enable Metrics/ClassLength

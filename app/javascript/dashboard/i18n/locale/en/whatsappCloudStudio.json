@@ -212,6 +212,7 @@
         "FLOW_NAME": "Flow name",
         "SAVE_DRAFT": "Save draft",
         "PUBLISH": "Publish flow",
+        "DISCARD_CONFIRM": "Discard the unsaved changes to this flow?",
         "BLOCKS": "Blocks",
         "CONNECT_HELP_TITLE": "Connect the journey",
         "CONNECT_HELP": "Select an output handle on one block, then select the input handle on the next block.",

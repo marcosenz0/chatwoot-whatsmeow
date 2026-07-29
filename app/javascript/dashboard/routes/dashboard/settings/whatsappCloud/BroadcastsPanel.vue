@@ -472,7 +472,7 @@ const deliveryRate = campaign => {
             </div>
             <button
               type="button"
-              class="flex size-9 shrink-0 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 lg:hidden"
+              class="flex size-11 shrink-0 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 lg:hidden"
               :aria-label="t('WHATSAPP_CLOUD_STUDIO.CLOSE')"
               @click="closeBroadcastForm"
             >
@@ -608,7 +608,7 @@ const deliveryRate = campaign => {
             </h4>
             <button
               type="button"
-              class="hidden size-9 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-3 hover:text-n-slate-12 lg:flex"
+              class="hidden size-11 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-3 hover:text-n-slate-12 lg:flex"
               :aria-label="t('WHATSAPP_CLOUD_STUDIO.CLOSE')"
               @click="closeBroadcastForm"
             >
