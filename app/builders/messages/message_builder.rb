@@ -13,7 +13,7 @@ class Messages::MessageBuilder
     @account = conversation.account
     @message_type = params[:message_type] || 'outgoing'
     @attachments = params[:attachments]
-    @is_voice_message = ActiveModel::Type::Boolean.new.cast(params[:is_voice_message])
+    @is_voice_message = official_whatsapp_voice_message?(params)
     @automation_rule = content_attributes&.dig(:automation_rule_id)
     return unless params.instance_of?(ActionController::Parameters)
 
@@ -58,9 +58,22 @@ class Messages::MessageBuilder
         file: uploaded_attachment
       )
 
-      attachment.file_type = attachment_file_type(uploaded_attachment)
+    attachment.file_type = attachment_file_type(uploaded_attachment)
       tag_voice_message(attachment)
     end
+  end
+
+  def official_whatsapp_voice_message?(params)
+    channel = @conversation.inbox&.channel
+    channel.is_a?(Channel::Whatsapp) &&
+      channel.provider == 'whatsapp_cloud' &&
+      ActiveModel::Type::Boolean.new.cast(params[:is_voice_message])
+  end
+
+  def tag_voice_message(attachment)
+    return unless @is_voice_message && attachment.file_type == 'audio'
+
+    attachment.meta = (attachment.meta || {}).merge('is_voice_message' => true)
   end
 
   def process_whatsmeow_contacts

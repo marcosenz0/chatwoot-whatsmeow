@@ -3,6 +3,8 @@ import { computed } from 'vue';
 
 import MessageMeta from '../MessageMeta.vue';
 import CaptainGenerationDetails from '../CaptainGenerationDetails.vue';
+import WhatsmeowAdPreview from './WhatsmeowAdPreview.vue';
+import WhatsmeowStatusReplyPreview from './WhatsmeowStatusReplyPreview.vue';
 
 import { emitter } from 'shared/helpers/mitt';
 import { useMessageContext } from '../provider.js';
@@ -137,6 +139,24 @@ const quotedMessage = computed(
     contentAttributes.value?.whatsmeow_quoted_message
 );
 
+const statusReply = computed(
+  () =>
+    contentAttributes.value?.whatsmeowStatusReply ||
+    contentAttributes.value?.whatsmeow_status_reply ||
+    null
+);
+const hasStatusReplyPreview = computed(() => Boolean(statusReply.value?.id));
+
+const adContext = computed(
+  () =>
+    contentAttributes.value?.whatsmeowAd ||
+    contentAttributes.value?.whatsmeow_ad ||
+    null
+);
+const hasAdPreview = computed(() =>
+  Boolean(adContext.value && Object.keys(adContext.value).length)
+);
+
 const fallbackReplyTo = computed(() => {
   if (!quotedMessage.value) return null;
 
@@ -181,8 +201,18 @@ const replyToPreview = computed(() => {
       },
     ]"
   >
+    <WhatsmeowAdPreview
+      v-if="hasAdPreview"
+      :ad-context="adContext"
+      class="-mx-1"
+    />
+    <WhatsmeowStatusReplyPreview
+      v-if="hasStatusReplyPreview"
+      :status-reply="statusReply"
+      class="-mx-1"
+    />
     <div
-      v-if="hasReplyToPreview"
+      v-else-if="hasReplyToPreview"
       class="p-2 -mx-1 mb-2 rounded-lg bg-n-alpha-black1"
       :class="{ 'cursor-pointer': canScrollToReply }"
       @click="scrollToMessage"

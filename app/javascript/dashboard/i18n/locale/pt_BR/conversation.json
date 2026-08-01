@@ -233,7 +233,7 @@
       "TIP_AUDIORECORDER_ICON": "Gravar áudio",
       "TIP_AUDIORECORDER_PERMISSION": "Permitir acesso ao áudio",
       "TIP_AUDIORECORDER_ERROR": "Não foi possível abrir o áudio",
-      "AUDIO_CONVERSION_FAILED": "Falha na conversão do áudio. Tente novamente.",
+      "AUDIO_CONVERSION_FAILED": "Não foi possível preparar esta gravação como uma mensagem de voz do WhatsApp. Grave novamente.",
       "DRAG_DROP": "Arraste e solte aqui para anexar",
       "IMAGE_UPLOAD_SUCCESS": "Imagem enviada com sucesso",
       "START_AUDIO_RECORDING": "Iniciar gravação de áudio",

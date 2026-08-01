@@ -68,6 +68,9 @@ class Account < ApplicationRecord
   has_many :articles, dependent: :destroy_async, class_name: '::Article'
   has_many :assignment_policies, dependent: :destroy_async
   has_many :automation_rules, dependent: :destroy_async
+  has_many :whatsapp_automations, dependent: :destroy_async
+  has_many :whatsapp_automation_runs, dependent: :destroy_async
+  has_many :whatsapp_campaign_deliveries, dependent: :destroy_async
   has_many :macros, dependent: :destroy_async
   has_many :campaigns, dependent: :destroy_async
   has_many :canned_responses, dependent: :destroy_async
@@ -112,6 +115,7 @@ class Account < ApplicationRecord
   has_many :marcosx_ai_logs, dependent: :destroy_async, class_name: 'MarcosxAi::Log'
   has_one :marcosx_ai_google_connection, dependent: :destroy_async, class_name: 'MarcosxAi::GoogleConnection'
   has_many :whatsmeow_stickers, dependent: :destroy_async
+  has_many :whatsmeow_statuses, dependent: :destroy_async
 
   has_one_attached :contacts_export
 

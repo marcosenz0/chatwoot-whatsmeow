@@ -22,23 +22,47 @@ module MetaTokenVerifyConcern
     return unless meta_signature_verification_required?
     return if valid_meta_signature?
 
+    Rails.logger.warn(
+      "Rejected Meta webhook signature: header=#{meta_signature_header_state}, " \
+      "header_bytes=#{meta_signature_header.bytesize}, signature_candidates=#{meta_signature_candidates.length}, " \
+      "configured_secrets=#{meta_app_secrets.compact_blank.length}, body_bytes=#{meta_request_body.bytesize}"
+    )
     head :unauthorized
   end
 
   def valid_meta_signature?
-    signature = request.headers[META_SIGNATURE_HEADER]
-    return false unless signature&.start_with?(META_SIGNATURE_PREFIX)
+    return false if meta_signature_candidates.empty?
 
     meta_app_secrets.any? do |secret|
       next false if secret.blank?
 
       expected_signature = "#{META_SIGNATURE_PREFIX}#{OpenSSL::HMAC.hexdigest('SHA256', secret, meta_request_body)}"
-      ActiveSupport::SecurityUtils.secure_compare(expected_signature, signature)
+      meta_signature_candidates.any? do |signature|
+        ActiveSupport::SecurityUtils.secure_compare(expected_signature, signature)
+      end
     end
   end
 
   def meta_request_body
     @meta_request_body ||= request.raw_post
+  end
+
+  def meta_signature_header
+    request.headers[META_SIGNATURE_HEADER].to_s
+  end
+
+  def meta_signature_candidates
+    @meta_signature_candidates ||= meta_signature_header.split(',').filter_map do |signature|
+      normalized_signature = signature.strip
+      normalized_signature if normalized_signature.start_with?(META_SIGNATURE_PREFIX)
+    end
+  end
+
+  def meta_signature_header_state
+    return 'missing' if meta_signature_header.blank?
+    return 'invalid_prefix' if meta_signature_candidates.empty?
+
+    'mismatch'
   end
 
   def meta_app_secrets

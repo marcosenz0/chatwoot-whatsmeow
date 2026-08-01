@@ -1,4 +1,8 @@
 class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseService
+  class TemplateSyncError < StandardError; end
+
+  DEFAULT_GRAPH_API_VERSION = 'v22.0'.freeze
+
   def send_message(phone_number, message)
     @message = message
 
@@ -33,25 +37,23 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
   end
 
   def sync_templates
-    # ensuring that channels with wrong provider config wouldn't keep trying to sync templates
-    whatsapp_channel.mark_message_templates_updated
-    templates = fetch_whatsapp_templates("#{business_account_path}/message_templates?access_token=#{whatsapp_channel.provider_config['api_key']}")
-    whatsapp_channel.update(message_templates: templates, message_templates_last_updated: Time.now.utc) if templates.present?
+    templates = fetch_whatsapp_templates("#{business_account_path}/message_templates")
+    whatsapp_channel.update!(
+      message_templates: templates,
+      message_templates_last_updated: Time.current
+    )
   end
 
   def fetch_whatsapp_templates(url)
-    response = HTTParty.get(url)
-    unless response.success?
-      Rails.logger.warn "[WHATSAPP] Template sync failed for account #{whatsapp_channel.account_id} " \
-                        "inbox #{whatsapp_channel.inbox&.id}: #{response.code} #{error_message(response)}"
-      return []
-    end
+    response = HTTParty.get(url, headers: api_headers)
+    raise TemplateSyncError, template_sync_error(response) unless response.success?
 
     next_url = next_url(response)
+    templates = Array(response['data'])
 
-    return response['data'] + fetch_whatsapp_templates(next_url) if next_url.present?
+    return templates + fetch_whatsapp_templates(next_url) if next_url.present?
 
-    response['data']
+    templates
   end
 
   def next_url(response)
@@ -60,12 +62,12 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
 
   def validate_provider_config?
     config = whatsapp_channel.provider_config
-    response = HTTParty.get("#{business_account_path}/message_templates?access_token=#{config['api_key']}")
+    response = HTTParty.get("#{business_account_path}/message_templates", headers: api_headers)
     return log_transfer_failure('waba_or_token_check', response) unless response.success?
     # The templates check only proves the WABA/token pair, so verify the phone_number_id belongs to this WABA when it changes.
     return true unless whatsapp_channel.provider_config_changed?
 
-    phone_response = HTTParty.get("#{business_account_path}/phone_numbers?fields=id&limit=100&access_token=#{config['api_key']}")
+    phone_response = HTTParty.get("#{business_account_path}/phone_numbers?fields=id&limit=100", headers: api_headers)
     ids = phone_response.parsed_response.is_a?(Hash) ? Array(phone_response.parsed_response['data']) : []
     return true if phone_response.success? && ids.any? { |number| number['id'] == config['phone_number_id'].to_s }
 
@@ -90,7 +92,15 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
   end
 
   def media_url(media_id)
-    "#{api_base_path}/v13.0/#{media_id}"
+    "#{api_base_path}/#{graph_api_version}/#{media_id}"
+  end
+
+  def graph_api_version
+    GlobalConfigService.load('WHATSAPP_API_VERSION', DEFAULT_GRAPH_API_VERSION)
+  end
+
+  def template_management_path
+    "#{business_account_path}/message_templates"
   end
 
   private
@@ -113,13 +123,12 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     ENV.fetch('WHATSAPP_CLOUD_BASE_URL', 'https://graph.facebook.com')
   end
 
-  # TODO: See if we can unify the API versions and for both paths and make it consistent with out facebook app API versions
-  def phone_id_path(version = 'v13.0')
+  def phone_id_path(version = graph_api_version)
     "#{api_base_path}/#{version}/#{whatsapp_channel.provider_config['phone_number_id']}"
   end
 
   def business_account_path
-    "#{api_base_path}/v14.0/#{whatsapp_channel.provider_config['business_account_id']}"
+    "#{api_base_path}/#{graph_api_version}/#{whatsapp_channel.provider_config['business_account_id']}"
   end
 
   def send_text_message(phone_number, message)
@@ -158,6 +167,29 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     process_response(response, message)
   end
 
+  def voice_message?(type, attachment)
+    voice_flag = attachment.meta&.[]('is_voice_message') || attachment.meta&.[](:is_voice_message)
+
+    type == 'audio' &&
+      voice_flag &&
+      attachment.file.blob.content_type == 'audio/ogg'
+  end
+
+  def normalize_opus_content_type(attachment)
+    return unless attachment.file.attached?
+    return unless attachment.file.blob.content_type == 'audio/opus'
+
+    attachment.file.blob.update!(content_type: 'audio/ogg')
+  end
+
+  def build_attachment_content(type, attachment, message)
+    type_content = { 'link' => attachment.download_url }
+    type_content['caption'] = message.outgoing_content unless %w[audio sticker].include?(type)
+    type_content['filename'] = attachment.file.filename if type == 'document'
+    type_content['voice'] = true if voice_message?(type, attachment)
+    type_content
+  end
+
   def error_message(response)
     # https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes/#sample-response
     response.parsed_response.dig('error', 'message') if response.parsed_response.is_a?(Hash)
@@ -188,6 +220,10 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     type_content['filename'] = attachment.file.filename if type == 'document'
     type_content['voice'] = true if voice_message?(type, attachment)
     type_content
+  end
+
+  def template_sync_error(response)
+    error_message(response).presence || "WhatsApp template sync failed with status #{response.code}"
   end
 
   def template_body_parameters(template_info)
@@ -238,6 +274,7 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
 
   def send_interactive_text_message(phone_number, message)
     payload = create_payload_based_on_items(message)
+    payload[:action] = JSON.parse(payload[:action]) if payload[:action].is_a?(String)
 
     response = HTTParty.post(
       "#{phone_id_path}/messages",

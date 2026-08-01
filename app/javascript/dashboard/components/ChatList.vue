@@ -1,5 +1,13 @@
 <script setup>
-import { ref, unref, provide, computed, watch, onMounted } from 'vue';
+import {
+  ref,
+  unref,
+  provide,
+  computed,
+  watch,
+  onMounted,
+  onBeforeUnmount,
+} from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
 import {
@@ -17,6 +25,7 @@ import DeleteCustomViews from 'dashboard/routes/dashboard/customviews/DeleteCust
 import ConversationBulkActions from './widgets/conversation/conversationBulkActions/Index.vue';
 import TeleportWithDirection from 'dashboard/components-next/TeleportWithDirection.vue';
 import ConversationResolveAttributesModal from 'dashboard/components-next/ConversationWorkflow/ConversationResolveAttributesModal.vue';
+import ConversationApi from 'dashboard/api/inbox/conversation';
 
 import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useAlert } from 'dashboard/composables';
@@ -83,12 +92,20 @@ const foldersQuery = ref({});
 const showAddFoldersModal = ref(false);
 const showDeleteFoldersModal = ref(false);
 const appliedFilter = ref([]);
+const isConversationSearchActive = ref(false);
+const isConversationSearchLoading = ref(false);
+const conversationSearchQuery = ref('');
+const conversationSearchResults = ref([]);
 const advancedFilterTypes = ref(
   advancedFilterOptions.map(filter => ({
     ...filter,
     attributeName: t(`FILTER.ATTRIBUTES.${filter.attributeI18nKey}`),
   }))
 );
+
+const CONVERSATION_SEARCH_DEBOUNCE = 300;
+let conversationSearchTimer = null;
+let conversationSearchRequestToken = 0;
 
 const currentUser = useMapGetter('getCurrentUser');
 const chatLists = useMapGetter('getFilteredConversations');
@@ -378,6 +395,29 @@ const conversationList = computed(() => {
   return localConversationList;
 });
 
+const normalizedConversationSearchQuery = computed(() =>
+  conversationSearchQuery.value.trim()
+);
+
+const displayedConversationList = computed(() => {
+  if (
+    isConversationSearchActive.value &&
+    normalizedConversationSearchQuery.value
+  ) {
+    return conversationSearchResults.value;
+  }
+
+  return conversationList.value;
+});
+
+const showConversationSearchEmptyState = computed(
+  () =>
+    isConversationSearchActive.value &&
+    normalizedConversationSearchQuery.value &&
+    !isConversationSearchLoading.value &&
+    !conversationSearchResults.value.length
+);
+
 const showEndOfListMessage = computed(() => {
   return !!(
     conversationList.value.length &&
@@ -400,6 +440,56 @@ const uniqueInboxes = computed(() => {
 });
 
 // ---------------------- Methods -----------------------
+function clearConversationSearchTimer() {
+  if (!conversationSearchTimer) return;
+
+  window.clearTimeout(conversationSearchTimer);
+  conversationSearchTimer = null;
+}
+
+function clearConversationSearch() {
+  clearConversationSearchTimer();
+  conversationSearchRequestToken += 1;
+  conversationSearchQuery.value = '';
+  conversationSearchResults.value = [];
+  isConversationSearchLoading.value = false;
+}
+
+function toggleConversationSearch() {
+  isConversationSearchActive.value = !isConversationSearchActive.value;
+  if (!isConversationSearchActive.value) clearConversationSearch();
+}
+
+async function fetchConversationSearchResults(query, requestToken) {
+  try {
+    const {
+      data: {
+        data: { payload },
+      },
+    } = await ConversationApi.get({
+      contactQuery: query,
+      page: 1,
+      sortBy: wootConstants.SORT_BY_TYPE.LAST_ACTIVITY_AT_DESC,
+    });
+
+    if (requestToken !== conversationSearchRequestToken) return;
+
+    conversationSearchResults.value = payload;
+    payload.forEach(conversation => {
+      const sender = conversation.meta?.sender;
+      if (sender) store.dispatch('contacts/setContact', sender);
+    });
+  } catch (error) {
+    if (requestToken === conversationSearchRequestToken) {
+      conversationSearchResults.value = [];
+    }
+  } finally {
+    if (requestToken === conversationSearchRequestToken) {
+      isConversationSearchLoading.value = false;
+    }
+  }
+}
+
 function setFiltersFromUISettings() {
   const { conversations_filter_by: filterBy = {} } = uiSettings.value;
   const { status, order_by: orderBy } = filterBy;
@@ -591,9 +681,19 @@ function onToggleAdvanceFiltersModal() {
   showAdvancedFilters.value = true;
 }
 
-function fetchConversations() {
-  store.dispatch('updateChatListFilters', conversationFilters.value);
-  store.dispatch('fetchAllConversations').then(emitConversationLoaded);
+async function fetchConversations() {
+  const filters = conversationFilters.value;
+  store.dispatch('updateChatListFilters', filters);
+
+  const loaded = await store.dispatch('fetchAllConversations');
+  if (!loaded && props.conversationInbox && filters.hideGroupTabs.length) {
+    await store.dispatch('fetchAllConversations', {
+      ...filters,
+      hideGroupTabs: [],
+    });
+  }
+
+  emitConversationLoaded();
 }
 
 function resetAndFetchData() {
@@ -613,7 +713,11 @@ function resetAndFetchData() {
 }
 
 function loadMoreConversations() {
-  if (hasCurrentPageEndReached.value || chatListLoading.value) {
+  if (
+    isConversationSearchActive.value ||
+    hasCurrentPageEndReached.value ||
+    chatListLoading.value
+  ) {
     return;
   }
 
@@ -847,6 +951,8 @@ onMounted(() => {
   }
 });
 
+onBeforeUnmount(clearConversationSearchTimer);
+
 const deleteConversationDialogRef = ref(null);
 const selectedConversationId = ref(null);
 
@@ -910,7 +1016,10 @@ watch(
   () => resetAndFetchData()
 );
 
-watch(hiddenGroupTabs, () => resetAndFetchData());
+watch(
+  () => hiddenGroupTabs.value.join(','),
+  () => resetAndFetchData()
+);
 
 watch(activeFolder, (newVal, oldVal) => {
   if (newVal !== oldVal) {
@@ -921,6 +1030,24 @@ watch(activeFolder, (newVal, oldVal) => {
 
 watch(chatLists, () => {
   chatsOnView.value = conversationList.value;
+});
+
+watch(conversationSearchQuery, query => {
+  clearConversationSearchTimer();
+  conversationSearchRequestToken += 1;
+  const requestToken = conversationSearchRequestToken;
+  const normalizedQuery = query.trim();
+
+  conversationSearchResults.value = [];
+  if (!normalizedQuery) {
+    isConversationSearchLoading.value = false;
+    return;
+  }
+
+  isConversationSearchLoading.value = true;
+  conversationSearchTimer = window.setTimeout(() => {
+    fetchConversationSearchResults(normalizedQuery, requestToken);
+  }, CONVERSATION_SEARCH_DEBOUNCE);
 });
 
 watch(conversationFilters, (newVal, oldVal) => {
@@ -940,6 +1067,7 @@ watch(conversationFilters, (newVal, oldVal) => {
   >
     <slot />
     <ChatListHeader
+      v-model:search-query="conversationSearchQuery"
       :page-title="pageTitle"
       :has-applied-filters="hasAppliedFilters"
       :has-active-folders="hasActiveFolders"
@@ -947,11 +1075,14 @@ watch(conversationFilters, (newVal, oldVal) => {
       :is-on-expanded-layout="isOnExpandedLayout"
       :conversation-stats="conversationStats"
       :is-list-loading="chatListLoading && !conversationList.length"
+      :is-search-active="isConversationSearchActive"
+      :is-search-loading="isConversationSearchLoading"
       @add-folders="onClickOpenAddFoldersModal"
       @delete-folders="onClickOpenDeleteFoldersModal"
       @filters-modal="onToggleAdvanceFiltersModal"
       @reset-filters="resetAndFetchData"
       @basic-filter-change="onBasicFilterChange"
+      @toggle-search="toggleConversationSearch"
     />
 
     <TeleportWithDirection
@@ -976,7 +1107,7 @@ watch(conversationFilters, (newVal, oldVal) => {
     />
 
     <ChatTypeTabs
-      v-if="!hasAppliedFiltersOrActiveFolders"
+      v-if="!hasAppliedFiltersOrActiveFolders && !isConversationSearchActive"
       :items="assigneeTabItems"
       :active-tab="activeAssigneeTab"
       is-compact
@@ -984,12 +1115,27 @@ watch(conversationFilters, (newVal, oldVal) => {
     />
 
     <p
-      v-if="!chatListLoading && !conversationList.length"
+      v-if="showConversationSearchEmptyState"
+      class="flex overflow-auto justify-center items-center p-4 text-center"
+    >
+      {{
+        $t('SEARCH.EMPTY_STATE_FULL', {
+          query: normalizedConversationSearchQuery,
+        })
+      }}
+    </p>
+    <p
+      v-else-if="
+        !chatListLoading &&
+        !isConversationSearchLoading &&
+        !displayedConversationList.length
+      "
       class="flex overflow-auto justify-center items-center p-4"
     >
       {{ $t('CHAT_LIST.LIST.404') }}
     </p>
     <ConversationBulkActions
+      v-if="!isConversationSearchActive"
       :conversations="selectedConversations"
       :all-conversations-selected="allConversationsSelected"
       :selected-inboxes="uniqueInboxes"
@@ -1000,9 +1146,15 @@ watch(conversationFilters, (newVal, oldVal) => {
       @delete-conversations="handleBulkDeleteConversations"
     />
     <ConversationList
-      :conversation-list="conversationList"
-      :is-loading="chatListLoading"
-      :show-end-of-list-message="showEndOfListMessage"
+      :conversation-list="displayedConversationList"
+      :is-loading="
+        isConversationSearchActive
+          ? isConversationSearchLoading
+          : chatListLoading
+      "
+      :show-end-of-list-message="
+        !isConversationSearchActive && showEndOfListMessage
+      "
       :label="label"
       :team-id="teamId"
       :folders-id="foldersId"

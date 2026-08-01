@@ -17,6 +17,7 @@ describe Whatsapp::IncomingMessageWhatsappCloudService do
               contacts: [{ profile: { name: 'Sojan Jose' }, wa_id: '2423423243' }],
               messages: [{
                 from: '2423423243',
+                id: 'wamid.cloud-media-message',
                 image: {
                   id: 'b1c68f38-8734-4ad3-b4a1-ef0c10d683',
                   mime_type: 'image/jpeg',
@@ -42,7 +43,7 @@ describe Whatsapp::IncomingMessageWhatsappCloudService do
         expect_message_has_attachment
       end
 
-      it 'increments reauthorization count if fetching attachment fails' do
+      it 'raises a retryable error without persisting an incomplete message when authorization fails' do
         stub_request(
           :get,
           whatsapp_channel.media_url('b1c68f38-8734-4ad3-b4a1-ef0c10d683')
@@ -50,12 +51,46 @@ describe Whatsapp::IncomingMessageWhatsappCloudService do
           status: 401
         )
 
-        described_class.new(inbox: whatsapp_channel.inbox, params: params).perform
-        expect(whatsapp_channel.inbox.conversations.count).not_to eq(0)
-        expect(Contact.all.first.name).to eq('Sojan Jose')
-        expect(whatsapp_channel.inbox.messages.first.content).to eq('Check out my product!')
-        expect(whatsapp_channel.inbox.messages.first.attachments.present?).to be false
+        expect { described_class.new(inbox: whatsapp_channel.inbox, params: params).perform }
+          .to raise_error(described_class::MediaDownloadError, /metadata request failed with HTTP 401/)
+        expect(whatsapp_channel.inbox.messages).to be_empty
         expect(whatsapp_channel.authorization_error_count).to eq(1)
+
+        stub_media_url_request
+        stub_sample_png_request
+
+        expect { described_class.new(inbox: whatsapp_channel.inbox, params: params).perform }.not_to raise_error
+        expect_message_has_attachment
+      end
+
+      [429, 503].each do |status|
+        it "raises a retryable error and succeeds on retry when metadata returns #{status}" do
+          stub_media_url_request(status: status)
+
+          expect { described_class.new(inbox: whatsapp_channel.inbox, params: params).perform }
+            .to raise_error(described_class::MediaDownloadError, /metadata request failed with HTTP #{status}/)
+          expect(whatsapp_channel.inbox.messages).to be_empty
+
+          stub_media_url_request
+          stub_sample_png_request
+
+          expect { described_class.new(inbox: whatsapp_channel.inbox, params: params).perform }.not_to raise_error
+          expect_message_has_attachment
+        end
+
+        it "raises a retryable error and succeeds on retry when the media download returns #{status}" do
+          stub_media_url_request
+          stub_sample_png_request(status: status)
+
+          expect { described_class.new(inbox: whatsapp_channel.inbox, params: params).perform }
+            .to raise_error(described_class::MediaDownloadError)
+          expect(whatsapp_channel.inbox.messages).to be_empty
+
+          stub_sample_png_request
+
+          expect { described_class.new(inbox: whatsapp_channel.inbox, params: params).perform }.not_to raise_error
+          expect_message_has_attachment
+        end
       end
     end
 
@@ -316,6 +351,181 @@ describe Whatsapp::IncomingMessageWhatsappCloudService do
       end
     end
 
+    context 'when Cloud API status callbacks arrive' do
+      let(:status_contact) { create(:contact, account: whatsapp_channel.account) }
+      let(:status_contact_inbox) do
+        create(:contact_inbox, inbox: whatsapp_channel.inbox, contact: status_contact, source_id: '15551234567')
+      end
+      let(:status_conversation) do
+        create(
+          :conversation,
+          account: whatsapp_channel.account,
+          inbox: whatsapp_channel.inbox,
+          contact: status_contact,
+          contact_inbox: status_contact_inbox
+        )
+      end
+
+      it 'processes every status in the value array and preserves pricing metadata' do
+        first_message = create(
+          :message,
+          account: whatsapp_channel.account,
+          inbox: whatsapp_channel.inbox,
+          conversation: status_conversation,
+          message_type: :outgoing,
+          source_id: 'wamid.status-one'
+        )
+        second_message = create(
+          :message,
+          account: whatsapp_channel.account,
+          inbox: whatsapp_channel.inbox,
+          conversation: status_conversation,
+          message_type: :outgoing,
+          source_id: 'wamid.status-two'
+        )
+        statuses = [
+          { id: first_message.source_id, status: 'delivered', timestamp: '1770407900' },
+          {
+            id: second_message.source_id,
+            status: 'read',
+            timestamp: '1770407901',
+            pricing: { billable: true, pricing_model: 'PMP', category: 'marketing' }
+          }
+        ]
+
+        described_class.new(
+          inbox: whatsapp_channel.inbox,
+          params: cloud_status_params(whatsapp_channel, statuses)
+        ).perform
+
+        expect(first_message.reload).to be_delivered
+        expect(second_message.reload).to be_read
+        expect(second_message.content_attributes['whatsapp_pricing']).to eq(
+          'billable' => true,
+          'pricing_model' => 'PMP',
+          'category' => 'marketing'
+        )
+      end
+
+      it 'never regresses sent, delivered, or read when callbacks arrive out of order' do
+        message = create(
+          :message,
+          account: whatsapp_channel.account,
+          inbox: whatsapp_channel.inbox,
+          conversation: status_conversation,
+          message_type: :outgoing,
+          source_id: 'wamid.monotonic-status'
+        )
+
+        described_class.new(
+          inbox: whatsapp_channel.inbox,
+          params: cloud_status_params(
+            whatsapp_channel,
+            [{ id: message.source_id, status: 'read', timestamp: '1770407902' }]
+          )
+        ).perform
+        described_class.new(
+          inbox: whatsapp_channel.inbox,
+          params: cloud_status_params(
+            whatsapp_channel,
+            [{ id: message.source_id, status: 'delivered', timestamp: '1770407903' }]
+          )
+        ).perform
+
+        expect(message.reload).to be_read
+        expect(message.content_attributes['whatsapp_status_timestamps']).to include(
+          'read' => 1_770_407_902,
+          'delivered' => 1_770_407_903
+        )
+      end
+
+      it 'uses callback timestamps to ignore a stale failure and apply a current failure' do
+        message = create(
+          :message,
+          account: whatsapp_channel.account,
+          inbox: whatsapp_channel.inbox,
+          conversation: status_conversation,
+          message_type: :outgoing,
+          source_id: 'wamid.failed-status'
+        )
+
+        [
+          { status: 'sent', timestamp: '1770407905' },
+          { status: 'failed', timestamp: '1770407904', errors: [{ code: 131_000, title: 'Stale failure' }] }
+        ].each do |status|
+          described_class.new(
+            inbox: whatsapp_channel.inbox,
+            params: cloud_status_params(whatsapp_channel, [status.merge(id: message.source_id)])
+          ).perform
+        end
+
+        expect(message.reload).to be_sent
+        expect(message.external_error).to be_blank
+
+        described_class.new(
+          inbox: whatsapp_channel.inbox,
+          params: cloud_status_params(
+            whatsapp_channel,
+            [{
+              id: message.source_id,
+              status: 'failed',
+              timestamp: '1770407906',
+              errors: [{ code: 131_001, title: 'Current failure' }]
+            }]
+          )
+        ).perform
+
+        expect(message.reload).to be_failed
+        expect(message.external_error).to eq('131001: Current failure')
+      end
+
+      it 'retries when a status arrives before its local message source id is available' do
+        params = cloud_status_params(
+          whatsapp_channel,
+          [{ id: 'wamid.not-persisted-yet', status: 'delivered', timestamp: '1770407907' }]
+        )
+
+        expect { described_class.new(inbox: whatsapp_channel.inbox, params: params).perform }
+          .to raise_error(
+            Whatsapp::CloudMessageStatusService::MessageNotFoundError,
+            'wamid.not-persisted-yet'
+          )
+      end
+
+      it 'does not let an older failed callback replace the latest provider error' do
+        message = create(
+          :message,
+          account: whatsapp_channel.account,
+          inbox: whatsapp_channel.inbox,
+          conversation: status_conversation,
+          message_type: :outgoing,
+          source_id: 'wamid.duplicate-failure'
+        )
+
+        [
+          {
+            status: 'failed',
+            timestamp: '1770407909',
+            errors: [{ code: 131_009, title: 'Latest failure' }]
+          },
+          {
+            status: 'failed',
+            timestamp: '1770407908',
+            errors: [{ code: 131_008, title: 'Older failure' }]
+          }
+        ].each do |status|
+          described_class.new(
+            inbox: whatsapp_channel.inbox,
+            params: cloud_status_params(whatsapp_channel, [status.merge(id: message.source_id)])
+          ).perform
+        end
+
+        expect(message.reload).to be_failed
+        expect(message.external_error).to eq('131009: Latest failure')
+        expect(message.content_attributes.dig('whatsapp_status_timestamps', 'failed')).to eq(1_770_407_909)
+      end
+    end
+
     context 'when message is a reply (has context)' do
       let(:reply_params) do
         {
@@ -374,15 +584,51 @@ describe Whatsapp::IncomingMessageWhatsappCloudService do
         end
       end
     end
+
+    it 'preserves template quick-reply payloads for automation branches' do
+      button_params = {
+        phone_number: whatsapp_channel.phone_number,
+        object: 'whatsapp_business_account',
+        entry: [{
+          changes: [{
+            value: {
+              contacts: [{ profile: { name: 'Cloud contact' }, wa_id: '15551234567' }],
+              messages: [{
+                from: '15551234567',
+                id: 'wamid.template-button',
+                timestamp: '1770407830',
+                type: 'button',
+                button: {
+                  payload: 'template_reply_0',
+                  text: 'Sim'
+                }
+              }]
+            }
+          }]
+        }]
+      }.with_indifferent_access
+
+      described_class.new(inbox: whatsapp_channel.inbox, params: button_params).perform
+
+      message = whatsapp_channel.inbox.messages.find_by!(source_id: 'wamid.template-button')
+      expect(message.content_attributes['whatsapp_interactive_reply']).to eq(
+        'type' => 'button',
+        'id' => 'template_reply_0',
+        'title' => 'Sim'
+      )
+    end
   end
 
   # Métodos auxiliares para reduzir o tamanho do exemplo
 
-  def stub_media_url_request
-    stub_request(
+  def stub_media_url_request(status: 200)
+    request = stub_request(
       :get,
       whatsapp_channel.media_url('b1c68f38-8734-4ad3-b4a1-ef0c10d683')
-    ).to_return(
+    )
+    return request.to_return(status: status) unless status == 200
+
+    request.to_return(
       status: 200,
       body: {
         messaging_product: 'whatsapp',
@@ -396,10 +642,32 @@ describe Whatsapp::IncomingMessageWhatsappCloudService do
     )
   end
 
-  def stub_sample_png_request
-    stub_request(:get, 'https://chatwoot-assets.local/sample.png').to_return(
+  def cloud_status_params(channel, statuses)
+    {
+      phone_number: channel.phone_number,
+      object: 'whatsapp_business_account',
+      entry: [{
+        changes: [{
+          value: {
+            metadata: {
+              phone_number_id: channel.provider_config['phone_number_id'],
+              display_phone_number: channel.phone_number.delete_prefix('+')
+            },
+            statuses: statuses
+          }
+        }]
+      }]
+    }.with_indifferent_access
+  end
+
+  def stub_sample_png_request(status: 200)
+    request = stub_request(:get, 'https://chatwoot-assets.local/sample.png')
+    return request.to_return(status: status) unless status == 200
+
+    request.to_return(
       status: 200,
-      body: File.read('spec/assets/sample.png')
+      body: File.read('spec/assets/sample.png'),
+      headers: { 'Content-Type' => 'image/png' }
     )
   end
 

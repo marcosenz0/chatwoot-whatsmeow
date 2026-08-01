@@ -83,26 +83,7 @@ class Whatsmeow::ReactionService
   end
 
   def resolve_target_identifiers
-    return [group_jid].compact_blank if group_message?
-
-    targets = target_candidates.filter_map do |identifier|
-      phone_jid(identifier) if phone_identifier?(identifier, source_id)
-    end
-    targets += target_candidates.select { |identifier| deliverable_jid?(identifier) }
-    targets.compact_blank.uniq.presence || missing_target!
-  end
-
-  def target_candidates
-    additional_attributes = contact&.additional_attributes || {}
-
-    [
-      source_id,
-      contact&.phone_number,
-      additional_attributes['whatsmeow_participant_jid'],
-      additional_attributes['whatsmeow_participant_phone'],
-      additional_attributes['whatsmeow_participant_lid_jid'],
-      contact&.name
-    ].compact_blank
+    [Whatsmeow::ConversationTargetResolver.new(conversation: @message.conversation).perform]
   end
 
   def target_message_sender
@@ -127,7 +108,7 @@ class Whatsmeow::ReactionService
         @message.sender&.additional_attributes&.dig('whatsmeow_participant_lid_jid')
       ].compact_blank
     else
-      target_candidates
+      [source_id]
     end
   end
 
@@ -252,9 +233,5 @@ class Whatsmeow::ReactionService
 
   def retryable_target_error?(error)
     error.message.include?('server returned error 403') || error.message.include?('Invalid target')
-  end
-
-  def missing_target!
-    raise "No deliverable WhatsApp target found for conversation #{@message.conversation_id}"
   end
 end

@@ -1,7 +1,7 @@
 class Whatsapp::CsatTemplateService
   DEFAULT_BUTTON_TEXT = 'Please rate us'.freeze
   DEFAULT_LANGUAGE = 'en'.freeze
-  WHATSAPP_API_VERSION = 'v14.0'.freeze
+  WHATSAPP_API_VERSION_FALLBACK = 'v22.0'.freeze
   TEMPLATE_CATEGORY = 'UTILITY'.freeze
   TEMPLATE_STATUS_PENDING = 'PENDING'.freeze
 
@@ -123,7 +123,11 @@ class Whatsapp::CsatTemplateService
   end
 
   def business_account_path
-    "#{api_base_path}/#{WHATSAPP_API_VERSION}/#{@whatsapp_channel.provider_config['business_account_id']}"
+    "#{api_base_path}/#{api_version}/#{@whatsapp_channel.provider_config['business_account_id']}"
+  end
+
+  def api_version
+    GlobalConfigService.load('WHATSAPP_API_VERSION', WHATSAPP_API_VERSION_FALLBACK)
   end
 
   def api_headers

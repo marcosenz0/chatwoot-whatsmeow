@@ -47,9 +47,10 @@ class Campaign < ApplicationRecord
 
   enum campaign_type: { ongoing: 0, one_off: 1 }
   # TODO : enabled attribute is unneccessary . lets move that to the campaign status with additional statuses like draft, disabled etc.
-  enum campaign_status: { active: 0, completed: 1, processing: 2 }
+  enum campaign_status: { active: 0, completed: 1, processing: 2, failed: 3 }
 
   has_many :conversations, dependent: :nullify, autosave: true
+  has_many :whatsapp_campaign_deliveries, dependent: :destroy_async
 
   before_validation :ensure_correct_campaign_attributes
   after_commit :set_display_id, unless: :display_id?
@@ -58,15 +59,42 @@ class Campaign < ApplicationRecord
   def trigger!
     return unless one_off?
     return unless feature_enabled?
-    return unless mark_processing!
+    return unless whatsapp_cloud_campaign? ? active? : mark_processing!
 
     execute_campaign
+  end
+
+  def complete_whatsapp_campaign_if_finished!
+    return unless processing?
+    return if whatsapp_campaign_deliveries.exists?(status: [:queued, :processing])
+
+    completed!
+  end
+
+  def whatsapp_delivery_summary
+    counts = whatsapp_campaign_deliveries.group(:status).count
+    {
+      total: counts.values.sum,
+      queued: counts.fetch('queued', 0),
+      processing: counts.fetch('processing', 0),
+      sent: counts.fetch('sent', 0),
+      delivered: counts.fetch('delivered', 0),
+      read: counts.fetch('read', 0),
+      failed: counts.fetch('failed', 0),
+      skipped: counts.fetch('skipped', 0),
+      estimated_cost: whatsapp_campaign_deliveries.sum(:estimated_cost).to_d,
+      currency: 'BRL'
+    }
   end
 
   private
 
   def feature_enabled?
-    inbox.inbox_type != 'Whatsapp' || account.feature_enabled?(:whatsapp_campaign)
+    inbox.inbox_type != 'Whatsapp' || whatsapp_cloud_campaign? || account.feature_enabled?(:whatsapp_campaign)
+  end
+
+  def whatsapp_cloud_campaign?
+    inbox.inbox_type == 'Whatsapp' && inbox.channel.provider == 'whatsapp_cloud'
   end
 
   def mark_processing!
@@ -85,6 +113,8 @@ class Campaign < ApplicationRecord
     when 'Sms'
       Sms::OneoffSmsCampaignService.new(campaign: self).perform
     when 'Whatsapp'
+      return unless inbox.channel.provider == 'whatsapp_cloud' || account.feature_enabled?(:whatsapp_campaign)
+
       Whatsapp::OneoffCampaignService.new(campaign: self).perform
     end
   end

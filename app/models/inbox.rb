@@ -61,6 +61,7 @@ class Inbox < ApplicationRecord
   belongs_to :channel, polymorphic: true, dependent: :destroy
 
   has_many :campaigns, dependent: :destroy_async
+  has_many :whatsapp_automations, dependent: :destroy_async
   has_many :contact_inboxes, dependent: :destroy_async
   has_many :contacts, through: :contact_inboxes
 
@@ -69,6 +70,7 @@ class Inbox < ApplicationRecord
   has_many :conversations, dependent: :destroy_async
   has_many :messages, dependent: :destroy_async
   has_many :email_templates, dependent: :destroy_async
+  has_many :whatsmeow_statuses, dependent: :destroy_async
 
   has_one :inbox_assignment_policy, dependent: :destroy
   has_one :assignment_policy, through: :inbox_assignment_policy

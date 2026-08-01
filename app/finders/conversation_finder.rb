@@ -85,16 +85,17 @@ class ConversationFinder
     set_assignee_type
 
     find_all_conversations
-    filter_by_status unless params[:q]
+    filter_by_status unless params[:q] || params[:contact_query].present?
     filter_by_team
     filter_by_labels
     filter_by_query
+    filter_by_contact_query
     filter_by_source_id
   end
 
   def set_inboxes
     @inbox_ids = if params[:inbox_id]
-                   @current_user.assigned_inboxes.where(id: params[:inbox_id])
+                   @current_user.assigned_inboxes.where(id: params[:inbox_id]).pluck(:id)
                  else
                    @current_user.assigned_inboxes.pluck(:id)
                  end
@@ -163,6 +164,28 @@ class ConversationFinder
                                   .where(messages: { message_type: allowed_message_types })
   end
 
+  def filter_by_contact_query
+    query = params[:contact_query].to_s.strip
+    return if query.blank?
+
+    search = "%#{ActiveRecord::Base.sanitize_sql_like(query)}%"
+    conditions = [
+      'contacts.name ILIKE :search',
+      'contacts.email ILIKE :search',
+      'contacts.phone_number ILIKE :search',
+      'contacts.identifier ILIKE :search'
+    ]
+    bindings = { search: search }
+
+    phone_digits = query.delete('^0-9')
+    if phone_digits.present?
+      conditions << "regexp_replace(COALESCE(contacts.phone_number, ''), '[^0-9]', '', 'g') LIKE :phone_search"
+      bindings[:phone_search] = "%#{phone_digits}%"
+    end
+
+    @conversations = @conversations.joins(:contact).where(conditions.join(' OR '), bindings)
+  end
+
   def filter_by_status
     return if params[:status] == 'all'
 
@@ -223,6 +246,15 @@ class ConversationFinder
     params[:page] || 1
   end
 
+  def conversation_results_per_page
+    requested_results = params[:per_page].to_i
+    default_results = ENV.fetch('CONVERSATION_RESULTS_PER_PAGE', '25').to_i
+
+    return default_results if requested_results <= 0
+
+    [requested_results, 100].min
+  end
+
   def conversations_base_query
     @conversations.includes(
       :taggings, :conversation_pipeline, :conversation_pipeline_stage, :inbox,
@@ -241,7 +273,7 @@ class ConversationFinder
     if params[:updated_within].present?
       @conversations.where('conversations.updated_at > ?', Time.zone.now - params[:updated_within].to_i.seconds)
     else
-      @conversations.page(current_page).per(ENV.fetch('CONVERSATION_RESULTS_PER_PAGE', '25').to_i)
+      @conversations.page(current_page).per(conversation_results_per_page)
     end
   end
 end

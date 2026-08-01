@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
+ActiveRecord::Schema[7.1].define(version: 2026_07_26_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -702,6 +702,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.boolean "read_messages", default: false, null: false
     t.boolean "ignore_groups", default: false, null: false
     t.boolean "ignore_status", default: false, null: false
+    t.boolean "hide_status_views", default: false, null: false
     t.boolean "ignore_newsletters", default: true, null: false
     t.index ["phone_number"], name: "index_channel_whatsmeow_on_phone_number"
   end
@@ -854,6 +855,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.index ["account_id", "conversation_pipeline_stage_id", "status", "last_activity_at"], name: "idx_conversations_on_account_stage_status_activity"
     t.index ["account_id", "display_id"], name: "index_conversations_on_account_id_and_display_id", unique: true
     t.index ["account_id", "id"], name: "index_conversations_on_id_and_account_id"
+    t.index ["account_id", "inbox_id", "status", "last_activity_at"], name: "index_conversations_on_inbox_status_activity", order: { last_activity_at: :desc }
     t.index ["account_id", "inbox_id", "status", "assignee_id"], name: "conv_acid_inbid_stat_asgnid_idx"
     t.index ["account_id"], name: "index_conversations_on_account_id"
     t.index ["assignee_id", "account_id"], name: "index_conversations_on_assignee_id_and_account_id"
@@ -1631,6 +1633,75 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.index ["account_id", "url"], name: "index_webhooks_on_account_id_and_url", unique: true
   end
 
+  create_table "whatsapp_automation_runs", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "whatsapp_automation_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "conversation_id"
+    t.integer "status", default: 0, null: false
+    t.string "current_node_id"
+    t.jsonb "context", default: {}, null: false
+    t.datetime "next_run_at"
+    t.text "last_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_whatsapp_automation_runs_on_account_id"
+    t.index ["contact_id"], name: "index_whatsapp_automation_runs_on_contact_id"
+    t.index ["conversation_id"], name: "index_whatsapp_automation_runs_on_conversation_id"
+    t.index ["status", "next_run_at"], name: "index_whatsapp_automation_runs_on_status_and_next_run_at"
+    t.index ["whatsapp_automation_id", "contact_id", "status"], name: "idx_whatsapp_runs_on_automation_contact_status"
+    t.index ["whatsapp_automation_id", "contact_id"], name: "idx_unique_unfinished_whatsapp_run", unique: true, where: "(status = ANY (ARRAY[0, 1, 2, 3]))"
+    t.index ["whatsapp_automation_id"], name: "index_whatsapp_automation_runs_on_whatsapp_automation_id"
+  end
+
+  create_table "whatsapp_automations", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.string "name", null: false
+    t.text "description"
+    t.integer "status", default: 0, null: false
+    t.string "trigger_type", default: "keyword", null: false
+    t.jsonb "trigger_config", default: {}, null: false
+    t.jsonb "definition", default: { "nodes" => [], "edges" => [] }, null: false
+    t.datetime "published_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "status"], name: "index_whatsapp_automations_on_account_id_and_status"
+    t.index ["account_id"], name: "index_whatsapp_automations_on_account_id"
+    t.index ["inbox_id", "status"], name: "index_whatsapp_automations_on_inbox_id_and_status"
+    t.index ["inbox_id"], name: "index_whatsapp_automations_on_inbox_id"
+  end
+
+  create_table "whatsapp_campaign_deliveries", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "campaign_id", null: false
+    t.bigint "contact_id", null: false
+    t.bigint "message_id"
+    t.integer "status", default: 0, null: false
+    t.string "phone_number"
+    t.string "source_id"
+    t.string "template_category"
+    t.string "currency", default: "BRL", null: false
+    t.decimal "estimated_cost", precision: 12, scale: 4, default: "0.0", null: false
+    t.boolean "billable"
+    t.string "pricing_model"
+    t.string "error_code"
+    t.text "error_message"
+    t.datetime "sent_at"
+    t.datetime "delivered_at"
+    t.datetime "read_at"
+    t.datetime "failed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_whatsapp_campaign_deliveries_on_account_id"
+    t.index ["campaign_id", "contact_id"], name: "idx_whatsapp_deliveries_on_campaign_contact", unique: true
+    t.index ["campaign_id", "status"], name: "index_whatsapp_campaign_deliveries_on_campaign_id_and_status"
+    t.index ["campaign_id"], name: "index_whatsapp_campaign_deliveries_on_campaign_id"
+    t.index ["contact_id"], name: "index_whatsapp_campaign_deliveries_on_contact_id"
+    t.index ["message_id"], name: "index_whatsapp_campaign_deliveries_on_message_id"
+    t.index ["source_id"], name: "index_whatsapp_campaign_deliveries_on_source_id"
+  end
+
   create_table "whatsmeow_stickers", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "user_id", null: false
@@ -1642,6 +1713,70 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
     t.index ["account_id"], name: "index_whatsmeow_stickers_on_account_id"
     t.index ["attachment_id"], name: "index_whatsmeow_stickers_on_attachment_id"
     t.index ["user_id"], name: "index_whatsmeow_stickers_on_user_id"
+  end
+
+  create_table "whatsmeow_status_viewers", force: :cascade do |t|
+    t.bigint "whatsmeow_status_id", null: false
+    t.bigint "contact_id"
+    t.string "viewer_jid", null: false
+    t.string "viewer_name"
+    t.string "viewer_phone"
+    t.datetime "viewed_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["contact_id"], name: "index_whatsmeow_status_viewers_on_contact_id"
+    t.index ["viewed_at"], name: "index_whatsmeow_status_viewers_on_viewed_at"
+    t.index ["whatsmeow_status_id", "viewer_jid"], name: "idx_whatsmeow_status_viewers_on_status_viewer", unique: true
+    t.index ["whatsmeow_status_id"], name: "index_whatsmeow_status_viewers_on_whatsmeow_status_id"
+  end
+
+  create_table "whatsmeow_status_views", force: :cascade do |t|
+    t.bigint "whatsmeow_status_id", null: false
+    t.bigint "user_id", null: false
+    t.datetime "viewed_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_whatsmeow_status_views_on_user_id"
+    t.index ["whatsmeow_status_id", "user_id"], name: "idx_whatsmeow_status_views_on_status_user", unique: true
+    t.index ["whatsmeow_status_id"], name: "index_whatsmeow_status_views_on_whatsmeow_status_id"
+  end
+
+  create_table "whatsmeow_statuses", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "contact_id"
+    t.bigint "created_by_id"
+    t.string "source_id", null: false
+    t.string "sender_jid", null: false
+    t.string "sender_name"
+    t.string "sender_phone"
+    t.integer "status_type", default: 0, null: false
+    t.text "content"
+    t.boolean "from_me", default: false, null: false
+    t.datetime "posted_at", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "read_receipt_sent_at"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "publication_id"
+    t.string "session_key"
+    t.integer "publication_position"
+    t.integer "publication_state", default: 2, null: false
+    t.integer "publish_attempts", default: 0, null: false
+    t.text "last_error"
+    t.datetime "next_attempt_at"
+    t.index ["account_id"], name: "index_whatsmeow_statuses_on_account_id"
+    t.index ["account_id", "publication_id", "publication_position"], name: "idx_whatsmeow_statuses_on_publication"
+    t.index ["contact_id"], name: "index_whatsmeow_statuses_on_contact_id"
+    t.index ["created_by_id"], name: "index_whatsmeow_statuses_on_created_by_id"
+    t.index ["expires_at"], name: "index_whatsmeow_statuses_on_expires_at"
+    t.index ["inbox_id", "expires_at"], name: "index_whatsmeow_statuses_on_inbox_id_and_expires_at"
+    t.index ["inbox_id", "sender_jid", "posted_at"], name: "idx_whatsmeow_statuses_on_inbox_sender_posted"
+    t.index ["inbox_id", "source_id"], name: "index_whatsmeow_statuses_on_inbox_id_and_source_id", unique: true
+    t.index ["inbox_id"], name: "index_whatsmeow_statuses_on_inbox_id"
+    t.index ["publication_id", "inbox_id"], name: "idx_whatsmeow_statuses_on_publication_inbox", unique: true, where: "(publication_id IS NOT NULL)"
+    t.index ["publication_state", "next_attempt_at"], name: "idx_whatsmeow_statuses_on_publish_state"
   end
 
   create_table "working_hours", force: :cascade do |t|
@@ -1681,10 +1816,28 @@ ActiveRecord::Schema[7.1].define(version: 2026_07_18_000000) do
   add_foreign_key "marcosx_ai_logs", "accounts"
   add_foreign_key "marcosx_ai_logs", "conversations"
   add_foreign_key "marcosx_ai_logs", "marcosx_ai_assistants", column: "assistant_id"
+  add_foreign_key "whatsapp_automation_runs", "accounts"
+  add_foreign_key "whatsapp_automation_runs", "contacts"
+  add_foreign_key "whatsapp_automation_runs", "conversations"
+  add_foreign_key "whatsapp_automation_runs", "whatsapp_automations"
+  add_foreign_key "whatsapp_automations", "accounts"
+  add_foreign_key "whatsapp_automations", "inboxes"
+  add_foreign_key "whatsapp_campaign_deliveries", "accounts"
+  add_foreign_key "whatsapp_campaign_deliveries", "campaigns"
+  add_foreign_key "whatsapp_campaign_deliveries", "contacts"
+  add_foreign_key "whatsapp_campaign_deliveries", "messages"
   add_foreign_key "whatsmeow_stickers", "accounts"
   add_foreign_key "whatsmeow_stickers", "attachments"
   add_foreign_key "whatsmeow_stickers", "users"
   add_foreign_key "user_sessions", "users"
+  add_foreign_key "whatsmeow_status_viewers", "contacts", on_delete: :nullify
+  add_foreign_key "whatsmeow_status_viewers", "whatsmeow_statuses"
+  add_foreign_key "whatsmeow_status_views", "users"
+  add_foreign_key "whatsmeow_status_views", "whatsmeow_statuses"
+  add_foreign_key "whatsmeow_statuses", "accounts"
+  add_foreign_key "whatsmeow_statuses", "contacts"
+  add_foreign_key "whatsmeow_statuses", "inboxes"
+  add_foreign_key "whatsmeow_statuses", "users", column: "created_by_id"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
       on("accounts").
       after(:insert).

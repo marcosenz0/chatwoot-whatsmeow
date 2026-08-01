@@ -134,6 +134,14 @@ Rails.application.routes.draw do
           resources :whatsmeow_stickers, path: 'whatsmeow/stickers', only: [:index, :create, :destroy] do
             post :send, on: :member, action: :send_sticker
           end
+          resources :whatsmeow_statuses, path: 'whatsmeow/statuses', only: [:index, :create, :destroy] do
+            post :sync, on: :collection
+            post :view, on: :member
+            post :reply, on: :member
+            post :retry, on: :member
+            get :viewers, on: :member
+            get :preview, on: :member
+          end
           resources :assignable_agents, only: [:index]
           resource :audit_logs, only: [:show]
           resources :callbacks, only: [] do
@@ -147,6 +155,17 @@ Rails.application.routes.draw do
           resources :canned_responses, only: [:index, :create, :update, :destroy]
           resources :automation_rules, only: [:index, :create, :show, :update, :destroy] do
             post :clone
+          end
+          namespace :whatsapp_cloud do
+            resources :templates, only: [:index, :create] do
+              post :sync, on: :collection
+              delete :destroy, on: :collection
+            end
+            resources :automations, only: [:index, :show, :create, :update, :destroy] do
+              post :publish, on: :member
+              post :pause, on: :member
+            end
+            resource :audience_estimate, only: [:show]
           end
           resources :macros, only: [:index, :create, :show, :update, :destroy] do
             post :execute, on: :member

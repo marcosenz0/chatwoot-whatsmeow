@@ -11,6 +11,7 @@ class Channel::Whatsmeow < ApplicationRecord
     :read_messages,
     :ignore_groups,
     :ignore_status,
+    :hide_status_views,
     :ignore_newsletters
   ].freeze
 

@@ -41,6 +41,123 @@ RSpec.describe Webhooks::WhatsappEventsJob do
       job.perform_now(params)
     end
 
+    it 'processes every entry, change, message, and status in a batched Cloud API webhook' do
+      batched_params = batched_cloud_params(channel)
+      processed_payloads = []
+      job_instance = described_class.new
+
+      allow(job_instance).to receive(:with_lock).and_yield
+      allow(Whatsapp::IncomingMessageWhatsappCloudService).to receive(:new) do |**arguments|
+        processed_payloads << arguments[:params]
+        process_service
+      end
+
+      job_instance.perform(batched_params)
+
+      message_payloads = processed_payloads.filter_map do |payload|
+        value = payload.dig(:entry, 0, :changes, 0, :value)
+        [value[:messages].first[:id], value[:contacts].first[:wa_id]] if value[:messages].present?
+      end
+      status_ids = processed_payloads.filter_map do |payload|
+        payload.dig(:entry, 0, :changes, 0, :value, :statuses, 0, :id)
+      end
+
+      expect(message_payloads).to contain_exactly(
+        ['wamid.first', '111'],
+        ['wamid.second', '222'],
+        ['wamid.third', '333']
+      )
+      expect(status_ids).to contain_exactly('wamid.first', 'wamid.second')
+      expect(processed_payloads.length).to eq(5)
+    end
+
+    it 'processes valid Cloud entries when another entry has an unknown channel' do
+      metadata = {
+        phone_number_id: channel.provider_config['phone_number_id'],
+        display_phone_number: channel.phone_number.delete('+')
+      }
+      batched_params = {
+        object: 'whatsapp_business_account',
+        phone_number: channel.phone_number,
+        entry: [
+          {
+            changes: [{
+              field: 'messages',
+              value: {
+                metadata: { phone_number_id: 'unknown-id', display_phone_number: '15550000000' },
+                messages: [{ from: '999', id: 'wamid.unknown', type: 'text', text: { body: 'Unknown' } }]
+              }
+            }]
+          },
+          {
+            changes: [{
+              field: 'messages',
+              value: {
+                metadata: metadata,
+                contacts: [{ wa_id: '111', profile: { name: 'Known' } }],
+                messages: [{ from: '111', id: 'wamid.known', type: 'text', text: { body: 'Known' } }]
+              }
+            }]
+          }
+        ]
+      }.with_indifferent_access
+      processed_payloads = []
+      job_instance = described_class.new
+
+      allow(job_instance).to receive(:with_lock).and_yield
+      allow(Rails.logger).to receive(:warn)
+      allow(Whatsapp::IncomingMessageWhatsappCloudService).to receive(:new) do |**arguments|
+        processed_payloads << arguments[:params]
+        process_service
+      end
+
+      job_instance.perform(batched_params)
+
+      expect(processed_payloads.length).to eq(1)
+      expect(processed_payloads.first.dig(:entry, 0, :changes, 0, :value, :messages, 0, :id)).to eq('wamid.known')
+      expect(Rails.logger).to have_received(:warn).with("Inactive WhatsApp channel: unknown - #{channel.phone_number}")
+    end
+
+    it 'continues processing the batch before retrying a media download failure' do
+      batched_params = batched_cloud_params(channel)
+      first_message = batched_params.dig(:entry, 0, :changes, 0, :value, :messages, 0)
+      first_message[:type] = 'image'
+      first_message[:image] = { id: 'media.first' }
+      processed_message_ids = []
+      job_instance = described_class.new
+
+      allow(job_instance).to receive(:with_lock).and_yield
+      allow(Whatsapp::IncomingMessageWhatsappCloudService).to receive(:new) do |**arguments|
+        message_id = arguments[:params].dig(:entry, 0, :changes, 0, :value, :messages, 0, :id)
+        service = double
+        allow(service).to receive(:perform) do
+          raise Whatsapp::IncomingMessageWhatsappCloudService::MediaDownloadError, 'temporary media failure' if message_id == 'wamid.first'
+
+          processed_message_ids << message_id if message_id.present?
+        end
+        service
+      end
+
+      expect { job_instance.perform(batched_params) }
+        .to raise_error(Whatsapp::IncomingMessageWhatsappCloudService::MediaDownloadError, 'temporary media failure')
+
+      expect(processed_message_ids).to contain_exactly('wamid.second', 'wamid.third')
+    end
+
+    it 'retries a Cloud media payload even after the channel requests reauthorization' do
+      media_params = params.deep_dup
+      media_params[:entry].first[:changes].first[:value].merge!(
+        contacts: [{ wa_id: '111', profile: { name: 'Media contact' } }],
+        messages: [{ from: '111', id: 'wamid.media', type: 'image', image: { id: 'media-id' } }]
+      )
+      channel.prompt_reauthorization!
+
+      allow(Whatsapp::IncomingMessageWhatsappCloudService).to receive(:new).and_return(process_service)
+
+      expect(Whatsapp::IncomingMessageWhatsappCloudService).to receive(:new).with(inbox: channel.inbox, params: media_params)
+      job.perform_now(media_params)
+    end
+
     it 'will not enqueue message jobs based on phone number in the URL if the entry payload is not present' do
       params = {
         object: 'whatsapp_business_account',
@@ -234,6 +351,25 @@ RSpec.describe Webhooks::WhatsappEventsJob do
       allow(Whatsapp::IncomingMessageService).to receive(:new).and_return(process_service)
       expect(Whatsapp::IncomingMessageService).to receive(:new)
       job.perform_now(params)
+    end
+
+    it 'preserves the original payload instead of expanding batches' do
+      stub_request(:post, 'https://waba.360dialog.io/v1/configs/webhook')
+      channel.update(provider: 'default')
+      batched_params = params.deep_dup
+      batched_params[:entry].first[:changes].first[:value][:messages] = [
+        { from: '111', id: 'wamid.first', type: 'text', text: { body: 'First' } },
+        { from: '111', id: 'wamid.second', type: 'text', text: { body: 'Second' } }
+      ]
+      job_instance = described_class.new
+
+      allow(job_instance).to receive(:with_lock).and_yield
+      expect(Whatsapp::IncomingMessageService).to receive(:new)
+        .once
+        .with(inbox: channel.inbox, params: batched_params)
+        .and_return(process_service)
+
+      job_instance.perform(batched_params)
     end
   end
 
@@ -458,5 +594,66 @@ RSpec.describe Webhooks::WhatsappEventsJob do
       expect(Whatsapp::IncomingMessageWhatsappCloudService).not_to receive(:new).with(inbox: other_channel.inbox, params: wb_params)
       job.perform_now(wb_params)
     end
+  end
+
+  def batched_cloud_params(channel)
+    metadata = {
+      phone_number_id: channel.provider_config['phone_number_id'],
+      display_phone_number: channel.phone_number.delete('+')
+    }
+
+    {
+      object: 'whatsapp_business_account',
+      phone_number: channel.phone_number,
+      entry: [batched_first_entry(metadata), batched_second_entry(metadata)]
+    }.with_indifferent_access
+  end
+
+  def batched_first_entry(metadata)
+    {
+      changes: [
+        {
+          field: 'messages',
+          value: {
+            metadata: metadata,
+            contacts: [
+              { wa_id: '222', profile: { name: 'Second' } },
+              { wa_id: '111', profile: { name: 'First' } }
+            ],
+            messages: [
+              { from: '111', id: 'wamid.first', type: 'text', text: { body: 'First' } },
+              { from: '222', id: 'wamid.second', type: 'text', text: { body: 'Second' } }
+            ]
+          }
+        },
+        batched_status_change(metadata)
+      ]
+    }
+  end
+
+  def batched_status_change(metadata)
+    {
+      field: 'messages',
+      value: {
+        metadata: metadata,
+        statuses: [
+          { id: 'wamid.first', recipient_id: '111', status: 'delivered' },
+          { id: 'wamid.second', recipient_id: '222', status: 'read' }
+        ]
+      }
+    }
+  end
+
+  def batched_second_entry(metadata)
+    {
+      changes: [{
+        field: 'messages',
+        value: {
+          metadata: metadata,
+          contacts: [{ wa_id: '333', profile: { name: 'Third' } }],
+          messages: [{ from: '333', id: 'wamid.third', type: 'text', text: { body: 'Third' } }]
+        }
+      }]
+    }
   end
 end

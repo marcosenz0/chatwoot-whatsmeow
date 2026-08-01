@@ -33,6 +33,38 @@ module Whatsapp::IncomingMessageServiceHelpers
       message.dig(:name, :formatted_name)
   end
 
+  def whatsapp_interactive_reply_attributes(message)
+    return {} unless inbox.channel.provider == 'whatsapp_cloud'
+
+    reply_type, reply = whatsapp_reply_details(message)
+    return {} if reply.blank?
+
+    {
+      whatsapp_interactive_reply: {
+        type: reply_type,
+        id: reply[:id],
+        title: reply[:title],
+        description: reply[:description]
+      }.compact
+    }
+  end
+
+  def whatsapp_reply_details(message)
+    if message[:button].present?
+      return [
+        'button',
+        {
+          id: message.dig(:button, :payload),
+          title: message.dig(:button, :text)
+        }
+      ]
+    end
+    return ['button_reply', message.dig(:interactive, :button_reply)] if message.dig(:interactive, :button_reply).present?
+    return ['list_reply', message.dig(:interactive, :list_reply)] if message.dig(:interactive, :list_reply).present?
+
+    []
+  end
+
   def file_content_type(file_type)
     return :image if %w[image sticker].include?(file_type)
     return :audio if %w[audio voice].include?(file_type)

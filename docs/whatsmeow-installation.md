@@ -65,6 +65,8 @@ RAILS_SERVE_STATIC_FILES=true
 
 WHATSMEOW_SERVICE_URL=http://whatsmeow:8080
 WHATSMEOW_SERVICE_TIMEOUT=60
+WHATSMEOW_STATUS_TIMEOUT=330
+WHATSMEOW_SHARED_SECRET=gere_outro_valor_longo_e_aleatorio
 ```
 
 `WHATSMEOW_SERVICE_URL` tambem aceita mais de uma URL separada por virgula, o que ajuda quando o Easypanel muda o nome interno do servico:
@@ -79,6 +81,8 @@ WHATSMEOW_SERVICE_URL=http://whatsmeow:8080,http://marcos-apps_whatsmeow-staging
 PORT=8080
 DATABASE_URL=postgres://postgres:senha_segura@postgres:5432/chatwoot?sslmode=disable
 WEBHOOK_URL=http://rails:3000/api/v1/accounts/%s/whatsmeow/%s/callback
+WHATSMEOW_STATUS_SEND_TIMEOUT_SECONDS=300
+WHATSMEOW_SHARED_SECRET=use_exatamente_o_mesmo_valor_do_chatwoot
 ```
 
 O `DATABASE_URL` do Go deve apontar para o mesmo Postgres do Chatwoot. Nao confie em fallback interno.
@@ -86,6 +90,8 @@ O `DATABASE_URL` do Go deve apontar para o mesmo Postgres do Chatwoot. Nao confi
 O `WEBHOOK_URL` precisa manter os dois `%s`. O primeiro recebe o ID da conta e o segundo recebe o ID da caixa de entrada/canal.
 
 Em producao, prefira URL interna entre containers, por exemplo `http://rails:3000/...`. Use URL publica somente se os containers nao estiverem na mesma rede.
+
+`WHATSMEOW_SHARED_SECRET` precisa ser identico no Chatwoot web, Sidekiq e whatsmeow-service. Sem ele, as rotas internas retornam `503`; `/health`, a consulta de estado da sessao, a verificacao de numero e a foto de perfil continuam publicas para preservar o monitoramento e as automacoes documentadas.
 
 ## Instalacao local sem Docker
 
@@ -169,6 +175,8 @@ services:
       PORT: 8080
       DATABASE_URL: postgres://postgres:senha_segura@postgres:5432/chatwoot?sslmode=disable
       WEBHOOK_URL: http://rails:3000/api/v1/accounts/%s/whatsmeow/%s/callback
+      WHATSMEOW_STATUS_SEND_TIMEOUT_SECONDS: 300
+      WHATSMEOW_SHARED_SECRET: ${WHATSMEOW_SHARED_SECRET}
     ports:
       - "8080:8080"
     depends_on:
@@ -235,6 +243,8 @@ bundle exec sidekiq -C config/sidekiq.yml
 
 Use as mesmas variaveis do web.
 
+O Sidekiq precisa consumir a fila `default`. As publicacoes de Status usam essa fila de forma duravel mesmo quando o web de staging mantem `ACTIVE_JOB_ADAPTER=async` para outros jobs locais.
+
 ### Whatsmeow service
 
 Build:
@@ -276,9 +286,9 @@ curl http://nome-interno-do-whatsmeow:8080/health
 
 1. Faça commit e push no branch `develop`.
 2. Aguarde o GitHub Actions publicar `ghcr.io/marcosenz0/chatwoot-whatsmeow:develop`.
-3. No Easypanel, redeploy do Chatwoot web e Sidekiq.
-4. Se houve mudanca em `whatsmeow-service`, redeploy tambem do servico Go.
-5. Se houve migration, rode `bundle exec rails db:chatwoot_prepare`.
+3. Se houve mudanca de contrato em `whatsmeow-service`, redeploy primeiro o servico Go e aguarde a restauracao das sessoes.
+4. Se houve migration, rode `bundle exec rails db:chatwoot_prepare`.
+5. No Easypanel, redeploy primeiro o Chatwoot Sidekiq e depois o Chatwoot web.
 
 Para mudancas so de documentacao, nao precisa redeploy.
 
@@ -393,6 +403,41 @@ bundle exec rails db:chatwoot_prepare
 ```
 
 ## Rotinas uteis
+
+Reconciliar contatos Whatsmeow antigos que foram criados com identificador `@lid`. O primeiro comando apenas mostra contagens e nao altera dados:
+
+```bash
+bundle exec rails whatsmeow:reconcile_contact_identities ACCOUNT_ID=<id>
+```
+
+Depois de conferir a previa, aplique a reconciliacao geral somente para identidades atuais. O LID da propria sessao e aliases nao confirmados sao ignorados:
+
+```bash
+bundle exec rails whatsmeow:reconcile_contact_identities ACCOUNT_ID=<id> APPLY=true
+```
+
+A rotina usa somente mapeamentos PN/LID confirmados pelo armazenamento do whatsmeow. Identidades nao resolvidas sao mantidas sem alteracao.
+
+### Reparo do incidente de contatos mesclados
+
+Nao use a reconciliacao geral para separar contatos que ja foram mesclados. Primeiro faca um `pg_dump` consistente e identifique o contato raiz contaminado pela caixa afetada. O reparo de incidente exige caixa e contato explicitos, faz dry-run por padrao e expande o cluster para todas as caixas Whatsmeow da conta:
+
+```bash
+bundle exec rails whatsmeow:repair_contact_identity_incident \
+  ACCOUNT_ID=<account_id> INBOX_ID=<inbox_id> ROOT_CONTACT_ID=<contact_id> \
+  SNAPSHOT_DIR=/app/storage/whatsmeow-identity-repair
+```
+
+Confira cada mapeamento PN/conversa. Para aplicar:
+
+```bash
+bundle exec rails whatsmeow:repair_contact_identity_incident \
+  ACCOUNT_ID=<account_id> INBOX_ID=<inbox_id> ROOT_CONTACT_ID=<contact_id> \
+  SNAPSHOT_DIR=/app/storage/whatsmeow-identity-repair \
+  APPLY=true CONFIRM=split-corrupted-whatsmeow-contacts
+```
+
+O reparo nao apaga mensagens nem conversas. Ele ancora cada conversa no PN de seu `ContactInbox`, associa apenas LIDs confirmados pelo servico atualizado, coloca o LID proprio/aliases nao comprovados em contatos tecnicos sem telefone e executa uma verificacao pos-commit dos remetentes. Guarde o dump PostgreSQL e o snapshot JSON ate terminar a validacao.
 
 Sincronizar fotos de perfil dos contatos Whatsmeow existentes:
 

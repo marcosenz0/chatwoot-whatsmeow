@@ -3,6 +3,8 @@ import { frontendURL } from '../../../helper/URLHelper';
 import store from '../../../store';
 import ConversationView from './ConversationView.vue';
 
+const WhatsmeowStatuses = () => import('../status/StatusPage.vue');
+
 const CONVERSATION_PERMISSIONS = [
   'administrator',
   'agent',
@@ -54,6 +56,14 @@ export default {
       props: () => {
         return { inboxId: 0 };
       },
+    },
+    {
+      path: frontendURL('accounts/:accountId/status'),
+      name: 'whatsmeow_statuses',
+      meta: {
+        permissions: CONVERSATION_PERMISSIONS,
+      },
+      component: WhatsmeowStatuses,
     },
     {
       path: frontendURL('accounts/:accountId/conversations/:conversation_id'),

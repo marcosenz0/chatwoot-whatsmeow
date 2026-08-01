@@ -4,7 +4,16 @@
 
 json.meta do
   json.sender do
-    json.partial! 'api/v1/models/contact', formats: [:json], resource: conversation.contact
+    if conversation.contact
+      json.partial! 'api/v1/models/contact', formats: [:json], resource: conversation.contact
+    else
+      json.id conversation.contact_id
+      json.name nil
+      json.email nil
+      json.phone_number nil
+      json.thumbnail ''
+      json.type 'contact'
+    end
   end
   json.channel conversation.inbox.try(:channel_type)
   if conversation.assigned_entity.is_a?(AgentBot)

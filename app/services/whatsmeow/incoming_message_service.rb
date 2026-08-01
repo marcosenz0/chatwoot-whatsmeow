@@ -1,12 +1,25 @@
 require 'base64'
 require 'stringio'
+require 'uri'
 
 # rubocop:disable Metrics/ClassLength
 class Whatsmeow::IncomingMessageService
+  AD_CONTEXT_KEYS = %i[
+    ctwa_clid source_id source_url source_type source_app title body greeting_message_body media_type media_url
+    thumbnail_url thumbnail_data_url original_image_url ad_preview_url ad_type wtwa_website_url conversion_source
+    entry_point_conversion_source entry_point_conversion_app entry_point_conversion_external_source
+    entry_point_conversion_external_medium contains_auto_reply contains_ctwa_flows_auto_reply click_to_whatsapp_call
+    automated_greeting_message_shown automated_greeting_message_cta_type render_larger_thumbnail show_ad_attribution
+    always_show_ad_attribution ref
+  ].freeze
+  AD_CONTEXT_URL_KEYS = %w[source_url media_url thumbnail_url original_image_url ad_preview_url wtwa_website_url].freeze
+  MAX_AD_THUMBNAIL_DATA_URL_SIZE = 700.kilobytes
+  MAX_AD_METADATA_LENGTH = 4096
+
   pattr_initialize [:inbox!, :params!]
 
   def perform
-    return if handle_already_imported_message
+    return if status_message? || handle_already_imported_message
     return if ignored_newsletter?
 
     set_contact
@@ -68,7 +81,7 @@ class Whatsmeow::IncomingMessageService
   def sender_identifier
     return group_jid if group_message?
 
-    params[:sender].presence || params[:sender_alt].presence || params[:chat].presence || params[:recipient_alt].presence
+    direct_peer_source_ids.first
   end
 
   def source_ids
@@ -76,13 +89,35 @@ class Whatsmeow::IncomingMessageService
   end
 
   def direct_source_ids
-    [
-      phone_source_id,
-      params[:sender],
-      params[:sender_alt],
-      params[:chat],
-      params[:recipient_alt]
-    ].compact_blank.reject { |source_id| group_source(source_id) }.uniq
+    ([phone_source_id] + direct_peer_source_ids)
+      .compact_blank
+      .reject { |source_id| group_source(source_id) || own_phone_source?(source_id) }
+      .uniq
+  end
+
+  def direct_peer_source_ids
+    @direct_peer_source_ids ||= sanitized_peer_source_ids(directional_peer_source_ids)
+  end
+
+  def directional_peer_source_ids
+    return [params[:contact_jid], params[:contact_alt_jid], params[:contact_lid_jid]] if explicit_contact_contract?
+    return [params[:recipient_alt], params[:chat]] if outgoing_echo?
+
+    [params[:sender_alt], params[:sender], params[:chat]]
+  end
+
+  def sanitized_peer_source_ids(identifiers)
+    if phone_source_id.present?
+      trusted_lid = params[:contact_lid_jid].to_s.downcase if explicit_contact_contract?
+      identifiers = identifiers.reject do |source_id|
+        source_id.to_s.downcase.include?('@lid') && source_id.to_s.downcase != trusted_lid
+      end
+    end
+    identifiers.compact_blank.reject { |source_id| group_source(source_id) || own_phone_source?(source_id) }.uniq
+  end
+
+  def explicit_contact_contract?
+    params[:contact_jid].present? || params[:contact_alt_jid].present? || params[:contact_phone].present?
   end
 
   def group_source_ids
@@ -90,12 +125,13 @@ class Whatsmeow::IncomingMessageService
   end
 
   def participant_source_ids
-    [
+    identifiers = [
       participant_phone_source_id,
       params[:participant_jid],
       params[:participant_lid_jid],
       params[:sender_alt]
-    ].compact_blank.reject { |source_id| group_source(source_id) }.uniq
+    ]
+    identifiers.compact_blank.reject { |source_id| group_source(source_id) }.uniq
   end
 
   def all_payload_source_ids
@@ -106,18 +142,49 @@ class Whatsmeow::IncomingMessageService
       params[:recipient_alt],
       params[:group_jid],
       params[:participant_jid],
-      params[:participant_lid_jid]
+      params[:participant_lid_jid],
+      params[:contact_lid_jid],
+      params[:contact_jid],
+      params[:contact_alt_jid]
     ].compact_blank.uniq
   end
 
   def phone_number
     return if group_message?
+    return @phone_number if defined?(@phone_number)
 
-    @phone_number ||= params[:sender_phone].presence ||
-                      extract_phone_number(params[:sender]) ||
-                      extract_phone_number(params[:sender_alt]) ||
-                      extract_phone_number(params[:chat]) ||
-                      extract_phone_number(params[:recipient_alt])
+    candidates = direct_phone_candidates.filter_map do |candidate|
+      normalized_phone_number(candidate)
+    end
+    @phone_number = candidates.find { |candidate| candidate != inbox_phone_number }
+  end
+
+  def direct_phone_candidates
+    if explicit_contact_contract?
+      [params[:contact_phone], params[:contact_jid], params[:contact_alt_jid]]
+    elsif outgoing_echo?
+      [params[:recipient_alt], params[:chat]]
+    else
+      [params[:sender_phone], params[:sender_alt], params[:sender], params[:chat]]
+    end
+  end
+
+  def normalized_phone_number(value)
+    return if value.blank?
+
+    extract_phone_number(value) || begin
+      digits = value.to_s.delete('^0-9')
+      "+#{digits}" if digits.match?(/\A[1-9]\d{9,14}\z/)
+    end
+  end
+
+  def inbox_phone_number
+    @inbox_phone_number ||= normalized_phone_number(@inbox.channel.phone_number)
+  end
+
+  def own_phone_source?(source_id)
+    source_phone = extract_phone_number(source_id)
+    source_phone.present? && source_phone == inbox_phone_number
   end
 
   def phone_source_id
@@ -178,6 +245,15 @@ class Whatsmeow::IncomingMessageService
     ).perform
 
     contact_inbox = isolate_contact_inbox(contact_inbox, contact_attributes) if should_isolate_contact_inbox?(contact_inbox)
+    unless group_message?
+      contact_inbox = resolve_direct_identity(
+        contact_inbox,
+        source_ids,
+        phone_number,
+        contact_attributes,
+        trusted_lid_source_ids: explicit_contact_contract? ? [params[:contact_lid_jid]] : []
+      )
+    end
     @contact_inbox = contact_inbox
     @contact = contact_inbox.contact
     sync_contact_profile(@contact, contact_attributes, params[:profile_picture_url], sender_identifier)
@@ -197,13 +273,36 @@ class Whatsmeow::IncomingMessageService
       contact_attributes: participant_contact_attributes
     ).perform
     contact_inbox = isolate_contact_inbox(contact_inbox, participant_contact_attributes) if should_isolate_contact_inbox?(contact_inbox)
+    contact_inbox = resolve_participant_identity(contact_inbox)
     contact = contact_inbox.contact
     sync_contact_profile(contact, participant_contact_attributes, params[:participant_profile_picture_url], params[:participant_jid])
     contact
   end
 
+  def resolve_participant_identity(contact_inbox)
+    resolve_direct_identity(
+      contact_inbox,
+      participant_source_ids,
+      participant_phone_number,
+      participant_contact_attributes,
+      trusted_lid_source_ids: [params[:participant_lid_jid]]
+    )
+  end
+
   def should_isolate_contact_inbox?(contact_inbox)
     group_profile?(contact_inbox.contact) && (!group_message? || contact_inbox.source_id != group_jid)
+  end
+
+  def resolve_direct_identity(contact_inbox, identity_source_ids, identity_phone_number, attributes_for_contact, trusted_lid_source_ids: [])
+    return contact_inbox if identity_phone_number.blank?
+
+    Whatsmeow::ContactIdentityResolver.new(
+      inbox: @inbox,
+      source_ids: identity_source_ids,
+      phone_number: identity_phone_number,
+      contact_attributes: attributes_for_contact,
+      trusted_lid_source_ids: trusted_lid_source_ids
+    ).perform
   end
 
   def isolate_contact_inbox(contact_inbox, attributes_for_contact)
@@ -267,7 +366,7 @@ class Whatsmeow::IncomingMessageService
     return group_contact_attributes if group_message?
 
     {
-      name: phone_number || params[:sender_name].presence || sender_identifier,
+      name: params[:sender_name].presence || phone_number || sender_identifier,
       phone_number: phone_number
     }
   end
@@ -384,7 +483,39 @@ class Whatsmeow::IncomingMessageService
     attributes.merge!(group_content_attributes) if group_message?
     attributes.merge!(quoted_content_attributes) if quoted_message?
     attributes[:whatsmeow_contacts] = contact_params if contact_message?
+    attributes[:whatsmeow_ad] = ad_context if ad_context.present?
     attributes
+  end
+
+  def ad_context
+    return @ad_context if defined?(@ad_context)
+
+    raw_context = params[:ad_context]
+    @ad_context = raw_context.respond_to?(:with_indifferent_access) ? sanitized_ad_context(raw_context) : {}
+    @ad_context
+  end
+
+  def sanitized_ad_context(raw_context)
+    context = raw_context.with_indifferent_access.slice(*AD_CONTEXT_KEYS).compact_blank.to_h
+    context.each do |key, value|
+      context[key] = value.to_s.first(MAX_AD_METADATA_LENGTH) if value.is_a?(String) && key != 'thumbnail_data_url'
+    end
+    AD_CONTEXT_URL_KEYS.each { |key| context.delete(key) unless valid_http_url?(context[key]) }
+    context.delete('thumbnail_data_url') unless valid_ad_thumbnail_data_url?(context['thumbnail_data_url'])
+    context
+  end
+
+  def valid_http_url?(value)
+    uri = URI.parse(value.to_s)
+    uri.is_a?(URI::HTTP) && uri.host.present? && %w[http https].include?(uri.scheme.downcase)
+  rescue URI::Error
+    false
+  end
+
+  def valid_ad_thumbnail_data_url?(value)
+    return false if value.blank? || value.bytesize > MAX_AD_THUMBNAIL_DATA_URL_SIZE
+
+    value.match?(%r{\Adata:image/(?:png|jpe?g|gif|webp);base64,[a-zA-Z0-9+/=]+\z})
   end
 
   def message_content
@@ -425,8 +556,17 @@ class Whatsmeow::IncomingMessageService
 
     {
       in_reply_to_external_id: params[:quoted_message_id],
-      whatsmeow_quoted_message: quoted_message
+      whatsmeow_quoted_message: quoted_message,
+      whatsmeow_status_reply: status_reply_reference
     }.compact_blank
+  end
+
+  def status_reply_reference
+    status = @inbox.whatsmeow_statuses.active.find_by(
+      source_id: params[:quoted_message_id],
+      from_me: true
+    )
+    { id: status.id } if status
   end
 
   def attach_files
@@ -562,6 +702,15 @@ class Whatsmeow::IncomingMessageService
 
   def ignored_newsletter?
     @inbox.channel.try(:ignore_newsletters) && all_payload_source_ids.any? { |source_id| newsletter_source?(source_id) }
+  end
+
+  def status_message?
+    return true if %w[status status_delete].include?(params[:event].to_s)
+
+    all_payload_source_ids.any? do |source_id|
+      user, server = source_id.to_s.downcase.split('@', 2)
+      user.to_s.split(':').first == 'status' && server == 'broadcast'
+    end
   end
 
   def newsletter_source?(source_id)

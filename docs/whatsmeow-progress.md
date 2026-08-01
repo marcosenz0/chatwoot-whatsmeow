@@ -161,6 +161,76 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - WhatsApp-registered numbers can open a direct Chatwoot conversation, while all detected numbers can be copied.
 - Brazilian local DDD numbers without country code are normalized to `+55` before the check and before direct-conversation creation.
 
+## July 2026 LID Contact Reconciliation
+
+- Direct messages and history sync now resolve WhatsApp LID identities through whatsmeow's persisted PN/LID mapping before creating Chatwoot contacts.
+- Phone and LID source IDs are attached to one canonical contact. Existing duplicate contacts are merged while human names are preserved and technical names are replaced by the confirmed E.164 phone number.
+- Duplicate non-resolved conversations for the same identity and Whatsmeow inbox are consolidated into the phone-backed conversation. Resolved conversations remain available in the previous-conversations panel.
+- `bundle exec rails whatsmeow:reconcile_contact_identities ACCOUNT_ID=<id>` previews existing LID reconciliation; add `APPLY=true` to persist it.
+- Opening the contact sidebar or its accordion sections no longer resets and reloads the full conversation list.
+
+## July 2026 Direct-Message Identity Incident Hotfix
+
+- Direct-message identity is now resolved as the external peer by direction. Incoming events use sender addresses; outgoing echoes use recipient/chat addresses and `DeviceSentMeta.DestinationJID`. The connected account's own PN/LID is never published as a contact alias.
+- The Go webhook exposes explicit `contact_jid`, `contact_alt_jid`, `contact_phone`, and peer-only `contact_lid_jid` fields. Rails uses this contract instead of mixing raw sender, chat, and recipient fields.
+- Rails only permits the canonical PN and an explicit peer LID from the new contract to participate in contact reconciliation. Raw legacy LIDs, unknown JID servers, conflicting phones, and the connected account's identity are rejected.
+- Every direct send, reaction, edit, and revoke uses the selected conversation's `contact_inbox.source_id` as its authoritative destination. Contact-level phone/name/participant attributes cannot override it; invalid sources fail closed.
+- The whatsmeow dependency is pinned at `v0.0.0-20260525144132-563bcaa0f632`, which removes stale inverse PN/LID cache entries when mappings change.
+- The incident repair task is dry-run by default and splits an explicitly selected corrupted root contact across all account Whatsmeow inboxes. It preserves conversations/messages, realigns incoming senders, quarantines unverified aliases, refreshes names/avatars, and writes a restricted JSON snapshot before applying.
+- Click-to-WhatsApp ad metadata is stored separately in `content_attributes.whatsmeow_ad`; it never participates in contact identity. The first attributed lead message renders a compact ad card with source, image/video thumbnail, copy, and an external details link when WhatsApp provides them.
+- Session mutations and sensitive whatsmeow routes require the configured internal token and fail closed when it is absent. `/health`, session status, number checks, and profile-picture lookup stay public for existing monitoring and documented automations.
+
+## July 2026 WhatsApp Status
+
+- The conversation sidebar now has a Status workspace for each connected `Channel::Whatsmeow` inbox, with own Status publishing and the active updates WhatsApp delivers for that session.
+- The Status workspace defaults to an all-inboxes view, shows each session's connection badge, and offers a Chatwoot-style inbox picker plus quick per-inbox Status toggles in the three-dot menu.
+- Publishing from the all-inboxes view can target every connected inbox or a selected subset. The browser uploads once, receives `202 Accepted`, closes the composer, and leaves the durable publication sequence to Sidekiq.
+- Incoming Status payloads are rejected by the normal message importer even if a webhook arrives with a generic message event, preventing `status@broadcast` from creating contacts or conversations outside the Status workspace.
+- Text Status supports the WhatsApp background/font metadata; image, video, and recorded-audio Status use Active Storage and expire after 24 hours. An hourly housekeeping job removes expired records and media.
+- The full-screen viewer advances text/images after five seconds, follows the real video duration, and continues through every update and contact with keyboard and pointer navigation.
+- Opening an incoming Status creates a per-agent local view immediately and sends the WhatsApp read receipt asynchronously, so a disconnected whatsmeow service does not block the viewer.
+- Realtime `status@broadcast` messages and `StatusV3Messages` history snapshots bypass normal conversation/group creation. Status revokes delete the matching Status record.
+- Status recipients are scoped to the contacts associated with the publishing inbox. Account-wide contact synchronization was removed because whatsmeow derives Status broadcast participants from its local contact store, making a global sync expand every inbox's broadcast unexpectedly.
+- Before each Status publish, account-managed contact names are cleared from that session in one local batch and only the selected inbox's audience is restored. This prevents contacts injected by an older global sync from remaining eligible recipients.
+- Multi-inbox Status publishing is persisted per destination as `queued`, `processing`, `published`, or `failed`. Distributed Redis mutexes cover the full remote request, enforce a 15-second account interval and a 60-second cooldown per physical WhatsApp session, and deduplicate inbox aliases that share the same phone.
+- Every physical delivery receives a stable WhatsApp message ID before it is sent. Automatic and manual retries reuse that ID, and the Rails client never retries a mutation through another service alias after a response or ambiguous read failure.
+- A minute-level recovery job resumes due queued deliveries and safely retries processing records abandoned beyond the full Status timeout, so a web restart, enqueue interruption, or worker crash cannot leave a publication permanently stuck.
+- Contact storage influences outgoing Status recipients only. It cannot force another account to send its Status to this session; incoming visibility remains controlled by WhatsApp delivery and the other person's privacy/contact relationship.
+- Set the same `WHATSMEOW_SHARED_SECRET` on Chatwoot and whatsmeow-service to authenticate Status API calls and callback webhooks.
+- Status updates now separate unseen updates from the `Vistos`/Seen section. The permanent action beside `Meu status` keeps publishing additional updates available after the first one.
+- The Status viewer supports text replies, emoji reactions, saved stickers, audio mute/unmute, and the native WhatsApp Status context needed for the reply to appear in the contact's direct chat.
+- Read/played receipts for Status published from this account are stored as per-contact viewers and exposed through the viewer count/list in the Status viewer. Outgoing rows and stable source IDs exist before the send, preventing a fast receipt from being discarded before persistence. A status viewer never creates a Chatwoot conversation.
+- Status receipt classification now accepts both read and played protocol variants, resolves LID participants, and confirms the Status source ID belongs to the inbox before recording a viewer. This avoids counting this account's own reads of somebody else's Status while keeping valid external views.
+- Live read/played receipts are checked against persisted outgoing Status IDs even when WhatsApp does not label the receipt chat as `status@broadcast`; Rails remains the final inbox/source-ID authority before a viewer is stored.
+- The pinned whatsmeow module receives a build-time compatibility patch for Status receipts addressed from the account's own JID to `status@broadcast`: the real viewer in the `participant` attribute is preserved instead of being mistaken for the current account.
+- `StatusV3Messages` history sync now restores viewers from WhatsApp's embedded `UserReceipt` records for own Status updates, so views already visible on the phone can be recovered idempotently after reconnect/history sync.
+- Whatsmeow callback delivery retries transient connection, timeout, rate-limit, and server failures with a short exponential backoff, preventing a brief Chatwoot restart from permanently losing a Status view event.
+- The Status three-dot menu can independently hide or show this inbox's outgoing view confirmations. It defaults to showing them; when hidden, Chatwoot still records the operator's local view but does not ask WhatsApp to send the receipt.
+- WhatsApp replies to an active own Status now retain a Status reference in the direct conversation. The message bubble displays a clickable media/text preview that reopens the original Status context instead of showing an ambiguous generic quoted message.
+- Received video Status media now keeps normalized video MIME metadata and a compact JPEG thumbnail. The viewer uses that thumbnail (or one lightweight frame capture for older records) for the stronger blurred media backdrop without starting a second foreground video decode.
+- The Status settings menu groups each WhatsApp inbox in its own expandable card. Status reception and outgoing view-confirmation controls stay inside that inbox instead of rendering as overlapping flat rows.
+- Multi-inbox publications now share a publication identifier. The own-Status viewer totals views across the matching publication, shows the originating inbox on every viewer row, and offers an inbox filter from the viewer panel's three-dot menu.
+- Viewer identity storage and API counts collapse matching contact, phone, PN-JID, and LID receipts for the same Status, preventing multi-device identity variants from inflating the count.
+- The own-Status view counter and viewer panel use an opaque high-contrast surface, keeping the controls and names readable over white or otherwise bright Status media.
+- Each own-Status viewer row displays the viewer's phone number beside their name, using the linked contact phone as a fallback when the receipt does not carry one.
+- Own Status publications are grouped by publication instead of mixing every inbox copy into the viewer sequence. The viewer exposes inbox chips to switch copies without leaving the screen.
+- `Meu status` opens a Portuguese publication manager with previews, live per-inbox queue states, view totals, retry controls for failed destinations, open controls, and two-step remote deletion. Closing a Status opened from this manager returns to the manager instead of the empty Status workspace.
+- The `Meu status` card always opens the publication manager; only its separate blue plus button opens the composer. Statuses from another connected inbox owned by the same account are recovered as own publications when the original local outgoing record is unavailable, with duplicate mirrors collapsed by WhatsApp source ID.
+- Brazilian viewer phone numbers are formatted as `+55 DD XXXX-XXXX` or `+55 DD XXXXX-XXXX` for easier reading.
+
+## July 2026 Conversation Search
+
+- Conversation list headers now include a search action before filter, sort, and layout controls. It performs a debounced server-side lookup across accessible conversations by partial contact name, email, phone number, or identifier, including old and resolved conversations that are not loaded in the current list page.
+
+## July 2026 Official WhatsApp Cloud Studio
+
+- The official `Channel::Whatsapp` Cloud API inbox has a Portuguese Studio for synchronized Meta templates, visual customer journeys, consent-based broadcasts, delivery summaries, and Brazilian cost estimates. The interface filters strictly to `provider: whatsapp_cloud`; Whatsmeow inboxes and services are unchanged.
+- Template creation supports text headers, numbered body variables with Meta review examples, footers, quick replies, static website buttons, and phone buttons. Specialized authentication/native Meta Flow templates remain visible but disabled where the Studio cannot build their required payload safely.
+- Journeys can be saved while incomplete, but publication validates the graph, trigger, customer-service window mode, approved synchronized template, media header, named or numbered values, URL/copy-code/quick-reply parameters, branches, reachability, and cycles.
+- Outgoing journey and campaign processing now waits for a provider message ID or delivery status instead of treating local message creation as Meta acceptance. Failed sends remain failed, and paused or replaced journeys cancel unfinished runs.
+- Official Cloud media webhook failures that are safe to retry now roll back message deduplication and retry instead of permanently creating an attachment-less message. Cloud webhooks fail closed on missing or invalid Meta signatures; 360dialog behavior is unchanged.
+- Composer recordings for official Cloud inboxes are remuxed to OGG/Opus and sent with Meta's voice-note flag. Uploaded audio remains a regular audio attachment.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

@@ -1,5 +1,4 @@
 import lamejs from '@breezystack/lamejs';
-
 import { remuxWebmToOgg } from './webmOpusToOgg';
 
 const writeString = (view, offset, string) => {

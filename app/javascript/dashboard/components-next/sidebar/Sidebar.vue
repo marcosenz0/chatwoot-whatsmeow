@@ -417,6 +417,11 @@ const menuItems = computed(() => {
           to: accountScopedRoute('home'),
         },
         {
+          name: 'Status',
+          label: t('SIDEBAR.STATUS'),
+          to: accountScopedRoute('whatsmeow_statuses'),
+        },
+        {
           name: 'Mentions',
           label: t('SIDEBAR.MENTIONED_CONVERSATIONS'),
           icon: 'i-lucide-at-sign',
@@ -887,6 +892,12 @@ const menuItems = computed(() => {
           label: t('SIDEBAR.AUTOMATION'),
           icon: 'i-lucide-repeat',
           to: accountScopedRoute('automation_list'),
+        },
+        {
+          name: 'Settings WhatsApp Cloud',
+          label: t('SIDEBAR.WHATSAPP_CLOUD_STUDIO'),
+          icon: 'i-lucide-workflow',
+          to: accountScopedRoute('whatsapp_cloud_studio'),
         },
         {
           name: 'Settings Agent Bots',

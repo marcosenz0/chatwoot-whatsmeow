@@ -107,6 +107,38 @@ class Whatsapp::FacebookApiClient
     handle_response(response, 'Phone number webhook callback override failed')
   end
 
+  def fetch_subscribed_apps(waba_id)
+    response = HTTParty.get(
+      "#{BASE_URI}/#{@api_version}/#{waba_id}/subscribed_apps",
+      headers: request_headers
+    )
+
+    handle_response(response, 'WABA subscribed apps fetch failed')
+  end
+
+  def override_waba_callback(waba_id, callback_url, verify_token, subscribed_fields: WEBHOOK_DEFAULT_FIELDS)
+    response = HTTParty.post(
+      "#{BASE_URI}/#{@api_version}/#{waba_id}/subscribed_apps",
+      headers: request_headers,
+      body: {
+        override_callback_uri: callback_url,
+        verify_token: verify_token,
+        subscribed_fields: subscribed_fields
+      }.to_json
+    )
+
+    handle_response(response, 'Webhook callback override failed')
+  end
+
+  def unsubscribe_waba_webhook(waba_id)
+    response = HTTParty.delete(
+      "#{BASE_URI}/#{@api_version}/#{waba_id}/subscribed_apps",
+      headers: request_headers
+    )
+
+    handle_response(response, 'Webhook unsubscription failed')
+  end
+
   def clear_phone_number_callback_override(phone_number_id)
     response = HTTParty.post(
       "#{BASE_URI}/#{@api_version}/#{phone_number_id}",

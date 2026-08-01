@@ -48,11 +48,13 @@ class Whatsapp::HealthService
 
   def fetch_health_status
     validate_channel!
-
     phone_health_data = fetch_graph_data(@channel.provider_config['phone_number_id'], phone_health_fields)
     business_account_data = fetch_graph_data(@channel.provider_config['business_account_id'], business_account_fields)
 
-    format_phone_health_response(phone_health_data).merge(format_business_account_response(business_account_data))
+    format_phone_health_response(phone_health_data)
+      .merge(format_business_account_response(business_account_data))
+      .merge(fetch_webhook_subscription_health)
+      .merge(fetch_app_credentials_health)
   end
 
   def sync_health_status!
@@ -221,5 +223,52 @@ class Whatsapp::HealthService
 
   def risk_signature(health_status)
     health_status.to_h.with_indifferent_access.values_at(:quality_rating, :status)
+  end
+
+  def fetch_webhook_subscription_health
+    configured_app_id = GlobalConfigService.load('WHATSAPP_APP_ID', '').to_s
+    waba_id = @channel.provider_config['business_account_id']
+    return subscription_health(configured_app_id, [], false) if waba_id.blank?
+
+    response = Whatsapp::FacebookApiClient.new(@access_token).fetch_subscribed_apps(waba_id)
+    subscribed_app_ids = response.fetch('data', []).filter_map do |app|
+      app.dig('whatsapp_business_api_data', 'id') || app['id']
+    end.map(&:to_s).uniq
+
+    subscription_health(configured_app_id, subscribed_app_ids, true)
+  rescue StandardError => e
+    Rails.logger.error "[WHATSAPP HEALTH] Error fetching subscribed apps: #{e.message}"
+    subscription_health(configured_app_id, [], false)
+  end
+
+  def subscription_health(configured_app_id, subscribed_app_ids, available)
+    {
+      webhook_subscription_available: available,
+      configured_app_id: configured_app_id,
+      subscribed_app_ids: subscribed_app_ids,
+      configured_app_subscribed: configured_app_id.present? && subscribed_app_ids.include?(configured_app_id)
+    }
+  end
+
+  def fetch_app_credentials_health
+    configured_app_id = GlobalConfigService.load('WHATSAPP_APP_ID', '').to_s
+    response = Whatsapp::FacebookApiClient.new(@access_token).debug_token(@access_token)
+    token_data = response.fetch('data', {})
+    token_app_id = token_data['app_id'].to_s
+
+    {
+      app_credentials_available: true,
+      access_token_valid: token_data['is_valid'] == true,
+      access_token_app_id: token_app_id,
+      access_token_matches_configured_app: configured_app_id.present? && token_app_id == configured_app_id
+    }
+  rescue StandardError => e
+    Rails.logger.error "[WHATSAPP HEALTH] Error validating app credentials: #{e.message}"
+    {
+      app_credentials_available: false,
+      access_token_valid: false,
+      access_token_app_id: nil,
+      access_token_matches_configured_app: false
+    }
   end
 end

@@ -1,6 +1,8 @@
 /* global axios */
 import ApiClient from '../ApiClient';
 
+const CONVERSATION_LIST_REQUEST_TIMEOUT = 15000;
+
 const compactParams = params =>
   Object.fromEntries(
     Object.entries(params).filter(([, value]) => value !== undefined)
@@ -22,8 +24,10 @@ class ConversationApi extends ApiClient {
     sortBy,
     updatedWithin,
     hideGroupTabs,
+    contactQuery,
   }) {
     return axios.get(this.url, {
+      timeout: CONVERSATION_LIST_REQUEST_TIMEOUT,
       params: compactParams({
         inbox_id: inboxId,
         team_id: teamId,
@@ -35,6 +39,7 @@ class ConversationApi extends ApiClient {
         sort_by: sortBy,
         updated_within: updatedWithin,
         hide_group_tabs: hideGroupTabs,
+        contact_query: contactQuery,
       }),
     });
   }

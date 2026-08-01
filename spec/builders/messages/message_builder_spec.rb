@@ -313,4 +313,47 @@ describe Messages::MessageBuilder do
       end
     end
   end
+
+  describe 'official WhatsApp voice-note metadata' do
+    let(:audio_blob) do
+      ActiveStorage::Blob.create_and_upload!(
+        io: StringIO.new('ogg-audio'),
+        filename: 'voice.ogg',
+        content_type: 'audio/ogg'
+      )
+    end
+    let(:params) do
+      ActionController::Parameters.new(
+        content: '',
+        attachments: [audio_blob.signed_id],
+        is_voice_message: true
+      )
+    end
+
+    context 'with an official Cloud API inbox' do
+      let(:channel) do
+        create(
+          :channel_whatsapp,
+          account: account,
+          provider: 'whatsapp_cloud',
+          validate_provider_config: false,
+          sync_templates: false
+        )
+      end
+      let(:conversation) { create(:conversation, account: account, inbox: channel.inbox) }
+
+      it 'tags the audio attachment as a native voice note' do
+        expect(message_builder.attachments.first.meta).to include('is_voice_message' => true)
+      end
+    end
+
+    context 'with a Whatsmeow inbox' do
+      let(:channel) { create(:channel_whatsmeow, account: account) }
+      let(:conversation) { create(:conversation, account: account, inbox: channel.inbox) }
+
+      it 'ignores the Cloud API voice-note flag' do
+        expect(message_builder.attachments.first.meta).not_to include('is_voice_message')
+      end
+    end
+  end
 end

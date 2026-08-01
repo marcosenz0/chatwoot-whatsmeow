@@ -4,11 +4,20 @@ class Webhooks::WhatsappEventsJob < MutexApplicationJob
   # a webhook that arrives just after the lock is acquired can exhaust retries before the
   # holder finishes and silently drop its message.
   retry_on LockAcquisitionError, wait: 2.seconds, attempts: 20
+  retry_on Whatsapp::IncomingMessageWhatsappCloudService::MediaDownloadError, wait: 5.seconds, attempts: 5
+  retry_on Whatsapp::CloudMessageStatusService::MessageNotFoundError, wait: 2.seconds, attempts: 5
 
   def perform(params = {})
+    payloads = whatsapp_cloud_batch_payloads(params)
+    return process_payloads(payloads) if payloads.present?
+
+    process_payload(params)
+  end
+
+  def process_payload(params)
     channel = find_channel_from_whatsapp_business_payload(params)
 
-    if channel_is_inactive?(channel)
+    if channel_is_inactive?(channel) && !retryable_cloud_media_payload?(channel, params)
       Rails.logger.warn("Inactive WhatsApp channel: #{channel&.phone_number || "unknown - #{params[:phone_number]}"}")
       return
     end
@@ -86,6 +95,45 @@ class Webhooks::WhatsappEventsJob < MutexApplicationJob
   end
 
   private
+
+  def process_payloads(payloads)
+    retryable_error = nil
+
+    payloads.sort_by { |payload| cloud_media_payload?(payload) ? 1 : 0 }.each do |payload|
+      process_payload(payload)
+    rescue Whatsapp::IncomingMessageWhatsappCloudService::MediaDownloadError,
+           Whatsapp::CloudMessageStatusService::MessageNotFoundError => e
+      retryable_error ||= e
+    end
+
+    raise retryable_error if retryable_error
+  end
+
+  def retryable_cloud_media_payload?(channel, params)
+    channel&.provider == 'whatsapp_cloud' &&
+      channel.account.active? &&
+      channel.reauthorization_required? &&
+      cloud_media_payload?(params)
+  end
+
+  def cloud_media_payload?(params)
+    message_type = params.dig(:entry, 0, :changes, 0, :value, :messages, 0, :type)
+    message_type.in?(%w[audio document image sticker video])
+  end
+
+  def whatsapp_cloud_batch_payloads(params)
+    splitter = Whatsapp::CloudWebhookPayloadSplitter.new(params: params)
+    has_cloud_payload = false
+    payloads = splitter.change_payloads.flat_map do |payload|
+      channel = find_channel_from_whatsapp_business_payload(payload)
+      next [payload] unless channel&.provider == 'whatsapp_cloud'
+
+      has_cloud_payload = true
+      Whatsapp::CloudWebhookPayloadSplitter.new(params: payload).perform
+    end
+
+    has_cloud_payload ? payloads : []
+  end
 
   # Echo payloads reverse the fields — `from` is the business number and `to` is the contact.
   # Returns nil for status-only webhooks so they bypass the lock.

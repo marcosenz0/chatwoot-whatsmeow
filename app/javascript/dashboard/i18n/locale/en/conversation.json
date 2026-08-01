@@ -247,7 +247,7 @@
       "TIP_AUDIORECORDER_ICON": "Record audio",
       "TIP_AUDIORECORDER_PERMISSION": "Allow access to audio",
       "TIP_AUDIORECORDER_ERROR": "Could not open the audio",
-      "AUDIO_CONVERSION_FAILED": "Audio conversion failed. Please try again.",
+      "AUDIO_CONVERSION_FAILED": "Could not prepare this recording as a WhatsApp voice note. Please record it again.",
       "DRAG_DROP": "Drag and drop here to attach",
       "IMAGE_UPLOAD_SUCCESS": "Image uploaded successfully",
       "START_AUDIO_RECORDING": "Start audio recording",
@@ -546,6 +546,11 @@
       "SEND_FAILED": "Could not send sticker.",
       "CONVERSATION_CHANGED": "The conversation changed. Reopen the sticker panel and try again.",
       "UNAVAILABLE": "This saved sticker is unavailable. Remove it from favorites and save it again."
+    },
+    "WHATSMEOW_AD": {
+      "LEAD": "Lead from ad",
+      "TITLE": "Ad",
+      "VIEW": "View ad"
     }
   },
   "EMAIL_TRANSCRIPT": {
