@@ -298,7 +298,6 @@ export default {
           :status="contact.availability_status"
           :size="48"
           hide-offline-status
-          rounded-full
         />
       </div>
 

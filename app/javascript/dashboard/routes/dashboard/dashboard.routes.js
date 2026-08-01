@@ -1,6 +1,7 @@
 import settings from './settings/settings.routes';
 import conversation from './conversation/conversation.routes';
 import { routes as searchRoutes } from '../../modules/search/search.routes';
+import { routes as callRoutes } from './calls/routes';
 import { routes as contactRoutes } from './contacts/routes';
 import { routes as companyRoutes } from './companies/routes';
 import { routes as notificationRoutes } from './notifications/routes';
@@ -14,6 +15,7 @@ import AppContainer from './Dashboard.vue';
 import Suspended from './suspended/Index.vue';
 import NoAccounts from './noAccounts/Index.vue';
 import OnboardingAccountDetails from './onboarding/Index.vue';
+import OnboardingInboxSetup from './onboarding/InboxSetup.vue';
 
 const DocumentationPage = () => import('./documentation/DocumentationPage.vue');
 const DocumentationShortcut = { template: '<div />' };
@@ -45,6 +47,7 @@ export default {
         ...inboxRoutes,
         ...conversation.routes,
         ...settings.routes,
+        ...callRoutes,
         ...contactRoutes,
         ...companyRoutes,
         ...searchRoutes,
@@ -60,6 +63,14 @@ export default {
         permissions: ['administrator', 'agent', 'custom_role'],
       },
       component: OnboardingAccountDetails,
+    },
+    {
+      path: frontendURL('accounts/:accountId/onboarding/inbox-setup'),
+      name: 'onboarding_inbox_setup',
+      meta: {
+        permissions: ['administrator', 'agent', 'custom_role'],
+      },
+      component: OnboardingInboxSetup,
     },
     {
       path: frontendURL('accounts/:accountId/suspended'),

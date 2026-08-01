@@ -47,7 +47,7 @@
         },
         "SUBMIT": "Criar",
         "SAVE": "Salvar",
-        "VALIDATING_OPENAI": "Validating with OpenAI...",
+        "VALIDATING_OPENAI": "Validando com a OpenAI...",
         "CANCEL": "Cancelar"
       },
       "API": {
@@ -81,7 +81,7 @@
       "MODAL_DESCRIPTION": "Configure o provedor principal e uma reserva opcional para transcricao e resumo de audios."
     },
     "DISCONNECT": {
-      "BUTTON_TEXT": "Desconectar"
+      "BUTTON_TEXT": "Desconectado"
     },
     "SIDEBAR_DESCRIPTION": {
       "DIALOGFLOW": "Dialogflow é uma plataforma de processamento de linguagem natural para a construção de interfaces conversais. Integrá-lo com {installationName} permite que os bots lidem primeiro com consultas e transfiram para os agentes quando necessário. Ele ajuda a qualificar leads e reduzir a carga de trabalho dos agentes respondendo às FAQ. Para adicionar um fluxo de diálogo (Dialogflow), crie uma Conta de Serviço no Google Console e compartilhe as credenciais. Consulte sua documentação para obter detalhes"

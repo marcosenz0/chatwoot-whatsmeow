@@ -14,6 +14,7 @@ class ConversationFinder
     'waiting_since_asc' => %w[sort_on_waiting_since asc],
     'waiting_since_desc' => %w[sort_on_waiting_since desc],
     'priority_desc_created_at_asc' => %w[sort_on_priority_created_at desc],
+    'unread' => %w[sort_on_unread desc],
 
     # To be removed in v3.5.0
     'latest' => %w[sort_on_last_activity_at desc],
@@ -188,6 +189,10 @@ class ConversationFinder
   end
 
   def set_count_for_all_conversations
+    legacy_count_for_all_conversations
+  end
+
+  def legacy_count_for_all_conversations
     [
       conversations_for_tab(@conversations.assigned_to(current_user), 'me').count,
       conversations_for_tab(@conversations.unassigned, 'unassigned').count,

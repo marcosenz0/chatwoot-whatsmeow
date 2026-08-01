@@ -164,7 +164,7 @@ class Contact < ApplicationRecord
   end
 
   def push_event_data
-    {
+    data = {
       additional_attributes: additional_attributes,
       custom_attributes: custom_attributes,
       email: email,
@@ -176,6 +176,8 @@ class Contact < ApplicationRecord
       blocked: blocked,
       type: 'contact'
     }
+    data[:company_id] = company_id if account.feature_enabled?('companies')
+    data
   end
 
   def webhook_data

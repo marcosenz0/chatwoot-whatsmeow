@@ -1,6 +1,5 @@
 <script setup>
 import { computed, toRef } from 'vue';
-import { isVoiceCallEnabled } from 'dashboard/helper/inbox';
 import { useChannelIcon, useChannelBrandIcon } from './provider';
 import Icon from 'next/icon/Icon.vue';
 
@@ -21,7 +20,6 @@ defineOptions({ inheritAttrs: false });
 
 const inboxRef = toRef(props, 'inbox');
 
-const hasVoiceBadge = computed(() => isVoiceCallEnabled(props.inbox));
 const channelIcon = useChannelIcon(inboxRef);
 const brandIcon = useChannelBrandIcon(inboxRef);
 

@@ -261,6 +261,7 @@ onMounted(() => resetContacts());
     ref="popoverRef"
     :align="align"
     :show-content-border="false"
+    :close-on-scroll="false"
     @show="onPopoverShow"
     @hide="onPopoverHide"
   >
