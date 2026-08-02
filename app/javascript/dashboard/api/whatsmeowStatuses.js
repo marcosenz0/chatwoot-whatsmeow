@@ -11,6 +11,10 @@ class WhatsmeowStatusesAPI extends ApiClient {
     return axios.get(this.url, { params: { inbox_id: inboxId } });
   }
 
+  getActivity() {
+    return axios.get(`${this.url}/activity`);
+  }
+
   publish(formData) {
     return axios.post(this.url, formData);
   }

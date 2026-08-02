@@ -11,6 +11,7 @@ import { useSidebarKeyboardShortcuts } from './useSidebarKeyboardShortcuts';
 import { vOnClickOutside } from '@vueuse/components';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import { useWindowSize, useEventListener } from '@vueuse/core';
+import { useRoute } from 'vue-router';
 
 import Button from 'dashboard/components-next/button/Button.vue';
 import SidebarGroup from './SidebarGroup.vue';
@@ -22,6 +23,9 @@ import ChannelIcon from 'next/icon/ChannelIcon.vue';
 import SidebarAccountSwitcher from './SidebarAccountSwitcher.vue';
 import Logo from 'next/icon/Logo.vue';
 import ComposeConversation from 'dashboard/components-next/NewConversation/ComposeConversation.vue';
+import WhatsmeowStatusesAPI from 'dashboard/api/whatsmeowStatuses';
+import { LocalStorage } from 'shared/helpers/localStorage';
+import StatusSidebarIcon from './StatusSidebarIcon.vue';
 import {
   SIDEBAR_SORT_SECTIONS,
   getSidebarSortOptions,
@@ -44,10 +48,12 @@ const emit = defineEmits([
 ]);
 
 const WHATSMEOW_STATUS_SYNC_INTERVAL = 60000;
+const WHATSMEOW_STATUS_SEEN_STORAGE_KEY = 'whatsmeowStatusLastSeen';
 
 const { accountScopedRoute, isOnChatwootCloud } = useAccount();
 const { isEnterprise } = useConfig();
 const store = useStore();
+const route = useRoute();
 
 // Calls run on the enterprise-only API (cloud runs enterprise); hide the entry
 // on community so it doesn't lead to a dashboard/CTA the backend can't serve.
@@ -130,6 +136,47 @@ useSidebarKeyboardShortcuts(toggleShortcutModalFn);
 
 const expandedItem = ref(null);
 const whatsmeowStatusSyncInterval = ref(null);
+const latestWhatsmeowStatusId = ref(0);
+const lastSeenWhatsmeowStatusId = ref(0);
+let whatsmeowStatusActivityRequest = 0;
+
+const whatsmeowStatusSeenStorageKey = computed(
+  () =>
+    `${WHATSMEOW_STATUS_SEEN_STORAGE_KEY}::${accountId.value}::${currentUserId.value}`
+);
+
+const hasNewWhatsmeowStatus = computed(
+  () => latestWhatsmeowStatusId.value > lastSeenWhatsmeowStatusId.value
+);
+
+const loadLastSeenWhatsmeowStatus = () => {
+  lastSeenWhatsmeowStatusId.value =
+    Number(LocalStorage.get(whatsmeowStatusSeenStorageKey.value)) || 0;
+};
+
+const markWhatsmeowStatusesSeen = () => {
+  lastSeenWhatsmeowStatusId.value = latestWhatsmeowStatusId.value;
+  LocalStorage.set(
+    whatsmeowStatusSeenStorageKey.value,
+    latestWhatsmeowStatusId.value
+  );
+};
+
+const refreshWhatsmeowStatusActivity = async () => {
+  if (!accountId.value) return;
+
+  whatsmeowStatusActivityRequest += 1;
+  const request = whatsmeowStatusActivityRequest;
+  try {
+    const { data } = await WhatsmeowStatusesAPI.getActivity();
+    if (request !== whatsmeowStatusActivityRequest) return;
+
+    latestWhatsmeowStatusId.value = Number(data.payload?.latest_status_id) || 0;
+    if (route.name === 'whatsmeow_statuses') markWhatsmeowStatusesSeen();
+  } catch {
+    // Keep the last known indicator state when the activity check is unavailable.
+  }
+};
 
 const setExpandedItem = name => {
   expandedItem.value = expandedItem.value === name ? null : name;
@@ -251,6 +298,7 @@ const getSidebarSectionSort = useMapGetter(
 const syncWhatsmeowStatuses = () => {
   if (document.visibilityState === 'hidden') return;
   store.dispatch('inboxes/syncWhatsmeowStatuses');
+  refreshWhatsmeowStatusActivity();
 };
 
 const startWhatsmeowStatusSync = () => {
@@ -294,6 +342,24 @@ useEventListener(document, 'visibilitychange', syncWhatsmeowStatuses);
 watch([accountId, currentUserId], fetchSidebarSortPreferences, {
   immediate: true,
 });
+
+watch(
+  [accountId, currentUserId],
+  () => {
+    latestWhatsmeowStatusId.value = 0;
+    loadLastSeenWhatsmeowStatus();
+    refreshWhatsmeowStatusActivity();
+  },
+  { immediate: true }
+);
+
+watch(
+  () => route.name,
+  routeName => {
+    if (routeName === 'whatsmeow_statuses') markWhatsmeowStatusesSeen();
+  },
+  { immediate: true }
+);
 
 const hasUnreadCountsForSection = section => {
   if (section === SIDEBAR_SORT_SECTIONS.FOLDERS) {
@@ -419,6 +485,9 @@ const menuItems = computed(() => {
         {
           name: 'Status',
           label: t('SIDEBAR.STATUS'),
+          icon: h(StatusSidebarIcon, {
+            hasUnread: hasNewWhatsmeowStatus.value,
+          }),
           to: accountScopedRoute('whatsmeow_statuses'),
         },
         {

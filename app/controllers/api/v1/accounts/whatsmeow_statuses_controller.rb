@@ -19,6 +19,15 @@ class Api::V1::Accounts::WhatsmeowStatusesController < Api::V1::Accounts::BaseCo
     render json: { payload: statuses.map { |status| status_payload(status, viewed_status_ids, viewer_counts) } }
   end
 
+  def activity
+    inbox_ids = policy_scope(Current.account.inboxes).where(channel_type: 'Channel::Whatsmeow').select(:id)
+    latest_status_id = Current.account.whatsmeow_statuses.active
+                                      .where(inbox_id: inbox_ids, from_me: false)
+                                      .maximum(:id)
+
+    render json: { payload: { latest_status_id: latest_status_id || 0 } }
+  end
+
   def create
     statuses = Whatsmeow::StatusPublicationScheduler.new(inboxes: @inboxes, user: Current.user, params: publication_params).perform
     payload = if legacy_single_inbox_request?
