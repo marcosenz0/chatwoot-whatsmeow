@@ -15,10 +15,11 @@ defineProps({
       class="size-4"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <circle cx="8" cy="8" r="2.75" stroke="currentColor" />
+      <circle cx="8" cy="8" r="3.25" stroke="currentColor" stroke-width="1.3" />
       <path
-        d="M5.15 2.45A6.15 6.15 0 0 0 2.45 5.15M10.85 2.45a6.15 6.15 0 0 1 2.7 2.7M13.55 10.85a6.15 6.15 0 0 1-2.7 2.7M5.15 13.55a6.15 6.15 0 0 1-2.7-2.7"
+        d="M7.3 2.3a5.75 5.75 0 0 0-4.5 8.1M8.7 2.3a5.75 5.75 0 0 1 4.5 8.1M12.2 11.9a5.75 5.75 0 0 1-8.4 0"
         stroke="currentColor"
+        stroke-width="1.3"
         stroke-linecap="round"
       />
     </svg>
