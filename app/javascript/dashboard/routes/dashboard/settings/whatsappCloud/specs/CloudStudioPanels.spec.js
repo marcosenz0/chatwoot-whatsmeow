@@ -511,6 +511,29 @@ describe('WhatsApp Cloud Studio panels', () => {
     expect(messageNode.attributes('aria-pressed')).toBe('true');
     expect(wrapper.text()).toContain('2 blocks selected');
 
+    messageNode.element.dispatchEvent(
+      new MouseEvent('pointerdown', {
+        bubbles: true,
+        button: 0,
+        ctrlKey: true,
+        clientX: 500,
+        clientY: 300,
+      })
+    );
+    window.dispatchEvent(
+      new MouseEvent('pointerup', { clientX: 500, clientY: 300 })
+    );
+    messageNode.element.dispatchEvent(
+      new MouseEvent('click', {
+        bubbles: true,
+        ctrlKey: true,
+        detail: 1,
+      })
+    );
+    await nextTick();
+    expect(triggerNode.attributes('aria-pressed')).toBe('true');
+    expect(messageNode.attributes('aria-pressed')).toBe('false');
+
     wrapper.unmount();
   });
 

@@ -467,6 +467,10 @@ const selectNode = (nodeId, event = {}) => {
   selectedEdgeId.value = null;
 };
 
+const handleNodeClick = (event, nodeId) => {
+  if (event.detail === 0) selectNode(nodeId, event);
+};
+
 const deleteSelectedNodes = () => {
   const removableIds = selectedNodeIds.value.filter(id => {
     const node = draft.definition.nodes.find(item => item.id === id);
@@ -1291,7 +1295,7 @@ const preparePayload = () => ({
                     :aria-pressed="selectedNodeIds.includes(node.id)"
                     tabindex="0"
                     @pointerdown.stop="startNodeDrag($event, node)"
-                    @click.stop="selectNode(node.id, $event)"
+                    @click.stop="handleNodeClick($event, node.id)"
                     @keydown.enter.stop="selectNode(node.id, $event)"
                   >
                     <div
