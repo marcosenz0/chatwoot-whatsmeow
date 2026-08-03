@@ -3,7 +3,6 @@ import { computed, reactive, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 
-import Button from 'dashboard/components-next/button/Button.vue';
 import { whatsappCloudAudienceImportsAPI } from 'dashboard/api/whatsappCloudStudio';
 import StudioSelect from './StudioSelect.vue';
 import {
@@ -464,21 +463,24 @@ const prepareAudience = async () => {
           </div>
         </Transition>
 
-        <Button
+        <button
           type="button"
-          class="w-full"
-          :label="
+          class="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-n-strong px-4 text-sm font-medium text-n-slate-11 outline-none transition-all duration-150 hover:enabled:bg-n-alpha-2 active:enabled:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transform-none motion-reduce:transition-none"
+          :disabled="!preview.valid.length || isImporting || isReadingFile"
+          @click.stop.prevent="prepareAudience"
+        >
+          <span
+            v-if="isImporting || isReadingFile"
+            class="i-lucide-loader-circle size-4 animate-spin motion-reduce:animate-none"
+            aria-hidden="true"
+          />
+          <span v-else class="i-lucide-users-round size-4" aria-hidden="true" />
+          {{
             importResult
               ? t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.AUDIENCE.PREPARE_AGAIN')
               : t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.AUDIENCE.PREPARE')
-          "
-          icon="i-lucide-users-round"
-          color="slate"
-          variant="outline"
-          :is-loading="isImporting || isReadingFile"
-          :disabled="!preview.valid.length || isImporting || isReadingFile"
-          @click="prepareAudience"
-        />
+          }}
+        </button>
       </div>
     </Transition>
   </fieldset>
