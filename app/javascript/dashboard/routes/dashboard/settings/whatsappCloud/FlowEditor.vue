@@ -12,6 +12,7 @@ import {
 import { useI18n } from 'vue-i18n';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import TeleportWithDirection from 'dashboard/components-next/TeleportWithDirection.vue';
 import StudioSelect from './StudioSelect.vue';
 import StudioTemplateParameterFields from './StudioTemplateParameterFields.vue';
@@ -38,11 +39,14 @@ const savedDraftSnapshot = ref(JSON.stringify(cloneFlow(props.flow)));
 const selectedNodeId = ref(
   draft.definition.nodes.find(node => node.type === 'trigger')?.id || null
 );
+const selectedNodeIds = ref(selectedNodeId.value ? [selectedNodeId.value] : []);
 const pendingConnection = ref(null);
 const interaction = ref(null);
+const selectionBox = ref(null);
 const selectedEdgeId = ref(null);
 const canvasRef = ref(null);
 const svgRef = ref(null);
+const discardDialogRef = ref(null);
 const viewport = reactive({ x: 56, y: 56, zoom: 1 });
 
 const MIN_ZOOM = 0.35;
@@ -61,6 +65,14 @@ const selectedNode = computed(() =>
   draft.definition.nodes.find(node => node.id === selectedNodeId.value)
 );
 
+const selectedNodes = computed(() =>
+  draft.definition.nodes.filter(node => selectedNodeIds.value.includes(node.id))
+);
+
+const hasMultipleSelectedNodes = computed(
+  () => selectedNodeIds.value.length > 1
+);
+
 const selectedEdge = computed(() =>
   draft.definition.edges.find(edge => edge.id === selectedEdgeId.value)
 );
@@ -68,6 +80,20 @@ const selectedEdge = computed(() =>
 const viewportTransform = computed(
   () => `translate(${viewport.x} ${viewport.y}) scale(${viewport.zoom})`
 );
+
+const nodeTransform = node =>
+  `translate(${node.position.x} ${node.position.y})`;
+
+const selectionBoxGeometry = computed(() => {
+  if (!selectionBox.value) return null;
+  const { start, current } = selectionBox.value;
+  return {
+    x: Math.min(start.x, current.x),
+    y: Math.min(start.y, current.y),
+    width: Math.abs(current.x - start.x),
+    height: Math.abs(current.y - start.y),
+  };
+});
 
 const zoomPercentage = computed(() => `${Math.round(viewport.zoom * 100)}%`);
 
@@ -174,6 +200,7 @@ watch(
     selectedNodeId.value =
       clonedFlow.definition.nodes.find(node => node.type === 'trigger')?.id ||
       null;
+    selectedNodeIds.value = selectedNodeId.value ? [selectedNodeId.value] : [];
   }
 );
 
@@ -415,6 +442,50 @@ const addNode = type => {
   };
   draft.definition.nodes.push(node);
   selectedNodeId.value = node.id;
+  selectedNodeIds.value = [node.id];
+};
+
+const clearSelection = () => {
+  selectedNodeId.value = null;
+  selectedNodeIds.value = [];
+  selectedEdgeId.value = null;
+  pendingConnection.value = null;
+};
+
+const selectNode = (nodeId, event = {}) => {
+  const shouldToggle = event.ctrlKey || event.metaKey || event.shiftKey;
+  if (shouldToggle) {
+    selectedNodeIds.value = selectedNodeIds.value.includes(nodeId)
+      ? selectedNodeIds.value.filter(id => id !== nodeId)
+      : [...selectedNodeIds.value, nodeId];
+  } else if (!selectedNodeIds.value.includes(nodeId)) {
+    selectedNodeIds.value = [nodeId];
+  }
+  selectedNodeId.value = selectedNodeIds.value.includes(nodeId)
+    ? nodeId
+    : selectedNodeIds.value.at(-1) || null;
+  selectedEdgeId.value = null;
+};
+
+const deleteSelectedNodes = () => {
+  const removableIds = selectedNodeIds.value.filter(id => {
+    const node = draft.definition.nodes.find(item => item.id === id);
+    return node && node.type !== 'trigger';
+  });
+  if (!removableIds.length) return;
+  draft.definition.nodes = draft.definition.nodes.filter(
+    node => !removableIds.includes(node.id)
+  );
+  draft.definition.edges = draft.definition.edges.filter(
+    edge =>
+      !removableIds.includes(edge.source) && !removableIds.includes(edge.target)
+  );
+  const remainingSelection = selectedNodeIds.value.filter(
+    id => !removableIds.includes(id)
+  );
+  selectedNodeIds.value = remainingSelection;
+  selectedNodeId.value = remainingSelection.at(-1) || null;
+  selectedEdgeId.value = null;
 };
 
 const deleteSelectedNode = () => {
@@ -427,8 +498,8 @@ const deleteSelectedNode = () => {
     edge => edge.source !== id && edge.target !== id
   );
   selectedEdgeId.value = null;
-  selectedNodeId.value =
-    draft.definition.nodes.find(node => node.type === 'trigger')?.id || null;
+  selectedNodeIds.value = selectedNodeIds.value.filter(nodeId => nodeId !== id);
+  selectedNodeId.value = selectedNodeIds.value.at(-1) || null;
 };
 
 const duplicateSelectedNode = () => {
@@ -441,6 +512,7 @@ const duplicateSelectedNode = () => {
   };
   draft.definition.nodes.push(duplicatedNode);
   selectedNodeId.value = duplicatedNode.id;
+  selectedNodeIds.value = [duplicatedNode.id];
   selectedEdgeId.value = null;
 };
 
@@ -506,6 +578,7 @@ const removeEdge = edgeId => {
 const selectEdge = edgeId => {
   selectedEdgeId.value = edgeId;
   selectedNodeId.value = null;
+  selectedNodeIds.value = [];
   pendingConnection.value = null;
 };
 
@@ -521,13 +594,15 @@ function moveInteraction(event) {
   if (!interaction.value) return;
 
   if (interaction.value.type === 'node') {
-    const node = draft.definition.nodes.find(
-      item => item.id === interaction.value.nodeId
-    );
     const point = canvasPoint(event);
-    if (!node) return;
-    node.position.x = point.x - interaction.value.offsetX;
-    node.position.y = point.y - interaction.value.offsetY;
+    const deltaX = point.x - interaction.value.pointer.x;
+    const deltaY = point.y - interaction.value.pointer.y;
+    draft.definition.nodes.forEach(node => {
+      const initialPosition = interaction.value.positions[node.id];
+      if (!initialPosition) return;
+      node.position.x = initialPosition.x + deltaX;
+      node.position.y = initialPosition.y + deltaY;
+    });
   }
 
   if (interaction.value.type === 'pan') {
@@ -539,6 +614,10 @@ function moveInteraction(event) {
 
   if (interaction.value.type === 'connection' && pendingConnection.value) {
     pendingConnection.value.point = canvasPoint(event);
+  }
+
+  if (interaction.value.type === 'selection') {
+    selectionBox.value.current = canvasPoint(event);
   }
 }
 
@@ -552,6 +631,30 @@ function stopInteraction(event) {
     } else {
       pendingConnection.value = null;
     }
+  }
+
+  if (interaction.value?.type === 'selection' && selectionBox.value) {
+    const { start, current } = selectionBox.value;
+    const left = Math.min(start.x, current.x);
+    const right = Math.max(start.x, current.x);
+    const top = Math.min(start.y, current.y);
+    const bottom = Math.max(start.y, current.y);
+    const selectedIds = draft.definition.nodes
+      .filter(node => {
+        const nodeRight = node.position.x + NODE_WIDTH;
+        const nodeBottom = node.position.y + nodeHeight(node);
+        return (
+          node.position.x <= right &&
+          nodeRight >= left &&
+          node.position.y <= bottom &&
+          nodeBottom >= top
+        );
+      })
+      .map(node => node.id);
+    selectedNodeIds.value = selectedIds;
+    selectedNodeId.value = selectedIds.at(-1) || null;
+    selectedEdgeId.value = null;
+    selectionBox.value = null;
   }
 
   interaction.value = null;
@@ -568,15 +671,20 @@ const addInteractionListeners = () => {
 
 const startNodeDrag = (event, node) => {
   if (event.button !== 0) return;
-  const point = canvasPoint(event);
+  event.preventDefault();
+  selectNode(node.id, event);
+  const draggingNodeIds = selectedNodeIds.value.includes(node.id)
+    ? selectedNodeIds.value
+    : [node.id];
   interaction.value = {
     type: 'node',
-    nodeId: node.id,
-    offsetX: point.x - node.position.x,
-    offsetY: point.y - node.position.y,
+    pointer: canvasPoint(event),
+    positions: Object.fromEntries(
+      draft.definition.nodes
+        .filter(item => draggingNodeIds.includes(item.id))
+        .map(item => [item.id, { ...item.position }])
+    ),
   };
-  selectedNodeId.value = node.id;
-  selectedEdgeId.value = null;
   addInteractionListeners();
 };
 
@@ -584,8 +692,17 @@ const startCanvasPan = event => {
   const backgroundClicked =
     event.target === svgRef.value ||
     event.target?.dataset?.flowCanvasBackground === 'true';
-  if (![0, 1].includes(event.button) || !backgroundClicked) return;
+  if (![0, 1, 2].includes(event.button) || !backgroundClicked) return;
   event.preventDefault();
+  if (event.button === 2) {
+    const point = canvasPoint(event);
+    interaction.value = { type: 'selection' };
+    selectionBox.value = { start: point, current: point };
+    selectedEdgeId.value = null;
+    addInteractionListeners();
+    return;
+  }
+  if (event.button === 0) clearSelection();
   interaction.value = {
     type: 'pan',
     pointerX: event.clientX,
@@ -762,20 +879,26 @@ const removeReplyButton = index => {
 
 const requestClose = () => {
   if (props.isSaving || props.isPublishing) return;
-  if (
-    hasUnsavedChanges.value &&
-    // eslint-disable-next-line no-alert
-    !window.confirm(t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.DISCARD_CONFIRM'))
-  ) {
+  if (hasUnsavedChanges.value) {
+    discardDialogRef.value?.open();
     return;
   }
   emit('close');
 };
 
+const discardChangesAndClose = () => {
+  discardDialogRef.value?.close();
+  emit('close');
+};
+
 const handleEditorKeydown = event => {
   if (event.key === 'Escape') {
-    if (pendingConnection.value) pendingConnection.value = null;
-    else requestClose();
+    if (pendingConnection.value || selectionBox.value) {
+      pendingConnection.value = null;
+      selectionBox.value = null;
+    } else if (selectedEdge.value || selectedNodeIds.value.length) {
+      clearSelection();
+    } else requestClose();
     return;
   }
   const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(
@@ -783,6 +906,7 @@ const handleEditorKeydown = event => {
   );
   if (!isTyping && ['Backspace', 'Delete'].includes(event.key)) {
     if (selectedEdge.value) removeEdge(selectedEdge.value.id);
+    else if (hasMultipleSelectedNodes.value) deleteSelectedNodes();
     else if (selectedNode.value?.type !== 'trigger') deleteSelectedNode();
   }
 };
@@ -954,6 +1078,49 @@ const preparePayload = () => ({
             </div>
           </Transition>
 
+          <Transition
+            enter-active-class="motion-safe:transition motion-safe:duration-200 motion-safe:ease-out"
+            enter-from-class="-translate-y-2 opacity-0"
+            enter-to-class="translate-y-0 opacity-100"
+            leave-active-class="motion-safe:transition motion-safe:duration-150"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+          >
+            <div
+              v-if="hasMultipleSelectedNodes"
+              class="absolute left-4 top-4 z-20 flex items-center gap-3 rounded-xl border border-n-blue-7 bg-n-solid-1 px-3 py-2 text-xs text-n-slate-11 shadow-lg"
+            >
+              <span
+                class="flex size-8 items-center justify-center rounded-lg bg-n-blue-3 text-n-blue-11"
+              >
+                <span
+                  class="i-lucide-mouse-pointer-2 size-4"
+                  aria-hidden="true"
+                />
+              </span>
+              <span>
+                <strong class="block text-n-slate-12">
+                  {{
+                    t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.SELECTED_BLOCKS', {
+                      count: selectedNodeIds.length,
+                    })
+                  }}
+                </strong>
+                {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.GROUP_DRAG_HINT') }}
+              </span>
+              <button
+                type="button"
+                class="flex size-9 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
+                :aria-label="
+                  t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CLEAR_SELECTION')
+                "
+                @click="clearSelection"
+              >
+                <span class="i-lucide-x size-4" aria-hidden="true" />
+              </button>
+            </div>
+          </Transition>
+
           <div
             class="absolute bottom-4 right-4 z-20 flex items-center overflow-hidden rounded-xl border border-n-weak bg-n-solid-1 shadow-lg"
           >
@@ -1011,6 +1178,7 @@ const preparePayload = () => ({
             :aria-label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CANVAS')"
             tabindex="0"
             @pointerdown="startCanvasPan"
+            @contextmenu.prevent
             @wheel.prevent="handleCanvasWheel"
           >
             <defs>
@@ -1041,6 +1209,18 @@ const preparePayload = () => ({
                 height="10000"
                 fill="url(#whatsapp-flow-grid)"
                 data-flow-canvas-background="true"
+              />
+
+              <rect
+                v-if="selectionBoxGeometry"
+                :x="selectionBoxGeometry.x"
+                :y="selectionBoxGeometry.y"
+                :width="selectionBoxGeometry.width"
+                :height="selectionBoxGeometry.height"
+                rx="8"
+                class="pointer-events-none fill-n-blue-3 stroke-n-brand"
+                stroke-width="1.5"
+                stroke-dasharray="6 4"
               />
 
               <g v-for="edge in draft.definition.edges" :key="edge.id">
@@ -1082,29 +1262,37 @@ const preparePayload = () => ({
                 />
               </path>
 
-              <g v-for="node in draft.definition.nodes" :key="node.id">
+              <g
+                v-for="node in draft.definition.nodes"
+                :key="node.id"
+                :transform="nodeTransform(node)"
+              >
+                <rect
+                  :width="NODE_WIDTH"
+                  :height="nodeHeight(node)"
+                  rx="16"
+                  class="pointer-events-none fill-n-solid-1 stroke-2"
+                  :class="
+                    selectedNodeIds.includes(node.id)
+                      ? 'stroke-n-brand'
+                      : 'stroke-n-slate-6'
+                  "
+                />
                 <foreignObject
-                  :x="node.position.x"
-                  :y="node.position.y"
+                  x="0"
+                  y="0"
                   :width="NODE_WIDTH"
                   :height="nodeHeight(node)"
                 >
                   <div
-                    class="h-full cursor-grab overflow-hidden rounded-2xl border-2 bg-n-solid-1 shadow-lg transition-[border-color,box-shadow] active:cursor-grabbing"
+                    class="h-full cursor-grab overflow-hidden rounded-2xl bg-transparent active:cursor-grabbing"
                     :data-test-id="`flow-node-${node.id}`"
-                    :class="
-                      selectedNodeId === node.id
-                        ? 'border-n-brand shadow-xl'
-                        : 'border-n-weak hover:border-n-strong'
-                    "
                     role="button"
+                    :aria-pressed="selectedNodeIds.includes(node.id)"
                     tabindex="0"
-                    @pointerdown.prevent.stop="startNodeDrag($event, node)"
-                    @click.stop="
-                      selectedNodeId = node.id;
-                      selectedEdgeId = null;
-                    "
-                    @keydown.enter.stop="selectedNodeId = node.id"
+                    @pointerdown.stop="startNodeDrag($event, node)"
+                    @click.stop="selectNode(node.id, $event)"
+                    @keydown.enter.stop="selectNode(node.id, $event)"
                   >
                     <div
                       class="flex h-14 w-full items-center gap-3 border-b border-n-weak px-3 text-left"
@@ -1169,8 +1357,8 @@ const preparePayload = () => ({
                 </foreignObject>
 
                 <circle
-                  :cx="node.position.x"
-                  :cy="node.position.y + 58"
+                  cx="0"
+                  cy="58"
                   r="8"
                   class="cursor-crosshair fill-n-solid-1 stroke-n-brand hover:fill-n-blue-3"
                   stroke-width="3"
@@ -1190,8 +1378,8 @@ const preparePayload = () => ({
                     node.type !== 'condition' &&
                     !(node.type === 'message' && node.config.buttons?.length)
                   "
-                  :cx="node.position.x + NODE_WIDTH"
-                  :cy="node.position.y + 58"
+                  :cx="NODE_WIDTH"
+                  cy="58"
                   r="8"
                   class="cursor-crosshair fill-n-solid-1 stroke-n-brand hover:fill-n-blue-3"
                   stroke-width="3"
@@ -1208,8 +1396,8 @@ const preparePayload = () => ({
                     ? ['true', 'false']
                     : []"
                   :key="`${node.id}-${conditionHandle}`"
-                  :cx="node.position.x + NODE_WIDTH"
-                  :cy="handleY(node, conditionHandle)"
+                  :cx="NODE_WIDTH"
+                  :cy="handleY(node, conditionHandle) - node.position.y"
                   r="6"
                   class="cursor-crosshair fill-n-solid-1 stroke-n-brand hover:fill-n-blue-3"
                   stroke-width="3"
@@ -1226,8 +1414,8 @@ const preparePayload = () => ({
                     ? node.config.buttons || []
                     : []"
                   :key="`${node.id}-${button.id}`"
-                  :cx="node.position.x + NODE_WIDTH"
-                  :cy="handleY(node, button.id)"
+                  :cx="NODE_WIDTH"
+                  :cy="handleY(node, button.id) - node.position.y"
                   r="6"
                   class="cursor-crosshair fill-n-solid-1 stroke-n-brand hover:fill-n-blue-3"
                   stroke-width="3"
@@ -1277,7 +1465,57 @@ const preparePayload = () => ({
         <aside
           class="overflow-y-auto border-t border-n-weak bg-n-alpha-1 p-4 lg:border-l lg:border-t-0"
         >
-          <template v-if="selectedNode">
+          <div v-if="hasMultipleSelectedNodes" class="flex h-full flex-col">
+            <div
+              class="flex size-10 items-center justify-center rounded-xl bg-n-blue-3 text-n-blue-11"
+            >
+              <span class="i-lucide-box-select size-5" aria-hidden="true" />
+            </div>
+            <h2 class="mt-4 text-sm font-semibold text-n-slate-12">
+              {{
+                t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.SELECTED_BLOCKS', {
+                  count: selectedNodeIds.length,
+                })
+              }}
+            </h2>
+            <p class="mt-2 text-xs leading-5 text-n-slate-9">
+              {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.MULTI_SELECT_HELP') }}
+            </p>
+            <div class="mt-5 rounded-xl border border-n-weak bg-n-alpha-2 p-3">
+              <div
+                v-for="node in selectedNodes"
+                :key="node.id"
+                class="flex items-center gap-2 py-1.5 text-xs text-n-slate-11"
+              >
+                <span
+                  class="size-3.5"
+                  :class="nodeIcon(node)"
+                  aria-hidden="true"
+                />
+                <span class="truncate">{{ nodeTitle(node) }}</span>
+              </div>
+            </div>
+            <div class="mt-5 grid gap-2">
+              <Button
+                type="button"
+                color="slate"
+                variant="outline"
+                icon="i-lucide-x"
+                :label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CLEAR_SELECTION')"
+                @click="clearSelection"
+              />
+              <Button
+                v-if="selectedNodes.some(node => node.type !== 'trigger')"
+                type="button"
+                color="ruby"
+                variant="outline"
+                icon="i-lucide-trash-2"
+                :label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.DELETE_SELECTED')"
+                @click="deleteSelectedNodes"
+              />
+            </div>
+          </div>
+          <template v-else-if="selectedNode">
             <div class="flex items-start justify-between gap-2">
               <div>
                 <h2 class="text-sm font-semibold text-n-slate-12">
@@ -1666,5 +1904,20 @@ const preparePayload = () => ({
         </aside>
       </div>
     </div>
+
+    <Dialog
+      ref="discardDialogRef"
+      type="alert"
+      width="sm"
+      :title="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.DISCARD_TITLE')"
+      :description="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.DISCARD_CONFIRM')"
+      :cancel-button-label="
+        t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.KEEP_EDITING')
+      "
+      :confirm-button-label="
+        t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.DISCARD_CHANGES')
+      "
+      @confirm="discardChangesAndClose"
+    />
   </TeleportWithDirection>
 </template>

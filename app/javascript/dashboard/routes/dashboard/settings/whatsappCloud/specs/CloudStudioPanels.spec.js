@@ -387,7 +387,7 @@ describe('WhatsApp Cloud Studio panels', () => {
     testI18n.global.locale.value = previousLocale;
   });
 
-  it('asks before discarding unsaved flow changes', async () => {
+  it('uses an integrated dialog before discarding unsaved flow changes', async () => {
     const flow = {
       id: null,
       inbox_id: 29,
@@ -408,12 +408,13 @@ describe('WhatsApp Cloud Studio panels', () => {
         edges: [],
       },
     };
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const confirmSpy = vi.spyOn(window, 'confirm');
     const wrapper = mount(FlowEditor, {
       props: { flow },
       global: {
         stubs: {
           TeleportWithDirection: TeleportStub,
+          Dialog: DialogStub,
         },
       },
     });
@@ -423,16 +424,93 @@ describe('WhatsApp Cloud Studio panels', () => {
       .setValue('Changed journey');
     await wrapper.find('button[aria-label="Close"]').trigger('click');
 
-    expect(confirmSpy).toHaveBeenCalledWith(
-      'Discard the unsaved changes to this flow?'
-    );
+    expect(confirmSpy).not.toHaveBeenCalled();
+    const dialogs = wrapper.findAll('[role="dialog"]');
+    expect(dialogs).toHaveLength(2);
     expect(wrapper.emitted('close')).toBeUndefined();
 
-    confirmSpy.mockReturnValue(true);
-    await wrapper.find('button[aria-label="Close"]').trigger('click');
+    await dialogs[1].trigger('submit');
     expect(wrapper.emitted('close')).toHaveLength(1);
 
     confirmSpy.mockRestore();
+    wrapper.unmount();
+  });
+
+  it('clears block selection on the empty canvas and supports box selection', async () => {
+    const flow = {
+      id: null,
+      inbox_id: 29,
+      name: 'Selection journey',
+      description: '',
+      status: 'draft',
+      trigger_type: 'any_message',
+      trigger_config: {},
+      definition: {
+        nodes: [
+          {
+            id: 'trigger',
+            type: 'trigger',
+            position: { x: 80, y: 220 },
+            config: {},
+          },
+          {
+            id: 'message',
+            type: 'message',
+            position: { x: 420, y: 220 },
+            config: { mode: 'session', text: 'Hello', buttons: [] },
+          },
+        ],
+        edges: [],
+      },
+    };
+    const wrapper = mount(FlowEditor, {
+      props: { flow },
+      global: {
+        stubs: {
+          TeleportWithDirection: TeleportStub,
+        },
+      },
+    });
+    const triggerNode = wrapper.find('[data-test-id="flow-node-trigger"]');
+    const messageNode = wrapper.find('[data-test-id="flow-node-message"]');
+    const canvas = wrapper.find('svg');
+
+    await messageNode.trigger('click');
+    expect(messageNode.attributes('aria-pressed')).toBe('true');
+    canvas.element.dispatchEvent(
+      new MouseEvent('pointerdown', {
+        bubbles: true,
+        button: 0,
+        clientX: 10,
+        clientY: 10,
+      })
+    );
+    window.dispatchEvent(
+      new MouseEvent('pointerup', { clientX: 10, clientY: 10 })
+    );
+    await nextTick();
+    expect(messageNode.attributes('aria-pressed')).toBe('false');
+
+    canvas.element.dispatchEvent(
+      new MouseEvent('pointerdown', {
+        bubbles: true,
+        button: 2,
+        clientX: 10,
+        clientY: 10,
+      })
+    );
+    window.dispatchEvent(
+      new MouseEvent('pointermove', { clientX: 900, clientY: 600 })
+    );
+    window.dispatchEvent(
+      new MouseEvent('pointerup', { clientX: 900, clientY: 600 })
+    );
+    await nextTick();
+
+    expect(triggerNode.attributes('aria-pressed')).toBe('true');
+    expect(messageNode.attributes('aria-pressed')).toBe('true');
+    expect(wrapper.text()).toContain('2 blocks selected');
+
     wrapper.unmount();
   });
 
@@ -528,6 +606,7 @@ describe('WhatsApp Cloud Studio panels', () => {
     await buttonByText(wrapper, 'New broadcast').trigger('click');
     await nextTick();
 
+    expect(wrapper.find('[role="dialog"]').attributes('width')).toBe('3xl');
     const estimateButton = buttonByText(wrapper, 'Calculate estimate');
     expect(estimateButton.exists()).toBe(true);
     expect(estimateButton.attributes('type')).toBe('button');

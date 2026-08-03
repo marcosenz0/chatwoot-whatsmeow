@@ -463,7 +463,7 @@ const deliveryRate = campaign => {
 
     <Dialog
       ref="broadcastDialogRef"
-      width="4xl"
+      width="3xl"
       :show-cancel-button="false"
       :show-confirm-button="false"
       @confirm="createBroadcast"
