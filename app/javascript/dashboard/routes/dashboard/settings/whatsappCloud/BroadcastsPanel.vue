@@ -8,6 +8,7 @@ import { useAlert } from 'dashboard/composables';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import { whatsappCloudAudienceEstimateAPI } from 'dashboard/api/whatsappCloudStudio';
+import BroadcastAudiencePicker from './BroadcastAudiencePicker.vue';
 import StudioSelect from './StudioSelect.vue';
 import StudioTemplateParameterFields from './StudioTemplateParameterFields.vue';
 import {
@@ -37,6 +38,7 @@ const createInitialForm = () => ({
   templateName: '',
   scheduledAt: '',
   selectedLabelIds: [],
+  selectedContactIds: [],
   processedParams: {},
   consentConfirmed: false,
 });
@@ -80,12 +82,17 @@ const currentDateTime = computed(() => {
   return local.toISOString().slice(0, 16);
 });
 
+const audienceEntries = computed(() => [
+  ...form.selectedLabelIds.map(id => ({ id, type: 'Label' })),
+  ...form.selectedContactIds.map(id => ({ id, type: 'Contact' })),
+]);
+
 const canSubmit = computed(
   () =>
     form.title.trim() &&
     form.templateName &&
     form.scheduledAt &&
-    form.selectedLabelIds.length &&
+    audienceEntries.value.length &&
     form.consentConfirmed &&
     templateParametersComplete(form.processedParams, { allowLiquid: true })
 );
@@ -117,7 +124,7 @@ const closeBroadcastForm = () => {
 const calculateEstimate = async () => {
   if (
     isEstimating.value ||
-    !form.selectedLabelIds.length ||
+    !audienceEntries.value.length ||
     !selectedTemplate.value
   ) {
     return;
@@ -127,6 +134,7 @@ const calculateEstimate = async () => {
     const response = await whatsappCloudAudienceEstimateAPI.getEstimate({
       inboxId: props.inbox.id,
       labelIds: form.selectedLabelIds,
+      contactIds: form.selectedContactIds,
       category: selectedTemplate.value.category,
     });
     estimate.value = response.data;
@@ -146,8 +154,12 @@ const createBroadcast = async () => {
       message: templateBody.value,
       inbox_id: props.inbox.id,
       scheduled_at: new Date(form.scheduledAt).toISOString(),
-      audience: form.selectedLabelIds.map(id => ({ id, type: 'Label' })),
-      trigger_rules: { whatsapp_consent_confirmed: true },
+      audience: audienceEntries.value,
+      trigger_rules: {
+        whatsapp_consent_confirmed: true,
+        whatsapp_audience_imported_in_studio:
+          form.selectedContactIds.length > 0,
+      },
       template_params: {
         name: selectedTemplate.value.name,
         namespace: selectedTemplate.value.namespace || '',
@@ -451,14 +463,14 @@ const deliveryRate = campaign => {
 
     <Dialog
       ref="broadcastDialogRef"
-      width="3xl"
+      width="4xl"
       :show-cancel-button="false"
       :show-confirm-button="false"
       @confirm="createBroadcast"
       @close="resetForm"
     >
       <div
-        class="grid max-h-[80vh] min-h-0 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_18rem] lg:overflow-hidden"
+        class="grid max-h-[86vh] min-h-0 overflow-y-auto lg:grid-cols-[minmax(0,1fr)_19rem] lg:overflow-hidden"
       >
         <div class="lg:overflow-y-auto lg:pr-5">
           <div class="flex items-start justify-between gap-4">
@@ -539,47 +551,11 @@ const deliveryRate = campaign => {
             />
 
             <label
-              class="flex flex-col gap-1 text-sm font-medium text-n-slate-11"
-            >
-              {{ t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.FORM.AUDIENCE') }}
-              <select
-                v-model="form.selectedLabelIds"
-                multiple
-                required
-                class="reset-base !mb-0 min-h-32 w-full rounded-xl border border-n-strong bg-n-alpha-1 bg-none px-3 py-2 text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
-                @change="estimate = null"
-              >
-                <option
-                  v-for="label in labels"
-                  :key="label.id"
-                  :value="label.id"
-                >
-                  {{ label.title }}
-                </option>
-              </select>
-              <span class="text-xs font-normal text-n-slate-9">
-                {{ t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.FORM.AUDIENCE_HINT') }}
-              </span>
-            </label>
-
-            <label
-              class="flex flex-col gap-1 text-sm font-medium text-n-slate-11"
-            >
-              {{ t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.FORM.SCHEDULE') }}
-              <input
-                v-model="form.scheduledAt"
-                required
-                type="datetime-local"
-                :min="currentDateTime"
-                class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
-              />
-            </label>
-
-            <label
               class="flex cursor-pointer items-start gap-3 rounded-xl border border-n-amber-7 bg-n-amber-2 p-4"
             >
               <input
                 v-model="form.consentConfirmed"
+                name="whatsapp-audience-consent"
                 type="checkbox"
                 class="reset-base mt-0.5 size-4 rounded border-n-strong text-n-brand focus:ring-n-brand"
               />
@@ -595,6 +571,35 @@ const deliveryRate = campaign => {
                   }}
                 </span>
               </span>
+            </label>
+
+            <BroadcastAudiencePicker
+              :inbox-id="Number(inbox.id)"
+              :labels="labels"
+              :label-ids="form.selectedLabelIds"
+              :contact-ids="form.selectedContactIds"
+              :consent-confirmed="form.consentConfirmed"
+              @update:label-ids="
+                form.selectedLabelIds = $event;
+                estimate = null;
+              "
+              @update:contact-ids="
+                form.selectedContactIds = $event;
+                estimate = null;
+              "
+            />
+
+            <label
+              class="flex flex-col gap-1 text-sm font-medium text-n-slate-11"
+            >
+              {{ t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.FORM.SCHEDULE') }}
+              <input
+                v-model="form.scheduledAt"
+                required
+                type="datetime-local"
+                :min="currentDateTime"
+                class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
+              />
             </label>
           </div>
         </div>
@@ -623,7 +628,7 @@ const deliveryRate = campaign => {
             color="slate"
             variant="outline"
             :is-loading="isEstimating"
-            :disabled="!form.selectedLabelIds.length || !selectedTemplate"
+            :disabled="!audienceEntries.length || !selectedTemplate"
             @click="calculateEstimate"
           />
           <div v-if="estimate" class="mt-4 space-y-3">

@@ -1,5 +1,14 @@
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref, toRaw, watch } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  toRaw,
+  watch,
+} from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -30,8 +39,15 @@ const selectedNodeId = ref(
   draft.definition.nodes.find(node => node.type === 'trigger')?.id || null
 );
 const pendingConnection = ref(null);
-const dragging = ref(null);
+const interaction = ref(null);
+const selectedEdgeId = ref(null);
+const canvasRef = ref(null);
 const svgRef = ref(null);
+const viewport = reactive({ x: 56, y: 56, zoom: 1 });
+
+const MIN_ZOOM = 0.35;
+const MAX_ZOOM = 1.8;
+const NODE_WIDTH = 260;
 
 const nodeTypes = [
   { type: 'message', icon: 'i-lucide-message-square-text' },
@@ -44,6 +60,16 @@ const nodeTypes = [
 const selectedNode = computed(() =>
   draft.definition.nodes.find(node => node.id === selectedNodeId.value)
 );
+
+const selectedEdge = computed(() =>
+  draft.definition.edges.find(edge => edge.id === selectedEdgeId.value)
+);
+
+const viewportTransform = computed(
+  () => `translate(${viewport.x} ${viewport.y}) scale(${viewport.zoom})`
+);
+
+const zoomPercentage = computed(() => `${Math.round(viewport.zoom * 100)}%`);
 
 const approvedTemplates = computed(() =>
   props.templates.filter(
@@ -292,17 +318,74 @@ const handleY = (node, handle = 'default') => {
   return node.position.y + 122 + Math.max(0, buttonIndex) * 30;
 };
 
-const edgePath = edge => {
+const edgeGeometry = edge => {
   const source = draft.definition.nodes.find(node => node.id === edge.source);
   const target = draft.definition.nodes.find(node => node.id === edge.target);
-  if (!source || !target) return '';
-  const sourceX = source.position.x + 260;
+  if (!source || !target) return null;
+  const sourceX = source.position.x + NODE_WIDTH;
   const sourceY = handleY(source, edge.source_handle || 'default');
   const targetX = target.position.x;
   const targetY = target.position.y + 58;
   const controlOffset = Math.max(80, Math.abs(targetX - sourceX) / 2);
-  return `M ${sourceX} ${sourceY} C ${sourceX + controlOffset} ${sourceY}, ${targetX - controlOffset} ${targetY}, ${targetX} ${targetY}`;
+  return {
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    firstControlX: sourceX + controlOffset,
+    secondControlX: targetX - controlOffset,
+  };
 };
+
+const geometryPath = geometry => {
+  if (!geometry) return '';
+  return `M ${geometry.sourceX} ${geometry.sourceY} C ${geometry.firstControlX} ${geometry.sourceY}, ${geometry.secondControlX} ${geometry.targetY}, ${geometry.targetX} ${geometry.targetY}`;
+};
+
+const edgePath = edge => geometryPath(edgeGeometry(edge));
+
+const edgeMidpoint = edge => {
+  const geometry = edgeGeometry(edge);
+  if (!geometry) return { x: 0, y: 0 };
+  return {
+    x:
+      (geometry.sourceX +
+        3 * geometry.firstControlX +
+        3 * geometry.secondControlX +
+        geometry.targetX) /
+      8,
+    y:
+      (geometry.sourceY +
+        3 * geometry.sourceY +
+        3 * geometry.targetY +
+        geometry.targetY) /
+      8,
+  };
+};
+
+const pendingConnectionPath = computed(() => {
+  if (!pendingConnection.value?.point) return '';
+  const source = draft.definition.nodes.find(
+    node => node.id === pendingConnection.value.source
+  );
+  if (!source) return '';
+  const sourceX = source.position.x + NODE_WIDTH;
+  const sourceY = handleY(
+    source,
+    pendingConnection.value.sourceHandle || 'default'
+  );
+  const targetX = pendingConnection.value.point.x;
+  const targetY = pendingConnection.value.point.y;
+  const controlOffset = Math.max(80, Math.abs(targetX - sourceX) / 2);
+  return geometryPath({
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    firstControlX: sourceX + controlOffset,
+    secondControlX: targetX - controlOffset,
+  });
+});
 
 const createId = prefix =>
   `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -343,12 +426,41 @@ const deleteSelectedNode = () => {
   draft.definition.edges = draft.definition.edges.filter(
     edge => edge.source !== id && edge.target !== id
   );
+  selectedEdgeId.value = null;
   selectedNodeId.value =
     draft.definition.nodes.find(node => node.type === 'trigger')?.id || null;
 };
 
+const duplicateSelectedNode = () => {
+  if (!selectedNode.value || selectedNode.value.type === 'trigger') return;
+  const duplicatedNode = cloneFlow(selectedNode.value);
+  duplicatedNode.id = createId(selectedNode.value.type);
+  duplicatedNode.position = {
+    x: selectedNode.value.position.x + 56,
+    y: selectedNode.value.position.y + 56,
+  };
+  draft.definition.nodes.push(duplicatedNode);
+  selectedNodeId.value = duplicatedNode.id;
+  selectedEdgeId.value = null;
+};
+
+const sourcePoint = (nodeId, sourceHandle = 'default') => {
+  const node = draft.definition.nodes.find(item => item.id === nodeId);
+  return node
+    ? {
+        x: node.position.x + NODE_WIDTH + 100,
+        y: handleY(node, sourceHandle),
+      }
+    : null;
+};
+
 const startConnection = (nodeId, sourceHandle = 'default') => {
-  pendingConnection.value = { source: nodeId, sourceHandle };
+  pendingConnection.value = {
+    source: nodeId,
+    sourceHandle,
+    point: sourcePoint(nodeId, sourceHandle),
+  };
+  selectedEdgeId.value = null;
 };
 
 const finishConnection = targetId => {
@@ -370,6 +482,7 @@ const finishConnection = targetId => {
     target: targetId,
     source_handle: sourceHandle,
   });
+  selectedEdgeId.value = null;
   pendingConnection.value = null;
 };
 
@@ -383,50 +496,207 @@ const removeOutgoingEdge = (sourceId, sourceHandle = 'default') => {
   );
 };
 
-const svgPoint = event => {
-  const point = svgRef.value.createSVGPoint();
-  point.x = event.clientX;
-  point.y = event.clientY;
-  return point.matrixTransform(svgRef.value.getScreenCTM().inverse());
+const removeEdge = edgeId => {
+  draft.definition.edges = draft.definition.edges.filter(
+    edge => edge.id !== edgeId
+  );
+  selectedEdgeId.value = null;
 };
 
-function dragNode(event) {
-  if (!dragging.value) return;
-  const node = draft.definition.nodes.find(
-    item => item.id === dragging.value.nodeId
-  );
-  const point = svgPoint(event);
-  node.position.x = Math.max(
-    20,
-    Math.min(1300, point.x - dragging.value.offsetX)
-  );
-  node.position.y = Math.max(
-    20,
-    Math.min(760, point.y - dragging.value.offsetY)
-  );
+const selectEdge = edgeId => {
+  selectedEdgeId.value = edgeId;
+  selectedNodeId.value = null;
+  pendingConnection.value = null;
+};
+
+const canvasPoint = event => {
+  const bounds = svgRef.value.getBoundingClientRect();
+  return {
+    x: (event.clientX - bounds.left - viewport.x) / viewport.zoom,
+    y: (event.clientY - bounds.top - viewport.y) / viewport.zoom,
+  };
+};
+
+function moveInteraction(event) {
+  if (!interaction.value) return;
+
+  if (interaction.value.type === 'node') {
+    const node = draft.definition.nodes.find(
+      item => item.id === interaction.value.nodeId
+    );
+    const point = canvasPoint(event);
+    if (!node) return;
+    node.position.x = point.x - interaction.value.offsetX;
+    node.position.y = point.y - interaction.value.offsetY;
+  }
+
+  if (interaction.value.type === 'pan') {
+    viewport.x =
+      interaction.value.startX + event.clientX - interaction.value.pointerX;
+    viewport.y =
+      interaction.value.startY + event.clientY - interaction.value.pointerY;
+  }
+
+  if (interaction.value.type === 'connection' && pendingConnection.value) {
+    pendingConnection.value.point = canvasPoint(event);
+  }
 }
 
-function stopDragging() {
-  dragging.value = null;
-  window.removeEventListener('pointermove', dragNode);
+function stopInteraction(event) {
+  if (interaction.value?.type === 'connection' && pendingConnection.value) {
+    const target = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest('[data-flow-target]');
+    if (target?.dataset.flowTarget) {
+      finishConnection(target.dataset.flowTarget);
+    } else {
+      pendingConnection.value = null;
+    }
+  }
+
+  interaction.value = null;
+  window.removeEventListener('pointermove', moveInteraction);
+  window.removeEventListener('pointerup', stopInteraction);
+  window.removeEventListener('pointercancel', stopInteraction);
 }
 
-const startDragging = (event, node) => {
+const addInteractionListeners = () => {
+  window.addEventListener('pointermove', moveInteraction);
+  window.addEventListener('pointerup', stopInteraction, { once: true });
+  window.addEventListener('pointercancel', stopInteraction, { once: true });
+};
+
+const startNodeDrag = (event, node) => {
   if (event.button !== 0) return;
-  const point = svgPoint(event);
-  dragging.value = {
+  const point = canvasPoint(event);
+  interaction.value = {
+    type: 'node',
     nodeId: node.id,
     offsetX: point.x - node.position.x,
     offsetY: point.y - node.position.y,
   };
   selectedNodeId.value = node.id;
-  window.addEventListener('pointermove', dragNode);
-  window.addEventListener('pointerup', stopDragging, { once: true });
+  selectedEdgeId.value = null;
+  addInteractionListeners();
 };
 
-onBeforeUnmount(() => {
-  window.removeEventListener('pointermove', dragNode);
-});
+const startCanvasPan = event => {
+  const backgroundClicked =
+    event.target === svgRef.value ||
+    event.target?.dataset?.flowCanvasBackground === 'true';
+  if (![0, 1].includes(event.button) || !backgroundClicked) return;
+  event.preventDefault();
+  interaction.value = {
+    type: 'pan',
+    pointerX: event.clientX,
+    pointerY: event.clientY,
+    startX: viewport.x,
+    startY: viewport.y,
+  };
+  selectedEdgeId.value = null;
+  addInteractionListeners();
+};
+
+const startConnectionDrag = (event, nodeId, sourceHandle = 'default') => {
+  if (event.button !== 0) return;
+  event.preventDefault();
+  startConnection(nodeId, sourceHandle);
+  pendingConnection.value.point = canvasPoint(event);
+  interaction.value = { type: 'connection' };
+  addInteractionListeners();
+};
+
+const setZoom = (nextZoom, focus = null) => {
+  const bounds = svgRef.value?.getBoundingClientRect();
+  if (!bounds) return;
+  const zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom));
+  const focusPoint = focus || {
+    x: bounds.left + bounds.width / 2,
+    y: bounds.top + bounds.height / 2,
+  };
+  const worldX = (focusPoint.x - bounds.left - viewport.x) / viewport.zoom;
+  const worldY = (focusPoint.y - bounds.top - viewport.y) / viewport.zoom;
+  viewport.x = focusPoint.x - bounds.left - worldX * zoom;
+  viewport.y = focusPoint.y - bounds.top - worldY * zoom;
+  viewport.zoom = zoom;
+};
+
+const zoomIn = () => setZoom(viewport.zoom + 0.15);
+const zoomOut = () => setZoom(viewport.zoom - 0.15);
+
+const handleCanvasWheel = event => {
+  if (event.ctrlKey || event.metaKey) {
+    const factor = event.deltaY > 0 ? 0.9 : 1.1;
+    setZoom(viewport.zoom * factor, { x: event.clientX, y: event.clientY });
+    return;
+  }
+  viewport.x -= event.deltaX;
+  viewport.y -= event.deltaY;
+};
+
+const fitView = () => {
+  const bounds = canvasRef.value?.getBoundingClientRect();
+  const nodes = draft.definition.nodes;
+  if (!bounds?.width || !bounds?.height || !nodes.length) return;
+  const minX = Math.min(...nodes.map(node => node.position.x));
+  const minY = Math.min(...nodes.map(node => node.position.y));
+  const maxX = Math.max(...nodes.map(node => node.position.x + NODE_WIDTH));
+  const maxY = Math.max(
+    ...nodes.map(node => node.position.y + nodeHeight(node))
+  );
+  const contentWidth = Math.max(1, maxX - minX);
+  const contentHeight = Math.max(1, maxY - minY);
+  const zoom = Math.min(
+    1.15,
+    Math.max(
+      MIN_ZOOM,
+      Math.min(
+        (bounds.width - 120) / contentWidth,
+        (bounds.height - 120) / contentHeight
+      )
+    )
+  );
+  viewport.zoom = zoom;
+  viewport.x = (bounds.width - contentWidth * zoom) / 2 - minX * zoom;
+  viewport.y = (bounds.height - contentHeight * zoom) / 2 - minY * zoom;
+};
+
+const autoArrange = () => {
+  const trigger = draft.definition.nodes.find(node => node.type === 'trigger');
+  if (!trigger) return;
+  const levels = new Map([[trigger.id, 0]]);
+  const queue = [trigger.id];
+  while (queue.length) {
+    const sourceId = queue.shift();
+    const nextLevel = levels.get(sourceId) + 1;
+    draft.definition.edges
+      .filter(edge => edge.source === sourceId)
+      .forEach(edge => {
+        if (!levels.has(edge.target)) {
+          levels.set(edge.target, nextLevel);
+          queue.push(edge.target);
+        }
+      });
+  }
+
+  const maxLevel = Math.max(0, ...levels.values());
+  draft.definition.nodes.forEach(node => {
+    if (!levels.has(node.id)) levels.set(node.id, maxLevel + 1);
+  });
+  const groups = draft.definition.nodes.reduce((collection, node) => {
+    const level = levels.get(node.id);
+    if (!collection.has(level)) collection.set(level, []);
+    collection.get(level).push(node);
+    return collection;
+  }, new Map());
+  groups.forEach((nodes, level) => {
+    nodes.forEach((node, index) => {
+      node.position.x = 80 + level * 340;
+      node.position.y = 80 + index * 190;
+    });
+  });
+  nextTick(fitView);
+};
 
 const updateTemplate = templateKey => {
   const [templateName, language] = templateKey.split('|');
@@ -502,6 +772,29 @@ const requestClose = () => {
   emit('close');
 };
 
+const handleEditorKeydown = event => {
+  if (event.key === 'Escape') {
+    if (pendingConnection.value) pendingConnection.value = null;
+    else requestClose();
+    return;
+  }
+  const isTyping = ['INPUT', 'TEXTAREA', 'SELECT'].includes(
+    event.target.tagName
+  );
+  if (!isTyping && ['Backspace', 'Delete'].includes(event.key)) {
+    if (selectedEdge.value) removeEdge(selectedEdge.value.id);
+    else if (selectedNode.value?.type !== 'trigger') deleteSelectedNode();
+  }
+};
+
+onMounted(() => nextTick(fitView));
+
+onBeforeUnmount(() => {
+  window.removeEventListener('pointermove', moveInteraction);
+  window.removeEventListener('pointerup', stopInteraction);
+  window.removeEventListener('pointercancel', stopInteraction);
+});
+
 const preparePayload = () => ({
   name: draft.name,
   description: draft.description,
@@ -519,7 +812,7 @@ const preparePayload = () => ({
       role="dialog"
       aria-modal="true"
       :aria-label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.TITLE')"
-      @keydown.esc="requestClose"
+      @keydown="handleEditorKeydown"
     >
       <header
         class="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-n-weak px-4 py-3 sm:px-5"
@@ -630,32 +923,95 @@ const preparePayload = () => ({
         </aside>
 
         <div
-          class="relative min-h-[26rem] min-w-0 overflow-auto bg-n-surface-2 sm:min-h-[32rem] lg:min-h-0"
+          ref="canvasRef"
+          class="relative min-h-[26rem] min-w-0 overflow-hidden bg-n-surface-2 sm:min-h-[32rem] lg:min-h-0"
         >
-          <div
-            v-if="pendingConnection"
-            class="sticky left-4 top-4 z-10 inline-flex items-center gap-2 rounded-lg bg-n-blue-9 px-3 py-2 text-xs font-medium text-white shadow-lg"
+          <Transition
+            enter-active-class="motion-safe:transition motion-safe:duration-200 motion-safe:ease-out"
+            enter-from-class="-translate-y-2 opacity-0"
+            enter-to-class="translate-y-0 opacity-100"
+            leave-active-class="motion-safe:transition motion-safe:duration-150 motion-safe:ease-in"
+            leave-from-class="translate-y-0 opacity-100"
+            leave-to-class="-translate-y-2 opacity-0"
           >
-            <span
-              class="i-lucide-mouse-pointer-click size-4"
-              aria-hidden="true"
-            />
-            {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.SELECT_TARGET') }}
+            <div
+              v-if="pendingConnection"
+              class="absolute left-4 top-4 z-20 inline-flex items-center gap-2 rounded-lg bg-n-blue-9 px-3 py-2 text-xs font-medium text-white shadow-lg motion-reduce:transform-none"
+            >
+              <span
+                class="i-lucide-mouse-pointer-click size-4"
+                aria-hidden="true"
+              />
+              {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.SELECT_TARGET') }}
+              <button
+                type="button"
+                class="ml-1 flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-white/20 motion-reduce:transition-none"
+                :aria-label="t('WHATSAPP_CLOUD_STUDIO.CANCEL')"
+                @click="pendingConnection = null"
+              >
+                <span class="i-lucide-x size-3" aria-hidden="true" />
+              </button>
+            </div>
+          </Transition>
+
+          <div
+            class="absolute bottom-4 right-4 z-20 flex items-center overflow-hidden rounded-xl border border-n-weak bg-n-solid-1 shadow-lg"
+          >
             <button
               type="button"
-              class="ml-1 flex size-11 items-center justify-center rounded-lg hover:bg-white/20"
-              :aria-label="t('WHATSAPP_CLOUD_STUDIO.CANCEL')"
-              @click="pendingConnection = null"
+              class="flex size-11 items-center justify-center text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:opacity-40"
+              :aria-label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.ZOOM_OUT')"
+              :disabled="viewport.zoom <= MIN_ZOOM"
+              @click="zoomOut"
             >
-              <span class="i-lucide-x size-3" aria-hidden="true" />
+              <span class="i-lucide-minus size-4" aria-hidden="true" />
             </button>
+            <span
+              class="min-w-14 border-x border-n-weak px-2 text-center text-xs font-medium text-n-slate-11"
+            >
+              {{ zoomPercentage }}
+            </span>
+            <button
+              type="button"
+              class="flex size-11 items-center justify-center text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12 disabled:opacity-40"
+              :aria-label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.ZOOM_IN')"
+              :disabled="viewport.zoom >= MAX_ZOOM"
+              @click="zoomIn"
+            >
+              <span class="i-lucide-plus size-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              class="flex size-11 items-center justify-center border-l border-n-weak text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
+              :aria-label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.FIT_VIEW')"
+              @click="fitView"
+            >
+              <span class="i-lucide-scan size-4" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              class="flex size-11 items-center justify-center border-l border-n-weak text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
+              :aria-label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.AUTO_ARRANGE')"
+              @click="autoArrange"
+            >
+              <span class="i-lucide-wand-sparkles size-4" aria-hidden="true" />
+            </button>
+          </div>
+
+          <div
+            class="pointer-events-none absolute bottom-4 left-4 z-10 hidden items-center gap-2 rounded-lg bg-n-solid-1/90 px-3 py-2 text-[0.7rem] text-n-slate-9 shadow-sm xl:flex"
+          >
+            <span class="i-lucide-move size-3.5" aria-hidden="true" />
+            {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.PAN_HINT') }}
           </div>
 
           <svg
             ref="svgRef"
-            viewBox="0 0 1600 900"
-            class="block min-h-[38rem] min-w-[64rem] select-none sm:min-h-[44rem] sm:min-w-[72rem] lg:min-h-[50rem] lg:min-w-[80rem] xl:min-w-[90rem]"
+            class="block size-full min-h-[38rem] select-none touch-none sm:min-h-[44rem] lg:min-h-full"
             :aria-label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CANVAS')"
+            tabindex="0"
+            @pointerdown="startCanvasPan"
+            @wheel.prevent="handleCanvasWheel"
           >
             <defs>
               <pattern
@@ -677,162 +1033,243 @@ const preparePayload = () => ({
                 <path d="M 0 0 L 8 4 L 0 8 z" class="fill-n-slate-8" />
               </marker>
             </defs>
-            <rect width="1600" height="900" fill="url(#whatsapp-flow-grid)" />
+            <g :transform="viewportTransform">
+              <rect
+                x="-5000"
+                y="-5000"
+                width="10000"
+                height="10000"
+                fill="url(#whatsapp-flow-grid)"
+                data-flow-canvas-background="true"
+              />
 
-            <path
-              v-for="edge in draft.definition.edges"
-              :key="edge.id"
-              :d="edgePath(edge)"
-              fill="none"
-              class="stroke-n-slate-8"
-              stroke-width="2"
-              marker-end="url(#whatsapp-flow-arrow)"
-            />
-
-            <g v-for="node in draft.definition.nodes" :key="node.id">
-              <foreignObject
-                :x="node.position.x"
-                :y="node.position.y"
-                width="260"
-                :height="nodeHeight(node)"
-              >
-                <div
-                  class="h-full overflow-hidden rounded-xl border-2 bg-n-solid-1 shadow-md"
-                  :data-test-id="`flow-node-${node.id}`"
+              <g v-for="edge in draft.definition.edges" :key="edge.id">
+                <path
+                  :d="edgePath(edge)"
+                  fill="none"
+                  class="cursor-pointer stroke-transparent"
+                  stroke-width="18"
+                  @click.stop="selectEdge(edge.id)"
+                />
+                <path
+                  :d="edgePath(edge)"
+                  fill="none"
+                  class="pointer-events-none transition-colors"
                   :class="
-                    selectedNodeId === node.id
-                      ? 'border-n-brand'
-                      : 'border-n-weak'
+                    selectedEdgeId === edge.id
+                      ? 'stroke-n-brand'
+                      : 'stroke-n-slate-8'
                   "
-                  @click="selectedNodeId = node.id"
+                  stroke-width="2.5"
+                  marker-end="url(#whatsapp-flow-arrow)"
+                />
+              </g>
+
+              <path
+                v-if="pendingConnectionPath"
+                :d="pendingConnectionPath"
+                fill="none"
+                class="pointer-events-none stroke-n-brand"
+                stroke-width="2.5"
+                stroke-dasharray="8 6"
+              >
+                <animate
+                  attributeName="stroke-dashoffset"
+                  from="28"
+                  to="0"
+                  dur="0.8s"
+                  repeatCount="indefinite"
+                />
+              </path>
+
+              <g v-for="node in draft.definition.nodes" :key="node.id">
+                <foreignObject
+                  :x="node.position.x"
+                  :y="node.position.y"
+                  :width="NODE_WIDTH"
+                  :height="nodeHeight(node)"
                 >
-                  <button
-                    type="button"
-                    class="flex h-14 w-full cursor-grab items-center gap-3 border-b border-n-weak px-3 text-left active:cursor-grabbing"
-                    @pointerdown.prevent="startDragging($event, node)"
-                  >
-                    <span
-                      class="flex size-8 shrink-0 items-center justify-center rounded-lg"
-                      :class="nodeTone(node)"
-                    >
-                      <span
-                        class="size-4"
-                        :class="nodeIcon(node)"
-                        aria-hidden="true"
-                      />
-                    </span>
-                    <span class="min-w-0">
-                      <span class="block text-sm font-semibold text-n-slate-12">
-                        {{ nodeTitle(node) }}
-                      </span>
-                      <span class="block truncate text-xs text-n-slate-9">
-                        {{ nodeSubtitle(node) }}
-                      </span>
-                    </span>
-                  </button>
                   <div
-                    v-if="
-                      node.type === 'message' && node.config.buttons?.length
+                    class="h-full cursor-grab overflow-hidden rounded-2xl border-2 bg-n-solid-1 shadow-lg transition-[border-color,box-shadow] active:cursor-grabbing"
+                    :data-test-id="`flow-node-${node.id}`"
+                    :class="
+                      selectedNodeId === node.id
+                        ? 'border-n-brand shadow-xl'
+                        : 'border-n-weak hover:border-n-strong'
                     "
-                    class="space-y-1 p-2"
+                    role="button"
+                    tabindex="0"
+                    @pointerdown.prevent.stop="startNodeDrag($event, node)"
+                    @click.stop="
+                      selectedNodeId = node.id;
+                      selectedEdgeId = null;
+                    "
+                    @keydown.enter.stop="selectedNodeId = node.id"
                   >
                     <div
-                      v-for="button in node.config.buttons"
-                      :key="button.id"
-                      class="flex h-7 items-center rounded-md bg-n-alpha-2 px-2 text-xs text-n-slate-11"
+                      class="flex h-14 w-full items-center gap-3 border-b border-n-weak px-3 text-left"
                     >
                       <span
-                        class="i-lucide-reply mr-1.5 size-3"
+                        class="flex size-8 shrink-0 items-center justify-center rounded-lg"
+                        :class="nodeTone(node)"
+                      >
+                        <span
+                          class="size-4"
+                          :class="nodeIcon(node)"
+                          aria-hidden="true"
+                        />
+                      </span>
+                      <span class="min-w-0">
+                        <span
+                          class="block text-sm font-semibold text-n-slate-12"
+                        >
+                          {{ nodeTitle(node) }}
+                        </span>
+                        <span class="block truncate text-xs text-n-slate-9">
+                          {{ nodeSubtitle(node) }}
+                        </span>
+                      </span>
+                      <span
+                        class="i-lucide-grip-vertical ml-auto size-4 shrink-0 text-n-slate-7"
                         aria-hidden="true"
                       />
-                      <span class="truncate">
-                        {{
-                          button.title ||
-                          t(
-                            'WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.UNTITLED_BUTTON'
-                          )
-                        }}
-                      </span>
+                    </div>
+                    <div
+                      v-if="
+                        node.type === 'message' && node.config.buttons?.length
+                      "
+                      class="space-y-1 p-2"
+                    >
+                      <div
+                        v-for="button in node.config.buttons"
+                        :key="button.id"
+                        class="flex h-7 items-center rounded-md bg-n-alpha-2 px-2 text-xs text-n-slate-11"
+                      >
+                        <span
+                          class="i-lucide-reply mr-1.5 size-3"
+                          aria-hidden="true"
+                        />
+                        <span class="truncate">
+                          {{
+                            button.title ||
+                            t(
+                              'WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.UNTITLED_BUTTON'
+                            )
+                          }}
+                        </span>
+                      </div>
+                    </div>
+                    <div
+                      v-else
+                      class="line-clamp-3 px-3 py-3 text-xs leading-5 text-n-slate-10"
+                    >
+                      {{ nodeSubtitle(node) }}
                     </div>
                   </div>
-                  <div
-                    v-else
-                    class="line-clamp-3 px-3 py-3 text-xs leading-5 text-n-slate-10"
-                  >
-                    {{ nodeSubtitle(node) }}
-                  </div>
-                </div>
-              </foreignObject>
+                </foreignObject>
 
-              <circle
-                :cx="node.position.x"
-                :cy="node.position.y + 58"
-                r="7"
-                class="cursor-pointer fill-n-solid-1 stroke-n-brand hover:fill-n-blue-3"
-                stroke-width="3"
-                role="button"
-                :aria-label="
-                  t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.TARGET_HANDLE')
-                "
-                tabindex="0"
-                @click="finishConnection(node.id)"
-                @keydown.enter="finishConnection(node.id)"
-              />
-              <circle
-                v-if="
-                  node.type !== 'end' &&
-                  node.type !== 'condition' &&
-                  !(node.type === 'message' && node.config.buttons?.length)
-                "
-                :cx="node.position.x + 260"
-                :cy="node.position.y + 58"
-                r="7"
-                class="cursor-pointer fill-n-solid-1 stroke-n-brand hover:fill-n-blue-3"
-                stroke-width="3"
-                role="button"
-                :aria-label="
-                  t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.SOURCE_HANDLE')
-                "
-                tabindex="0"
-                @click="startConnection(node.id)"
-                @keydown.enter="startConnection(node.id)"
-              />
-              <circle
-                v-for="conditionHandle in node.type === 'condition'
-                  ? ['true', 'false']
-                  : []"
-                :key="`${node.id}-${conditionHandle}`"
-                :cx="node.position.x + 260"
-                :cy="handleY(node, conditionHandle)"
-                r="6"
-                class="cursor-pointer fill-n-solid-1 stroke-n-brand hover:fill-n-blue-3"
-                stroke-width="3"
-                role="button"
-                :aria-label="conditionHandleLabel(conditionHandle)"
-                tabindex="0"
-                @click="startConnection(node.id, conditionHandle)"
-                @keydown.enter="startConnection(node.id, conditionHandle)"
-              />
-              <circle
-                v-for="button in node.type === 'message'
-                  ? node.config.buttons || []
-                  : []"
-                :key="`${node.id}-${button.id}`"
-                :cx="node.position.x + 260"
-                :cy="handleY(node, button.id)"
-                r="6"
-                class="cursor-pointer fill-n-solid-1 stroke-n-brand hover:fill-n-blue-3"
-                stroke-width="3"
-                role="button"
-                :aria-label="
-                  t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.BUTTON_HANDLE', {
-                    title: button.title,
-                  })
-                "
-                tabindex="0"
-                @click="startConnection(node.id, button.id)"
-                @keydown.enter="startConnection(node.id, button.id)"
-              />
+                <circle
+                  :cx="node.position.x"
+                  :cy="node.position.y + 58"
+                  r="8"
+                  class="cursor-crosshair fill-n-solid-1 stroke-n-brand hover:fill-n-blue-3"
+                  stroke-width="3"
+                  role="button"
+                  :data-flow-target="node.id"
+                  :aria-label="
+                    t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.TARGET_HANDLE')
+                  "
+                  tabindex="0"
+                  @pointerup.stop="finishConnection(node.id)"
+                  @click="finishConnection(node.id)"
+                  @keydown.enter="finishConnection(node.id)"
+                />
+                <circle
+                  v-if="
+                    node.type !== 'end' &&
+                    node.type !== 'condition' &&
+                    !(node.type === 'message' && node.config.buttons?.length)
+                  "
+                  :cx="node.position.x + NODE_WIDTH"
+                  :cy="node.position.y + 58"
+                  r="8"
+                  class="cursor-crosshair fill-n-solid-1 stroke-n-brand hover:fill-n-blue-3"
+                  stroke-width="3"
+                  role="button"
+                  :aria-label="
+                    t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.SOURCE_HANDLE')
+                  "
+                  tabindex="0"
+                  @pointerdown.stop="startConnectionDrag($event, node.id)"
+                  @keydown.enter="startConnection(node.id)"
+                />
+                <circle
+                  v-for="conditionHandle in node.type === 'condition'
+                    ? ['true', 'false']
+                    : []"
+                  :key="`${node.id}-${conditionHandle}`"
+                  :cx="node.position.x + NODE_WIDTH"
+                  :cy="handleY(node, conditionHandle)"
+                  r="6"
+                  class="cursor-crosshair fill-n-solid-1 stroke-n-brand hover:fill-n-blue-3"
+                  stroke-width="3"
+                  role="button"
+                  :aria-label="conditionHandleLabel(conditionHandle)"
+                  tabindex="0"
+                  @pointerdown.stop="
+                    startConnectionDrag($event, node.id, conditionHandle)
+                  "
+                  @keydown.enter="startConnection(node.id, conditionHandle)"
+                />
+                <circle
+                  v-for="button in node.type === 'message'
+                    ? node.config.buttons || []
+                    : []"
+                  :key="`${node.id}-${button.id}`"
+                  :cx="node.position.x + NODE_WIDTH"
+                  :cy="handleY(node, button.id)"
+                  r="6"
+                  class="cursor-crosshair fill-n-solid-1 stroke-n-brand hover:fill-n-blue-3"
+                  stroke-width="3"
+                  role="button"
+                  :aria-label="
+                    t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.BUTTON_HANDLE', {
+                      title: button.title,
+                    })
+                  "
+                  tabindex="0"
+                  @pointerdown.stop="
+                    startConnectionDrag($event, node.id, button.id)
+                  "
+                  @keydown.enter="startConnection(node.id, button.id)"
+                />
+              </g>
+
+              <foreignObject
+                v-if="selectedEdge"
+                :x="edgeMidpoint(selectedEdge).x - 20"
+                :y="edgeMidpoint(selectedEdge).y - 20"
+                width="40"
+                height="40"
+              >
+                <animate
+                  attributeName="opacity"
+                  from="0"
+                  to="1"
+                  dur="0.18s"
+                  fill="freeze"
+                />
+                <button
+                  type="button"
+                  class="flex size-10 items-center justify-center rounded-full border border-n-ruby-7 bg-n-solid-1 text-n-ruby-11 shadow-lg transition hover:scale-105 hover:bg-n-ruby-3 motion-reduce:transform-none motion-reduce:transition-none"
+                  :aria-label="
+                    t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.DELETE_CONNECTION')
+                  "
+                  @click.stop="removeEdge(selectedEdge.id)"
+                >
+                  <span class="i-lucide-unlink size-4" aria-hidden="true" />
+                </button>
+              </foreignObject>
             </g>
           </svg>
         </div>
@@ -850,17 +1287,31 @@ const preparePayload = () => ({
                   {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.NODE_SETTINGS') }}
                 </p>
               </div>
-              <button
+              <div
                 v-if="selectedNode.type !== 'trigger'"
-                type="button"
-                class="flex size-11 items-center justify-center rounded-lg text-n-ruby-11 hover:bg-n-ruby-3"
-                :aria-label="
-                  t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.DELETE_NODE')
-                "
-                @click="deleteSelectedNode"
+                class="flex items-center gap-1"
               >
-                <span class="i-lucide-trash-2 size-4" aria-hidden="true" />
-              </button>
+                <button
+                  type="button"
+                  class="flex size-11 items-center justify-center rounded-lg text-n-slate-10 hover:bg-n-alpha-2 hover:text-n-slate-12"
+                  :aria-label="
+                    t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.DUPLICATE_NODE')
+                  "
+                  @click="duplicateSelectedNode"
+                >
+                  <span class="i-lucide-copy-plus size-4" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  class="flex size-11 items-center justify-center rounded-lg text-n-ruby-11 hover:bg-n-ruby-3"
+                  :aria-label="
+                    t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.DELETE_NODE')
+                  "
+                  @click="deleteSelectedNode"
+                >
+                  <span class="i-lucide-trash-2 size-4" aria-hidden="true" />
+                </button>
+              </div>
             </div>
 
             <div v-if="selectedNode.type === 'trigger'" class="mt-5 space-y-4">
@@ -1188,6 +1639,30 @@ const preparePayload = () => ({
               </label>
             </div>
           </template>
+          <div v-else-if="selectedEdge" class="flex h-full flex-col">
+            <div
+              class="flex size-10 items-center justify-center rounded-xl bg-n-ruby-3 text-n-ruby-11"
+            >
+              <span class="i-lucide-unlink size-5" aria-hidden="true" />
+            </div>
+            <h2 class="mt-4 text-sm font-semibold text-n-slate-12">
+              {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CONNECTION_SELECTED') }}
+            </h2>
+            <p class="mt-2 text-xs leading-5 text-n-slate-9">
+              {{
+                t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CONNECTION_DESCRIPTION')
+              }}
+            </p>
+            <Button
+              class="mt-5 w-full"
+              type="button"
+              color="ruby"
+              variant="outline"
+              icon="i-lucide-trash-2"
+              :label="t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.DELETE_CONNECTION')"
+              @click="removeEdge(selectedEdge.id)"
+            />
+          </div>
         </aside>
       </div>
     </div>

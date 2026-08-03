@@ -8,7 +8,10 @@ import TemplatesPanel from '../TemplatesPanel.vue';
 import englishMessages from 'dashboard/i18n/locale/en/whatsappCloudStudio.json';
 import portugueseMessages from 'dashboard/i18n/locale/pt/whatsappCloudStudio.json';
 import brazilianPortugueseMessages from 'dashboard/i18n/locale/pt_BR/whatsappCloudStudio.json';
-import { whatsappCloudTemplatesAPI } from 'dashboard/api/whatsappCloudStudio';
+import {
+  whatsappCloudAudienceImportsAPI,
+  whatsappCloudTemplatesAPI,
+} from 'dashboard/api/whatsappCloudStudio';
 import { templateParametersComplete } from '../templateParameterUtils';
 
 vi.mock('dashboard/api/whatsappCloudStudio', () => ({
@@ -19,6 +22,9 @@ vi.mock('dashboard/api/whatsappCloudStudio', () => ({
   },
   whatsappCloudAudienceEstimateAPI: {
     getEstimate: vi.fn(),
+  },
+  whatsappCloudAudienceImportsAPI: {
+    create: vi.fn(),
   },
 }));
 
@@ -466,8 +472,9 @@ describe('WhatsApp Cloud Studio panels', () => {
 
     expect(toolbox.exists()).toBe(true);
     expect(toolbox.classes()).toContain('sm:grid-cols-3');
-    expect(canvas.classes()).toContain('min-w-[64rem]');
-    expect(canvas.classes()).toContain('min-h-[38rem]');
+    expect(canvas.classes()).toContain('size-full');
+    expect(wrapper.text()).toContain('100%');
+    expect(wrapper.find('.i-lucide-scan').exists()).toBe(true);
     expect(closeButton.classes()).toContain('size-11');
 
     wrapper.unmount();
@@ -528,6 +535,63 @@ describe('WhatsApp Cloud Studio panels', () => {
     wrapper.unmount();
   });
 
+  it('prepares a pasted contact list without AI', async () => {
+    whatsappCloudAudienceImportsAPI.create.mockResolvedValue({
+      data: {
+        imported: 2,
+        created: 2,
+        updated: 0,
+        ignored: 0,
+        invalid: 0,
+        duplicates: 0,
+        contact_ids: [91, 92],
+      },
+    });
+    const wrapper = mount(BroadcastsPanel, {
+      props: {
+        inbox: { id: 29 },
+        templates: [
+          {
+            name: 'hello_world',
+            language: 'en_US',
+            category: 'UTILITY',
+            status: 'APPROVED',
+            components: [{ type: 'BODY', text: 'Hello' }],
+          },
+        ],
+        labels: [],
+        campaigns: [],
+      },
+      global: {
+        stubs: {
+          Dialog: DialogStub,
+        },
+      },
+    });
+
+    await buttonByText(wrapper, 'New broadcast').trigger('click');
+    await wrapper
+      .find('input[name="whatsapp-audience-consent"]')
+      .setValue(true);
+    await buttonByText(wrapper, 'Paste list').trigger('click');
+    await wrapper
+      .find('textarea[name="pasted-whatsapp-contacts"]')
+      .setValue('63999991111\n63888882222');
+    await buttonByText(wrapper, 'Prepare audience').trigger('click');
+    await flushPromises();
+
+    expect(whatsappCloudAudienceImportsAPI.create).toHaveBeenCalledWith({
+      inboxId: 29,
+      contacts: [
+        { phone_number: '+5563999991111', name: '', company_name: '' },
+        { phone_number: '+5563888882222', name: '', company_name: '' },
+      ],
+      consentConfirmed: true,
+    });
+    expect(wrapper.text()).toContain('2 contact(s) ready');
+    wrapper.unmount();
+  });
+
   it('submits a complete broadcast from its visible action button', async () => {
     const wrapper = mount(BroadcastsPanel, {
       props: {
@@ -555,7 +619,7 @@ describe('WhatsApp Cloud Studio panels', () => {
     await nextTick();
     await wrapper.find('input:not([type])').setValue('Test broadcast');
     await wrapper.find('select:not([multiple])').setValue('hello_world|en_US');
-    await wrapper.find('select[multiple]').setValue(['1']);
+    await wrapper.findAll('input[type="checkbox"]')[1].setValue(true);
     await wrapper
       .find('input[type="datetime-local"]')
       .setValue('2099-01-01T12:00');

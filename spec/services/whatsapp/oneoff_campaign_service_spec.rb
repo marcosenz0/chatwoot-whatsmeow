@@ -122,6 +122,16 @@ describe Whatsapp::OneoffCampaignService do
       )
     end
 
+    it 'creates deliveries for contacts selected directly in the studio import' do
+      campaign.update!(audience: [{ type: 'Contact', id: eligible_contact.id }])
+
+      expect { perform_service }
+        .to change(WhatsappCampaignDelivery, :count).by(1)
+        .and have_enqueued_job(Whatsapp::ProcessCampaignDeliveryJob).exactly(:once)
+
+      expect(campaign.whatsapp_campaign_deliveries.find_by(contact: eligible_contact)).to be_queued
+    end
+
     it 'suppresses opted-out contacts and contacts without a phone number' do
       perform_service
 

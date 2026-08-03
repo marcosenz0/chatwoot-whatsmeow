@@ -87,6 +87,7 @@
     "opus-recorder": "^8.0.5",
     "pinia": "^3.0.4",
     "qrcode": "^1.5.4",
+    "read-excel-file": "9.3.5",
     "semver": "7.6.3",
     "snakecase-keys": "^8.0.1",
     "timezone-phone-codes": "^0.0.2",

@@ -49,13 +49,29 @@ class WhatsAppCloudAudienceEstimateAPI extends ApiClient {
     super('whatsapp_cloud/audience_estimate', { accountScoped: true });
   }
 
-  getEstimate({ inboxId, labelIds, category }) {
+  getEstimate({ inboxId, labelIds, contactIds, category }) {
     return axios.get(this.url, {
       params: {
         inbox_id: inboxId,
         label_ids: labelIds,
+        contact_ids: contactIds,
         category,
       },
+    });
+  }
+}
+
+class WhatsAppCloudAudienceImportsAPI extends ApiClient {
+  constructor() {
+    super('whatsapp_cloud/audience_imports', { accountScoped: true });
+  }
+
+  create({ inboxId, contacts, consentConfirmed, defaultCountryCode = '55' }) {
+    return axios.post(this.url, {
+      inbox_id: inboxId,
+      contacts,
+      consent_confirmed: consentConfirmed,
+      default_country_code: defaultCountryCode,
     });
   }
 }
@@ -64,3 +80,5 @@ export const whatsappCloudAutomationsAPI = new WhatsAppCloudAutomationsAPI();
 export const whatsappCloudTemplatesAPI = new WhatsAppCloudTemplatesAPI();
 export const whatsappCloudAudienceEstimateAPI =
   new WhatsAppCloudAudienceEstimateAPI();
+export const whatsappCloudAudienceImportsAPI =
+  new WhatsAppCloudAudienceImportsAPI();

@@ -49,13 +49,18 @@ class Whatsapp::OneoffCampaignService
 
   def audience_contacts
     labels = campaign.account.labels.where(id: audience_label_ids).pluck(:title)
-    return campaign.account.contacts.none if labels.empty?
+    contact_ids = audience_contact_ids
+    contact_ids |= campaign.account.contacts.tagged_with(labels, any: true).pluck(:id) if labels.any?
 
-    campaign.account.contacts.tagged_with(labels, any: true)
+    campaign.account.contacts.where(id: contact_ids)
   end
 
   def audience_label_ids
     campaign.audience.select { |audience| audience['type'] == 'Label' }.pluck('id')
+  end
+
+  def audience_contact_ids
+    campaign.audience.select { |audience| audience['type'] == 'Contact' }.pluck('id')
   end
 
   def delivery_attributes(contact)
@@ -84,6 +89,6 @@ class Whatsapp::OneoffCampaignService
 
   def whatsapp_opted_out?(contact)
     ActiveModel::Type::Boolean.new.cast(contact.custom_attributes['whatsapp_opt_out']) ||
-      contact.label_list.any? { |label| label.to_s.downcase.in?(%w[whatsapp_opt_out do_not_contact]) }
+      contact.label_list.any? { |label| label.to_s.downcase.in?(%w[whatsapp_opt_out do_not_contact optout]) }
   end
 end

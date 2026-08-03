@@ -21,16 +21,17 @@ class Api::V1::Accounts::WhatsappCloud::AudienceEstimatesController < Api::V1::A
   def audience_contacts
     label_ids = Array(params[:label_ids]).map(&:to_i)
     labels = Current.account.labels.where(id: label_ids).pluck(:title)
-    return Current.account.contacts.none if labels.empty?
+    contact_ids = Array(params[:contact_ids]).map(&:to_i)
+    contact_ids |= Current.account.contacts.tagged_with(labels, any: true).pluck(:id) if labels.any?
 
-    Current.account.contacts.tagged_with(labels, any: true)
+    Current.account.contacts.where(id: contact_ids)
   end
 
   def contact_estimate(contact, category)
     skipped = contact.phone_number.blank? ||
               contact.blocked? ||
               ActiveModel::Type::Boolean.new.cast(contact.custom_attributes['whatsapp_opt_out']) ||
-              contact.label_list.any? { |label| label.to_s.downcase.in?(%w[whatsapp_opt_out do_not_contact]) }
+              contact.label_list.any? { |label| label.to_s.downcase.in?(%w[whatsapp_opt_out do_not_contact optout]) }
     {
       skipped: skipped,
       estimated_cost: estimated_cost(skipped, contact, category)

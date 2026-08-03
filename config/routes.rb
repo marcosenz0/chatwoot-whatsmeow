@@ -162,6 +162,7 @@ Rails.application.routes.draw do
               post :sync, on: :collection
               delete :destroy, on: :collection
             end
+            resources :audience_imports, only: [:create]
             resources :automations, only: [:index, :show, :create, :update, :destroy] do
               post :publish, on: :member
               post :pause, on: :member
