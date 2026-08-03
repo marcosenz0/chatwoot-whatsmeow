@@ -1,10 +1,8 @@
-require 'set'
-
 class Whatsapp::AudienceImportService
   class Error < StandardError; end
 
   MAX_CONTACTS = 5000
-  DEFAULT_COUNTRY_CODE = '55'
+  DEFAULT_COUNTRY_CODE = '55'.freeze
 
   def initialize(account:, inbox:, contacts:, consent_confirmed:, default_country_code: DEFAULT_COUNTRY_CODE)
     @account = account
@@ -55,28 +53,44 @@ class Whatsapp::AudienceImportService
   def import_contact(attributes, index, result, seen_phone_numbers)
     phone_number = normalize_phone_number(attributes[:phone_number])
     return add_issue(result, index, attributes[:phone_number], 'Número inválido') if phone_number.blank?
+    return add_duplicate(result) unless seen_phone_numbers.add?(phone_number)
 
-    unless seen_phone_numbers.add?(phone_number)
-      result[:duplicates] += 1
-      return
-    end
+    contact = importable_contact(phone_number, index, result)
+    return if contact.blank?
 
-    contact = account.contacts.find_or_initialize_by(phone_number: phone_number)
     was_new = contact.new_record?
-    return add_ignored(result, index, phone_number, 'Contato bloqueado') if contact.blocked?
-    return add_ignored(result, index, phone_number, 'Contato marcou que não deseja receber mensagens') if whatsapp_opted_out?(contact)
-
     assign_contact_attributes(contact, attributes, phone_number)
     contact.save!
     ContactInboxBuilder.new(contact: contact, inbox: inbox).perform
-
-    result[:contact_ids] << contact.id
-    result[:imported] += 1
-    result[was_new ? :created : :updated] += 1
+    record_import(result, contact, was_new)
   rescue ActiveRecord::RecordInvalid => e
     add_issue(result, index, attributes[:phone_number], e.record.errors.full_messages.to_sentence)
   rescue StandardError => e
     add_issue(result, index, attributes[:phone_number], e.message)
+  end
+
+  def importable_contact(phone_number, index, result)
+    contact = account.contacts.find_or_initialize_by(phone_number: phone_number)
+    if contact.blocked?
+      add_ignored(result, index, phone_number, 'Contato bloqueado')
+      return
+    end
+    if whatsapp_opted_out?(contact)
+      add_ignored(result, index, phone_number, 'Contato marcou que não deseja receber mensagens')
+      return
+    end
+
+    contact
+  end
+
+  def record_import(result, contact, was_new)
+    result[:contact_ids] << contact.id
+    result[:imported] += 1
+    result[was_new ? :created : :updated] += 1
+  end
+
+  def add_duplicate(result)
+    result[:duplicates] += 1
   end
 
   def assign_contact_attributes(contact, attributes, phone_number)
@@ -95,18 +109,18 @@ class Whatsapp::AudienceImportService
     raw_value = value.to_s.strip
     return if raw_value.blank?
 
-    explicit_country_code = raw_value.start_with?('+', '00')
     digits = raw_value.gsub(/\D/, '')
     digits = digits.delete_prefix('00') if raw_value.start_with?('00')
-
-    unless explicit_country_code
-      digits = digits.delete_prefix('0') if digits.start_with?('0') && digits.length.in?([11, 12])
-      digits = "#{default_country_code}#{digits}" if digits.length.in?([10, 11])
-    end
+    digits = normalize_local_digits(digits) unless raw_value.start_with?('+', '00')
 
     return unless digits.match?(/\A[1-9]\d{9,14}\z/)
 
     "+#{digits}"
+  end
+
+  def normalize_local_digits(digits)
+    digits = digits.delete_prefix('0') if digits.start_with?('0') && digits.length.in?([11, 12])
+    digits.length.in?([10, 11]) ? "#{default_country_code}#{digits}" : digits
   end
 
   def whatsapp_opted_out?(contact)
