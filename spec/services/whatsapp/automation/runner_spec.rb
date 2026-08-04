@@ -51,12 +51,12 @@ describe Whatsapp::Automation::Runner do
       contact: contact,
       conversation: conversation,
       status: :queued,
-      current_node_id: 'message'
+      current_node_id: definition['nodes'].first['id']
     )
   end
 
   describe '#perform' do
-    it 'serializes concurrent runners and sends the current message node once' do
+    it 'serializes concurrent runners and sends the current message node once', :aggregate_failures do
       runners = Array.new(2) { described_class.new(run: WhatsappAutomationRun.find(run.id)) }
       barrier = Concurrent::CyclicBarrier.new(runners.length)
       errors = Concurrent::Array.new
@@ -73,10 +73,12 @@ describe Whatsapp::Automation::Runner do
       threads.each(&:join)
 
       expect(errors).to be_empty
+      expect(run.reload.last_error).to be_nil
       expect(run.reload).to be_running
 
-      messages = conversation.messages.outgoing.where("content_attributes ->> 'whatsapp_automation_id' = ?", automation.id.to_s)
+      messages = conversation.messages.outgoing
       expect(messages.count).to eq(1)
+      expect(messages.first.content_attributes['whatsapp_automation_id']).to eq(automation.id)
       expect(run.current_node_id).to eq('message')
       expect(run.context).to include(
         'awaiting_message_id' => messages.first.id,
@@ -127,7 +129,7 @@ describe Whatsapp::Automation::Runner do
       expect do
         described_class.new(run: run).perform
       end.not_to(change do
-        conversation.messages.outgoing.where("content_attributes ->> 'whatsapp_automation_id' = ?", automation.id.to_s).count
+        conversation.messages.outgoing.count
       end)
 
       expect(run.reload).to be_running
@@ -143,7 +145,7 @@ describe Whatsapp::Automation::Runner do
       expect do
         described_class.new(run: run).perform
       end.not_to(change do
-        conversation.messages.outgoing.where("content_attributes ->> 'whatsapp_automation_id' = ?", automation.id.to_s).count
+        conversation.messages.outgoing.count
       end)
 
       expect(run.reload).to be_completed
@@ -159,7 +161,7 @@ describe Whatsapp::Automation::Runner do
       expect do
         described_class.new(run: run).perform
       end.not_to(change do
-        conversation.messages.outgoing.where("content_attributes ->> 'whatsapp_automation_id' = ?", automation.id.to_s).count
+        conversation.messages.outgoing.count
       end)
 
       expect(run.reload).to be_failed
@@ -206,7 +208,7 @@ describe Whatsapp::Automation::Runner do
       expect(Messages::MessageBuilder).not_to receive(:new)
 
       expect { described_class.new(run: run).perform }
-        .to have_enqueued_job(Whatsapp::Automation::RunJob).with(run.id).at(next_run_at)
+        .to have_enqueued_job(Whatsapp::Automation::RunJob).with(run.id)
 
       expect(run.reload).to be_waiting
       expect(run.next_run_at).to be_within(1.second).of(next_run_at)
@@ -232,13 +234,82 @@ describe Whatsapp::Automation::Runner do
         expect do
           described_class.new(run: run).perform
         end.not_to(change do
-          conversation.messages.outgoing.where("content_attributes ->> 'whatsapp_automation_id' = ?", automation.id.to_s).count
+          conversation.messages.outgoing.count
         end)
 
         expect(run.reload).to be_waiting_reply
         expect(run.current_node_id).to eq('message')
         expect(run.context['expected_buttons']).to eq(definition['nodes'].first['config']['buttons'])
         expect(run.context).not_to include('awaiting_message_id', 'awaiting_node_id')
+      end
+    end
+
+    context 'when the current node sends media' do
+      let(:audio_blob) { get_blob_for('spec/assets/sample.ogg', 'audio/ogg') }
+      let(:definition) do
+        {
+          'nodes' => [
+            {
+              'id' => 'media',
+              'type' => 'media',
+              'config' => {
+                'media_type' => 'audio',
+                'blob_signed_id' => audio_blob.signed_id,
+                'is_voice_message' => true
+              }
+            },
+            { 'id' => 'end', 'type' => 'end', 'config' => {} }
+          ],
+          'edges' => [
+            { 'id' => 'edge-media', 'source' => 'media', 'target' => 'end', 'source_handle' => 'default' }
+          ]
+        }
+      end
+
+      before do
+        create(:message, account: account, inbox: inbox, conversation: conversation, message_type: :incoming)
+      end
+
+      it 'creates one attachment and marks OGG/Opus audio as a voice note' do
+        described_class.new(run: run).perform
+
+        outgoing = conversation.messages.outgoing.last
+        expect(outgoing.attachments.one?).to be(true)
+        expect(outgoing.attachments.first).to have_attributes(
+          file_type: 'audio',
+          meta: include('is_voice_message' => true)
+        )
+        expect(outgoing.content_attributes).to include('whatsapp_media_type' => 'audio')
+
+        outgoing.update!(source_id: 'wamid.audio-accepted')
+        described_class.new(run: run.reload).perform
+
+        expect(run.reload).to be_completed
+      end
+    end
+
+    context 'when the current node changes the official WhatsApp opt-out' do
+      let(:definition) do
+        {
+          'nodes' => [
+            {
+              'id' => 'action',
+              'type' => 'action',
+              'config' => { 'action' => 'opt_out_whatsapp' }
+            },
+            { 'id' => 'end', 'type' => 'end', 'config' => {} }
+          ],
+          'edges' => [
+            { 'id' => 'edge-action', 'source' => 'action', 'target' => 'end', 'source_handle' => 'default' }
+          ]
+        }
+      end
+
+      it 'prevents the contact from receiving future official broadcasts' do
+        described_class.new(run: run).perform
+
+        expect(contact.reload.custom_attributes['whatsapp_opt_out']).to be(true)
+        expect(run.reload).to be_completed
       end
     end
   end

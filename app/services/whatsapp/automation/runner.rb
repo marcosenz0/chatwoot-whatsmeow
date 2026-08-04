@@ -1,6 +1,6 @@
 # The runner intentionally keeps graph traversal and node execution together so
 # a locked run has a single owner for every state transition.
-# rubocop:disable Metrics/ClassLength
+# rubocop:disable Metrics/ClassLength, Metrics/CyclomaticComplexity
 class Whatsapp::Automation::Runner
   MAX_STEPS_PER_EXECUTION = 50
 
@@ -59,6 +59,9 @@ class Whatsapp::Automation::Runner
   def execute_node(node)
     case node['type']
     when 'message' then execute_message_node(node)
+    when 'media' then execute_media_node(node)
+    when 'location' then execute_location_node(node)
+    when 'contact' then execute_contact_node(node)
     when 'wait' then execute_wait_node(node)
     when 'condition' then execute_condition_node(node)
     when 'action' then execute_action_node(node)
@@ -69,11 +72,38 @@ class Whatsapp::Automation::Runner
 
   def execute_message_node(node)
     config = node.fetch('config', {}).with_indifferent_access
+    execute_outgoing_node(node, config) do |conversation|
+      build_message(conversation, config)
+    end
+  end
+
+  def execute_media_node(node)
+    config = node.fetch('config', {}).with_indifferent_access
+    execute_outgoing_node(node, config) do |conversation|
+      build_media_message(conversation, config)
+    end
+  end
+
+  def execute_location_node(node)
+    config = node.fetch('config', {}).with_indifferent_access
+    execute_outgoing_node(node, config) do |conversation|
+      build_location_message(conversation, config)
+    end
+  end
+
+  def execute_contact_node(node)
+    config = node.fetch('config', {}).with_indifferent_access
+    execute_outgoing_node(node, config) do |conversation|
+      build_contact_message(conversation, config)
+    end
+  end
+
+  def execute_outgoing_node(node, config)
     awaiting_message = awaiting_message_for(node)
     return resume_after_message_delivery(node, config, awaiting_message) if awaiting_message.present?
 
     conversation = ensure_conversation
-    message = build_message(conversation, config)
+    message = yield(conversation)
     run.update!(
       conversation: conversation,
       current_node_id: node['id'],
@@ -147,6 +177,61 @@ class Whatsapp::Automation::Runner
     Messages::MessageBuilder.new(nil, conversation, ActionController::Parameters.new(params)).perform
   end
 
+  def build_media_message(conversation, config)
+    validate_customer_service_window!('session', conversation)
+    blob = ActiveStorage::Blob.find_signed!(config[:blob_signed_id])
+    params = {
+      content: config[:caption].presence,
+      private: false,
+      attachments: [blob],
+      is_voice_message: config[:is_voice_message],
+      content_attributes: automation_content_attributes.merge('whatsapp_media_type' => config[:media_type])
+    }
+
+    Current.executed_by = whatsapp_automation
+    Messages::MessageBuilder.new(nil, conversation, ActionController::Parameters.new(params)).perform
+  end
+
+  def build_location_message(conversation, config)
+    validate_customer_service_window!('session', conversation)
+    params = {
+      content: config[:name].presence || config[:address].presence,
+      private: false,
+      content_attributes: automation_content_attributes.merge(
+        'whatsapp_location' => {
+          'latitude' => config[:latitude].to_f,
+          'longitude' => config[:longitude].to_f,
+          'name' => config[:name],
+          'address' => config[:address]
+        }.compact_blank
+      )
+    }
+
+    Current.executed_by = whatsapp_automation
+    Messages::MessageBuilder.new(nil, conversation, ActionController::Parameters.new(params)).perform
+  end
+
+  def build_contact_message(conversation, config)
+    validate_customer_service_window!('session', conversation)
+    contact_payload = {
+      'name' => {
+        'formatted_name' => config[:name],
+        'first_name' => config[:first_name].presence
+      }.compact_blank,
+      'phones' => [{ 'phone' => config[:phone], 'type' => 'WORK' }],
+      'emails' => config[:email].present? ? [{ 'email' => config[:email], 'type' => 'WORK' }] : nil,
+      'org' => config[:organization].present? ? { 'company' => config[:organization] } : nil
+    }.compact_blank
+    params = {
+      content: config[:name],
+      private: false,
+      content_attributes: automation_content_attributes.merge('whatsapp_contacts' => [contact_payload])
+    }
+
+    Current.executed_by = whatsapp_automation
+    Messages::MessageBuilder.new(nil, conversation, ActionController::Parameters.new(params)).perform
+  end
+
   def validate_customer_service_window!(mode, conversation)
     return unless mode == 'session' && !conversation.can_reply?
 
@@ -175,8 +260,8 @@ class Whatsapp::Automation::Runner
   def template_params(config)
     {
       name: config[:template_name],
-      namespace: config[:namespace],
-      category: config[:category],
+      namespace: config[:namespace].to_s,
+      category: config[:category].to_s,
       language: config[:language].presence || 'en_US',
       processed_params: config[:processed_params] || {}
     }
@@ -230,8 +315,18 @@ class Whatsapp::Automation::Runner
       ensure_conversation.update!(status: :open)
     when 'resolve_conversation'
       ensure_conversation.update!(status: :resolved)
+    when 'opt_out_whatsapp'
+      update_whatsapp_opt_out(true)
+    when 'opt_in_whatsapp'
+      update_whatsapp_opt_out(false)
     end
     advance_from(node['id'])
+  end
+
+  def update_whatsapp_opt_out(value)
+    contact.update!(
+      custom_attributes: contact.custom_attributes.merge('whatsapp_opt_out' => value)
+    )
   end
 
   def ensure_conversation
@@ -291,4 +386,4 @@ class Whatsapp::Automation::Runner
     @edges ||= whatsapp_automation.definition.fetch('edges', [])
   end
 end
-# rubocop:enable Metrics/ClassLength
+# rubocop:enable Metrics/ClassLength, Metrics/CyclomaticComplexity

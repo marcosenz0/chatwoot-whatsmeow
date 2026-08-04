@@ -14,6 +14,7 @@ import { useI18n } from 'vue-i18n';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import TeleportWithDirection from 'dashboard/components-next/TeleportWithDirection.vue';
+import FlowMediaUpload from './FlowMediaUpload.vue';
 import StudioSelect from './StudioSelect.vue';
 import StudioTemplateParameterFields from './StudioTemplateParameterFields.vue';
 import {
@@ -54,11 +55,33 @@ const MAX_ZOOM = 1.8;
 const NODE_WIDTH = 260;
 
 const nodeTypes = [
-  { type: 'message', icon: 'i-lucide-message-square-text' },
-  { type: 'wait', icon: 'i-lucide-timer' },
-  { type: 'condition', icon: 'i-lucide-git-branch' },
-  { type: 'action', icon: 'i-lucide-zap' },
-  { type: 'end', icon: 'i-lucide-circle-stop' },
+  { key: 'message', type: 'message', icon: 'i-lucide-message-square-text' },
+  {
+    key: 'audio',
+    type: 'media',
+    mediaType: 'audio',
+    icon: 'i-lucide-audio-lines',
+  },
+  { key: 'image', type: 'media', mediaType: 'image', icon: 'i-lucide-image' },
+  { key: 'video', type: 'media', mediaType: 'video', icon: 'i-lucide-video' },
+  {
+    key: 'document',
+    type: 'media',
+    mediaType: 'document',
+    icon: 'i-lucide-file-text',
+  },
+  {
+    key: 'sticker',
+    type: 'media',
+    mediaType: 'sticker',
+    icon: 'i-lucide-sticker',
+  },
+  { key: 'location', type: 'location', icon: 'i-lucide-map-pin' },
+  { key: 'contact', type: 'contact', icon: 'i-lucide-contact' },
+  { key: 'wait', type: 'wait', icon: 'i-lucide-timer' },
+  { key: 'condition', type: 'condition', icon: 'i-lucide-git-branch' },
+  { key: 'action', type: 'action', icon: 'i-lucide-zap' },
+  { key: 'end', type: 'end', icon: 'i-lucide-circle-stop' },
 ];
 
 const selectedNode = computed(() =>
@@ -76,6 +99,15 @@ const hasMultipleSelectedNodes = computed(
 const selectedEdge = computed(() =>
   draft.definition.edges.find(edge => edge.id === selectedEdgeId.value)
 );
+
+const triggerNode = computed(() =>
+  draft.definition.nodes.find(node => node.type === 'trigger')
+);
+
+const selectedTriggerTemplateKey = computed(() => {
+  if (!draft.trigger_config?.template_name) return '';
+  return `${draft.trigger_config.template_name}|${draft.trigger_config.language}`;
+});
 
 const viewportTransform = computed(
   () => `translate(${viewport.x} ${viewport.y}) scale(${viewport.zoom})`
@@ -205,7 +237,10 @@ watch(
 );
 
 const nodeHeight = node => {
-  if (node.type === 'message') {
+  if (
+    ['message', 'trigger'].includes(node.type) &&
+    node.config?.buttons?.length
+  ) {
     return Math.max(150, 122 + (node.config?.buttons?.length || 0) * 30);
   }
   return 126;
@@ -215,6 +250,13 @@ const nodeTypeLabel = type => {
   const labels = {
     trigger: t('WHATSAPP_CLOUD_STUDIO.FLOWS.NODE_TYPES.TRIGGER'),
     message: t('WHATSAPP_CLOUD_STUDIO.FLOWS.NODE_TYPES.MESSAGE'),
+    audio: t('WHATSAPP_CLOUD_STUDIO.FLOWS.NODE_TYPES.AUDIO'),
+    image: t('WHATSAPP_CLOUD_STUDIO.FLOWS.NODE_TYPES.IMAGE'),
+    video: t('WHATSAPP_CLOUD_STUDIO.FLOWS.NODE_TYPES.VIDEO'),
+    document: t('WHATSAPP_CLOUD_STUDIO.FLOWS.NODE_TYPES.DOCUMENT'),
+    sticker: t('WHATSAPP_CLOUD_STUDIO.FLOWS.NODE_TYPES.STICKER'),
+    location: t('WHATSAPP_CLOUD_STUDIO.FLOWS.NODE_TYPES.LOCATION'),
+    contact: t('WHATSAPP_CLOUD_STUDIO.FLOWS.NODE_TYPES.CONTACT'),
     wait: t('WHATSAPP_CLOUD_STUDIO.FLOWS.NODE_TYPES.WAIT'),
     condition: t('WHATSAPP_CLOUD_STUDIO.FLOWS.NODE_TYPES.CONDITION'),
     action: t('WHATSAPP_CLOUD_STUDIO.FLOWS.NODE_TYPES.ACTION'),
@@ -242,6 +284,8 @@ const actionLabel = action => {
     resolve_conversation: t(
       'WHATSAPP_CLOUD_STUDIO.FLOWS.ACTIONS.RESOLVE_CONVERSATION'
     ),
+    opt_out_whatsapp: t('WHATSAPP_CLOUD_STUDIO.FLOWS.ACTIONS.OPT_OUT_WHATSAPP'),
+    opt_in_whatsapp: t('WHATSAPP_CLOUD_STUDIO.FLOWS.ACTIONS.OPT_IN_WHATSAPP'),
   };
   return labels[action];
 };
@@ -283,13 +327,23 @@ const selectableTemplateLabel = template => {
       )}`;
 };
 
-const nodeTitle = node => nodeTypeLabel(node.type);
+const nodeTitle = node =>
+  node.type === 'media'
+    ? nodeTypeLabel(node.config.media_type)
+    : nodeTypeLabel(node.type);
 
 const nodeSubtitle = node => {
   if (node.type === 'trigger') {
-    return draft.trigger_type === 'keyword'
-      ? draft.trigger_config.keywords?.join(', ')
-      : t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.ANY_MESSAGE');
+    if (draft.trigger_type === 'keyword') {
+      return draft.trigger_config.keywords?.join(', ');
+    }
+    if (draft.trigger_type === 'campaign_reply') {
+      return (
+        draft.trigger_config.template_name ||
+        t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.SELECT_TEMPLATE')
+      );
+    }
+    return t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.ANY_MESSAGE');
   }
   if (node.type === 'message') {
     return node.config.mode === 'template'
@@ -297,6 +351,24 @@ const nodeSubtitle = node => {
           t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.SELECT_TEMPLATE')
       : node.config.text ||
           t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.EMPTY_MESSAGE');
+  }
+  if (node.type === 'media') {
+    return (
+      node.config.filename || t('WHATSAPP_CLOUD_STUDIO.FLOWS.MEDIA.NO_FILE')
+    );
+  }
+  if (node.type === 'location') {
+    return (
+      node.config.name ||
+      node.config.address ||
+      t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CONFIGURE_LOCATION')
+    );
+  }
+  if (node.type === 'contact') {
+    return (
+      node.config.name ||
+      t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CONFIGURE_CONTACT')
+    );
   }
   if (node.type === 'wait') {
     return t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.WAIT_MINUTES', {
@@ -320,13 +392,20 @@ const nodeSubtitle = node => {
 
 const nodeIcon = node => {
   if (node.type === 'trigger') return 'i-lucide-play';
-  return nodeTypes.find(item => item.type === node.type)?.icon;
+  return nodeTypes.find(
+    item =>
+      item.type === node.type &&
+      (node.type !== 'media' || item.mediaType === node.config.media_type)
+  )?.icon;
 };
 
 const nodeTone = node => {
   const tones = {
     trigger: 'bg-n-teal-3 text-n-teal-11',
     message: 'bg-n-blue-3 text-n-blue-11',
+    media: 'bg-n-teal-3 text-n-teal-11',
+    location: 'bg-n-iris-3 text-n-iris-11',
+    contact: 'bg-n-cobalt-3 text-n-cobalt-11',
     wait: 'bg-n-amber-3 text-n-amber-11',
     condition: 'bg-n-iris-3 text-n-iris-11',
     action: 'bg-n-ruby-3 text-n-ruby-11',
@@ -417,9 +496,26 @@ const pendingConnectionPath = computed(() => {
 const createId = prefix =>
   `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-const defaultConfig = type => {
+const defaultConfig = ({ type, mediaType }) => {
   if (type === 'message') {
     return { mode: 'session', text: '', buttons: [], processed_params: {} };
+  }
+  if (type === 'media') {
+    return {
+      media_type: mediaType,
+      blob_signed_id: '',
+      filename: '',
+      content_type: '',
+      byte_size: null,
+      caption: '',
+      is_voice_message: false,
+    };
+  }
+  if (type === 'location') {
+    return { latitude: '', longitude: '', name: '', address: '' };
+  }
+  if (type === 'contact') {
+    return { name: '', first_name: '', organization: '', phone: '', email: '' };
   }
   if (type === 'wait') return { duration: 5 };
   if (type === 'condition') {
@@ -429,7 +525,8 @@ const defaultConfig = type => {
   return {};
 };
 
-const addNode = type => {
+const addNode = descriptor => {
+  const { type } = descriptor;
   const count = draft.definition.nodes.length;
   const node = {
     id: createId(type),
@@ -438,11 +535,40 @@ const addNode = type => {
       x: 360 + (count % 3) * 300,
       y: 120 + Math.floor(count / 3) * 190,
     },
-    config: defaultConfig(type),
+    config: defaultConfig(descriptor),
   };
   draft.definition.nodes.push(node);
   selectedNodeId.value = node.id;
   selectedNodeIds.value = [node.id];
+};
+
+const updateTriggerType = triggerType => {
+  draft.definition.edges = draft.definition.edges.filter(
+    edge => edge.source !== triggerNode.value?.id
+  );
+  draft.trigger_type = triggerType;
+  triggerNode.value.config.buttons = [];
+  let triggerConfig = {};
+  if (triggerType === 'keyword') triggerConfig = { keywords: [] };
+  if (triggerType === 'campaign_reply') {
+    triggerConfig = { template_name: '', language: '' };
+  }
+  draft.trigger_config = triggerConfig;
+};
+
+const updateTriggerTemplate = templateKey => {
+  const [templateName, language] = templateKey.split('|');
+  const template = approvedTemplates.value.find(
+    item => item.name === templateName && item.language === language
+  );
+  draft.definition.edges = draft.definition.edges.filter(
+    edge => edge.source !== triggerNode.value?.id
+  );
+  const buttons = template ? templateQuickReplies(template) : [];
+  draft.trigger_config = template
+    ? { template_name: template.name, language: template.language }
+    : { template_name: '', language: '' };
+  triggerNode.value.config.buttons = buttons;
 };
 
 const clearSelection = () => {
@@ -866,7 +992,7 @@ const updateTemplate = templateKey => {
 };
 
 const addReplyButton = () => {
-  if (!selectedNode.value || selectedNode.value.config.buttons.length >= 3) {
+  if (!selectedNode.value || selectedNode.value.config.buttons.length >= 10) {
     return;
   }
   selectedNode.value.config.buttons.push({
@@ -1015,10 +1141,10 @@ const preparePayload = () => ({
           >
             <button
               v-for="nodeType in nodeTypes"
-              :key="nodeType.type"
+              :key="nodeType.key"
               type="button"
               class="flex min-h-11 w-full items-center gap-3 rounded-xl border border-n-weak bg-n-alpha-1 px-3 text-left text-sm font-medium text-n-slate-12 transition hover:border-n-strong hover:bg-n-alpha-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-brand"
-              @click="addNode(nodeType.type)"
+              @click="addNode(nodeType)"
             >
               <span
                 class="flex size-8 items-center justify-center rounded-lg bg-n-blue-3 text-n-blue-11"
@@ -1030,7 +1156,7 @@ const preparePayload = () => ({
                 />
               </span>
               <span>
-                {{ nodeTypeLabel(nodeType.type) }}
+                {{ nodeTypeLabel(nodeType.mediaType || nodeType.type) }}
               </span>
             </button>
           </div>
@@ -1328,7 +1454,8 @@ const preparePayload = () => ({
                     </div>
                     <div
                       v-if="
-                        node.type === 'message' && node.config.buttons?.length
+                        ['message', 'trigger'].includes(node.type) &&
+                        node.config.buttons?.length
                       "
                       class="space-y-1 p-2"
                     >
@@ -1380,7 +1507,10 @@ const preparePayload = () => ({
                   v-if="
                     node.type !== 'end' &&
                     node.type !== 'condition' &&
-                    !(node.type === 'message' && node.config.buttons?.length)
+                    !(
+                      ['message', 'trigger'].includes(node.type) &&
+                      node.config.buttons?.length
+                    )
                   "
                   :cx="NODE_WIDTH"
                   cy="58"
@@ -1414,7 +1544,7 @@ const preparePayload = () => ({
                   @keydown.enter="startConnection(node.id, conditionHandle)"
                 />
                 <circle
-                  v-for="button in node.type === 'message'
+                  v-for="button in ['message', 'trigger'].includes(node.type)
                     ? node.config.buttons || []
                     : []"
                   :key="`${node.id}-${button.id}`"
@@ -1561,12 +1691,18 @@ const preparePayload = () => ({
                 class="flex flex-col gap-1 text-xs font-medium text-n-slate-11"
               >
                 {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.TRIGGER') }}
-                <StudioSelect v-model="draft.trigger_type">
+                <StudioSelect
+                  :model-value="draft.trigger_type"
+                  @update:model-value="updateTriggerType"
+                >
                   <option value="keyword">
                     {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.KEYWORD') }}
                   </option>
                   <option value="any_message">
                     {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.ANY_MESSAGE') }}
+                  </option>
+                  <option value="campaign_reply">
+                    {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CAMPAIGN_REPLY') }}
                   </option>
                 </StudioSelect>
               </label>
@@ -1589,6 +1725,59 @@ const preparePayload = () => ({
                   "
                 />
               </label>
+              <label
+                v-if="draft.trigger_type === 'campaign_reply'"
+                class="flex flex-col gap-1 text-xs font-medium text-n-slate-11"
+              >
+                {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.TEMPLATE') }}
+                <StudioSelect
+                  :model-value="selectedTriggerTemplateKey"
+                  @update:model-value="updateTriggerTemplate"
+                >
+                  <option value="">
+                    {{
+                      t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.SELECT_TEMPLATE')
+                    }}
+                  </option>
+                  <option
+                    v-for="template in approvedTemplates"
+                    :key="`${template.name}-${template.language}`"
+                    :value="`${template.name}|${template.language}`"
+                    :disabled="
+                      !isStudioTemplateSupported(template) ||
+                      !templateQuickReplies(template).length
+                    "
+                  >
+                    {{ selectableTemplateLabel(template) }}
+                  </option>
+                </StudioSelect>
+              </label>
+              <div
+                v-if="
+                  draft.trigger_type === 'campaign_reply' &&
+                  triggerNode.config.buttons?.length
+                "
+                class="space-y-2 rounded-xl border border-n-weak bg-n-alpha-2 p-3"
+              >
+                <p class="text-xs leading-5 text-n-slate-10">
+                  {{
+                    t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.CAMPAIGN_REPLY_HINT')
+                  }}
+                </p>
+                <button
+                  v-for="button in triggerNode.config.buttons"
+                  :key="button.id"
+                  type="button"
+                  class="flex min-h-10 w-full items-center justify-between rounded-lg border border-n-weak bg-n-alpha-1 px-3 text-left text-xs text-n-slate-12 hover:border-n-brand"
+                  @click="startConnection(triggerNode.id, button.id)"
+                >
+                  <span>{{ button.title }}</span>
+                  <span
+                    class="i-lucide-git-branch size-4 text-n-blue-11"
+                    aria-hidden="true"
+                  />
+                </button>
+              </div>
             </div>
 
             <div
@@ -1698,7 +1887,7 @@ const preparePayload = () => ({
                     {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.REPLY_BUTTONS') }}
                   </span>
                   <button
-                    v-if="selectedNode.config.buttons.length < 3"
+                    v-if="selectedNode.config.buttons.length < 10"
                     type="button"
                     class="inline-flex min-h-11 items-center rounded-lg px-2 text-xs font-medium text-n-blue-11 hover:bg-n-blue-3 hover:underline"
                     @click="addReplyButton"
@@ -1706,6 +1895,13 @@ const preparePayload = () => ({
                     {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.ADD_BUTTON') }}
                   </button>
                 </div>
+                <p class="mt-1 text-[0.7rem] leading-5 text-n-slate-9">
+                  {{
+                    t(
+                      'WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.INTERACTIVE_OPTIONS_HINT'
+                    )
+                  }}
+                </p>
                 <div class="mt-2 space-y-2">
                   <div
                     v-for="(button, index) in selectedNode.config.buttons"
@@ -1737,6 +1933,145 @@ const preparePayload = () => ({
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div
+              v-else-if="selectedNode.type === 'media'"
+              class="mt-5 space-y-3"
+            >
+              <div
+                class="rounded-lg border border-n-amber-7 bg-n-amber-2 p-3 text-xs leading-5 text-n-amber-11"
+              >
+                {{
+                  t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.SESSION_MEDIA_WARNING')
+                }}
+              </div>
+              <FlowMediaUpload v-model="selectedNode.config" />
+            </div>
+
+            <div
+              v-else-if="selectedNode.type === 'location'"
+              class="mt-5 space-y-3"
+            >
+              <div
+                class="rounded-lg border border-n-amber-7 bg-n-amber-2 p-3 text-xs leading-5 text-n-amber-11"
+              >
+                {{
+                  t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.SESSION_MEDIA_WARNING')
+                }}
+              </div>
+              <div class="grid grid-cols-2 gap-2">
+                <label
+                  class="flex flex-col gap-1 text-xs font-medium text-n-slate-11"
+                >
+                  {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.LOCATION.LATITUDE') }}
+                  <input
+                    v-model="selectedNode.config.latitude"
+                    inputmode="decimal"
+                    class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
+                    :placeholder="
+                      t('WHATSAPP_CLOUD_STUDIO.FLOWS.LOCATION.LATITUDE_EXAMPLE')
+                    "
+                  />
+                </label>
+                <label
+                  class="flex flex-col gap-1 text-xs font-medium text-n-slate-11"
+                >
+                  {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.LOCATION.LONGITUDE') }}
+                  <input
+                    v-model="selectedNode.config.longitude"
+                    inputmode="decimal"
+                    class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
+                    :placeholder="
+                      t(
+                        'WHATSAPP_CLOUD_STUDIO.FLOWS.LOCATION.LONGITUDE_EXAMPLE'
+                      )
+                    "
+                  />
+                </label>
+              </div>
+              <label
+                class="flex flex-col gap-1 text-xs font-medium text-n-slate-11"
+              >
+                {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.LOCATION.NAME') }}
+                <input
+                  v-model="selectedNode.config.name"
+                  class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
+                />
+              </label>
+              <label
+                class="flex flex-col gap-1 text-xs font-medium text-n-slate-11"
+              >
+                {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.LOCATION.ADDRESS') }}
+                <textarea
+                  v-model="selectedNode.config.address"
+                  rows="3"
+                  class="reset-base !mb-0 min-h-20 resize-y rounded-xl border border-n-strong bg-n-alpha-1 px-3 py-2 text-sm text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
+                />
+              </label>
+            </div>
+
+            <div
+              v-else-if="selectedNode.type === 'contact'"
+              class="mt-5 space-y-3"
+            >
+              <div
+                class="rounded-lg border border-n-amber-7 bg-n-amber-2 p-3 text-xs leading-5 text-n-amber-11"
+              >
+                {{
+                  t('WHATSAPP_CLOUD_STUDIO.FLOWS.EDITOR.SESSION_MEDIA_WARNING')
+                }}
+              </div>
+              <label
+                class="flex flex-col gap-1 text-xs font-medium text-n-slate-11"
+              >
+                {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.CONTACT.NAME') }}
+                <input
+                  v-model="selectedNode.config.name"
+                  class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
+                />
+              </label>
+              <label
+                class="flex flex-col gap-1 text-xs font-medium text-n-slate-11"
+              >
+                {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.CONTACT.FIRST_NAME') }}
+                <input
+                  v-model="selectedNode.config.first_name"
+                  class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
+                />
+              </label>
+              <label
+                class="flex flex-col gap-1 text-xs font-medium text-n-slate-11"
+              >
+                {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.CONTACT.ORGANIZATION') }}
+                <input
+                  v-model="selectedNode.config.organization"
+                  class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
+                />
+              </label>
+              <label
+                class="flex flex-col gap-1 text-xs font-medium text-n-slate-11"
+              >
+                {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.CONTACT.PHONE') }}
+                <input
+                  v-model="selectedNode.config.phone"
+                  inputmode="tel"
+                  class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
+                  :placeholder="
+                    t('WHATSAPP_CLOUD_STUDIO.FLOWS.CONTACT.PHONE_HINT')
+                  "
+                />
+              </label>
+              <label
+                class="flex flex-col gap-1 text-xs font-medium text-n-slate-11"
+              >
+                {{ t('WHATSAPP_CLOUD_STUDIO.FLOWS.CONTACT.EMAIL') }}
+                <input
+                  v-model="selectedNode.config.email"
+                  type="email"
+                  class="reset-base !mb-0 h-11 rounded-xl border border-n-strong bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand focus:ring-1 focus:ring-n-brand"
+                />
+              </label>
             </div>
 
             <div v-else-if="selectedNode.type === 'wait'" class="mt-5">
@@ -1848,6 +2183,16 @@ const preparePayload = () => ({
                       t(
                         'WHATSAPP_CLOUD_STUDIO.FLOWS.ACTIONS.RESOLVE_CONVERSATION'
                       )
+                    }}
+                  </option>
+                  <option value="opt_out_whatsapp">
+                    {{
+                      t('WHATSAPP_CLOUD_STUDIO.FLOWS.ACTIONS.OPT_OUT_WHATSAPP')
+                    }}
+                  </option>
+                  <option value="opt_in_whatsapp">
+                    {{
+                      t('WHATSAPP_CLOUD_STUDIO.FLOWS.ACTIONS.OPT_IN_WHATSAPP')
                     }}
                   </option>
                 </StudioSelect>

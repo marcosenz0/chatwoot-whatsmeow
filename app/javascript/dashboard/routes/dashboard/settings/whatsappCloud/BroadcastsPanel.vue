@@ -16,6 +16,7 @@ import {
   isStudioTemplateSupported,
   renderTemplateBody,
   templateParametersComplete,
+  templateQuickReplies,
 } from './templateParameterUtils';
 
 const props = defineProps({
@@ -23,6 +24,7 @@ const props = defineProps({
   templates: { type: Array, default: () => [] },
   labels: { type: Array, default: () => [] },
   campaigns: { type: Array, default: () => [] },
+  automations: { type: Array, default: () => [] },
 });
 
 const { t } = useI18n();
@@ -36,6 +38,7 @@ const estimate = ref(null);
 const createInitialForm = () => ({
   title: '',
   templateName: '',
+  automationId: '',
   scheduledAt: '',
   selectedLabelIds: [],
   selectedContactIds: [],
@@ -70,6 +73,21 @@ const templateBody = computed(() =>
   renderTemplateBody(selectedTemplate.value, form.processedParams)
 );
 
+const selectedTemplateReplies = computed(() =>
+  templateQuickReplies(selectedTemplate.value)
+);
+
+const compatibleAutomations = computed(() =>
+  props.automations.filter(
+    automation =>
+      automation.status === 'active' &&
+      automation.trigger_type === 'campaign_reply' &&
+      automation.trigger_config?.template_name ===
+        selectedTemplate.value?.name &&
+      automation.trigger_config?.language === selectedTemplate.value?.language
+  )
+);
+
 const officialCampaigns = computed(() =>
   props.campaigns
     .filter(campaign => campaign.inbox?.id === Number(props.inbox.id))
@@ -101,8 +119,15 @@ watch(
   () => form.templateName,
   () => {
     form.processedParams = selectedTemplate.value
-      ? hydrateStudioTemplateParameters(selectedTemplate.value)
+      ? hydrateStudioTemplateParameters(
+          selectedTemplate.value,
+          {},
+          {
+            quickReplies: selectedTemplateReplies.value,
+          }
+        )
       : {};
+    form.automationId = '';
     estimate.value = null;
   }
 );
@@ -159,6 +184,7 @@ const createBroadcast = async () => {
         whatsapp_consent_confirmed: true,
         whatsapp_audience_imported_in_studio:
           form.selectedContactIds.length > 0,
+        whatsapp_automation_id: form.automationId || undefined,
       },
       template_params: {
         name: selectedTemplate.value.name,
@@ -549,6 +575,38 @@ const deliveryRate = campaign => {
               :template="selectedTemplate"
               allow-liquid
             />
+
+            <label
+              v-if="selectedTemplateReplies.length"
+              class="flex flex-col gap-1 text-sm font-medium text-n-slate-11"
+            >
+              {{ t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.FORM.FOLLOW_UP_FLOW') }}
+              <StudioSelect v-model="form.automationId">
+                <option value="">
+                  {{
+                    t('WHATSAPP_CLOUD_STUDIO.BROADCASTS.FORM.NO_FOLLOW_UP_FLOW')
+                  }}
+                </option>
+                <option
+                  v-for="automation in compatibleAutomations"
+                  :key="automation.id"
+                  :value="automation.id"
+                >
+                  {{ automation.name }}
+                </option>
+              </StudioSelect>
+              <span class="text-xs font-normal leading-5 text-n-slate-9">
+                {{
+                  compatibleAutomations.length
+                    ? t(
+                        'WHATSAPP_CLOUD_STUDIO.BROADCASTS.FORM.FOLLOW_UP_FLOW_HINT'
+                      )
+                    : t(
+                        'WHATSAPP_CLOUD_STUDIO.BROADCASTS.FORM.NO_COMPATIBLE_FLOW'
+                      )
+                }}
+              </span>
+            </label>
 
             <label
               class="flex cursor-pointer items-start gap-3 rounded-xl border border-n-amber-7 bg-n-amber-2 p-4"

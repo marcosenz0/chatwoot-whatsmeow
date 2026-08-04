@@ -8,6 +8,7 @@ class Whatsapp::ProcessCampaignDeliveryJob < ApplicationJob
 
     message = build_message(delivery)
     associate_message(delivery, message)
+    start_linked_automation(delivery, message)
     delivery.sync_from_message!
   rescue StandardError => e
     handle_failure(delivery, e)
@@ -32,6 +33,15 @@ class Whatsapp::ProcessCampaignDeliveryJob < ApplicationJob
 
   def associate_message(delivery, message)
     delivery.update!(message: message)
+  end
+
+  def start_linked_automation(delivery, message)
+    Whatsapp::Automation::CampaignRunService.new(
+      campaign: delivery.campaign,
+      contact: delivery.contact,
+      conversation: message.conversation,
+      message: message
+    ).perform
   end
 
   def handle_failure(delivery, error)

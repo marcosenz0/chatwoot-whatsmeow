@@ -35,6 +35,21 @@ class Whatsapp::OneoffCampaignService
     consent_confirmed = ActiveModel::Type::Boolean.new.cast(campaign.trigger_rules['whatsapp_consent_confirmed'])
     raise 'Campaign audience consent must be confirmed' unless consent_confirmed
     raise 'Template parameters are required' if campaign.template_params.blank?
+
+    validate_linked_automation!
+  end
+
+  def validate_linked_automation!
+    automation_id = campaign.trigger_rules['whatsapp_automation_id']
+    return if automation_id.blank?
+
+    automation = campaign.account.whatsapp_automations.enabled.find_by(
+      id: automation_id,
+      inbox_id: inbox.id,
+      trigger_type: 'campaign_reply'
+    )
+    raise 'Linked WhatsApp flow is unavailable' if automation.blank?
+    raise 'Linked WhatsApp flow uses another template' if automation.trigger_config['template_name'] != campaign.template_params['name']
   end
 
   def build_deliveries

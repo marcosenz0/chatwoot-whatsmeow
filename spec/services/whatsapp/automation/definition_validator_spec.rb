@@ -34,11 +34,12 @@ describe Whatsapp::Automation::DefinitionValidator do
     expect(errors).to be_empty
   end
 
-  it 'rejects more than three reply buttons' do
-    definition['nodes'][1]['config']['buttons'] << { 'id' => 'billing', 'title' => 'Billing' }
-    definition['nodes'][1]['config']['buttons'] << { 'id' => 'other', 'title' => 'Other' }
+  it 'rejects more than ten interactive options' do
+    9.times do |index|
+      definition['nodes'][1]['config']['buttons'] << { 'id' => "option-#{index}", 'title' => "Option #{index}" }
+    end
 
-    expect(errors).to include('message node message supports at most three reply buttons')
+    expect(errors).to include('message node message supports at most ten interactive options')
   end
 
   it 'rejects graph cycles when publishing' do
@@ -112,6 +113,96 @@ describe Whatsapp::Automation::DefinitionValidator do
     }
 
     expect(errors).to include('template node message needs values for variables order_number')
+  end
+
+  context 'with an official media block' do
+    let(:audio_blob) { get_blob_for('spec/assets/sample.ogg', 'audio/ogg') }
+
+    before do
+      definition['nodes'][1].replace(
+        'id' => 'media',
+        'type' => 'media',
+        'config' => {
+          'media_type' => 'audio',
+          'blob_signed_id' => audio_blob.signed_id,
+          'is_voice_message' => true
+        }
+      )
+      definition['edges'].reject! { |edge| edge['source'] == 'message' }
+      definition['edges'][0]['target'] = 'media'
+      definition['edges'] << {
+        'id' => 'edge-media',
+        'source' => 'media',
+        'target' => 'end',
+        'source_handle' => 'default'
+      }
+    end
+
+    it 'accepts a media-only journey with an OGG/Opus voice note' do
+      expect(errors).to be_empty
+    end
+
+    it 'requires an uploaded file before publishing' do
+      definition['nodes'][1]['config']['blob_signed_id'] = ''
+
+      expect(errors).to include('media node media needs an uploaded file')
+    end
+  end
+
+  context 'with a location block' do
+    before do
+      definition['nodes'][1].replace(
+        'id' => 'location',
+        'type' => 'location',
+        'config' => { 'latitude' => '-10.184', 'longitude' => '-48.3336' }
+      )
+      definition['edges'].reject! { |edge| edge['source'] == 'message' }
+      definition['edges'][0]['target'] = 'location'
+      definition['edges'] << {
+        'id' => 'edge-location',
+        'source' => 'location',
+        'target' => 'end',
+        'source_handle' => 'default'
+      }
+    end
+
+    it 'accepts valid coordinates' do
+      expect(errors).to be_empty
+    end
+
+    it 'rejects coordinates outside the accepted range' do
+      definition['nodes'][1]['config']['latitude'] = '100'
+
+      expect(errors).to include('location node location needs a latitude between -90 and 90')
+    end
+  end
+
+  context 'with a contact-card block' do
+    before do
+      definition['nodes'][1].replace(
+        'id' => 'contact',
+        'type' => 'contact',
+        'config' => { 'name' => 'Marcos', 'phone' => '+5563999999999' }
+      )
+      definition['edges'].reject! { |edge| edge['source'] == 'message' }
+      definition['edges'][0]['target'] = 'contact'
+      definition['edges'] << {
+        'id' => 'edge-contact',
+        'source' => 'contact',
+        'target' => 'end',
+        'source_handle' => 'default'
+      }
+    end
+
+    it 'accepts a named contact with a phone number' do
+      expect(errors).to be_empty
+    end
+
+    it 'rejects a contact without a phone number' do
+      definition['nodes'][1]['config']['phone'] = ''
+
+      expect(errors).to include('contact node contact needs a phone number')
+    end
   end
 
   context 'when saving a draft' do

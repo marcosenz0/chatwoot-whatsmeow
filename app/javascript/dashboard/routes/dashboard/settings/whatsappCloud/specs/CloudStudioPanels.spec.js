@@ -737,4 +737,93 @@ describe('WhatsApp Cloud Studio panels', () => {
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
     wrapper.unmount();
   });
+
+  it('adds official media blocks and exposes their upload settings', async () => {
+    const flow = {
+      id: null,
+      inbox_id: 29,
+      name: 'Media journey',
+      description: '',
+      status: 'draft',
+      trigger_type: 'any_message',
+      trigger_config: {},
+      definition: {
+        nodes: [
+          {
+            id: 'trigger',
+            type: 'trigger',
+            position: { x: 80, y: 220 },
+            config: {},
+          },
+        ],
+        edges: [],
+      },
+    };
+    const wrapper = mount(FlowEditor, {
+      props: { flow, templates: [] },
+      global: { stubs: { TeleportWithDirection: TeleportStub } },
+    });
+
+    await buttonByText(wrapper, 'Audio').trigger('click');
+    await nextTick();
+
+    expect(wrapper.text()).toContain('Select or drop a file');
+    expect(wrapper.text()).toContain('Image');
+    expect(wrapper.text()).toContain('Video');
+    expect(wrapper.text()).toContain('Document');
+    expect(wrapper.text()).toContain('Sticker');
+    expect(wrapper.text()).toContain('Location');
+    expect(wrapper.text()).toContain('Contact card');
+
+    await buttonByText(wrapper, 'Contact card').trigger('click');
+    await nextTick();
+    expect(wrapper.text()).toContain('Displayed name');
+    expect(wrapper.text()).toContain('Phone number');
+    wrapper.unmount();
+  });
+
+  it('offers a compatible reply flow when scheduling an interactive template', async () => {
+    const template = {
+      name: 'examples',
+      language: 'pt_BR',
+      category: 'MARKETING',
+      status: 'APPROVED',
+      components: [
+        { type: 'BODY', text: 'May I send examples?' },
+        {
+          type: 'BUTTONS',
+          buttons: [
+            { type: 'QUICK_REPLY', text: 'Send examples' },
+            { type: 'QUICK_REPLY', text: 'Not now' },
+          ],
+        },
+      ],
+    };
+    const wrapper = mount(BroadcastsPanel, {
+      props: {
+        inbox: { id: 29 },
+        templates: [template],
+        labels: [],
+        campaigns: [],
+        automations: [
+          {
+            id: 81,
+            name: 'Examples follow-up',
+            status: 'active',
+            trigger_type: 'campaign_reply',
+            trigger_config: { template_name: 'examples', language: 'pt_BR' },
+          },
+        ],
+      },
+      global: { stubs: { Dialog: DialogStub } },
+    });
+
+    await buttonByText(wrapper, 'New broadcast').trigger('click');
+    await wrapper.find('select:not([multiple])').setValue('examples|pt_BR');
+    await nextTick();
+
+    expect(wrapper.text()).toContain('Flow after a reply');
+    expect(wrapper.text()).toContain('Examples follow-up');
+    wrapper.unmount();
+  });
 });

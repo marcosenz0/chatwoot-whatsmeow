@@ -322,6 +322,7 @@ onMounted(async () => {
             :templates="templates"
             :labels="labels"
             :campaigns="officialCampaigns"
+            :automations="automations"
           />
         </div>
       </main>

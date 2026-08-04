@@ -6,7 +6,11 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
   def send_message(phone_number, message)
     @message = message
 
-    if message.attachments.present?
+    if message.content_attributes&.dig('whatsapp_location').present?
+      send_location_message(phone_number, message)
+    elsif message.content_attributes&.dig('whatsapp_contacts').present?
+      send_contacts_message(phone_number, message)
+    elsif message.attachments.present?
       send_attachment_message(phone_number, message)
     elsif message.content_type == 'input_select'
       send_interactive_text_message(phone_number, message)
@@ -150,7 +154,9 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
   def send_attachment_message(phone_number, message)
     attachment = message.attachments.first
     normalize_opus_content_type(attachment)
-    type = %w[image audio video].include?(attachment.file_type) ? attachment.file_type : 'document'
+    requested_type = message.content_attributes&.dig('whatsapp_media_type')
+    attachment_type = %w[image audio video].include?(attachment.file_type) ? attachment.file_type : 'document'
+    type = requested_type == 'sticker' ? 'sticker' : attachment_type
     type_content = build_attachment_content(type, attachment, message)
     response = HTTParty.post(
       "#{phone_id_path('v24.0')}/messages",
@@ -190,36 +196,41 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
     type_content
   end
 
+  def send_location_message(phone_number, message)
+    location = message.content_attributes['whatsapp_location'].with_indifferent_access
+    response = HTTParty.post(
+      "#{phone_id_path}/messages",
+      headers: api_headers,
+      body: {
+        messaging_product: 'whatsapp',
+        **recipient_params(phone_number),
+        type: 'location',
+        location: location.slice(:latitude, :longitude, :name, :address)
+      }.to_json
+    )
+
+    process_response(response, message)
+  end
+
+  def send_contacts_message(phone_number, message)
+    response = HTTParty.post(
+      "#{phone_id_path}/messages",
+      headers: api_headers,
+      body: {
+        messaging_product: 'whatsapp',
+        context: whatsapp_reply_context(message),
+        **recipient_params(phone_number),
+        type: 'contacts',
+        contacts: message.content_attributes['whatsapp_contacts']
+      }.to_json
+    )
+
+    process_response(response, message)
+  end
+
   def error_message(response)
     # https://developers.facebook.com/docs/whatsapp/cloud-api/support/error-codes/#sample-response
     response.parsed_response.dig('error', 'message') if response.parsed_response.is_a?(Hash)
-  end
-
-  def voice_message?(type, attachment)
-    type == 'audio' && attachment.meta&.dig('is_voice_message') && attachment.file.content_type == 'audio/ogg'
-  end
-
-  # Marcel gem may re-detect OGG/Opus files as audio/opus after ActiveStorage
-  # blob attachment, but WhatsApp Cloud API requires audio/ogg content type
-  # for voice messages. Normalize so the download URL serves the correct
-  # Content-Type header. No-op when the frontend already uploads as audio/ogg.
-  def normalize_opus_content_type(attachment)
-    return unless attachment.file.attached?
-
-    blob = attachment.file.blob
-    return unless blob.content_type == 'audio/opus'
-
-    return if blob.update(content_type: 'audio/ogg')
-
-    Rails.logger.error("Failed to normalize blob #{blob.id} content_type from audio/opus to audio/ogg")
-  end
-
-  def build_attachment_content(type, attachment, message)
-    type_content = { 'link' => attachment.download_url }
-    type_content['caption'] = message.outgoing_content unless %w[audio sticker].include?(type)
-    type_content['filename'] = attachment.file.filename if type == 'document'
-    type_content['voice'] = true if voice_message?(type, attachment)
-    type_content
   end
 
   def template_sync_error(response)

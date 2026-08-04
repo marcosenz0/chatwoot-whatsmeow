@@ -3,16 +3,18 @@ class WhatsappAutomation < ApplicationRecord
   belongs_to :inbox
 
   has_many :runs, class_name: 'WhatsappAutomationRun', dependent: :destroy_async
+  has_many_attached :media_files
 
   enum status: { draft: 0, active: 1, paused: 2 }
 
   validates :name, :trigger_type, presence: true
-  validates :trigger_type, inclusion: { in: %w[keyword any_message] }
+  validates :trigger_type, inclusion: { in: %w[keyword any_message campaign_reply] }
   validate :inbox_belongs_to_account
   validate :official_whatsapp_cloud_inbox
   validate :valid_definition
   before_validation :return_changed_active_automation_to_draft, on: :update
   after_update_commit :cancel_runs_for_replaced_definition
+  after_commit :sync_media_files, if: :saved_change_to_definition?
 
   scope :enabled, -> { active.where.not(published_at: nil) }
 
@@ -36,6 +38,7 @@ class WhatsappAutomation < ApplicationRecord
 
   def trigger_matches?(message)
     return false unless message.incoming?
+    return false if trigger_type == 'campaign_reply'
     return true if trigger_type == 'any_message'
 
     keywords = Array(trigger_config['keywords']).map { |keyword| keyword.to_s.downcase.strip }.compact_blank
@@ -97,8 +100,32 @@ class WhatsappAutomation < ApplicationRecord
     validation_errors = []
     keywords = Array(trigger_config['keywords']).map { |keyword| keyword.to_s.strip }.compact_blank
     validation_errors << 'keyword automations need at least one keyword' if trigger_type == 'keyword' && keywords.empty?
+    validation_errors.concat(campaign_reply_trigger_errors) if trigger_type == 'campaign_reply'
     validation_errors.concat(template_node_errors)
     validation_errors
+  end
+
+  def campaign_reply_trigger_errors
+    validation_errors = []
+    validation_errors << 'campaign reply automations need an approved template' if trigger_config['template_name'].blank?
+    validation_errors << 'campaign reply automations need at least one quick reply button' if campaign_reply_buttons.empty?
+    validation_errors.concat(campaign_reply_template_errors)
+    validation_errors
+  end
+
+  def campaign_reply_buttons
+    trigger = Array(definition['nodes']).find { |node| node['type'] == 'trigger' }
+    Array(trigger&.dig('config', 'buttons'))
+  end
+
+  def campaign_reply_template_errors
+    return [] if trigger_config['template_name'].blank?
+
+    template = matching_template(Array(inbox.channel.message_templates), trigger_config.with_indifferent_access)
+    return ['campaign reply template does not match a synchronized template'] if template.blank?
+    return ['campaign reply template must be approved'] unless template['status'].to_s.casecmp?('approved')
+
+    []
   end
 
   def template_node_errors
@@ -126,5 +153,22 @@ class WhatsappAutomation < ApplicationRecord
       record['name'] == config[:template_name] &&
         record['language'].to_s.casecmp?(config[:language].to_s)
     end
+  end
+
+  def sync_media_files
+    blobs = definition_media_blobs
+    attached_blob_ids = media_files.blobs.ids
+    media_files.attach(blobs.reject { |blob| attached_blob_ids.include?(blob.id) })
+    stale_attachments = media_files.attachments
+    stale_attachments = stale_attachments.where.not(blob_id: blobs.map(&:id)) if blobs.any?
+    stale_attachments.destroy_all
+  end
+
+  def definition_media_blobs
+    Array(definition['nodes']).filter_map do |node|
+      next unless node['type'] == 'media'
+
+      ActiveStorage::Blob.find_signed(node.dig('config', 'blob_signed_id'))
+    end.uniq(&:id)
   end
 end

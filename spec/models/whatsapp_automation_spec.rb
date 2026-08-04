@@ -192,4 +192,29 @@ describe WhatsappAutomation do
     expect(run.reload).to be_cancelled
     expect(run.next_run_at).to be_nil
   end
+
+  it 'keeps uploaded flow media attached while the block references it' do
+    blob = get_blob_for('spec/assets/sample.ogg', 'audio/ogg')
+    definition['nodes'][1] = {
+      'id' => 'message',
+      'type' => 'media',
+      'config' => {
+        'media_type' => 'audio',
+        'blob_signed_id' => blob.signed_id
+      }
+    }
+
+    expect(automation.media_files.blobs).to contain_exactly(blob)
+
+    updated_definition = automation.definition.deep_dup
+    updated_definition['nodes'][1] = {
+      'id' => 'message',
+      'type' => 'message',
+      'config' => { 'mode' => 'session', 'text' => 'Sem mídia', 'buttons' => [] }
+    }
+    automation.update!(definition: updated_definition)
+
+    expect(automation.reload.media_files).to be_empty
+    expect(ActiveStorage::Blob.exists?(blob.id)).to be(true)
+  end
 end
