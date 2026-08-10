@@ -679,7 +679,10 @@
   "TYPING": {
     "ONE": "{user} está digitando",
     "TWO": "{user} e {secondUser} estão digitando",
-    "MULTIPLE": "{user} e {count} outros estão digitando"
+    "MULTIPLE": "{user} e {count} outros estão digitando",
+    "RECORDING_ONE": "{user} está gravando áudio",
+    "RECORDING_TWO": "{user} e {secondUser} estão gravando áudio",
+    "RECORDING_MULTIPLE": "{user} e {count} outros estão gravando áudio"
   },
   "COPILOT": {
     "TRY_THESE_PROMPTS": "Experimente estes comandos"

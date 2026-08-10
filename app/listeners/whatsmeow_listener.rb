@@ -13,6 +13,10 @@ class WhatsmeowListener < BaseListener
     return unless event.data[:user].is_a?(User)
     return if ActiveModel::Type::Boolean.new.cast(event.data[:is_private])
 
-    Whatsmeow::TypingStatusService.new(conversation: event.data[:conversation], status: status).perform
+    Whatsmeow::TypingStatusService.new(
+      conversation: event.data[:conversation],
+      status: status,
+      media: event.data[:typing_media]
+    ).perform
   end
 end

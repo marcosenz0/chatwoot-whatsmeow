@@ -10,7 +10,14 @@ class Conversations::TypingStatusManager
   end
 
   def trigger_typing_event(event, is_private)
-    Rails.configuration.dispatcher.dispatch(event, Time.zone.now, conversation: @conversation, user: @user, is_private: is_private)
+    Rails.configuration.dispatcher.dispatch(
+      event,
+      Time.zone.now,
+      conversation: @conversation,
+      user: @user,
+      is_private: is_private,
+      typing_media: params[:typing_media].presence || 'text'
+    )
   end
 
   def toggle_typing_status

@@ -139,6 +139,9 @@ export default {
       const userList = this.typingUsersList;
       return userList.length !== 0;
     },
+    isAnyoneRecordingAudio() {
+      return this.typingUsersList.some(user => user.typing_media === 'audio');
+    },
     typingUserNames() {
       const userList = this.typingUsersList;
       if (this.isAnyoneTyping) {
@@ -902,13 +905,17 @@ export default {
         class="absolute flex items-center w-full h-0 -top-7"
       >
         <div
-          class="flex py-2 pr-4 pl-5 shadow-md rounded-full bg-white dark:bg-n-solid-3 text-n-slate-11 text-xs font-semibold my-2.5 mx-auto"
+          class="flex py-2 pr-4 pl-5 shadow-md rounded-full bg-white dark:bg-n-solid-3 text-n-teal-11 text-xs font-semibold my-2.5 mx-auto"
         >
+          <span
+            v-if="isAnyoneRecordingAudio"
+            class="i-lucide-mic mr-1.5 size-4"
+          />
           {{ typingUserNames }}
           <img
             class="w-6 ltr:ml-2 rtl:mr-2"
             src="assets/images/typing.gif"
-            alt="Someone is typing"
+            alt=""
           />
         </div>
       </div>

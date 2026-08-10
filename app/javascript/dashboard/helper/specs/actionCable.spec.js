@@ -47,6 +47,29 @@ describe('ActionCableConnector - Copilot Tests', () => {
     vi.clearAllTimers();
     vi.useRealTimers();
   });
+
+  describe('typing presence event handlers', () => {
+    it('stores audio presence on the typing user', () => {
+      vi.useFakeTimers();
+      const conversation = { id: 81 };
+      const user = { id: 25, type: 'contact', name: 'Marcos Enzo' };
+
+      actionCable.onTypingOn({
+        conversation,
+        user,
+        typing_media: 'audio',
+      });
+
+      expect(mockDispatch).toHaveBeenCalledWith(
+        'conversationTypingStatus/create',
+        {
+          conversationId: 81,
+          user: { ...user, typing_media: 'audio' },
+        }
+      );
+    });
+  });
+
   describe('copilot event handlers', () => {
     it('should register the copilot.message.created event handler', () => {
       expect(Object.keys(actionCable.events)).toContain(

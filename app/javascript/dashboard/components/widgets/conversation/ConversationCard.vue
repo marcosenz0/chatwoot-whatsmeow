@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { getLastMessage } from 'dashboard/helper/conversationHelper';
 import Avatar from 'next/avatar/Avatar.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
@@ -12,6 +13,7 @@ import UnreadBadge from 'dashboard/components-next/Conversation/ConversationCard
 import SLACardLabel from './components/SLACardLabel.vue';
 import VoiceCallStatus from './VoiceCallStatus.vue';
 import Checkbox from 'dashboard/components-next/checkbox/Checkbox.vue';
+import { getTypingUsersText } from 'dashboard/helper/commons';
 
 const props = defineProps({
   chat: { type: Object, required: true },
@@ -24,6 +26,7 @@ const props = defineProps({
   showInboxName: { type: Boolean, default: false },
   hideThumbnail: { type: Boolean, default: false },
   compact: { type: Boolean, default: false },
+  typingUsers: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits([
@@ -34,10 +37,18 @@ const emit = defineEmits([
 ]);
 
 const hovered = ref(false);
+const { t } = useI18n();
 
 const unreadCount = computed(() => props.chat.unread_count);
 const hasUnread = computed(() => unreadCount.value > 0);
 const lastMessageInChat = computed(() => getLastMessage(props.chat));
+const presenceText = computed(() => {
+  if (!props.typingUsers.length) return null;
+
+  const [i18nKey, params] = getTypingUsersText(props.typingUsers);
+  // eslint-disable-next-line @intlify/vue-i18n/no-dynamic-keys
+  return t(i18nKey, params);
+});
 
 const voiceCallData = computed(() => {
   const last = lastMessageInChat.value;
@@ -186,8 +197,15 @@ watch(
       >
         {{ currentContact.name }}
       </h4>
+      <p
+        v-if="presenceText"
+        key="presence-preview"
+        class="my-0 mx-2 leading-6 h-6 flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium text-n-teal-11"
+      >
+        {{ presenceText }}
+      </p>
       <VoiceCallStatus
-        v-if="voiceCallData.status"
+        v-else-if="voiceCallData.status"
         key="voice-status-row"
         :status="voiceCallData.status"
         :direction="voiceCallData.direction"

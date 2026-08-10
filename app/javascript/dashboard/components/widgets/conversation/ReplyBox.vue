@@ -526,6 +526,9 @@ export default {
     },
     conversationIdByRoute(conversationId, oldConversationId) {
       if (conversationId !== oldConversationId) {
+        if (this.isRecordingAudio && oldConversationId) {
+          this.toggleTyping('off', 'audio', oldConversationId);
+        }
         this.hideWhatsmeowStickerPicker();
         this.setToDraft(oldConversationId, this.replyType);
         this.getFromDraft();
@@ -571,6 +574,9 @@ export default {
     emitter.on(CMD_AI_ASSIST, this.executeCopilotAction);
   },
   unmounted() {
+    if (this.isRecordingAudio) {
+      this.toggleTyping('off', 'audio');
+    }
     document.removeEventListener('paste', this.onPaste);
     document.removeEventListener('keydown', this.handleKeyEvents);
     emitter.off(BUS_EVENTS.TOGGLE_REPLY_TO_MESSAGE, this.onReplyToMessage);
@@ -1066,6 +1072,9 @@ export default {
     },
     toggleAudioRecorder() {
       this.isRecordingAudio = !this.isRecordingAudio;
+      if (this.isAWhatsmeowChannel) {
+        this.toggleTyping(this.isRecordingAudio ? 'on' : 'off', 'audio');
+      }
       if (!this.isRecordingAudio) {
         this.resetAudioRecorderInput();
       }
@@ -1100,6 +1109,9 @@ export default {
       this.recordingAudioDurationText = duration;
     },
     onFinishRecorder(file) {
+      if (this.isAWhatsmeowChannel) {
+        this.toggleTyping('off', 'audio');
+      }
       this.recordingAudioState = 'stopped';
       this.hasRecordedAudio = true;
       const autoRecordedFile = {
@@ -1114,8 +1126,11 @@ export default {
       this.toggleAudioRecorder();
       useAlert(this.$t('CONVERSATION.REPLYBOX.AUDIO_CONVERSION_FAILED'));
     },
-    toggleTyping(status) {
-      const conversationId = this.currentChat.id;
+    toggleTyping(
+      status,
+      typingMedia = 'text',
+      conversationId = this.currentChat.id
+    ) {
       const isPrivate = this.isPrivate;
 
       if (!conversationId) {
@@ -1126,6 +1141,7 @@ export default {
         status,
         conversationId,
         isPrivate,
+        typingMedia,
       });
     },
     attachFile({ blob, file }) {

@@ -713,7 +713,10 @@
   "TYPING": {
     "ONE": "{user} is typing",
     "TWO": "{user} and {secondUser} are typing",
-    "MULTIPLE": "{user} and {count} others are typing"
+    "MULTIPLE": "{user} and {count} others are typing",
+    "RECORDING_ONE": "{user} is recording audio",
+    "RECORDING_TWO": "{user} and {secondUser} are recording audio",
+    "RECORDING_MULTIPLE": "{user} and {count} others are recording audio"
   },
   "COPILOT": {
     "TRY_THESE_PROMPTS": "Try these prompts"

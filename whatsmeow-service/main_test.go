@@ -302,6 +302,24 @@ func TestParseChatPresenceState(t *testing.T) {
 	}
 }
 
+func TestParseChatPresenceMedia(t *testing.T) {
+	tests := map[string]types.ChatPresenceMedia{
+		"":        types.ChatPresenceMediaText,
+		"text":    types.ChatPresenceMediaText,
+		" AUDIO ": types.ChatPresenceMediaAudio,
+	}
+	for value, expected := range tests {
+		media, ok := parseChatPresenceMedia(value)
+		if !ok || media != expected {
+			t.Fatalf("parseChatPresenceMedia(%q) = %q, %v; want %q, true", value, media, ok, expected)
+		}
+	}
+
+	if media, ok := parseChatPresenceMedia("video"); ok || media != "" {
+		t.Fatalf("parseChatPresenceMedia(video) = %q, %v; want empty, false", media, ok)
+	}
+}
+
 func TestNormalizeGroupInviteCodeRejectsInvalidValues(t *testing.T) {
 	values := []string{
 		"https://example.com/FkLadnTzxGo9S25GLHuWiZ",

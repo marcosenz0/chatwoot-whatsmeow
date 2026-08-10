@@ -28,19 +28,24 @@ export const isJSONValid = value => {
 export const getTypingUsersText = (users = []) => {
   const count = users.length;
   const [firstUser, secondUser] = users;
+  const translationPrefix =
+    firstUser?.typing_media === 'audio' ? 'TYPING.RECORDING_' : 'TYPING.';
 
   if (count === 1) {
-    return ['TYPING.ONE', { user: firstUser.name }];
+    return [`${translationPrefix}ONE`, { user: firstUser.name }];
   }
 
   if (count === 2) {
     return [
-      'TYPING.TWO',
+      `${translationPrefix}TWO`,
       { user: firstUser.name, secondUser: secondUser.name },
     ];
   }
 
-  return ['TYPING.MULTIPLE', { user: firstUser.name, count: count - 1 }];
+  return [
+    `${translationPrefix}MULTIPLE`,
+    { user: firstUser.name, count: count - 1 },
+  ];
 };
 
 const pendingContactAttachment = (data, tempMessageId) => {
