@@ -51,7 +51,9 @@ class Webhooks::WhatsmeowController < ActionController::API
   def process_message
     return process_status if status_payload?
 
-    Whatsmeow::IncomingMessageService.new(inbox: inbox, params: params.to_unsafe_hash).perform
+    payload = params.to_unsafe_hash
+    Whatsmeow::IncomingMessageService.new(inbox: inbox, params: payload).perform
+    Whatsmeow::TypingStatusService.apply_incoming(inbox: inbox, params: payload.merge(state: 'paused'))
   end
 
   def process_status
