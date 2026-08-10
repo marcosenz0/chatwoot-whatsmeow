@@ -70,7 +70,7 @@ const viewerGroups = computed(() => {
   ];
 });
 
-const loadStatus = async () => {
+const loadStatus = async ({ showUnavailableAlert = false } = {}) => {
   if (!statusId.value || isLoading.value) return null;
 
   isLoading.value = true;
@@ -79,7 +79,9 @@ const loadStatus = async () => {
     status.value = data.payload;
     return status.value;
   } catch {
-    useAlert(t('WHATSAPP_STATUS.REPLY_PREVIEW.UNAVAILABLE'));
+    if (showUnavailableAlert) {
+      useAlert(t('WHATSAPP_STATUS.REPLY_PREVIEW.UNAVAILABLE'));
+    }
     return null;
   } finally {
     isLoading.value = false;
@@ -87,11 +89,12 @@ const loadStatus = async () => {
 };
 
 const openStatus = async () => {
-  const loadedStatus = status.value || (await loadStatus());
+  const loadedStatus =
+    status.value || (await loadStatus({ showUnavailableAlert: true }));
   if (loadedStatus) isViewerOpen.value = true;
 };
 
-onMounted(loadStatus);
+onMounted(() => loadStatus());
 </script>
 
 <template>

@@ -1,5 +1,6 @@
 import { describe, it, beforeEach, afterEach, expect, vi } from 'vitest';
 import ActionCableConnector from '../actionCable';
+import DashboardAudioNotificationHelper from '../AudioAlerts/DashboardAudioNotificationHelper';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 
 vi.mock('shared/helpers/mitt', () => ({
@@ -65,6 +66,28 @@ describe('ActionCableConnector - Copilot Tests', () => {
         {
           conversationId: 81,
           user: { ...user, typing_media: 'audio' },
+        }
+      );
+    });
+
+    it('clears contact typing presence when their message arrives', () => {
+      const sender = { id: 25, type: 'contact', name: 'Marcos Enzo' };
+      vi.spyOn(
+        DashboardAudioNotificationHelper,
+        'onNewMessage'
+      ).mockImplementation(() => {});
+
+      actionCable.onMessageCreated({
+        conversation: { last_activity_at: 1723317600 },
+        conversation_id: 81,
+        sender,
+      });
+
+      expect(mockDispatch).toHaveBeenCalledWith(
+        'conversationTypingStatus/destroy',
+        {
+          conversationId: 81,
+          user: sender,
         }
       );
     });

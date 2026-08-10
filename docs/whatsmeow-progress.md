@@ -238,11 +238,13 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - The Whatsmeow instance behavior settings include `typing_enabled`, enabled by default. Disabling it stops both outgoing and incoming typing indicators for that inbox.
 - WhatsApp requires the linked session to advertise available presence before it delivers chat-state events. The service maintains that presence while typing indicators are enabled, and the configuration description makes this behavior explicit.
 - Successful outgoing messages explicitly send `paused`, ensuring the WhatsApp typing indicator disappears as soon as the message is delivered to the service.
+- Incoming messages now clear the contact typing state immediately in the realtime client and emit an authoritative `paused` event from the Whatsmeow webhook. The 30-second safety timeout is no longer visible after the contact sends a message.
 - Incoming presence resolution includes the canonical phone JID from the whatsmeow contact contract. This keeps PN/LID aliases from returning a successful webhook without locating the matching Chatwoot conversation.
 - Presence resolution checks every matching phone/LID `ContactInbox` before selecting the newest active conversation. An orphan alias can no longer hide the canonical contact inbox that owns the conversation.
 - Text and audio presence are transported separately. WhatsApp audio presence renders as `gravando áudio` in the open conversation and conversation list, while the Chatwoot recorder sends WhatsApp's native audio composing/paused presence.
 - Conversation cards react to the same realtime presence store as the open conversation, so `digitando` and `gravando áudio` are visible even before the operator opens that chat. Existing presence records update when a contact switches from text to audio.
 - The internal `/typing` route is protected by `WHATSMEOW_SHARED_SECRET`. Future n8n typing simulation should call Chatwoot's authenticated conversation typing endpoint rather than exposing this internal route.
+- Unavailable Status reply previews load silently inside conversations. The unavailable alert is shown only when an operator explicitly tries to open the missing or expired Status.
 
 ## Product Decisions
 
