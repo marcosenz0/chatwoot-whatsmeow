@@ -11,9 +11,17 @@ export const getters = {
 };
 
 export const actions = {
-  toggleTyping: async (_, { status, conversationId, isPrivate }) => {
+  toggleTyping: async (
+    _,
+    { status, conversationId, isPrivate, typingMedia = 'text' }
+  ) => {
     try {
-      await ConversationAPI.toggleTyping({ status, conversationId, isPrivate });
+      await ConversationAPI.toggleTyping({
+        status,
+        conversationId,
+        isPrivate,
+        typingMedia,
+      });
     } catch (error) {
       // Handle error
     }
@@ -38,15 +46,17 @@ export const mutations = {
     { conversationId, user }
   ) => {
     const records = $state.records[conversationId] || [];
-    const hasUserRecordAlready = !!records.filter(
+    const existingUserIndex = records.findIndex(
       record => record.id === user.id && record.type === user.type
-    ).length;
-    if (!hasUserRecordAlready) {
-      $state.records = {
-        ...$state.records,
-        [conversationId]: [...records, user],
-      };
-    }
+    );
+    const updatedRecords = [...records];
+    if (existingUserIndex === -1) updatedRecords.push(user);
+    else updatedRecords[existingUserIndex] = user;
+
+    $state.records = {
+      ...$state.records,
+      [conversationId]: updatedRecords,
+    };
   },
   [types.default.REMOVE_USER_TYPING_FROM_CONVERSATION]: (
     $state,

@@ -10,6 +10,7 @@ defineProps({
   voiceCallDirection: { type: String, default: '' },
   unreadCount: { type: Number, default: 0 },
   showExpandedPreview: { type: Boolean, default: false },
+  presenceText: { type: String, default: '' },
 });
 </script>
 
@@ -18,8 +19,15 @@ defineProps({
     class="grid grid-cols-[1fr_auto] gap-1.5"
     :class="showExpandedPreview ? 'items-end' : 'items-center'"
   >
+    <span
+      v-if="presenceText"
+      key="presence-preview"
+      class="truncate text-body-main font-medium text-n-teal-11"
+    >
+      {{ presenceText }}
+    </span>
     <VoiceCallStatus
-      v-if="voiceCallStatus"
+      v-else-if="voiceCallStatus"
       key="voice-status-row"
       :status="voiceCallStatus"
       :direction="voiceCallDirection"

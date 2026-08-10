@@ -5,9 +5,10 @@ class Whatsmeow::TypingStatusService
     new(inbox: inbox, params: params).apply_incoming
   end
 
-  def initialize(conversation: nil, status: nil, inbox: nil, params: nil)
+  def initialize(conversation: nil, status: nil, media: nil, inbox: nil, params: nil)
     @conversation = conversation
     @status = status
+    @media = media
     @inbox = inbox
     @params = params&.with_indifferent_access
   end
@@ -17,7 +18,8 @@ class Whatsmeow::TypingStatusService
 
     Whatsmeow::SessionClient.new(inbox: conversation.inbox).typing(
       to: target_identifier,
-      state: status == 'on' ? 'composing' : 'paused'
+      state: status == 'on' ? 'composing' : 'paused',
+      media: typing_media
     )
   rescue Whatsmeow::SessionClient::Error => e
     Rails.logger.warn("Whatsmeow: failed to send typing status for conversation #{conversation.id}: #{e.message}")
@@ -37,13 +39,14 @@ class Whatsmeow::TypingStatusService
       Time.zone.now,
       conversation: conversation,
       user: incoming_typing_user(conversation),
-      is_private: false
+      is_private: false,
+      typing_media: typing_media
     )
   end
 
   private
 
-  attr_reader :conversation, :status, :inbox, :params
+  attr_reader :conversation, :status, :media, :inbox, :params
 
   def outbound_typing_enabled?
     return false unless conversation&.inbox&.channel_type == 'Channel::Whatsmeow'
@@ -83,6 +86,11 @@ class Whatsmeow::TypingStatusService
     conversations.where.not(status: :resolved).order(created_at: :desc).first || conversations.order(created_at: :desc).first
   end
 
+  def typing_media
+    value = media.presence || params&.[](:media).presence
+    value == 'audio' ? 'audio' : 'text'
+  end
+
   def incoming_typing_user(conversation)
     return conversation.contact unless ActiveModel::Type::Boolean.new.cast(params[:is_group])
 
@@ -97,6 +105,7 @@ class Whatsmeow::TypingStatusService
 
   def direct_source_ids
     [
+      phone_source_id(params[:contact_phone]),
       params[:contact_jid],
       params[:contact_alt_jid],
       params[:contact_lid_jid],
@@ -108,6 +117,20 @@ class Whatsmeow::TypingStatusService
   end
 
   def participant_source_ids
-    [params[:contact_jid], params[:contact_alt_jid], params[:contact_lid_jid], params[:sender_alt], params[:sender]].compact_blank.uniq
+    [
+      phone_source_id(params[:contact_phone]),
+      params[:contact_jid],
+      params[:contact_alt_jid],
+      params[:contact_lid_jid],
+      params[:sender_alt],
+      params[:sender]
+    ].compact_blank.uniq
+  end
+
+  def phone_source_id(value)
+    digits = value.to_s.delete('^0-9')
+    return unless digits.match?(/\A[1-9]\d{9,14}\z/)
+
+    "#{digits}@s.whatsapp.net"
   end
 end

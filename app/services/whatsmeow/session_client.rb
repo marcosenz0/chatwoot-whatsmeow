@@ -147,17 +147,7 @@ class Whatsmeow::SessionClient
     )
   end
 
-  def typing(to:, state:)
-    request(
-      :post,
-      '/typing',
-      body: {
-        channel_id: @inbox.id.to_s,
-        to: to,
-        state: state
-      }
-    )
-  end
+  def typing(to:, state:, media: 'text') = request(:post, '/typing', body: { channel_id: @inbox.id.to_s, to: to, state: state, media: media })
 
   def self.request(method, path, body: nil, timeout: nil)
     last_error = nil

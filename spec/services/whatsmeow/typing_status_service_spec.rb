@@ -20,13 +20,13 @@ RSpec.describe Whatsmeow::TypingStatusService do
     it 'sends composing presence to the authoritative conversation source' do
       described_class.new(conversation: conversation, status: 'on').perform
 
-      expect(client).to have_received(:typing).with(to: '556391189840@s.whatsapp.net', state: 'composing')
+      expect(client).to have_received(:typing).with(to: '556391189840@s.whatsapp.net', state: 'composing', media: 'text')
     end
 
     it 'sends paused presence when typing stops' do
       described_class.new(conversation: conversation, status: 'off').perform
 
-      expect(client).to have_received(:typing).with(to: '556391189840@s.whatsapp.net', state: 'paused')
+      expect(client).to have_received(:typing).with(to: '556391189840@s.whatsapp.net', state: 'paused', media: 'text')
     end
 
     it 'does not send typing presence when the inbox setting is disabled' do
@@ -58,7 +58,8 @@ RSpec.describe Whatsmeow::TypingStatusService do
         kind_of(ActiveSupport::TimeWithZone),
         conversation: conversation,
         user: contact,
-        is_private: false
+        is_private: false,
+        typing_media: 'text'
       )
     end
 
@@ -73,7 +74,30 @@ RSpec.describe Whatsmeow::TypingStatusService do
         kind_of(ActiveSupport::TimeWithZone),
         conversation: conversation,
         user: contact,
-        is_private: false
+        is_private: false,
+        typing_media: 'text'
+      )
+    end
+
+    it 'resolves the conversation through the canonical phone when WhatsApp sends a LID alias' do
+      described_class.apply_incoming(
+        inbox: inbox,
+        params: {
+          state: 'composing',
+          media: 'audio',
+          chat: '123456789012345@lid',
+          sender: '123456789012345@lid',
+          contact_phone: '556391189840'
+        }
+      )
+
+      expect(dispatcher).to have_received(:dispatch).with(
+        Events::Types::CONVERSATION_TYPING_ON,
+        kind_of(ActiveSupport::TimeWithZone),
+        conversation: conversation,
+        user: contact,
+        is_private: false,
+        typing_media: 'audio'
       )
     end
   end

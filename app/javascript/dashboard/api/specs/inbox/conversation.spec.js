@@ -133,6 +133,7 @@ describe('#ConversationAPI', () => {
         `/api/v1/conversations/12/toggle_typing_status`,
         {
           typing_status: 'typing_on',
+          typing_media: 'text',
         }
       );
     });

@@ -260,13 +260,13 @@ class ActionCableConnector extends BaseActionCableConnector {
     );
   };
 
-  onTypingOn = ({ conversation, user }) => {
+  onTypingOn = ({ conversation, user, typing_media: typingMedia = 'text' }) => {
     const conversationId = conversation.id;
 
     this.clearTimer(conversationId);
     this.app.$store.dispatch('conversationTypingStatus/create', {
       conversationId,
-      user,
+      user: { ...user, typing_media: typingMedia },
     });
     this.initTimer({ conversation, user });
   };

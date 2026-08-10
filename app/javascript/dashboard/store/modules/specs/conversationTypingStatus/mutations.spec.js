@@ -29,6 +29,31 @@ describe('#mutations', () => {
       });
     });
 
+    it('updates the presence media when an existing user starts recording', () => {
+      const state = {
+        records: {
+          1: [
+            {
+              id: 1,
+              type: 'contact',
+              name: 'user-1',
+              typing_media: 'text',
+            },
+          ],
+        },
+      };
+      mutations[types.default.ADD_USER_TYPING_TO_CONVERSATION](state, {
+        conversationId: 1,
+        user: {
+          id: 1,
+          type: 'contact',
+          name: 'user-1',
+          typing_media: 'audio',
+        },
+      });
+      expect(state.records[1][0].typing_media).toBe('audio');
+    });
+
     it('add user to state if no matching user profiles are seen', () => {
       const state = {
         records: {

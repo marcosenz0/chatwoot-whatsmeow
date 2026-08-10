@@ -92,7 +92,8 @@ describe ActionCableListener do
         'conversation.typing_on', { conversation: conversation.push_event_data,
                                     user: agent.push_event_data,
                                     account_id: account.id,
-                                    is_private: false }
+                                    is_private: false,
+                                    typing_media: 'text' }
       )
       listener.conversation_typing_on(event)
     end
@@ -112,7 +113,8 @@ describe ActionCableListener do
         'conversation.typing_on', { conversation: conversation.push_event_data,
                                     user: conversation.contact.push_event_data,
                                     account_id: account.id,
-                                    is_private: false }
+                                    is_private: false,
+                                    typing_media: 'text' }
       )
       listener.conversation_typing_on(event)
     end
@@ -132,7 +134,8 @@ describe ActionCableListener do
         'conversation.typing_on', { conversation: conversation.push_event_data,
                                     user: agent_bot.push_event_data,
                                     account_id: account.id,
-                                    is_private: false }
+                                    is_private: false,
+                                    typing_media: 'text' }
       )
       listener.conversation_typing_on(event)
     end
@@ -152,7 +155,8 @@ describe ActionCableListener do
         'conversation.typing_off', { conversation: conversation.push_event_data,
                                      user: agent.push_event_data,
                                      account_id: account.id,
-                                     is_private: false }
+                                     is_private: false,
+                                     typing_media: 'text' }
       )
       listener.conversation_typing_off(event)
     end

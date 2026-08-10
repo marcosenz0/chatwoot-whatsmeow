@@ -16,7 +16,7 @@ RSpec.describe WhatsmeowListener do
 
     listener.conversation_typing_on(event)
 
-    expect(Whatsmeow::TypingStatusService).to have_received(:new).with(conversation: conversation, status: 'on')
+    expect(Whatsmeow::TypingStatusService).to have_received(:new).with(conversation: conversation, status: 'on', media: nil)
     expect(service).to have_received(:perform)
   end
 

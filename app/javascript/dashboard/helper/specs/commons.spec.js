@@ -16,6 +16,12 @@ describe('#getTypingUsersText', () => {
     ]);
   });
 
+  it('returns recording text for an audio presence', () => {
+    expect(
+      getTypingUsersText([{ name: 'Pranav', typing_media: 'audio' }])
+    ).toEqual(['TYPING.RECORDING_ONE', { user: 'Pranav' }]);
+  });
+
   it('returns the correct text is there are two typing users', () => {
     expect(
       getTypingUsersText([{ name: 'Pranav' }, { name: 'Nithin' }])

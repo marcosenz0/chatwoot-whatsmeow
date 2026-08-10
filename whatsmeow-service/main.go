@@ -142,6 +142,7 @@ type TypingRequest struct {
 	ChannelID string `json:"channel_id" binding:"required"`
 	To        string `json:"to" binding:"required"`
 	State     string `json:"state" binding:"required"`
+	Media     string `json:"media"`
 }
 
 type ReactionRequest struct {
@@ -2427,6 +2428,11 @@ func handleTyping(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Typing state must be composing or paused"})
 		return
 	}
+	media, ok := parseChatPresenceMedia(req.Media)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Typing media must be text or audio"})
+		return
+	}
 
 	targetJID, ok := parseJID(req.To)
 	if !ok {
@@ -2460,12 +2466,12 @@ func handleTyping(c *gin.Context) {
 			return
 		}
 	}
-	if err := client.SendChatPresence(ctx, targetJID, state, types.ChatPresenceMediaText); err != nil {
+	if err := client.SendChatPresence(ctx, targetJID, state, media); err != nil {
 		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("Failed to send typing status: %v", err)})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "state": string(state)})
+	c.JSON(http.StatusOK, gin.H{"success": true, "state": string(state), "media": chatPresenceMediaName(media)})
 }
 
 func handleSendReaction(c *gin.Context) {
@@ -3219,6 +3225,24 @@ func parseChatPresenceState(value string) (types.ChatPresence, bool) {
 	}
 }
 
+func parseChatPresenceMedia(value string) (types.ChatPresenceMedia, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "text":
+		return types.ChatPresenceMediaText, true
+	case string(types.ChatPresenceMediaAudio):
+		return types.ChatPresenceMediaAudio, true
+	default:
+		return "", false
+	}
+}
+
+func chatPresenceMediaName(media types.ChatPresenceMedia) string {
+	if media == types.ChatPresenceMediaAudio {
+		return string(types.ChatPresenceMediaAudio)
+	}
+	return "text"
+}
+
 func parseParticipantJID(values ...string) (types.JID, bool) {
 	for _, value := range values {
 		value = strings.TrimSpace(value)
@@ -3465,7 +3489,7 @@ func processChatPresenceForInbox(channelID string, accountID string, client *wha
 	payload := map[string]interface{}{
 		"event":           "typing",
 		"state":           string(presence.State),
-		"media":           string(presence.Media),
+		"media":           chatPresenceMediaName(presence.Media),
 		"chat":            jidString(presence.Chat),
 		"sender":          jidString(presence.Sender),
 		"sender_alt":      jidString(presence.SenderAlt),

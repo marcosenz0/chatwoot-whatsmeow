@@ -1,5 +1,6 @@
 <script setup>
 import { computed, useTemplateRef } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { getLastMessage } from 'dashboard/helper/conversationHelper';
 import CardAvatar from './CardAvatar.vue';
 import CardContent from './CardContent.vue';
@@ -12,6 +13,7 @@ import SLACardLabel from 'dashboard/components-next/Conversation/Sla/SLACardLabe
 import CardStatusIcon from './CardStatusIcon.vue';
 import Checkbox from 'dashboard/components-next/checkbox/Checkbox.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import { getTypingUsersText } from 'dashboard/helper/commons';
 
 const props = defineProps({
   chat: { type: Object, required: true },
@@ -23,6 +25,7 @@ const props = defineProps({
   showAssignee: { type: Boolean, default: false },
   showInboxName: { type: Boolean, default: false },
   isInboxView: { type: Boolean, default: false },
+  typingUsers: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits([
@@ -31,8 +34,16 @@ const emit = defineEmits([
   'click',
   'contextmenu',
 ]);
+const { t } = useI18n();
 
 const lastMessageInChat = computed(() => getLastMessage(props.chat));
+const presenceText = computed(() => {
+  if (!props.typingUsers.length) return '';
+
+  const [i18nKey, params] = getTypingUsersText(props.typingUsers);
+  // eslint-disable-next-line @intlify/vue-i18n/no-dynamic-keys
+  return t(i18nKey, params);
+});
 const showLabelsSection = computed(() => props.chat.labels?.length > 0);
 
 const voiceCallData = computed(() => {
@@ -160,6 +171,7 @@ const selectedModel = computed({
 
       <CardContent
         :last-message="lastMessageInChat"
+        :presence-text="presenceText"
         :voice-call-status="voiceCallData.status"
         :voice-call-direction="voiceCallData.direction"
         :unread-count="unreadCount"
