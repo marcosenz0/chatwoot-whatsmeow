@@ -100,5 +100,34 @@ RSpec.describe Whatsmeow::TypingStatusService do
         typing_media: 'audio'
       )
     end
+
+    context 'when an earlier matching alias has no conversation' do
+      let(:orphan_contact) { create(:contact, account: account) }
+      let(:contact_inbox) do
+        create(:contact_inbox, contact: orphan_contact, inbox: inbox, source_id: '123456789012345@lid')
+        create(:contact_inbox, contact: contact, inbox: inbox, source_id: '556391189840@s.whatsapp.net')
+      end
+
+      it 'resolves the conversation across all matching contact inboxes' do
+        described_class.apply_incoming(
+          inbox: inbox,
+          params: {
+            state: 'composing',
+            chat: '123456789012345@lid',
+            sender: '123456789012345@lid',
+            contact_phone: '556391189840'
+          }
+        )
+
+        expect(dispatcher).to have_received(:dispatch).with(
+          Events::Types::CONVERSATION_TYPING_ON,
+          kind_of(ActiveSupport::TimeWithZone),
+          conversation: conversation,
+          user: contact,
+          is_private: false,
+          typing_media: 'text'
+        )
+      end
+    end
   end
 end
