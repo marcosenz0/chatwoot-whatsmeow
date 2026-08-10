@@ -12,7 +12,8 @@ class Channel::Whatsmeow < ApplicationRecord
     :ignore_groups,
     :ignore_status,
     :hide_status_views,
-    :ignore_newsletters
+    :ignore_newsletters,
+    :typing_enabled
   ].freeze
 
   def name

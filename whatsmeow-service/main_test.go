@@ -283,6 +283,25 @@ func TestNormalizeGroupInviteCode(t *testing.T) {
 	}
 }
 
+func TestParseChatPresenceState(t *testing.T) {
+	tests := map[string]types.ChatPresence{
+		"composing": types.ChatPresenceComposing,
+		" paused ":  types.ChatPresencePaused,
+		"COMPOSING": types.ChatPresenceComposing,
+	}
+
+	for value, expected := range tests {
+		state, ok := parseChatPresenceState(value)
+		if !ok || state != expected {
+			t.Fatalf("parseChatPresenceState(%q) = %q, %v; want %q, true", value, state, ok, expected)
+		}
+	}
+
+	if state, ok := parseChatPresenceState("recording"); ok || state != "" {
+		t.Fatalf("parseChatPresenceState(recording) = %q, %v; want empty, false", state, ok)
+	}
+}
+
 func TestNormalizeGroupInviteCodeRejectsInvalidValues(t *testing.T) {
 	values := []string{
 		"https://example.com/FkLadnTzxGo9S25GLHuWiZ",

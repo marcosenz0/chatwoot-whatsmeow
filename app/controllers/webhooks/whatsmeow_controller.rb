@@ -8,6 +8,7 @@ class Webhooks::WhatsmeowController < ActionController::API
     'reaction' => :process_reaction,
     'edit' => :process_edit,
     'delete' => :process_delete,
+    'typing' => :process_typing,
     'status_delete' => :delete_status,
     'paired' => :process_paired
   }.freeze
@@ -81,6 +82,10 @@ class Webhooks::WhatsmeowController < ActionController::API
     return delete_status if status_payload?
 
     Whatsmeow::DeleteMessageService.apply_incoming(inbox: inbox, params: params.to_unsafe_hash)
+  end
+
+  def process_typing
+    Whatsmeow::TypingStatusService.apply_incoming(inbox: inbox, params: params.to_unsafe_hash)
   end
 
   def process_paired

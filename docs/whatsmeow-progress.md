@@ -231,6 +231,15 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Official Cloud media webhook failures that are safe to retry now roll back message deduplication and retry instead of permanently creating an attachment-less message. Cloud webhooks fail closed on missing or invalid Meta signatures; 360dialog behavior is unchanged.
 - Composer recordings for official Cloud inboxes are remuxed to OGG/Opus and sent with Meta's voice-note flag. Uploaded audio remains a regular audio attachment.
 
+## August 2026 Typing Indicators
+
+- Agent `conversation.typing_on` and `conversation.typing_off` events are forwarded asynchronously to the internal whatsmeow service, which sends WhatsApp `composing` and `paused` chat presence without blocking the Chatwoot composer.
+- Incoming WhatsApp `ChatPresence` events are mapped to the existing Chatwoot conversation and contact, then broadcast through Chatwoot's native typing websocket events. Contact events are never echoed back to WhatsApp.
+- The Whatsmeow instance behavior settings include `typing_enabled`, enabled by default. Disabling it stops both outgoing and incoming typing indicators for that inbox.
+- WhatsApp requires the linked session to advertise available presence before it delivers chat-state events. The service maintains that presence while typing indicators are enabled, and the configuration description makes this behavior explicit.
+- Successful outgoing messages explicitly send `paused`, ensuring the WhatsApp typing indicator disappears as soon as the message is delivered to the service.
+- The internal `/typing` route is protected by `WHATSMEOW_SHARED_SECRET`. Future n8n typing simulation should call Chatwoot's authenticated conversation typing endpoint rather than exposing this internal route.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.
