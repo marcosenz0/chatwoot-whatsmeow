@@ -1041,6 +1041,10 @@
         "SETTINGS": {
           "TITLE": "Instance behavior",
           "SAVE": "Save configuration",
+          "TYPING_INDICATOR": {
+            "LABEL": "Share typing indicators",
+            "DESCRIPTION": "Shows in Chatwoot when the contact is typing and shows the contact when an agent is typing. WhatsApp presence remains available while this is enabled."
+          },
           "ALWAYS_ONLINE": {
             "LABEL": "Keep always online",
             "DESCRIPTION": "Keeps the paired phone presence available while the service is connected."

@@ -37,6 +37,7 @@ const settings = reactive({
   ignoreStatus: false,
   ignoreNewsletters: true,
   newsletter: false,
+  typingEnabled: true,
 });
 
 const connectionStatus = ref('disconnected');
@@ -100,6 +101,7 @@ const setDefaults = () => {
   settings.ignoreStatus = !!props.inbox.ignore_status;
   settings.ignoreNewsletters = props.inbox.ignore_newsletters !== false;
   settings.newsletter = !!props.inbox.newsletter;
+  settings.typingEnabled = props.inbox.typing_enabled !== false;
   connectionStatus.value = props.inbox.status || 'disconnected';
 };
 
@@ -250,6 +252,7 @@ const updateWhatsmeowSettings = async () => {
         ignore_status: settings.ignoreStatus,
         ignore_newsletters: settings.ignoreNewsletters,
         newsletter: settings.newsletter,
+        typing_enabled: settings.typingEnabled,
       },
     });
     useAlert(t('INBOX_MGMT.EDIT.API.SUCCESS_MESSAGE'));
@@ -381,6 +384,19 @@ onBeforeUnmount(() => {
       :title="$t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.SETTINGS.TITLE')"
     >
       <div class="space-y-3">
+        <SettingsToggleSection
+          v-model="settings.typingEnabled"
+          :header="
+            $t(
+              'INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.SETTINGS.TYPING_INDICATOR.LABEL'
+            )
+          "
+          :description="
+            $t(
+              'INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.SETTINGS.TYPING_INDICATOR.DESCRIPTION'
+            )
+          "
+        />
         <SettingsToggleSection
           v-model="settings.alwaysOnline"
           :header="

@@ -972,6 +972,10 @@
         "SETTINGS": {
           "TITLE": "Comportamento da instância",
           "SAVE": "Salvar configurações",
+          "TYPING_INDICATOR": {
+            "LABEL": "Compartilhar indicador de digitação",
+            "DESCRIPTION": "Mostra no Chatwoot quando o contato está digitando e avisa o contato quando um agente está digitando. A presença do WhatsApp permanece disponível enquanto esta opção estiver ativa."
+          },
           "ALWAYS_ONLINE": {
             "LABEL": "Manter sempre online",
             "DESCRIPTION": "Mantém a presença do telefone pareado disponível enquanto o serviço estiver conectado."

@@ -138,6 +138,12 @@ type ContactSyncRequest struct {
 	Contacts []StatusContact `json:"contacts"`
 }
 
+type TypingRequest struct {
+	ChannelID string `json:"channel_id" binding:"required"`
+	To        string `json:"to" binding:"required"`
+	State     string `json:"state" binding:"required"`
+}
+
 type ReactionRequest struct {
 	ChannelID string `json:"channel_id" binding:"required"`
 	To        string `json:"to" binding:"required"`
@@ -397,6 +403,7 @@ func main() {
 	r.POST("/sessions/:channel_id/statuses/read", internalTokenMiddleware(), handleReadStatus)
 	r.POST("/sessions/:channel_id/statuses/reply", internalTokenMiddleware(), handleReplyToStatus)
 	r.DELETE("/sessions/:channel_id", internalTokenMiddleware(), handleDisconnectSession)
+	r.POST("/typing", internalTokenMiddleware(), handleTyping)
 	r.POST("/messages", internalTokenMiddleware(), handleSendMessage)
 	r.POST("/messages/reaction", internalTokenMiddleware(), handleSendReaction)
 	r.POST("/messages/delete", internalTokenMiddleware(), handleDeleteMessage)
@@ -443,13 +450,14 @@ func internalTokenMiddleware() gin.HandlerFunc {
 }
 
 type WhatsmeowSettings struct {
-	AlwaysOnline bool `json:"always_online"`
-	ReadMessages bool `json:"read_messages"`
-	RejectCalls  bool `json:"reject_calls"`
-	IgnoreGroups bool `json:"ignore_groups"`
-	IgnoreStatus bool `json:"ignore_status"`
-	IgnoreNews   bool `json:"ignore_newsletters"`
-	Newsletter   bool `json:"newsletter"`
+	AlwaysOnline  bool `json:"always_online"`
+	ReadMessages  bool `json:"read_messages"`
+	RejectCalls   bool `json:"reject_calls"`
+	IgnoreGroups  bool `json:"ignore_groups"`
+	IgnoreStatus  bool `json:"ignore_status"`
+	IgnoreNews    bool `json:"ignore_newsletters"`
+	Newsletter    bool `json:"newsletter"`
+	TypingEnabled bool `json:"typing_enabled"`
 }
 
 func getChannelSettings(inboxID string) (WhatsmeowSettings, error) {
@@ -465,13 +473,14 @@ func getChannelSettings(inboxID string) (WhatsmeowSettings, error) {
 	defer db.Close()
 
 	query := `
-		SELECT c.always_online, c.read_messages, c.reject_calls, c.ignore_groups, c.ignore_status, c.ignore_newsletters, c.newsletter
+		SELECT c.always_online, c.read_messages, c.reject_calls, c.ignore_groups, c.ignore_status, c.ignore_newsletters, c.newsletter,
+		       c.typing_enabled
 		FROM inboxes i 
 		JOIN channel_whatsmeow c ON i.channel_id = c.id 
 		WHERE i.id = $1 AND i.channel_type = 'Channel::Whatsmeow'
 		LIMIT 1
 	`
-	var alwaysOnline, readMessages, rejectCalls, ignoreGroups, ignoreStatus, ignoreNews, newsletter bool
+	var alwaysOnline, readMessages, rejectCalls, ignoreGroups, ignoreStatus, ignoreNews, newsletter, typingEnabled bool
 	err = db.QueryRow(query, inboxID).Scan(
 		&alwaysOnline,
 		&readMessages,
@@ -480,6 +489,7 @@ func getChannelSettings(inboxID string) (WhatsmeowSettings, error) {
 		&ignoreStatus,
 		&ignoreNews,
 		&newsletter,
+		&typingEnabled,
 	)
 	if err != nil {
 		return settings, err
@@ -492,6 +502,7 @@ func getChannelSettings(inboxID string) (WhatsmeowSettings, error) {
 	settings.IgnoreStatus = ignoreStatus
 	settings.IgnoreNews = ignoreNews
 	settings.Newsletter = newsletter
+	settings.TypingEnabled = typingEnabled
 
 	return settings, nil
 }
@@ -504,7 +515,7 @@ func startPresenceTicker() {
 			for channelID, client := range clients {
 				if client.IsConnected() && client.IsLoggedIn() {
 					settings, err := getChannelSettings(channelID)
-					if err == nil && settings.AlwaysOnline {
+					if err == nil && (settings.AlwaysOnline || settings.TypingEnabled) {
 						err := client.SendPresence(context.Background(), types.PresenceAvailable)
 						if err != nil {
 							log.Printf("Failed to send presence for channel %s: %v", channelID, err)
@@ -865,6 +876,9 @@ func restoreSessions() {
 
 		updateAllChannelsStatusByPhone(phone, "connected")
 
+		if len(inboxIDs) > 0 {
+			refreshPresenceForChannel(inboxIDs[0], client)
+		}
 		log.Printf("Successfully restored and connected: %s (inboxes: %v)", device.ID.String(), inboxIDs)
 	}
 }
@@ -1069,6 +1083,9 @@ func handleCreateSession(c *gin.Context) {
 		c.JSON(http.StatusOK, payload)
 	}
 
+	if client.IsLoggedIn() {
+		refreshPresenceForChannel(req.ChannelID, client)
+	}
 }
 
 func handleGetQR(c *gin.Context) {
@@ -1695,6 +1712,9 @@ func handleSendMessage(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to send message: %v", err)})
 		return
+	}
+	if err := client.SendChatPresence(sendCtx, targetJID, types.ChatPresencePaused, types.ChatPresenceMediaText); err != nil {
+		log.Printf("Failed to clear typing presence after sending message to %s: %v", targetJID.String(), err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -2393,6 +2413,59 @@ func supportedStatusFont(font int32) proto.ExtendedTextMessage_FontType {
 	default:
 		return proto.ExtendedTextMessage_FontType(6)
 	}
+}
+
+func handleTyping(c *gin.Context) {
+	var req TypingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	state, ok := parseChatPresenceState(req.State)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Typing state must be composing or paused"})
+		return
+	}
+
+	targetJID, ok := parseJID(req.To)
+	if !ok {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid target phone number / JID"})
+		return
+	}
+
+	clientsMu.RLock()
+	client, exists := clients[req.ChannelID]
+	clientsMu.RUnlock()
+	if !exists || !client.IsConnected() || !client.IsLoggedIn() {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+
+	settings, err := getChannelSettings(req.ChannelID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to load channel settings: %v", err)})
+		return
+	}
+	if state == types.ChatPresenceComposing && !settings.TypingEnabled {
+		c.JSON(http.StatusOK, gin.H{"success": true, "ignored": true})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if state == types.ChatPresenceComposing {
+		if err := client.SendPresence(ctx, types.PresenceAvailable); err != nil {
+			c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("Failed to enable presence: %v", err)})
+			return
+		}
+	}
+	if err := client.SendChatPresence(ctx, targetJID, state, types.ChatPresenceMediaText); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": fmt.Sprintf("Failed to send typing status: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "state": string(state)})
 }
 
 func handleSendReaction(c *gin.Context) {
@@ -3135,6 +3208,17 @@ func parseJID(phone string) (types.JID, bool) {
 	return types.NewJID(phone, types.DefaultUserServer), true
 }
 
+func parseChatPresenceState(value string) (types.ChatPresence, bool) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case string(types.ChatPresenceComposing):
+		return types.ChatPresenceComposing, true
+	case string(types.ChatPresencePaused):
+		return types.ChatPresencePaused, true
+	default:
+		return "", false
+	}
+}
+
 func parseParticipantJID(values ...string) (types.JID, bool) {
 	for _, value := range values {
 		value = strings.TrimSpace(value)
@@ -3327,6 +3411,9 @@ func eventHandler(client *whatsmeow.Client, evt interface{}) {
 
 func processEventForInbox(channelID string, accountID string, client *whatsmeow.Client, evt interface{}) {
 	switch v := evt.(type) {
+	case *events.Connected:
+		refreshPresenceForChannel(channelID, client)
+
 	case *events.CallOffer:
 		settings, err := getChannelSettings(channelID)
 		if err == nil && settings.RejectCalls {
@@ -3344,9 +3431,52 @@ func processEventForInbox(channelID string, accountID string, client *whatsmeow.
 	case *events.Receipt:
 		processReceiptForInbox(channelID, accountID, client, v)
 
+	case *events.ChatPresence:
+		processChatPresenceForInbox(channelID, accountID, client, v)
+
 	case *events.HistorySync:
 		processHistorySyncForInbox(channelID, accountID, client, v)
 	}
+}
+
+func refreshPresenceForChannel(channelID string, client *whatsmeow.Client) {
+	settings, err := getChannelSettings(channelID)
+	if err != nil || (!settings.AlwaysOnline && !settings.TypingEnabled) {
+		return
+	}
+	if err := client.SendPresence(context.Background(), types.PresenceAvailable); err != nil {
+		log.Printf("Failed to enable presence for channel %s: %v", channelID, err)
+	}
+}
+
+func processChatPresenceForInbox(channelID string, accountID string, client *whatsmeow.Client, presence *events.ChatPresence) {
+	if presence.IsFromMe {
+		return
+	}
+	settings, err := getChannelSettings(channelID)
+	if err != nil || !settings.TypingEnabled {
+		return
+	}
+	if _, ok := parseChatPresenceState(string(presence.State)); !ok {
+		return
+	}
+	contact := resolveMessageContact(client, types.MessageInfo{MessageSource: presence.MessageSource})
+
+	payload := map[string]interface{}{
+		"event":           "typing",
+		"state":           string(presence.State),
+		"media":           string(presence.Media),
+		"chat":            jidString(presence.Chat),
+		"sender":          jidString(presence.Sender),
+		"sender_alt":      jidString(presence.SenderAlt),
+		"recipient_alt":   jidString(presence.RecipientAlt),
+		"contact_jid":     jidString(contact.JID),
+		"contact_alt_jid": jidString(contact.AltJID),
+		"contact_phone":   contact.PhoneNumber,
+		"contact_lid_jid": jidString(contact.LIDJID),
+		"is_group":        presence.IsGroup,
+	}
+	sendWebhookNotification(accountID, channelID, payload)
 }
 
 func processReceiptForInbox(channelID string, accountID string, client *whatsmeow.Client, receipt *events.Receipt) {

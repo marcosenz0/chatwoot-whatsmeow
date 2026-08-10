@@ -138,6 +138,7 @@ if resource.channel_type == 'Channel::Whatsmeow'
   json.ignore_status resource.channel.try(:ignore_status)
   json.hide_status_views resource.channel.try(:hide_status_views)
   json.ignore_newsletters resource.channel.try(:ignore_newsletters)
+  json.typing_enabled resource.channel.try(:typing_enabled)
 end
 
 ## Telegram Attributes
