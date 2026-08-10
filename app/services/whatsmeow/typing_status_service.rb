@@ -79,10 +79,8 @@ class Whatsmeow::TypingStatusService
   end
 
   def incoming_conversation
-    contact_inbox = inbox.contact_inboxes.find_by(source_id: conversation_source_ids)
-    return if contact_inbox.blank?
-
-    conversations = inbox.conversations.where(contact_inbox_id: contact_inbox.id)
+    contact_inbox_ids = inbox.contact_inboxes.where(source_id: conversation_source_ids).select(:id)
+    conversations = inbox.conversations.where(contact_inbox_id: contact_inbox_ids)
     conversations.where.not(status: :resolved).order(created_at: :desc).first || conversations.order(created_at: :desc).first
   end
 
