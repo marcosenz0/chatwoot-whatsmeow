@@ -34,6 +34,26 @@ Imagem Docker do Chatwoot fork gerada pelo GitHub Actions:
 ghcr.io/marcosenz0/chatwoot-whatsmeow:develop
 ```
 
+### Baixar a versao completa em outro PC
+
+O repositorio e publico e o branch padrao ja e o `develop`. Em um computador novo, use:
+
+```bash
+git clone --branch develop --single-branch https://github.com/marcosenz0/chatwoot-whatsmeow.git
+cd chatwoot-whatsmeow
+docker pull ghcr.io/marcosenz0/chatwoot-whatsmeow:develop
+```
+
+Para atualizar uma instalacao que ja foi clonada:
+
+```bash
+git switch develop
+git pull --ff-only origin develop
+docker pull ghcr.io/marcosenz0/chatwoot-whatsmeow:develop
+```
+
+No Docker Desktop, use essa imagem tanto no servico web quanto no Sidekiq. O `whatsmeow-service` fica no mesmo repositorio e deve ser construido pelo Dockerfile em `whatsmeow-service/`, conforme o exemplo de Docker Compose deste guia.
+
 Importante: nao use `chatwoot/chatwoot:latest` para este fork. Essa imagem e do Chatwoot original e nao contem a integracao Whatsmeow.
 
 O arquivo `docker-compose.production.yaml` original do projeto pode servir como referencia de estrutura, mas precisa trocar a imagem do Chatwoot e adicionar o servico `whatsmeow-service`.
