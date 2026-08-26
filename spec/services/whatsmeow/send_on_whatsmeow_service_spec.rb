@@ -4,8 +4,8 @@ RSpec.describe Whatsmeow::SendOnWhatsmeowService do
   subject(:service) { described_class.new(message: message) }
 
   let(:file) do
-    instance_double(
-      ActiveStorage::Attached::One,
+    double(
+      'Active Storage attachment',
       attached?: true,
       filename: ActiveStorage::Filename.new('audio.mp3'),
       content_type: 'audio/mpeg',
