@@ -252,6 +252,7 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - The toggle is a visually distinct outlined/solid button labeled `Arquivo` or `Gravado`, with a Portuguese explanatory tooltip. It recognizes the original upload metadata or filename extension, including MP3 direct uploads whose stored blob reports a generic MIME type.
 - The recorded-audio selection is transported through `whatsmeow_recorded_audio`; the existing Go media path converts it to OGG/Opus, adds duration/waveform metadata, and sends it as PTT.
 - Whatsmeow attachments now enqueue `SendReplyJob` immediately instead of entering Sidekiq's scheduled set. This removes the attachment-only scheduling bottleneck that could turn the intended two-second wait into several minutes on staging.
+- If the Sidekiq container cannot read an attachment from its local Active Storage disk, Whatsmeow now retrieves the same signed file through the web service before dispatching it. This keeps both regular audio files and recorded PTT voice notes working when web and worker storage are not mounted together.
 
 ## Product Decisions
 

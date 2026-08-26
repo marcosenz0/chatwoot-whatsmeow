@@ -60,9 +60,22 @@ class Whatsmeow::SendOnWhatsmeowService
         file_type: attachment.file_type,
         meta: attachment.meta || {},
         recorded_audio: recorded_audio? && attachment.audio?,
-        data_base64: Base64.strict_encode64(attachment.file.download)
+        data_base64: Base64.strict_encode64(attachment_data(attachment))
       }
     end
+  end
+
+  def attachment_data(attachment)
+    attachment.file.download
+  rescue ActiveStorage::FileNotFoundError
+    Rails.logger.warn(
+      "Whatsmeow: Attachment #{attachment.id} is unavailable in the worker storage; downloading it from the web service"
+    )
+
+    SafeFetch.fetch(
+      attachment.download_url,
+      allowed_content_type_prefixes: %w[application/ audio/ image/ text/ video/]
+    ) { |result| result.tempfile.read }
   end
 
   def body_content
