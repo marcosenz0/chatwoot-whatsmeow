@@ -246,6 +246,12 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - The internal `/typing` route is protected by `WHATSMEOW_SHARED_SECRET`. Future n8n typing simulation should call Chatwoot's authenticated conversation typing endpoint rather than exposing this internal route.
 - Unavailable Status reply previews load silently inside conversations. The unavailable alert is shown only when an operator explicitly tries to open the missing or expired Status.
 
+## August 2026 Uploaded Voice Notes
+
+- Audio selected through drag-and-drop or the attachment picker is identified with an audio icon in the composer. Whatsmeow conversations expose a microphone toggle that lets the operator choose between a regular audio file and a WhatsApp recorded voice note.
+- The recorded-audio selection is transported through `whatsmeow_recorded_audio`; the existing Go media path converts it to OGG/Opus, adds duration/waveform metadata, and sends it as PTT.
+- Whatsmeow attachments now enqueue `SendReplyJob` immediately instead of entering Sidekiq's scheduled set. This removes the attachment-only scheduling bottleneck that could turn the intended two-second wait into several minutes on staging.
+
 ## Product Decisions
 
 - Do not add NATS until message correctness is stable. The current media loss was caused by the Go event handler discarding non-text messages before Rails, not by queue backpressure.

@@ -1,36 +1,38 @@
 <script setup>
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { formatBytes } from 'shared/helpers/FileHelper';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import Icon from 'dashboard/components-next/icon/Icon.vue';
 
 const props = defineProps({
   attachments: {
     type: Array,
     default: () => [],
   },
+  allowRecordedAudio: {
+    type: Boolean,
+    default: false,
+  },
 });
 
-const emit = defineEmits(['removeAttachment']);
+const emit = defineEmits(['removeAttachment', 'toggleRecordedAudio']);
+const { t } = useI18n();
 
-const nonRecordedAudioAttachments = computed(() => {
-  return props.attachments.filter(
-    attachment => !attachment?.isRecordedAudio && !attachment?.isVoiceMessage
-  );
-});
-
-const recordedAudioAttachments = computed(() =>
-  props.attachments.filter(
-    attachment => attachment.isRecordedAudio || attachment.isVoiceMessage
-  )
+const visibleAttachments = computed(() =>
+  props.attachments
+    .map((attachment, index) => ({ attachment, index }))
+    .filter(
+      ({ attachment }) =>
+        !attachment?.isRecordedAudio && !attachment?.isVoiceMessage
+    )
 );
 
 const onRemoveAttachment = itemIndex => {
   emit(
     'removeAttachment',
-    nonRecordedAudioAttachments.value
-      .filter((_, index) => index !== itemIndex)
-      .concat(recordedAudioAttachments.value)
+    props.attachments.filter((_, index) => index !== itemIndex)
   );
 };
 
@@ -44,17 +46,27 @@ const isTypeImage = file => {
   return type.includes('image');
 };
 
+const fileType = file =>
+  file?.content_type || file?.type || file?.file?.type || '';
+
+const isTypeAudio = file => fileType(file).startsWith('audio/');
+
 const fileName = file => {
   return file.filename || file.name;
 };
+
+const recordedAudioLabel = attachment =>
+  attachment.sendAsRecordedAudio
+    ? t('CONVERSATION.REPLYBOX.SEND_AS_AUDIO_FILE')
+    : t('CONVERSATION.REPLYBOX.SEND_AS_RECORDED_AUDIO');
 </script>
 
 <template>
   <div class="flex flex-wrap gap-y-1 gap-x-2 overflow-auto max-h-[12.5rem]">
     <div
-      v-for="(attachment, index) in nonRecordedAudioAttachments"
-      :key="attachment.id"
-      class="flex items-center p-1 bg-n-slate-3 gap-1 rounded-md w-[15rem]"
+      v-for="{ attachment, index } in visibleAttachments"
+      :key="attachment.id || attachment.blobSignedId || index"
+      class="flex items-center p-1 bg-n-slate-3 gap-1 rounded-md w-[19rem] max-w-full"
     >
       <div class="max-w-[4rem] flex-shrink-0 w-6 flex items-center">
         <img
@@ -62,23 +74,37 @@ const fileName = file => {
           class="object-cover w-6 h-6 rounded-sm"
           :src="attachment.thumb"
         />
-        <span v-else class="relative w-6 h-6 text-lg text-left -top-px">
-          📄
-        </span>
+        <Icon
+          v-else-if="isTypeAudio(attachment.resource)"
+          icon="i-lucide-audio-lines"
+          class="size-5 text-n-slate-10"
+        />
+        <Icon v-else icon="i-lucide-file" class="size-5 text-n-slate-10" />
       </div>
-      <div class="max-w-3/5 min-w-[50%] overflow-hidden text-ellipsis">
+      <div class="min-w-0 flex-1 overflow-hidden text-ellipsis">
         <span
           class="h-4 overflow-hidden text-sm font-medium text-ellipsis whitespace-nowrap"
         >
           {{ fileName(attachment.resource) }}
         </span>
       </div>
-      <div class="w-[30%] justify-center">
+      <div class="shrink-0 justify-center">
         <span class="overflow-hidden text-xs text-ellipsis whitespace-nowrap">
           {{ formatFileSize(attachment.resource) }}
         </span>
       </div>
       <div class="flex items-center justify-center">
+        <Button
+          v-if="allowRecordedAudio && isTypeAudio(attachment.resource)"
+          v-tooltip="recordedAudioLabel(attachment)"
+          :aria-label="recordedAudioLabel(attachment)"
+          :aria-pressed="attachment.sendAsRecordedAudio ? 'true' : 'false'"
+          :variant="attachment.sendAsRecordedAudio ? 'faded' : 'ghost'"
+          :color="attachment.sendAsRecordedAudio ? 'teal' : 'slate'"
+          xs
+          icon="i-lucide-mic"
+          @click="emit('toggleRecordedAudio', index)"
+        />
         <Button
           ghost
           slate

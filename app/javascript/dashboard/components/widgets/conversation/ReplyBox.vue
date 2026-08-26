@@ -1158,11 +1158,22 @@ export default {
           blobSignedId: blob ? blob.signed_id : undefined,
           isRecordedAudio: file?.isRecordedAudio || false,
           isVoiceMessage: file?.isVoiceMessage || false,
+          sendAsRecordedAudio: false,
         });
       };
     },
     removeAttachment(attachments) {
       this.attachedFiles = attachments;
+    },
+    toggleRecordedAudio(index) {
+      this.attachedFiles = this.attachedFiles.map((attachment, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...attachment,
+              sendAsRecordedAudio: !attachment.sendAsRecordedAudio,
+            }
+          : attachment
+      );
     },
     setReplyToInPayload(payload) {
       if (this.inReplyTo?.id) {
@@ -1185,7 +1196,8 @@ export default {
           this.isAnInstagramChannel || this.isATiktokChannel ? '' : message;
         this.attachedFiles.forEach(attachment => {
           const isRecordedWhatsmeowAudio =
-            this.isAWhatsmeowChannel && attachment?.isRecordedAudio;
+            this.isAWhatsmeowChannel &&
+            (attachment?.isRecordedAudio || attachment?.sendAsRecordedAudio);
           const isOfficialVoiceMessage =
             this.isAWhatsAppCloudChannel && attachment?.isVoiceMessage;
           const attachedFile = this.globalConfig.directUploadsEnabled
@@ -1224,7 +1236,9 @@ export default {
         !this.attachedFiles || !this.attachedFiles.length;
       const hasRecordedWhatsmeowAudio =
         this.isAWhatsmeowChannel &&
-        this.attachedFiles?.some(file => file?.isRecordedAudio);
+        this.attachedFiles?.some(
+          file => file?.isRecordedAudio || file?.sendAsRecordedAudio
+        );
       const hasOfficialVoiceMessage =
         this.isAWhatsAppCloudChannel &&
         this.attachedFiles?.some(file => file?.isVoiceMessage);
@@ -1504,7 +1518,9 @@ export default {
           <AttachmentPreview
             class="mt-2"
             :attachments="attachedFiles"
+            :allow-recorded-audio="isAWhatsmeowChannel && !isOnPrivateNote"
             @remove-attachment="removeAttachment"
+            @toggle-recorded-audio="toggleRecordedAudio"
           />
         </div>
         <MessageSignatureMissingAlert

@@ -248,6 +248,8 @@
       "TIP_AUDIORECORDER_PERMISSION": "Allow access to audio",
       "TIP_AUDIORECORDER_ERROR": "Could not open the audio",
       "AUDIO_CONVERSION_FAILED": "Could not prepare this recording as a WhatsApp voice note. Please record it again.",
+      "SEND_AS_RECORDED_AUDIO": "Send as recorded voice message",
+      "SEND_AS_AUDIO_FILE": "Send as audio file",
       "DRAG_DROP": "Drag and drop here to attach",
       "IMAGE_UPLOAD_SUCCESS": "Image uploaded successfully",
       "START_AUDIO_RECORDING": "Start audio recording",
