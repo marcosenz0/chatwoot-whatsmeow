@@ -249,6 +249,7 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 ## August 2026 Uploaded Voice Notes
 
 - Audio selected through drag-and-drop or the attachment picker is identified with an audio icon in the composer. Whatsmeow conversations expose a microphone toggle that lets the operator choose between a regular audio file and a WhatsApp recorded voice note.
+- The toggle is a visible labeled button and recognizes the original upload metadata or filename extension, including MP3 direct uploads whose stored blob reports a generic MIME type.
 - The recorded-audio selection is transported through `whatsmeow_recorded_audio`; the existing Go media path converts it to OGG/Opus, adds duration/waveform metadata, and sends it as PTT.
 - Whatsmeow attachments now enqueue `SendReplyJob` immediately instead of entering Sidekiq's scheduled set. This removes the attachment-only scheduling bottleneck that could turn the intended two-second wait into several minutes on staging.
 

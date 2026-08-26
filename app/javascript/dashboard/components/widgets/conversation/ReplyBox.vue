@@ -1147,6 +1147,13 @@ export default {
     attachFile({ blob, file }) {
       if (!this.showFileUpload && !this.isOnPrivateNote) return;
 
+      const originalFileType = file?.file?.type || file?.type || '';
+      const originalFileName = file?.file?.name || file?.name || '';
+      const isAudio =
+        originalFileType.startsWith('audio/') ||
+        /\.(aac|amr|m4a|mp3|mpeg|oga|ogg|opus|wav|webm)$/i.test(
+          originalFileName
+        );
       const reader = new FileReader();
       reader.readAsDataURL(file.file);
       reader.onloadend = () => {
@@ -1158,6 +1165,7 @@ export default {
           blobSignedId: blob ? blob.signed_id : undefined,
           isRecordedAudio: file?.isRecordedAudio || false,
           isVoiceMessage: file?.isVoiceMessage || false,
+          isAudio,
           sendAsRecordedAudio: false,
         });
       };

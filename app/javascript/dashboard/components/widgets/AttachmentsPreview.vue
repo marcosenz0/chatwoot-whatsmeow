@@ -46,10 +46,20 @@ const isTypeImage = file => {
   return type.includes('image');
 };
 
+const AUDIO_FILE_EXTENSION = /\.(aac|amr|m4a|mp3|mpeg|oga|ogg|opus|wav|webm)$/i;
+
 const fileType = file =>
   file?.content_type || file?.type || file?.file?.type || '';
 
-const isTypeAudio = file => fileType(file).startsWith('audio/');
+const isTypeAudio = attachment => {
+  if (attachment?.isAudio) return true;
+
+  const resource = attachment?.resource || attachment;
+  const type = fileType(resource);
+  const name = resource?.filename || resource?.name || '';
+
+  return type.startsWith('audio/') || AUDIO_FILE_EXTENSION.test(name);
+};
 
 const fileName = file => {
   return file.filename || file.name;
@@ -66,7 +76,7 @@ const recordedAudioLabel = attachment =>
     <div
       v-for="{ attachment, index } in visibleAttachments"
       :key="attachment.id || attachment.blobSignedId || index"
-      class="flex items-center p-1 bg-n-slate-3 gap-1 rounded-md w-[19rem] max-w-full"
+      class="flex items-center p-1 bg-n-slate-3 gap-1 rounded-md w-[30rem] max-w-full"
     >
       <div class="max-w-[4rem] flex-shrink-0 w-6 flex items-center">
         <img
@@ -75,7 +85,7 @@ const recordedAudioLabel = attachment =>
           :src="attachment.thumb"
         />
         <Icon
-          v-else-if="isTypeAudio(attachment.resource)"
+          v-else-if="isTypeAudio(attachment)"
           icon="i-lucide-audio-lines"
           class="size-5 text-n-slate-10"
         />
@@ -95,12 +105,14 @@ const recordedAudioLabel = attachment =>
       </div>
       <div class="flex items-center justify-center">
         <Button
-          v-if="allowRecordedAudio && isTypeAudio(attachment.resource)"
+          v-if="allowRecordedAudio && isTypeAudio(attachment)"
           v-tooltip="recordedAudioLabel(attachment)"
           :aria-label="recordedAudioLabel(attachment)"
           :aria-pressed="attachment.sendAsRecordedAudio ? 'true' : 'false'"
           :variant="attachment.sendAsRecordedAudio ? 'faded' : 'ghost'"
           :color="attachment.sendAsRecordedAudio ? 'teal' : 'slate'"
+          :label="recordedAudioLabel(attachment)"
+          class="max-w-[14rem]"
           xs
           icon="i-lucide-mic"
           @click="emit('toggleRecordedAudio', index)"
