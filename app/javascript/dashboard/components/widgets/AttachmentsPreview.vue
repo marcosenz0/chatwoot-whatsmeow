@@ -65,10 +65,15 @@ const fileName = file => {
   return file.filename || file.name;
 };
 
-const recordedAudioLabel = attachment =>
+const recordedAudioModeLabel = attachment =>
   attachment.sendAsRecordedAudio
-    ? t('CONVERSATION.REPLYBOX.SEND_AS_AUDIO_FILE')
-    : t('CONVERSATION.REPLYBOX.SEND_AS_RECORDED_AUDIO');
+    ? t('CONVERSATION.REPLYBOX.RECORDED_AUDIO_LABEL')
+    : t('CONVERSATION.REPLYBOX.AUDIO_FILE_LABEL');
+
+const recordedAudioTooltip = attachment =>
+  attachment.sendAsRecordedAudio
+    ? t('CONVERSATION.REPLYBOX.RECORDED_AUDIO_TOOLTIP')
+    : t('CONVERSATION.REPLYBOX.AUDIO_FILE_TOOLTIP');
 </script>
 
 <template>
@@ -106,15 +111,19 @@ const recordedAudioLabel = attachment =>
       <div class="flex items-center justify-center">
         <Button
           v-if="allowRecordedAudio && isTypeAudio(attachment)"
-          v-tooltip="recordedAudioLabel(attachment)"
-          :aria-label="recordedAudioLabel(attachment)"
+          v-tooltip="recordedAudioTooltip(attachment)"
+          :aria-label="recordedAudioTooltip(attachment)"
           :aria-pressed="attachment.sendAsRecordedAudio ? 'true' : 'false'"
-          :variant="attachment.sendAsRecordedAudio ? 'faded' : 'ghost'"
+          :variant="attachment.sendAsRecordedAudio ? 'solid' : 'outline'"
           :color="attachment.sendAsRecordedAudio ? 'teal' : 'slate'"
-          :label="recordedAudioLabel(attachment)"
-          class="max-w-[14rem]"
+          :label="recordedAudioModeLabel(attachment)"
+          class="min-w-[5rem] font-semibold shadow-sm"
           xs
-          icon="i-lucide-mic"
+          :icon="
+            attachment.sendAsRecordedAudio
+              ? 'i-lucide-mic'
+              : 'i-lucide-file-audio'
+          "
           @click="emit('toggleRecordedAudio', index)"
         />
         <Button

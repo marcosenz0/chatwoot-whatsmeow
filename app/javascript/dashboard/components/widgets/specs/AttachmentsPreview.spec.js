@@ -26,10 +26,11 @@ describe('AttachmentsPreview', () => {
     );
 
     const toggle = wrapper.find(
-      '[aria-label="Send as recorded voice message"]'
+      '[aria-label="Será enviado como arquivo de áudio. Clique para enviar como gravado."]'
     );
     expect(toggle.attributes('aria-pressed')).toBe('false');
-    expect(toggle.text()).toBe('Send as recorded voice message');
+    expect(toggle.text()).toBe('Arquivo');
+    expect(toggle.classes()).toContain('outline-n-strong');
 
     await toggle.trigger('click');
 
@@ -41,8 +42,12 @@ describe('AttachmentsPreview', () => {
       { ...audioAttachment, sendAsRecordedAudio: true },
     ]);
 
-    const toggle = wrapper.find('[aria-label="Send as audio file"]');
+    const toggle = wrapper.find(
+      '[aria-label="Será enviado como mensagem de voz gravada. Clique para enviar como arquivo."]'
+    );
     expect(toggle.attributes('aria-pressed')).toBe('true');
+    expect(toggle.text()).toBe('Gravado');
+    expect(toggle.classes()).toContain('bg-n-teal-9');
   });
 
   it('recognizes an MP3 when direct upload returns a generic MIME type', () => {
@@ -61,7 +66,11 @@ describe('AttachmentsPreview', () => {
       'i-lucide-audio-lines'
     );
     expect(
-      wrapper.find('[aria-label="Send as recorded voice message"]').exists()
+      wrapper
+        .find(
+          '[aria-label="Será enviado como arquivo de áudio. Clique para enviar como gravado."]'
+        )
+        .exists()
     ).toBe(true);
   });
 
@@ -69,7 +78,11 @@ describe('AttachmentsPreview', () => {
     const wrapper = mountComponent([audioAttachment], false);
 
     expect(
-      wrapper.find('[aria-label="Send as recorded voice message"]').exists()
+      wrapper
+        .find(
+          '[aria-label="Será enviado como arquivo de áudio. Clique para enviar como gravado."]'
+        )
+        .exists()
     ).toBe(false);
   });
 });
