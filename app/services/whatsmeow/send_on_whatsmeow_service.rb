@@ -1,6 +1,8 @@
 require 'base64'
 
 class Whatsmeow::SendOnWhatsmeowService
+  ATTACHMENT_FETCH_RETRY_DELAYS = [0, 1, 2, 4].freeze
+
   pattr_initialize [:message!]
 
   def perform
@@ -72,10 +74,28 @@ class Whatsmeow::SendOnWhatsmeowService
       "Whatsmeow: Attachment #{attachment.id} is unavailable in the worker storage; downloading it from the web service"
     )
 
-    SafeFetch.fetch(
-      attachment.download_url,
-      allowed_content_type_prefixes: %w[application/ audio/ image/ text/ video/]
-    ) { |result| result.tempfile.read }
+    fetch_attachment_from_web(attachment)
+  end
+
+  def fetch_attachment_from_web(attachment)
+    ATTACHMENT_FETCH_RETRY_DELAYS.each_with_index do |delay, index|
+      sleep(delay) if delay.positive?
+
+      return SafeFetch.fetch(
+        attachment.download_url,
+        allowed_content_type_prefixes: %w[application/ audio/ image/ text/ video/]
+      ) { |result| result.tempfile.read }
+    rescue SafeFetch::HttpError => e
+      raise unless attachment_not_ready?(e) && index < ATTACHMENT_FETCH_RETRY_DELAYS.length - 1
+
+      Rails.logger.warn(
+        "Whatsmeow: Attachment #{attachment.id} returned 404 while becoming available; retrying web download"
+      )
+    end
+  end
+
+  def attachment_not_ready?(error)
+    error.message.start_with?('404 ')
   end
 
   def body_content

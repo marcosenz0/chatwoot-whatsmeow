@@ -71,6 +71,28 @@ RSpec.describe Whatsmeow::SendOnWhatsmeowService do
           data_base64: Base64.strict_encode64('recovered-audio-content')
         )
       end
+
+      context 'when the attachment URL is not ready yet' do
+        before do
+          attempts = 0
+          allow(service).to receive(:sleep)
+          allow(SafeFetch).to receive(:fetch) do |_url, **_options, &block|
+            attempts += 1
+            raise SafeFetch::HttpError, '404 Not Found' if attempts < 3
+
+            block.call(downloaded_file)
+          end
+        end
+
+        it 'retries the signed URL until the attachment is available' do
+          payload = service.send(:attachments_payload).first
+
+          expect(payload[:data_base64]).to eq(Base64.strict_encode64('recovered-audio-content'))
+          expect(SafeFetch).to have_received(:fetch).exactly(3).times
+          expect(service).to have_received(:sleep).with(1)
+          expect(service).to have_received(:sleep).with(2)
+        end
+      end
     end
   end
 end
