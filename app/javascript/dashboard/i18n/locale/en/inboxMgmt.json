@@ -670,6 +670,7 @@
       }
     },
     "TABS": {
+      "HOME": "Home",
       "SETTINGS": "Settings",
       "COLLABORATORS": "Collaborators",
       "CONFIGURATION": "Configuration",

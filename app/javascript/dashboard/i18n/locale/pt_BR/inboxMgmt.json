@@ -672,6 +672,7 @@
       }
     },
     "TABS": {
+      "HOME": "Início",
       "SETTINGS": "Configurações",
       "COLLABORATORS": "Agentes",
       "CONFIGURATION": "Configuração",

@@ -170,7 +170,7 @@ export default {
       let visibleToAllChannelTabs = [
         {
           key: 'inbox-settings',
-          name: this.$t('INBOX_MGMT.TABS.SETTINGS'),
+          name: this.$t('INBOX_MGMT.TABS.HOME'),
         },
         {
           key: 'collaborators',

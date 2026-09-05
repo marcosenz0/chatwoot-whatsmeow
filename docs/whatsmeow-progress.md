@@ -287,3 +287,10 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Local Docker may not be available; use GitHub Actions and staging deploy for end-to-end checks when needed.
 - Portable Go can be used from `.codex/tools/go/bin/go.exe` if system Go is missing.
 - Do not commit generated binaries such as `whatsmeow-service.exe`.
+
+## September 2026 Inbox Configuration Shortcut
+
+- Right-clicking a channel in the expanded sidebar or collapsed channel list opens a Configuration action for that inbox, using the current account and inbox ID.
+- The shortcut follows the permissions and feature flag of the existing inbox settings route and opens the configuration tab directly. Channels without that tab retain the existing fallback to the first tab.
+- The first inbox settings tab now reads Home / Início, preserving the separate Configuration tab and existing URLs. The pt-BR label was explicitly requested for this fork.
+- Validation: ESLint passed for the changed Vue components; the six existing sidebar tests passed with a local-only PostCSS bypass because this workstation lacks postcss-import.

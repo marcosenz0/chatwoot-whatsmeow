@@ -189,6 +189,7 @@ onMounted(async () => {
                           !isActive(subChild),
                       }"
                       @click="navigateAndClose(subChild.to)"
+                      @contextmenu="subChild.onContextmenu?.($event)"
                     >
                       <component
                         :is="renderIcon(subChild.icon).component"

@@ -6,6 +6,8 @@ import { useConfig } from 'dashboard/composables/useConfig';
 import { useKbd } from 'dashboard/composables/utils/useKbd';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useStore } from 'vuex';
+import { useRouter } from 'vue-router';
+import { usePolicy } from 'dashboard/composables/usePolicy';
 import { useI18n } from 'vue-i18n';
 import { useSidebarKeyboardShortcuts } from './useSidebarKeyboardShortcuts';
 import { vOnClickOutside } from '@vueuse/components';
@@ -14,6 +16,7 @@ import { useWindowSize, useEventListener } from '@vueuse/core';
 import { useRoute } from 'vue-router';
 
 import Button from 'dashboard/components-next/button/Button.vue';
+import ContextMenu from 'dashboard/components/ui/ContextMenu.vue';
 import SidebarGroup from './SidebarGroup.vue';
 import SidebarProfileMenu from './SidebarProfileMenu.vue';
 import SidebarChangelogCard from './SidebarChangelogCard.vue';
@@ -62,6 +65,36 @@ const isCallsAvailable = computed(
 );
 const searchShortcut = useKbd([`$mod`, 'k']);
 const { t } = useI18n();
+const router = useRouter();
+const { shouldShow } = usePolicy();
+const inboxContextMenu = ref(null);
+
+const closeInboxContextMenu = () => {
+  inboxContextMenu.value = null;
+};
+
+const openInboxContextMenu = (event, inbox) => {
+  const to = accountScopedRoute('settings_inbox_show', {
+    inboxId: inbox.id,
+    tab: 'configuration',
+  });
+  const { featureFlag, permissions } = router.resolve(to).meta;
+  if (!shouldShow(featureFlag, permissions)) return;
+
+  event.preventDefault();
+  inboxContextMenu.value = { x: event.clientX, y: event.clientY, to };
+};
+
+const openInboxConfiguration = () => {
+  const { to } = inboxContextMenu.value;
+  closeInboxContextMenu();
+  router.push(to);
+};
+
+watch(() => router.currentRoute.value.fullPath, closeInboxContextMenu);
+useEventListener('keydown', event => {
+  if (event.key === 'Escape') closeInboxContextMenu();
+});
 
 const isACustomBrandedInstance = useMapGetter(
   'globalConfig/isACustomBrandedInstance'
@@ -566,6 +599,7 @@ const menuItems = computed(() => {
             badgeCount: getInboxUnreadCount.value(inbox.id),
             icon: h(ChannelIcon, { inbox, class: 'size-[16px]' }),
             to: accountScopedRoute('inbox_dashboard', { inbox_id: inbox.id }),
+            onContextmenu: event => openInboxContextMenu(event, inbox),
             component: leafProps =>
               h(ChannelLeaf, {
                 label: leafProps.label,
@@ -1197,5 +1231,25 @@ const menuItems = computed(() => {
         :class="{ 'bg-n-brand': isResizing }"
       />
     </div>
+    <ContextMenu
+      v-if="inboxContextMenu"
+      :x="inboxContextMenu.x"
+      :y="inboxContextMenu.y"
+      @close="closeInboxContextMenu"
+    >
+      <div
+        class="p-1 rounded-lg bg-n-solid-2 shadow-lg outline outline-1 outline-n-weak"
+      >
+        <button
+          type="button"
+          class="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-n-slate-12 hover:bg-n-alpha-2"
+          @mousedown.prevent
+          @click="openInboxConfiguration"
+        >
+          <span class="i-lucide-settings size-4" />
+          {{ t('INBOX_MGMT.TABS.CONFIGURATION') }}
+        </button>
+      </div>
+    </ContextMenu>
   </aside>
 </template>

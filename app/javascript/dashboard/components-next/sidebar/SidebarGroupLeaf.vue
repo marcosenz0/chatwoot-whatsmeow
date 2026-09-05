@@ -16,6 +16,8 @@ const props = defineProps({
   thinTreeLine: { type: Boolean, default: false },
 });
 
+const emit = defineEmits(['contextmenu']);
+
 const { resolvePermissions, resolveFeatureFlag } = useSidebarContext();
 
 const shouldRenderComponent = computed(() => {
@@ -48,6 +50,7 @@ const TREE_CONNECTOR =
       :class="{
         'text-n-slate-12 bg-n-alpha-2 active': active,
       }"
+      @contextmenu="emit('contextmenu', $event)"
     >
       <component
         :is="component"
