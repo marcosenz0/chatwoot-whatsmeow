@@ -968,6 +968,8 @@
           "IMAGE_ALT": "QR Code de pareamento do WhatsApp",
           "WAITING": "Aguardando o telefone concluir o pareamento...",
           "GENERATE": "Gerar QR Code de conexão",
+          "REFRESH": "Atualizar QR Code",
+          "ENDED": "O pareamento terminou ou o QR Code expirou. Clique em Atualizar QR Code para tentar novamente.",
           "CANCEL": "Cancelar pareamento"
         },
         "SETTINGS": {

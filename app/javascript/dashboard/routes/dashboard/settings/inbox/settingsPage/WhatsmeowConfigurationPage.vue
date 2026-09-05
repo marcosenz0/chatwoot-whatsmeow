@@ -45,6 +45,8 @@ const whatsmeowJid = ref('');
 const qrCodeUrl = ref('');
 const isFetchingStatus = ref(false);
 const isPairing = ref(false);
+const isGeneratingQR = ref(false);
+const pairingEnded = ref(false);
 const isDisconnecting = ref(false);
 const pollInterval = ref(null);
 const statusController = shallowRef(null);
@@ -142,19 +144,21 @@ const applySessionPayload = payload => {
   whatsmeowJid.value = payload.jid || '';
   syncInboxConnectionStatus(payload);
 
-  if (payload.qr_code) {
-    qrCodeUrl.value = payload.qr_code;
-  }
+  qrCodeUrl.value = payload.qr_code || '';
 
-  if (nextStatus === 'connected') {
+  if (nextStatus === 'connected' || nextStatus === 'disconnected') {
+    pairingEnded.value = isPairing.value && nextStatus === 'disconnected';
     isPairing.value = false;
     qrCodeUrl.value = '';
     clearPolling();
+  } else if (qrCodeUrl.value) {
+    isPairing.value = true;
+    pairingEnded.value = false;
   }
 };
 
 const fetchWhatsmeowStatus = async ({ showLoader = false } = {}) => {
-  if (!props.inbox.id) return;
+  if (!props.inbox.id || isGeneratingQR.value) return;
   if (statusController.value) {
     if (!showLoader) return;
     cancelStatusRequest();
@@ -169,7 +173,11 @@ const fetchWhatsmeowStatus = async ({ showLoader = false } = {}) => {
       signal: controller.signal,
       timeout: STATUS_REQUEST_TIMEOUT,
     });
+    if (statusController.value !== controller) return;
     applySessionPayload(data);
+    if (isPairing.value && !pollInterval.value) {
+      pollInterval.value = setInterval(fetchWhatsmeowStatus, POLLING_INTERVAL);
+    }
   } catch (error) {
     if (error.name !== 'CanceledError' && error.code !== 'ERR_CANCELED') {
       useAlert(t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.API.STATUS_ERROR'));
@@ -187,35 +195,44 @@ const startStatusPolling = () => {
   pollInterval.value = setInterval(fetchWhatsmeowStatus, POLLING_INTERVAL);
 };
 
-const generateQRCode = async () => {
-  if (!props.inbox.id) return;
+const generateQRCode = async ({ forceNew = false } = {}) => {
+  if (!props.inbox.id || isGeneratingQR.value) return;
 
+  clearPolling();
+  cancelStatusRequest();
+  isFetchingStatus.value = false;
+  isGeneratingQR.value = true;
+  pairingEnded.value = false;
   isPairing.value = true;
   qrCodeUrl.value = '';
 
   try {
     const { data } = await InboxesAPI.createWhatsmeowSession(
       props.inbox.id,
-      {},
+      { force_new: forceNew },
       { timeout: STATUS_REQUEST_TIMEOUT }
     );
     applySessionPayload(data);
 
-    if (!isConnected.value) {
+    if (['connecting', 'pairing'].includes(data.status)) {
       startStatusPolling();
-    } else {
+    } else if (isConnected.value) {
       useAlert(t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.API.CONNECTED'));
     }
   } catch (error) {
     isPairing.value = false;
     clearPolling();
     useAlert(t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.API.QR_ERROR'));
+  } finally {
+    isGeneratingQR.value = false;
   }
 };
 
 const cancelPairing = () => {
   isPairing.value = false;
+  qrCodeUrl.value = '';
   clearPolling();
+  cancelStatusRequest();
 };
 
 const disconnectSession = async () => {
@@ -334,16 +351,32 @@ onBeforeUnmount(() => {
             </span>
           </div>
 
+          <p
+            v-if="pairingEnded"
+            role="status"
+            class="text-body-main text-n-slate-11"
+          >
+            {{ $t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.QR.ENDED') }}
+          </p>
+
           <div class="flex flex-wrap justify-end gap-2">
             <NextButton
               outline
               slate
               size="sm"
               icon="i-lucide-refresh-cw"
-              :label="$t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.STATUS.REFRESH')"
-              :is-loading="isFetchingStatus"
-              :disabled="isFetchingStatus"
-              @click="fetchWhatsmeowStatus({ showLoader: true })"
+              :label="
+                isConnected
+                  ? $t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.STATUS.REFRESH')
+                  : $t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.QR.REFRESH')
+              "
+              :is-loading="isFetchingStatus || isGeneratingQR"
+              :disabled="isFetchingStatus || isGeneratingQR || isDisconnecting"
+              @click="
+                isConnected
+                  ? fetchWhatsmeowStatus({ showLoader: true })
+                  : generateQRCode({ forceNew: true })
+              "
             />
             <NextButton
               v-if="isConnected"
@@ -363,9 +396,9 @@ onBeforeUnmount(() => {
               size="sm"
               icon="i-lucide-plug"
               :label="$t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.STATUS.CONNECT')"
-              :is-loading="isPairing && !qrCodeUrl"
-              :disabled="isPairing"
-              @click="generateQRCode"
+              :is-loading="isGeneratingQR"
+              :disabled="isPairing || isGeneratingQR"
+              @click="generateQRCode()"
             />
             <NextButton
               v-if="isPairing && !isConnected"
@@ -373,6 +406,7 @@ onBeforeUnmount(() => {
               ruby
               size="sm"
               :label="$t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.QR.CANCEL')"
+              :disabled="isGeneratingQR"
               @click="cancelPairing"
             />
           </div>

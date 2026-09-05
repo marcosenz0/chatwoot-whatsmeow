@@ -52,7 +52,7 @@ const (
 var (
 	clients             = make(map[string]*whatsmeow.Client)
 	clientsMu           sync.RWMutex
-	qrCodes             = make(map[string]string)
+	qrCodes             = make(map[string]pairingQRCode)
 	qrCodesMu           sync.RWMutex
 	profilePictureCache = make(map[string]cacheEntry)
 	profilePictureMu    sync.RWMutex
@@ -69,6 +69,32 @@ var (
 type cacheEntry struct {
 	Value     string
 	ExpiresAt time.Time
+}
+
+type pairingQRCode struct {
+	Value     string
+	ExpiresAt time.Time
+	Client    *whatsmeow.Client
+}
+
+func activeQRCode(channelID string) string {
+	clientsMu.RLock()
+	defer clientsMu.RUnlock()
+	qrCodesMu.RLock()
+	defer qrCodesMu.RUnlock()
+	qr := qrCodes[channelID]
+	if qr.Client == nil || clients[channelID] != qr.Client || !qr.Client.IsConnected() || qr.Client.IsLoggedIn() || !time.Now().Before(qr.ExpiresAt) {
+		return ""
+	}
+	return qr.Value
+}
+
+func clearPairingQRCode(channelID string, client *whatsmeow.Client) {
+	qrCodesMu.Lock()
+	defer qrCodesMu.Unlock()
+	if qrCodes[channelID].Client == client {
+		delete(qrCodes, channelID)
+	}
 }
 
 type SessionRequest struct {
@@ -895,7 +921,7 @@ func handleCreateSession(c *gin.Context) {
 	client, exists := clients[req.ChannelID]
 	clientsMu.RUnlock()
 
-	if exists && client != nil && !req.ForceNew {
+	if exists && client != nil && (!req.ForceNew || client.IsLoggedIn() || client.Store.ID != nil) {
 		if client.IsConnected() && client.IsLoggedIn() {
 			payload := gin.H{
 				"status":     "connected",
@@ -911,9 +937,7 @@ func handleCreateSession(c *gin.Context) {
 		}
 
 		if client.IsConnected() {
-			qrCodesMu.RLock()
-			qrCodeBase64 := qrCodes[req.ChannelID]
-			qrCodesMu.RUnlock()
+			qrCodeBase64 := activeQRCode(req.ChannelID)
 
 			payload := gin.H{
 				"status":     "connecting",
@@ -987,36 +1011,63 @@ func handleCreateSession(c *gin.Context) {
 	// Start connection and listen for QR code
 	if client.Store.ID == nil {
 		// New login, register QR channel
-		qrChan, err := client.GetQRChannel(context.Background())
+		qrContext, cancelQR := context.WithTimeout(context.Background(), 3*time.Minute)
+		qrChan, err := client.GetQRChannel(qrContext)
 		if err != nil {
+			cancelQR()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get QR channel: %v", err)})
 			return
 		}
 
 		err = client.Connect()
 		if err != nil {
+			cancelQR()
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to connect: %v", err)})
 			return
 		}
 
 		// Handle QR generation in background
 		go func() {
-			for qrEvt := range qrChan {
+			defer cancelQR()
+			defer clearPairingQRCode(req.ChannelID, client)
+			for {
+				var qrEvt whatsmeow.QRChannelItem
+				select {
+				case evt, open := <-qrChan:
+					if !open {
+						return
+					}
+					qrEvt = evt
+				case <-qrContext.Done():
+					return
+				}
+				clientsMu.RLock()
+				isCurrentClient := clients[req.ChannelID] == client
+				clientsMu.RUnlock()
+				if !isCurrentClient {
+					return
+				}
 				if qrEvt.Event == "code" {
 					log.Printf("New QR Code generated for channel %s", req.ChannelID)
 					// Generate base64 PNG image of QR Code
 					png, err := qrcode.Encode(qrEvt.Code, qrcode.Medium, 256)
 					if err == nil {
 						base64Img := base64.StdEncoding.EncodeToString(png)
-						qrCodesMu.Lock()
-						qrCodes[req.ChannelID] = "data:image/png;base64," + base64Img
-						qrCodesMu.Unlock()
+						clientsMu.RLock()
+						if clients[req.ChannelID] == client {
+							qrCodesMu.Lock()
+							qrCodes[req.ChannelID] = pairingQRCode{
+								Value:     "data:image/png;base64," + base64Img,
+								ExpiresAt: time.Now().Add(qrEvt.Timeout),
+								Client:    client,
+							}
+							qrCodesMu.Unlock()
+						}
+						clientsMu.RUnlock()
 					}
 				} else if qrEvt.Event == "success" {
 					log.Printf("Successfully paired channel %s", req.ChannelID)
-					qrCodesMu.Lock()
-					delete(qrCodes, req.ChannelID)
-					qrCodesMu.Unlock()
+					clearPairingQRCode(req.ChannelID, client)
 
 					// Wait a brief moment for Client Store ID to populate
 					time.Sleep(1 * time.Second)
@@ -1035,6 +1086,14 @@ func handleCreateSession(c *gin.Context) {
 						"event":  "paired",
 						"status": "success",
 					})
+					return
+				} else if qrEvt.Event == "timeout" || qrEvt.Event == "error" || strings.HasPrefix(qrEvt.Event, "err-") {
+					log.Printf("Pairing ended for channel %s: %s", req.ChannelID, qrEvt.Event)
+					clearPairingQRCode(req.ChannelID, client)
+					if !client.IsLoggedIn() && client.Store.ID == nil {
+						safeDisconnectClient(client)
+					}
+					return
 				}
 			}
 		}()
@@ -1042,9 +1101,7 @@ func handleCreateSession(c *gin.Context) {
 		// Wait briefly for first QR code to be generated
 		time.Sleep(1 * time.Second)
 
-		qrCodesMu.RLock()
-		qrCodeBase64 := qrCodes[req.ChannelID]
-		qrCodesMu.RUnlock()
+		qrCodeBase64 := activeQRCode(req.ChannelID)
 
 		c.JSON(http.StatusOK, gin.H{
 			"status":     "pairing",
@@ -1092,11 +1149,9 @@ func handleCreateSession(c *gin.Context) {
 func handleGetQR(c *gin.Context) {
 	channelID := c.Param("channel_id")
 
-	qrCodesMu.RLock()
-	qrCodeBase64, exists := qrCodes[channelID]
-	qrCodesMu.RUnlock()
+	qrCodeBase64 := activeQRCode(channelID)
 
-	if !exists {
+	if qrCodeBase64 == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "No active QR Code found for this channel. Start session first."})
 		return
 	}
@@ -1125,9 +1180,7 @@ func handleGetStatus(c *gin.Context) {
 		status = "connecting"
 	}
 
-	qrCodesMu.RLock()
-	qrCodeBase64 := qrCodes[channelID]
-	qrCodesMu.RUnlock()
+	qrCodeBase64 := activeQRCode(channelID)
 
 	payload := gin.H{
 		"status": status,

@@ -298,3 +298,11 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Live Chrome verification passed: right-click Pocobusine opens account 2 / inbox 15 / configuration; right-click Note12busine opens inbox 12 / configuration. The first tab renders Início and the separate Configuration tab remains available.
 - Deployment initially stayed Pending because Docker Swarm could not reserve resources for simultaneous old/new containers (`no suitable node: insufficient resources`). Temporarily switching each service update to stop-first completed the deployment; original start-first policy was restored after both services ran the new image. Future deployments on this VPS may hit the same reservation constraint.
 - Post-deployment Chatwoot API health returned HTTP 200 with queue/data services OK. Whatsmeow remained healthy; no Whatsmeow redeployment was needed.
+
+## September 2026 Pairing QR Refresh and Expiration
+
+- Whatsmeow QR entries now carry the generating client and the expiration supplied by the library. Status/QR endpoints only return a current, unexpired code from the active, unpaired connection.
+- Pairing completion, timeout, and errors clear the cached QR. Replaced pairing listeners cannot overwrite or delete a newer client's code; their context is bounded to avoid abandoned listeners.
+- Configuration now offers Refresh QR code / Atualizar QR Code while disconnected or pairing. It sends force_new to Whatsmeow, cancels old status requests, and prevents duplicate generation clicks. An already authenticated client is preserved even if a refresh request arrives after pairing succeeds.
+- The frontend clears absent/expired codes, exits the connecting state on disconnection, and offers instructions to refresh. Existing pairing codes resume polling when reopening Configuration. Connected sessions retain Refresh status.
+- Local validation: Go service tests pass and the changed Vue component passes ESLint. Live publication and pairing-cycle checks pending.

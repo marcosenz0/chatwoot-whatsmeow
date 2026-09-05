@@ -1037,6 +1037,8 @@
           "IMAGE_ALT": "WhatsApp pairing QR code",
           "WAITING": "Waiting for the phone to finish pairing...",
           "GENERATE": "Generate connection QR code",
+          "REFRESH": "Refresh QR code",
+          "ENDED": "The pairing attempt ended or the QR code expired. Refresh the QR code to try again.",
           "CANCEL": "Cancel pairing"
         },
         "SETTINGS": {
