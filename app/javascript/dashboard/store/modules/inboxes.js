@@ -159,6 +159,16 @@ const sendAnalyticsEvent = channelType => {
 const inboxWithWhatsmeowStatus = (inbox, payload = {}) => {
   const nextStatus = payload.status || 'disconnected';
   const nextPhoneNumber = payload.phone_number;
+  const hasSameStatus =
+    inbox.status === nextStatus &&
+    (!inbox.channel || inbox.channel.status === nextStatus);
+  const hasSamePhoneNumber =
+    !nextPhoneNumber ||
+    (inbox.phone_number === nextPhoneNumber &&
+      (!inbox.channel || inbox.channel.phone_number === nextPhoneNumber));
+
+  if (hasSameStatus && hasSamePhoneNumber) return inbox;
+
   const nextChannel = inbox.channel
     ? {
         ...inbox.channel,
@@ -380,15 +390,17 @@ export const actions = {
             const { data } = await InboxesAPI.getWhatsmeowStatus(inbox.id, {
               timeout: WHATSMEOW_STATUS_REQUEST_TIMEOUT,
             });
-            commit(
-              types.default.EDIT_INBOXES,
-              inboxWithWhatsmeowStatus(inbox, data)
+            const currentInbox = $state.records.find(
+              record => record.id === inbox.id
             );
+            if (!currentInbox || !data.status) return;
+
+            const updatedInbox = inboxWithWhatsmeowStatus(currentInbox, data);
+            if (updatedInbox !== currentInbox) {
+              commit(types.default.EDIT_INBOXES, updatedInbox);
+            }
           } catch {
-            commit(
-              types.default.EDIT_INBOXES,
-              inboxWithWhatsmeowStatus(inbox, { status: 'disconnected' })
-            );
+            // A failed status request does not confirm a session disconnection.
           }
         })
       );
