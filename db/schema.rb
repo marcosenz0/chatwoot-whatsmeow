@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_08_10_190000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_22_190000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -705,6 +705,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_10_190000) do
     t.boolean "hide_status_views", default: false, null: false
     t.boolean "ignore_newsletters", default: true, null: false
     t.boolean "typing_enabled", default: true, null: false
+    t.integer "history_sync_days", default: 90, null: false
+    t.boolean "history_sync_auto", default: true, null: false
+    t.jsonb "history_sync_state", default: {}, null: false
     t.index ["phone_number"], name: "index_channel_whatsmeow_on_phone_number"
   end
 
@@ -1703,6 +1706,34 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_10_190000) do
     t.index ["source_id"], name: "index_whatsapp_campaign_deliveries_on_source_id"
   end
 
+  create_table "whatsmeow_history_chats", force: :cascade do |t|
+    t.bigint "inbox_id", null: false
+    t.string "chat_jid", null: false
+    t.string "message_id", null: false
+    t.datetime "message_at", null: false
+    t.string "sender_jid", default: "", null: false
+    t.boolean "from_me", default: false, null: false
+    t.string "requested_id"
+    t.datetime "requested_at"
+    t.index ["inbox_id", "chat_jid"], name: "idx_whatsmeow_history_chat", unique: true
+    t.index ["inbox_id"], name: "index_whatsmeow_history_chats_on_inbox_id"
+  end
+
+  create_table "whatsmeow_history_messages", force: :cascade do |t|
+    t.bigint "inbox_id", null: false
+    t.string "chat_jid", null: false
+    t.string "message_id", null: false
+    t.datetime "message_at", null: false
+    t.binary "payload", null: false
+    t.datetime "imported_at"
+    t.integer "attempts", default: 0, null: false
+    t.datetime "retry_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.datetime "received_at", default: -> { "CURRENT_TIMESTAMP" }, null: false
+    t.index ["inbox_id", "imported_at", "retry_at"], name: "idx_whatsmeow_history_pending"
+    t.index ["inbox_id", "message_id"], name: "idx_whatsmeow_history_message", unique: true
+    t.index ["inbox_id"], name: "index_whatsmeow_history_messages_on_inbox_id"
+  end
+
   create_table "whatsmeow_stickers", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "user_id", null: false
@@ -1827,6 +1858,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_08_10_190000) do
   add_foreign_key "whatsapp_campaign_deliveries", "campaigns"
   add_foreign_key "whatsapp_campaign_deliveries", "contacts"
   add_foreign_key "whatsapp_campaign_deliveries", "messages"
+  add_foreign_key "whatsmeow_history_chats", "inboxes", on_delete: :cascade
+  add_foreign_key "whatsmeow_history_messages", "inboxes", on_delete: :cascade
   add_foreign_key "whatsmeow_stickers", "accounts"
   add_foreign_key "whatsmeow_stickers", "attachments"
   add_foreign_key "whatsmeow_stickers", "users"
