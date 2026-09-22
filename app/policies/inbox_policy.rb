@@ -75,7 +75,7 @@ class InboxPolicy < ApplicationPolicy
   end
 
   def whatsmeow_history_state?
-    show?
+    @account_user.administrator? || show?
   end
 
   def whatsmeow_status?
