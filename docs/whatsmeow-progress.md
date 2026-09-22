@@ -331,3 +331,13 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 - Historical messages preserve original timestamps, do not trigger automation/bot replies/read receipts or notification audio, and do not reopen existing conversations. ActionCable still updates the UI. Replayed old imports can repair legacy import-time timestamps. Whatsmeow previous-message pagination uses (created_at, id), allowing older messages imported later to remain accessible.
 - Validation before rollout: all Go tests and go vet pass; 46 existing frontend tests pass (inbox actions/API, ActionCable and conversation mutations); changed frontend files pass ESLint; Ruby syntax checks pass. Full Rails RSpec is unavailable in the local Windows environment due to missing gems; deployment smoke verification remains required.
 - Rollout order: Rails web/migrations, matching Sidekiq, then Go; verify MX before principal. Avoid overlapping Go replicas, and preserve the existing image digest for rollback.
+
+- CI at `a8c8891b08`: 6,039 Rails examples passed, 66 pending, 42 failed. Existing failures include translations, WhatsApp Cloud API/status jobs and the conversation payload expectation missing pre-existing pipeline fields. The focused existing suites passed: Message (82), MessageFinder (5), Whatsmeow SessionClient (8); Conversation passed 99 with the unrelated payload expectation failure. Changed Ruby files pass targeted RuboCop; the full repository lint still reports existing offenses.
+
+## September 22, 2026 — history sync rollout
+
+- Published final Rails image for commit `095ccb922b` as `ghcr.io/marcosenz0/chatwoot-whatsmeow@sha256:24e0d6acab7b1965b9cc21f32af59672ae81ff9ffb4358993fd07c52b2121b5a`.
+- Deployed that digest to MX and principal web/Sidekiq services. Both public health endpoints returned HTTP 200 after restart.
+- Rebuilt and deployed the Go Whatsmeow service from `develop` to both `whatsmeow-mx` and `whatsmeow-staging`; both restored their existing WhatsApp sessions. MX logged 36 recent history messages on startup.
+- MX manual/automatic history sync is active for inbox 1. Live UI verification showed original controls, `1,185 processed / 1,289 received / 104 pending`, and partial availability for three chats. The dashboard channel indicator showed `Synchronizing · 1,185`.
+- Admins can read history progress even when an inbox is not explicitly assigned to their user. The service remains intentionally bounded and reports partial phone availability instead of claiming complete WhatsApp Web parity.
