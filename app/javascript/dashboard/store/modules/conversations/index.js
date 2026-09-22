@@ -219,10 +219,18 @@ export const mutations = {
       chat.messages[pendingMessageIndex] = message;
     } else {
       chat.messages.push(message);
-      chat.timestamp = message.created_at;
+      chat.timestamp = Math.max(chat.timestamp || 0, message.created_at);
+      if (message.content_attributes?.historical) {
+        chat.messages.sort(
+          (a, b) => a.created_at - b.created_at || a.id - b.id
+        );
+      }
       const { conversation: { unread_count: unreadCount = 0 } = {} } = message;
       chat.unread_count = unreadCount;
-      if (selectedChatId === conversationId) {
+      if (
+        selectedChatId === conversationId &&
+        !message.content_attributes?.historical
+      ) {
         emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
       }
     }

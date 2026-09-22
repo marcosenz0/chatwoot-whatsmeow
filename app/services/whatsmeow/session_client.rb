@@ -34,6 +34,10 @@ class Whatsmeow::SessionClient
     )
   end
 
+  def sync_history(from:, pause: false)
+    request(:post, "/sessions/#{@inbox.id}/history/sync", body: { from: from, pause: pause }, timeout: 25)
+  end
+
   def status
     request(:get, "/sessions/#{@inbox.id}/status")
   end

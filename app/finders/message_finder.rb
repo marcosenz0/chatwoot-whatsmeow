@@ -37,6 +37,14 @@ class MessageFinder
   end
 
   def messages_before(before_id)
+    if @conversation.inbox.channel_type == 'Channel::Whatsmeow'
+      anchor = messages.find_by(id: before_id)
+      return [] unless anchor
+
+      return messages.reorder(created_at: :desc, id: :desc)
+                     .where('(messages.created_at, messages.id) < (?, ?)', anchor.created_at, anchor.id).limit(20).reverse
+    end
+
     messages.reorder('created_at desc').where('id < ?', before_id).limit(20).reverse
   end
 
@@ -45,7 +53,7 @@ class MessageFinder
   end
 
   def messages_latest
-    messages.reorder('created_at desc').limit(20).reverse
+    messages.reorder(created_at: :desc, id: :desc).limit(20).reverse
   end
 end
 

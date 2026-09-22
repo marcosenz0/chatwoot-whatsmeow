@@ -88,6 +88,22 @@ class Api::V1::Accounts::InboxesController < Api::V1::Accounts::BaseController
     end
   end
 
+  def whatsmeow_history_state
+    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
+
+    render json: @inbox.channel.history_sync_state
+  end
+
+  def whatsmeow_history_sync
+    return head :not_found unless @inbox.channel_type == 'Channel::Whatsmeow'
+
+    render json: Whatsmeow::SessionClient.new(inbox: @inbox).sync_history(
+      from: params[:from].to_i, pause: ActiveModel::Type::Boolean.new.cast(params[:pause])
+    ), status: :accepted
+  rescue Whatsmeow::SessionClient::Error => e
+    render json: { message: e.message }, status: :unprocessable_entity
+  end
+
   def whatsmeow_status
     handle_whatsmeow_session(&:status)
   end

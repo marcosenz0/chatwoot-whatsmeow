@@ -52,7 +52,11 @@ class Webhooks::WhatsmeowController < ActionController::API
     return process_status if status_payload?
 
     payload = params.to_unsafe_hash
-    Whatsmeow::IncomingMessageService.new(inbox: inbox, params: payload).perform
+    inbox.with_lock do
+      Whatsmeow::IncomingMessageService.new(inbox: inbox, params: payload).perform
+    end
+    return if ActiveModel::Type::Boolean.new.cast(payload['historical'])
+
     Whatsmeow::TypingStatusService.apply_incoming(inbox: inbox, params: payload.merge(state: 'paused'))
   end
 

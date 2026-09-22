@@ -169,6 +169,21 @@ useSidebarKeyboardShortcuts(toggleShortcutModalFn);
 
 const expandedItem = ref(null);
 const whatsmeowStatusSyncInterval = ref(null);
+let historySyncInterval;
+let historySyncPending = false;
+const refreshHistoryProgress = async () => {
+  if (document.hidden || historySyncPending) return;
+  historySyncPending = true;
+  try {
+    await store.dispatch('inboxes/syncWhatsmeowHistory');
+  } finally {
+    historySyncPending = false;
+  }
+};
+onMounted(() => {
+  historySyncInterval = setInterval(refreshHistoryProgress, 10000);
+});
+onBeforeUnmount(() => clearInterval(historySyncInterval));
 const latestWhatsmeowStatusId = ref(0);
 const lastSeenWhatsmeowStatusId = ref(0);
 let whatsmeowStatusActivityRequest = 0;

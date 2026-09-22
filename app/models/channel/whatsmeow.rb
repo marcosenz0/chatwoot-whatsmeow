@@ -13,8 +13,12 @@ class Channel::Whatsmeow < ApplicationRecord
     :ignore_status,
     :hide_status_views,
     :ignore_newsletters,
-    :typing_enabled
+    :typing_enabled,
+    :history_sync_days,
+    :history_sync_auto
   ].freeze
+
+  validates :history_sync_days, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: 3650 }
 
   def name
     'Whatsmeow'

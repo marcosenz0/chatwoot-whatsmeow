@@ -34,6 +34,7 @@ import (
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
+	protobuf "google.golang.org/protobuf/proto"
 )
 
 const (
@@ -394,6 +395,9 @@ func main() {
 	statusLookupDB.SetMaxOpenConns(5)
 	statusLookupDB.SetMaxIdleConns(2)
 
+	configureHistorySync()
+	startHistoryWorker()
+
 	// Auto-restore previous logins
 	go restoreSessions()
 
@@ -411,6 +415,7 @@ func main() {
 
 	// Endpoints
 	r.POST("/sessions", internalTokenMiddleware(), handleCreateSession)
+	r.POST("/sessions/:channel_id/history/sync", internalTokenMiddleware(), handleHistorySync)
 	r.GET("/sessions/:channel_id/qr", internalTokenMiddleware(), handleGetQR)
 	r.GET("/sessions/:channel_id/status", handleGetStatus)
 	r.GET("/sessions/:channel_id/groups", internalTokenMiddleware(), handleGetGroups)
@@ -489,15 +494,10 @@ type WhatsmeowSettings struct {
 
 func getChannelSettings(inboxID string) (WhatsmeowSettings, error) {
 	var settings WhatsmeowSettings
-	dbURI := os.Getenv("DATABASE_URL")
-	if dbURI == "" {
-		dbURI = "postgres://postgres:StagingPassword123!@chatwoot-staging-db:5432/chatwoot_staging?sslmode=disable"
+	db := statusLookupDB
+	if db == nil {
+		return settings, fmt.Errorf("database is not initialized")
 	}
-	db, err := sql.Open("postgres", dbURI)
-	if err != nil {
-		return settings, err
-	}
-	defer db.Close()
 
 	query := `
 		SELECT c.always_online, c.read_messages, c.reject_calls, c.ignore_groups, c.ignore_status, c.ignore_newsletters, c.newsletter,
@@ -508,7 +508,7 @@ func getChannelSettings(inboxID string) (WhatsmeowSettings, error) {
 		LIMIT 1
 	`
 	var alwaysOnline, readMessages, rejectCalls, ignoreGroups, ignoreStatus, ignoreNews, newsletter, typingEnabled bool
-	err = db.QueryRow(query, inboxID).Scan(
+	err := db.QueryRow(query, inboxID).Scan(
 		&alwaysOnline,
 		&readMessages,
 		&rejectCalls,
@@ -655,7 +655,7 @@ func lookupPhoneByInbox(channelID string) (string, error) {
 
 	var phone string
 	err = db.QueryRow(`
-		SELECT c.phone_number
+		SELECT COALESCE(c.phone_number, '')
 		FROM inboxes i
 		JOIN channel_whatsmeow c ON i.channel_id = c.id
 		WHERE i.id = $1 AND i.channel_type = 'Channel::Whatsmeow'
@@ -3842,7 +3842,11 @@ func processHistorySyncForInbox(channelID string, accountID string, client *what
 		processedStatuses++
 	}
 
-	cutoff := time.Now().Add(-72 * time.Hour)
+	settings, settingsErr := readHistorySettings(channelID)
+	if settingsErr != nil {
+		log.Printf("History settings: %v", settingsErr)
+		return
+	}
 	processed := 0
 	for _, conversation := range historySync.Data.GetConversations() {
 		chatJID, ok := parseHistoryChatJID(conversation.GetPnJID(), conversation.GetID(), conversation.GetLidJID())
@@ -3862,15 +3866,26 @@ func processHistorySyncForInbox(channelID string, accountID string, client *what
 				log.Printf("Failed to parse history sync message for %s on channel %s: %v", chatJID.String(), channelID, err)
 				continue
 			}
-			if messageEvent == nil || messageEvent.Info.Timestamp.Before(cutoff) {
+			if messageEvent == nil {
 				continue
 			}
 
-			processMessageForInbox(channelID, accountID, client, messageEvent)
+			if err := cacheHistoryMessage(channelID, chatJID, webMessage, messageEvent.Info); err != nil {
+				log.Printf("Could not persist history inbox %s: %v", channelID, err)
+				updateHistoryState(channelID, map[string]interface{}{"phase": "error", "error": true})
+				return
+			}
 			processed++
 		}
 	}
 
+	if processed > 0 {
+		phase := "syncing"
+		if settings.State["paused"] == true || (!settings.Auto && settings.State["manual"] != true) {
+			phase = "paused"
+		}
+		updateHistoryState(channelID, map[string]interface{}{"received_at": time.Now().Unix(), "phase": phase})
+	}
 	if processed > 0 {
 		log.Printf("Processed %d recent history sync messages on channel %s", processed, channelID)
 	}
@@ -3892,10 +3907,21 @@ func parseHistoryChatJID(ids ...string) (types.JID, bool) {
 	return types.JID{}, false
 }
 
-func processMessageForInbox(channelID string, accountID string, client *whatsmeow.Client, messageEvent *events.Message) {
+func processMessageForInbox(channelID string, accountID string, client *whatsmeow.Client, messageEvent *events.Message, history ...bool) error {
+	historical := len(history) > 0 && history[0]
+	if historical {
+		var exists bool
+		err := statusLookupDB.QueryRow(`SELECT EXISTS(SELECT 1 FROM messages WHERE inbox_id=$1 AND source_id=$2)`, channelID, messageEvent.Info.ID).Scan(&exists)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return sendHistoryWebhook(accountID, channelID, map[string]interface{}{"event": "message", "historical": true, "message_id": messageEvent.Info.ID, "timestamp": messageEvent.Info.Timestamp.Unix()})
+		}
+	}
 	statusMessage := isStatusMessage(messageEvent.Info)
 	if statusMessage && processDeleteForInbox(channelID, accountID, messageEvent) {
-		return
+		return nil
 	}
 
 	settings, err := getChannelSettings(channelID)
@@ -3903,33 +3929,33 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		isGroup := !statusMessage && (messageEvent.Info.MessageSource.IsGroup || messageEvent.Info.Sender.Server == "g.us" || messageEvent.Info.Chat.Server == "g.us")
 		if settings.IgnoreGroups && isGroup {
 			log.Printf("Ignoring group message from %s on channel %s (IgnoreGroups=true)", messageEvent.Info.Sender.String(), channelID)
-			return
+			return nil
 		}
 		if settings.IgnoreStatus && statusMessage && !messageEvent.Info.IsFromMe {
 			log.Printf("Ignoring status update from %s on channel %s (IgnoreStatus=true)", messageEvent.Info.Sender.String(), channelID)
-			return
+			return nil
 		}
 		isNewsletter := isNewsletterJID(messageEvent.Info.Chat) || isNewsletterJID(messageEvent.Info.Sender) || isNewsletterJID(messageEvent.Info.SenderAlt)
 		if settings.IgnoreNews && isNewsletter {
 			log.Printf("Ignoring newsletter message from %s on channel %s (IgnoreNewsletters=true)", messageEvent.Info.Sender.String(), channelID)
-			return
+			return nil
 		}
 	}
 
 	if !statusMessage && processDeleteForInbox(channelID, accountID, messageEvent) {
-		return
+		return nil
 	}
 	if statusMessage {
 		processStatusForInbox(channelID, accountID, client, messageEvent)
-		return
+		return nil
 	}
 
 	if processEditForInbox(channelID, accountID, messageEvent) {
-		return
+		return nil
 	}
 
 	if processReactionForInbox(channelID, accountID, messageEvent) {
-		return
+		return nil
 	}
 
 	messageText := extractMessageText(messageEvent.Message)
@@ -3942,7 +3968,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 	}
 	if messageText == "" && len(attachments) == 0 && len(contacts) == 0 {
 		if adContext == nil && !hasMediaMessage(messageEvent.Message) {
-			return
+			return nil
 		}
 		if adContext == nil {
 			log.Printf("Incoming media message had no downloadable attachments; media_type=%s message_id=%s", detectedMediaType(messageEvent.Message), messageEvent.Info.ID)
@@ -3972,7 +3998,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 	}
 	if contactJID.IsEmpty() {
 		log.Printf("Ignoring message %s on channel %s because no external contact JID could be resolved", messageEvent.Info.ID, channelID)
-		return
+		return nil
 	}
 
 	sender := jidString(contactJID)
@@ -3980,7 +4006,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 	log.Printf("Received message from %s on channel %s: %s", sender, channelID, messageText)
 
 	// Mark message as read if auto-read is enabled
-	if !messageEvent.Info.IsFromMe && err == nil && settings.ReadMessages {
+	if !historical && !messageEvent.Info.IsFromMe && err == nil && settings.ReadMessages {
 		err := client.MarkRead(
 			context.Background(),
 			[]types.MessageID{messageEvent.Info.ID},
@@ -4040,7 +4066,12 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 	if adContext != nil {
 		payload["ad_context"] = adContext
 	}
+	if historical {
+		payload["historical"] = true
+		return sendHistoryWebhook(accountID, channelID, payload)
+	}
 	sendWebhookNotification(accountID, channelID, payload)
+	return nil
 }
 
 func isStatusMessage(info types.MessageInfo) bool {
@@ -5339,9 +5370,9 @@ func stickerMessageForDownload(sticker *proto.StickerMessage) *proto.StickerMess
 		return sticker
 	}
 
-	stickerCopy := *sticker
+	stickerCopy := protobuf.Clone(sticker).(*proto.StickerMessage)
 	stickerCopy.URL = nil
-	return &stickerCopy
+	return stickerCopy
 }
 
 func mediaURLHasPath(rawURL string) bool {

@@ -33,6 +33,7 @@ class Whatsmeow::IncomingMessageService
       status: outgoing_echo? ? :delivered : :sent,
       sender: @message_sender,
       source_id: params[:message_id],
+      created_at: message_timestamp,
       content_attributes: message_content_attributes
     )
     attach_files
@@ -42,6 +43,15 @@ class Whatsmeow::IncomingMessageService
   end
 
   private
+
+  def historical?
+    boolean_param(:historical)
+  end
+
+  def message_timestamp
+    timestamp = params[:timestamp].to_i
+    timestamp.positive? ? Time.zone.at(timestamp) : Time.current
+  end
 
   def boolean_param(key)
     ActiveModel::Type::Boolean.new.cast(params[key])
@@ -61,6 +71,10 @@ class Whatsmeow::IncomingMessageService
 
   def handle_already_imported_message
     return false unless message_already_imported?
+    if historical?
+      repair_imported_timestamp
+      return true
+    end
 
     edited_content = message_content.to_s
     return true if edited_content.blank? || imported_message.content.to_s == edited_content
@@ -76,6 +90,19 @@ class Whatsmeow::IncomingMessageService
     return if params[:message_id].blank?
 
     @imported_message ||= @inbox.messages.find_by(source_id: params[:message_id])
+  end
+
+  def repair_imported_timestamp
+    return if params[:timestamp].to_i <= 0 || imported_message.content_attributes['external_created_at'].present?
+
+    # Earlier versions stamped history with import time. A repeated history page
+    # can repair the original date without changing content or firing callbacks.
+    imported_message.update_columns(
+      created_at: message_timestamp,
+      content_attributes: imported_message.content_attributes.merge('external_created_at' => message_timestamp.to_i)
+    )
+    conversation = imported_message.conversation
+    conversation.update_columns(last_activity_at: conversation.messages.maximum(:created_at))
   end
 
   def sender_identifier
@@ -335,13 +362,15 @@ class Whatsmeow::IncomingMessageService
       account_id: @inbox.account_id,
       inbox_id: @inbox.id,
       contact_id: @contact.id,
-      contact_inbox_id: @contact_inbox.id
+      contact_inbox_id: @contact_inbox.id,
+      history_import: historical?,
+      **(historical? ? { created_at: message_timestamp, last_activity_at: message_timestamp, agent_last_seen_at: Time.current } : {})
     }
   end
 
   def set_conversation
     @contact.with_lock do
-      @conversation = if @inbox.lock_to_single_conversation
+      @conversation = if historical? || @inbox.lock_to_single_conversation
                         inbox_contact_conversations.last
                       else
                         inbox_contact_conversations.where
@@ -478,7 +507,8 @@ class Whatsmeow::IncomingMessageService
   end
 
   def message_content_attributes
-    attributes = {}
+    attributes = { external_created_at: message_timestamp.to_i }
+    attributes[:historical] = true if historical?
     attributes[:external_echo] = true if outgoing_echo?
     attributes.merge!(group_content_attributes) if group_message?
     attributes.merge!(quoted_content_attributes) if quoted_message?

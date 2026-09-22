@@ -15,6 +15,7 @@ import InboxesAPI from 'dashboard/api/inboxes';
 import SettingsAccordion from 'dashboard/components-next/Settings/SettingsAccordion.vue';
 import SettingsToggleSection from 'dashboard/components-next/Settings/SettingsToggleSection.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import WhatsmeowHistorySync from './WhatsmeowHistorySync.vue';
 
 const props = defineProps({
   inbox: {
@@ -413,6 +414,8 @@ onBeforeUnmount(() => {
         </div>
       </template>
     </SettingsToggleSection>
+
+    <WhatsmeowHistorySync :inbox="inbox" />
 
     <SettingsAccordion
       :title="$t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.SETTINGS.TITLE')"

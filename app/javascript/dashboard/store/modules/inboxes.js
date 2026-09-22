@@ -373,6 +373,30 @@ export const actions = {
       return null;
     }
   },
+  syncWhatsmeowHistory: async ({ state: $state, commit }) => {
+    const inboxes = $state.records.filter(
+      inbox => inbox.channel_type === WHATSMEOW_CHANNEL_TYPE
+    );
+    await Promise.all(
+      inboxes.map(async inbox => {
+        try {
+          const { data } = await InboxesAPI.getWhatsmeowHistoryState(inbox.id);
+          const current = $state.records.find(record => record.id === inbox.id);
+          if (
+            current &&
+            JSON.stringify(current.history_sync_state) !== JSON.stringify(data)
+          ) {
+            commit(types.default.EDIT_INBOXES, {
+              ...current,
+              history_sync_state: data,
+            });
+          }
+        } catch {
+          // Preserve last known progress during reconnects.
+        }
+      })
+    );
+  },
   syncWhatsmeowStatuses: async ({ state: $state, commit }) => {
     if (isSyncingWhatsmeowStatuses) return;
 

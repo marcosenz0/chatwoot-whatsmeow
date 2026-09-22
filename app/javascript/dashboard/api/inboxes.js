@@ -53,6 +53,20 @@ class Inboxes extends CacheEnabledApiClient {
     return axios.post(`${this.url}/${inboxId}/reset_secret`);
   }
 
+  getWhatsmeowHistoryState(inboxId) {
+    return axios.get(`${this.url}/${inboxId}/whatsmeow_history_sync`, {
+      timeout: 10000,
+    });
+  }
+
+  syncWhatsmeowHistory(inboxId, payload) {
+    return axios.post(
+      `${this.url}/${inboxId}/whatsmeow_history_sync`,
+      payload,
+      { timeout: 30000 }
+    );
+  }
+
   getWhatsmeowStatus(inboxId, config = {}) {
     const { params = {}, ...requestConfig } = config;
 

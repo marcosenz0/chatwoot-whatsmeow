@@ -1083,6 +1083,34 @@
           "DISCONNECT_ERROR": "Could not disconnect the WhatsApp Direct session.",
           "STATUS_ERROR": "Could not refresh the WhatsApp Direct status.",
           "QR_ERROR": "Could not generate the WhatsApp pairing QR code."
+        },
+        "HISTORY": {
+          "TITLE": "Message synchronization",
+          "DESCRIPTION": "Recover conversation history and follow the messages received from your phone.",
+          "AUTO": "Synchronize history automatically",
+          "AUTO_DESCRIPTION": "Import received history and request older messages in the selected rolling period. New messages continue arriving independently.",
+          "DAYS": "Automatic history period (days)",
+          "FROM": "Synchronize messages since",
+          "START": "Synchronize now",
+          "SAVE": "Save preferences",
+          "PAUSE": "Pause history",
+          "SAVED": "Synchronization preferences updated",
+          "ERROR": "Could not update synchronization. Check the connection and try again.",
+          "COUNTS": "{imported} processed · {received} received · {pending} pending",
+          "UPDATED": "Last update: {time}",
+          "NOT_YET": "Not started",
+          "SIDEBAR": "Synchronizing · {count}",
+          "UNAVAILABLE": "The phone has not provided older messages for {count} conversations. You can try again with WhatsApp open on your phone.",
+          "FAILED": "{count} messages need another attempt. Synchronize again to retry.",
+          "LIMITS": "Keep WhatsApp connected on your phone. History arrives in batches; availability of older messages and media depends on WhatsApp. Existing messages are not duplicated. Processed counts refer to the received history retained for the last 7 days.",
+          "PHASE": {
+            "IDLE": "Received history processed",
+            "SYNCING": "Importing message history",
+            "WAITING": "Waiting for history from WhatsApp",
+            "PARTIAL": "Available history processed; some requests have no response",
+            "PAUSED": "History synchronization paused",
+            "ERROR": "Synchronization needs attention"
+          }
         }
       },
       "UPDATE_PRE_CHAT_FORM_SETTINGS": "Update Pre Chat Form Settings"

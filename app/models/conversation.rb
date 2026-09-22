@@ -127,6 +127,8 @@ class Conversation < ApplicationRecord
   has_many :attachments, through: :messages
   has_many :reporting_events, dependent: :destroy_async
 
+  attr_accessor :history_import
+
   before_save :ensure_snooze_until_reset
   before_create :determine_conversation_status
   before_create :ensure_waiting_since
@@ -284,6 +286,8 @@ class Conversation < ApplicationRecord
   end
 
   def ensure_waiting_since
+    return if history_import
+
     self.waiting_since = created_at
   end
 
@@ -299,6 +303,7 @@ class Conversation < ApplicationRecord
 
   def determine_conversation_status
     self.status = :resolved and return if contact.blocked?
+    return if history_import
 
     return handle_campaign_status if campaign.present?
 
@@ -318,6 +323,8 @@ class Conversation < ApplicationRecord
   end
 
   def notify_conversation_creation
+    return if history_import
+
     dispatcher_dispatch(CONVERSATION_CREATED)
   end
 

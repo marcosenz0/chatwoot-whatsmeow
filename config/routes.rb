@@ -344,6 +344,8 @@ Rails.application.routes.draw do
             get :health, on: :member
             post :register_webhook, on: :member
             post :reset_secret, on: :member
+            post :whatsmeow_history_sync, on: :member
+            get :whatsmeow_history_sync, on: :member, action: :whatsmeow_history_state
             get :whatsmeow_status, on: :member
             get :whatsmeow_number, on: :member
             post :whatsmeow_session, on: :member

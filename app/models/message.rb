@@ -84,6 +84,10 @@ class Message < ApplicationRecord
   # Transient flag used to skip waiting_since clearing for specific bot/system messages.
   attr_accessor :preserve_waiting_since
 
+  def historical?
+    content_attributes['historical'] == true && inbox.channel_type == 'Channel::Whatsmeow'
+  end
+
   enum message_type: { incoming: 0, outgoing: 1, activity: 2, template: 3 }
   enum content_type: {
     text: 0,
@@ -286,6 +290,8 @@ class Message < ApplicationRecord
   private
 
   def prevent_message_flooding
+    return if historical?
+
     # Added this to cover the validation specs in messages
     # We can revisit and see if we can remove this later
     return if conversation.blank?
@@ -322,6 +328,8 @@ class Message < ApplicationRecord
   end
 
   def execute_after_create_commit_callbacks
+    return update_history_activity if historical?
+
     # rails issue with order of active record callbacks being executed https://github.com/rails/rails/issues/20911
     reopen_conversation
     mark_pending_conversation_as_open_for_human_response
@@ -330,6 +338,17 @@ class Message < ApplicationRecord
     send_reply
     execute_message_template_hooks
     update_contact_activity
+  end
+
+  def update_history_activity
+    # Older imports must never move a live conversation backwards or trigger replies.
+    Conversation.where(id: conversation_id).where('last_activity_at < ?', created_at)
+                .update_all(last_activity_at: created_at)
+    conversation.reload
+    event = Events::Base.new(MESSAGE_CREATED, Time.current, message: self)
+    ActionCableListener.instance.message_created(event)
+    event = Events::Base.new(CONVERSATION_UPDATED, Time.current, conversation: conversation)
+    ActionCableListener.instance.conversation_updated(event)
   end
 
   def update_contact_activity

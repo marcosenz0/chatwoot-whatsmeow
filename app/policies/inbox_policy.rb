@@ -70,6 +70,14 @@ class InboxPolicy < ApplicationPolicy
     @account_user.administrator?
   end
 
+  def whatsmeow_history_sync?
+    @account_user.administrator?
+  end
+
+  def whatsmeow_history_state?
+    show?
+  end
+
   def whatsmeow_status?
     @account_user.administrator?
   end

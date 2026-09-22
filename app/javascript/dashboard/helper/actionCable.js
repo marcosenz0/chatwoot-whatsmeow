@@ -134,7 +134,9 @@ class ActionCableConnector extends BaseActionCableConnector {
       this.onTypingOff({ conversation: { id: conversationId }, user: sender });
     }
 
-    DashboardAudioNotificationHelper.onNewMessage(data);
+    if (!data.content_attributes?.historical) {
+      DashboardAudioNotificationHelper.onNewMessage(data);
+    }
     this.app.$store.dispatch('addMessage', data);
     this.app.$store.dispatch('updateConversationLastActivity', {
       lastActivityAt,

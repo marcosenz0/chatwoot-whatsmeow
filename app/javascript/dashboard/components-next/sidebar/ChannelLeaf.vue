@@ -24,6 +24,13 @@ const props = defineProps({
   },
 });
 
+const historyState = computed(
+  () => props.inbox.history_sync_state || props.inbox.historySyncState || {}
+);
+const historyActive = computed(() =>
+  ['syncing', 'waiting'].includes(historyState.value.phase)
+);
+
 const reauthorizationRequired = computed(() => {
   return props.inbox.reauthorization_required;
 });
@@ -33,7 +40,21 @@ const reauthorizationRequired = computed(() => {
   <span class="size-4 grid place-content-center rounded-full relative">
     <ChannelIcon :inbox="inbox" class="size-4" />
   </span>
-  <div class="flex-1 truncate min-w-0">{{ label }}</div>
+  <div class="flex-1 truncate min-w-0">
+    <span>{{ label }}</span>
+    <span
+      v-if="historyActive"
+      class="flex items-center gap-1 text-xs text-n-blue-11"
+      role="status"
+    >
+      <span class="i-lucide-loader-circle size-3 animate-spin" />
+      {{
+        $t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.HISTORY.SIDEBAR', {
+          count: historyState.imported || 0,
+        })
+      }}
+    </span>
+  </div>
   <SidebarUnreadBadge :count="badgeCount" />
   <div
     v-if="reauthorizationRequired"
