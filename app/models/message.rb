@@ -342,8 +342,10 @@ class Message < ApplicationRecord
 
   def update_history_activity
     # Older imports must never move a live conversation backwards or trigger replies.
+    # rubocop:disable Rails/SkipsModelValidations
     Conversation.where(id: conversation_id).where('last_activity_at < ?', created_at)
                 .update_all(last_activity_at: created_at)
+    # rubocop:enable Rails/SkipsModelValidations
     conversation.reload
     event = Events::Base.new(MESSAGE_CREATED, Time.current, message: self)
     ActionCableListener.instance.message_created(event)

@@ -4,6 +4,15 @@ class AddWhatsmeowHistorySync < ActiveRecord::Migration[7.1]
     add_column :channel_whatsmeow, :history_sync_auto, :boolean, default: true, null: false
     add_column :channel_whatsmeow, :history_sync_state, :jsonb, default: {}, null: false
 
+    create_history_messages
+    create_history_chats
+  end
+
+  private
+
+  def create_history_messages
+    # Go owns this queue and records received_at/imported_at instead of Rails timestamps.
+    # rubocop:disable Rails/CreateTableWithTimestamps
     create_table :whatsmeow_history_messages do |t|
       t.references :inbox, null: false, foreign_key: { on_delete: :cascade }
       t.string :chat_jid, null: false
@@ -17,7 +26,12 @@ class AddWhatsmeowHistorySync < ActiveRecord::Migration[7.1]
       t.index [:inbox_id, :message_id], unique: true, name: 'idx_whatsmeow_history_message'
       t.index [:inbox_id, :imported_at, :retry_at], name: 'idx_whatsmeow_history_pending'
     end
+    # rubocop:enable Rails/CreateTableWithTimestamps
+  end
 
+  def create_history_chats
+    # Cursors track source message_at and requested_at, not model edit times.
+    # rubocop:disable Rails/CreateTableWithTimestamps
     create_table :whatsmeow_history_chats do |t|
       t.references :inbox, null: false, foreign_key: { on_delete: :cascade }
       t.string :chat_jid, null: false
@@ -29,5 +43,6 @@ class AddWhatsmeowHistorySync < ActiveRecord::Migration[7.1]
       t.datetime :requested_at
       t.index [:inbox_id, :chat_jid], unique: true, name: 'idx_whatsmeow_history_chat'
     end
+    # rubocop:enable Rails/CreateTableWithTimestamps
   end
 end

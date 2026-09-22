@@ -34,13 +34,9 @@ class Whatsmeow::SessionClient
     )
   end
 
-  def sync_history(from:, pause: false)
-    request(:post, "/sessions/#{@inbox.id}/history/sync", body: { from: from, pause: pause }, timeout: 25)
-  end
+  def sync_history(from:, pause: false) = request(:post, "/sessions/#{@inbox.id}/history/sync", body: { from: from, pause: pause }, timeout: 25)
 
-  def status
-    request(:get, "/sessions/#{@inbox.id}/status")
-  end
+  def status = request(:get, "/sessions/#{@inbox.id}/status")
 
   def check_number(phone)
     request(:get, "/sessions/#{@inbox.id}/check_number?phone=#{CGI.escape(phone)}")

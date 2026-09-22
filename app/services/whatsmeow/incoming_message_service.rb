@@ -25,6 +25,16 @@ class Whatsmeow::IncomingMessageService
     set_contact
     set_message_sender
     set_conversation
+    build_message
+    attach_files
+    attach_contacts
+    @message.save!
+    Whatsmeow::AttachmentRetentionScheduler.maybe_enqueue
+  end
+
+  private
+
+  def build_message
     @message = @conversation.messages.build(
       content: message_content,
       account_id: @inbox.account_id,
@@ -36,13 +46,7 @@ class Whatsmeow::IncomingMessageService
       created_at: message_timestamp,
       content_attributes: message_content_attributes
     )
-    attach_files
-    attach_contacts
-    @message.save!
-    Whatsmeow::AttachmentRetentionScheduler.maybe_enqueue
   end
-
-  private
 
   def historical?
     boolean_param(:historical)
@@ -71,6 +75,7 @@ class Whatsmeow::IncomingMessageService
 
   def handle_already_imported_message
     return false unless message_already_imported?
+
     if historical?
       repair_imported_timestamp
       return true
@@ -97,12 +102,14 @@ class Whatsmeow::IncomingMessageService
 
     # Earlier versions stamped history with import time. A repeated history page
     # can repair the original date without changing content or firing callbacks.
+    # rubocop:disable Rails/SkipsModelValidations
     imported_message.update_columns(
       created_at: message_timestamp,
       content_attributes: imported_message.content_attributes.merge('external_created_at' => message_timestamp.to_i)
     )
     conversation = imported_message.conversation
     conversation.update_columns(last_activity_at: conversation.messages.maximum(:created_at))
+    # rubocop:enable Rails/SkipsModelValidations
   end
 
   def sender_identifier
