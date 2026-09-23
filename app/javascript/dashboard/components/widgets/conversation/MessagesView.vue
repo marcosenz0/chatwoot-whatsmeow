@@ -28,7 +28,6 @@ import { getTypingUsersText } from '../../../helper/commons';
 import { calculateScrollTop } from './helpers/scrollTopCalculationHelper';
 import { LocalStorage } from 'shared/helpers/localStorage';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
-import { downloadFile } from '@chatwoot/utils';
 import { zip } from 'fflate';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import { useAlert } from 'dashboard/composables';
@@ -590,6 +589,17 @@ export default {
 
       return new File([blob], fileName, { type: contentType });
     },
+    saveAttachmentBlob(blob, fileName) {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.hidden = true;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    },
     async sendForwardedMessagePayload({ conversationId, message, file }) {
       const payload = {
         conversationId,
@@ -731,12 +741,8 @@ export default {
       this.isDownloadingSelection = true;
       try {
         if (attachments.length === 1) {
-          const attachment = attachments[0];
-          await downloadFile({
-            url: this.attachmentUrl(attachment),
-            type: attachment.file_type || attachment.fileType || 'file',
-            extension: attachment.extension,
-          });
+          const file = await this.attachmentToFile(attachments[0]);
+          this.saveAttachmentBlob(file, file.name);
         } else {
           const files = await Promise.all(
             attachments.map((attachment, index) =>
@@ -758,14 +764,10 @@ export default {
               else resolve(data);
             });
           });
-          const url = URL.createObjectURL(
-            new Blob([archive], { type: 'application/zip' })
+          this.saveAttachmentBlob(
+            new Blob([archive], { type: 'application/zip' }),
+            'anexos-chatwoot.zip'
           );
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = 'anexos-chatwoot.zip';
-          link.click();
-          setTimeout(() => URL.revokeObjectURL(url), 60000);
         }
         useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.DOWNLOADED'));
       } catch {
