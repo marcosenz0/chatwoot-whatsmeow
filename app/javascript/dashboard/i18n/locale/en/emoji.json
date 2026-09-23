@@ -15,6 +15,17 @@
     "NO_EMOJI": "No emoji match your search",
     "NO_ICON": "No icons match your search",
     "REMOVE": "Remove",
+    "CATEGORIES": {
+      "SMILEYS_EMOTION": "Smileys & Emotion",
+      "PEOPLE_BODY": "People & Body",
+      "ANIMALS_NATURE": "Animals & Nature",
+      "FOOD_DRINK": "Food & Drink",
+      "TRAVEL_PLACES": "Travel & Places",
+      "ACTIVITIES": "Activities",
+      "OBJECTS": "Objects",
+      "SYMBOLS": "Symbols",
+      "FLAGS": "Flags"
+    },
     "STYLE": {
       "OUTLINE": "Outline icons",
       "FILLED": "Filled icons"

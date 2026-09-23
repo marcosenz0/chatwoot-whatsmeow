@@ -27,7 +27,18 @@ const emojiSections = computed(() =>
   buildEmojiSections(
     emojiSearch.value,
     recentEmojis.value,
-    t('EMOJI_ICON_PICKER.FREQUENTLY_USED')
+    t('EMOJI_ICON_PICKER.FREQUENTLY_USED'),
+    {
+      smileys_emotion: t('EMOJI_ICON_PICKER.CATEGORIES.SMILEYS_EMOTION'),
+      people_body: t('EMOJI_ICON_PICKER.CATEGORIES.PEOPLE_BODY'),
+      animals_nature: t('EMOJI_ICON_PICKER.CATEGORIES.ANIMALS_NATURE'),
+      food_drink: t('EMOJI_ICON_PICKER.CATEGORIES.FOOD_DRINK'),
+      travel_places: t('EMOJI_ICON_PICKER.CATEGORIES.TRAVEL_PLACES'),
+      activities: t('EMOJI_ICON_PICKER.CATEGORIES.ACTIVITIES'),
+      objects: t('EMOJI_ICON_PICKER.CATEGORIES.OBJECTS'),
+      symbols: t('EMOJI_ICON_PICKER.CATEGORIES.SYMBOLS'),
+      flags: t('EMOJI_ICON_PICKER.CATEGORIES.FLAGS'),
+    }
   )
 );
 

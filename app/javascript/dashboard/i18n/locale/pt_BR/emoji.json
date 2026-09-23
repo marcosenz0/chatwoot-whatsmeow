@@ -15,6 +15,17 @@
     "NO_EMOJI": "Nenhum emoji corresponde à sua pesquisa",
     "NO_ICON": "Nenhum ícone corresponde à sua pesquisa",
     "REMOVE": "Excluir",
+    "CATEGORIES": {
+      "SMILEYS_EMOTION": "Carinhas e emoções",
+      "PEOPLE_BODY": "Pessoas e corpo",
+      "ANIMALS_NATURE": "Animais e natureza",
+      "FOOD_DRINK": "Comidas e bebidas",
+      "TRAVEL_PLACES": "Viagens e lugares",
+      "ACTIVITIES": "Atividades",
+      "OBJECTS": "Objetos",
+      "SYMBOLS": "Símbolos",
+      "FLAGS": "Bandeiras"
+    },
     "STYLE": {
       "OUTLINE": "Ícones do contorno",
       "FILLED": "Ícones preenchidos"

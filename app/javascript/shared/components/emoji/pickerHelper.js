@@ -9,12 +9,17 @@ const matchesSearch = (emoji, term) =>
   emoji.name.toLowerCase().includes(term);
 
 // Emoji sections for the search term; prepends "Frequently used" when idle.
-export const buildEmojiSections = (search, recentEmojis, frequentLabel) => {
+export const buildEmojiSections = (
+  search,
+  recentEmojis,
+  frequentLabel,
+  categoryLabels = {}
+) => {
   const term = search.trim().toLowerCase();
   if (term) {
     return emojiGroups
-      .map(({ name, emojis }) => ({
-        name,
+      .map(({ name, slug, emojis }) => ({
+        name: categoryLabels[slug] || name,
         emojis: emojis.filter(e => matchesSearch(e, term)),
       }))
       .filter(group => group.emojis.length);
@@ -23,7 +28,10 @@ export const buildEmojiSections = (search, recentEmojis, frequentLabel) => {
     ...(recentEmojis.length
       ? [{ name: frequentLabel, emojis: recentEmojis }]
       : []),
-    ...emojiGroups,
+    ...emojiGroups.map(group => ({
+      ...group,
+      name: categoryLabels[group.slug] || group.name,
+    })),
   ];
 };
 
