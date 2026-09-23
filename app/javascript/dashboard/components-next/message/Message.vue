@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, computed, ref, toRefs } from 'vue';
+import { onMounted, onBeforeUnmount, computed, ref, toRefs } from 'vue';
 import { useStore } from 'vuex';
 import { useTimeoutFn } from '@vueuse/core';
 import { provideMessageContext } from './provider.js';
@@ -120,6 +120,8 @@ const props = defineProps({
     validator: value => Object.values(MESSAGE_STATUS).includes(value),
   },
   attachments: { type: Array, default: () => [] },
+  // eslint-disable-next-line vue/no-unused-properties
+  mediaGroup: { type: Array, default: () => [] },
   call: { type: Object, default: null }, // eslint-disable-line vue/no-unused-properties
   content: { type: String, default: null },
   contentAttributes: { type: Object, default: () => ({}) },
@@ -146,7 +148,7 @@ const props = defineProps({
   isSelected: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['retry', 'select']);
+const emit = defineEmits(['retry', 'select', 'forward']);
 
 const AUDIO_FILE_EXTENSIONS = [
   'aac',
@@ -639,6 +641,50 @@ function handleSelect() {
   emit('select', payloadForContextMenu.value);
 }
 
+let holdTimer;
+let holdStart;
+let suppressHoldClick = false;
+
+function cancelHold() {
+  clearTimeout(holdTimer);
+  holdTimer = undefined;
+  holdStart = undefined;
+}
+
+function startHold(event) {
+  if (!isSelectableMessage.value || event.button !== 0) return;
+  if (event.target.closest?.('[data-selection-ignore]')) return;
+  suppressHoldClick = false;
+  cancelHold();
+  holdStart = { x: event.clientX, y: event.clientY };
+  holdTimer = setTimeout(() => {
+    holdTimer = undefined;
+    suppressHoldClick = true;
+    handleSelect();
+    window.getSelection()?.removeAllRanges();
+  }, 2000);
+}
+
+function moveHold(event) {
+  if (!holdStart) return;
+  if (
+    Math.abs(event.clientX - holdStart.x) > 12 ||
+    Math.abs(event.clientY - holdStart.y) > 12
+  ) {
+    cancelHold();
+  }
+}
+
+function handleHoldClick(event) {
+  if (!suppressHoldClick) return;
+  suppressHoldClick = false;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  event.stopPropagation();
+}
+
+onBeforeUnmount(cancelHold);
+
 function isInteractiveSelectionTarget(target) {
   return target?.closest?.(
     'a,button,input,textarea,select,audio,video,[role="button"],[data-selection-ignore]'
@@ -779,6 +825,7 @@ onMounted(setupHighlightTimer);
 
 provideMessageContext({
   ...toRefs(props),
+  forwardMediaMessage: attachment => emit('forward', attachment),
   isPrivate: computed(() => props.private),
   variant,
   orientation,
@@ -804,6 +851,12 @@ provideMessageContext({
         'bg-n-alpha-2 ring-1 ring-n-weak': isSelectionMode && isSelected,
       },
     ]"
+    @pointerdown="startHold"
+    @pointermove="moveHold"
+    @pointerup="cancelHold"
+    @pointercancel="cancelHold"
+    @pointerleave="cancelHold"
+    @click.capture="handleHoldClick"
     @click="handleSelectionModeClick"
   >
     <button

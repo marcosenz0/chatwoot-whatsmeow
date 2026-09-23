@@ -47,13 +47,67 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['retry', 'select']);
+const emit = defineEmits(['retry', 'select', 'forward']);
 
 const allMessages = computed(() => {
   return useCamelCase(props.messages, {
     deep: true,
     stopPaths: ['content_attributes.translations'],
   });
+});
+
+const imageGroups = computed(() => {
+  const leaders = new Map();
+  const followers = new Set();
+  const isImage = message =>
+    !message.private &&
+    !message.content &&
+    message.attachments?.length === 1 &&
+    message.attachments[0].fileType === 'image';
+
+  for (let index = 0; index < allMessages.value.length; index += 1) {
+    const first = allMessages.value[index];
+    if (isImage(first)) {
+      const group = [first];
+      for (let next = index + 1; next < allMessages.value.length; next += 1) {
+        const candidate = allMessages.value[next];
+        const sameSender =
+          (candidate.senderId ?? candidate.sender?.id) ===
+          (first.senderId ?? first.sender?.id);
+        if (
+          !isImage(candidate) ||
+          candidate.id === props.firstUnreadId ||
+          !sameSender ||
+          candidate.messageType !== first.messageType ||
+          Math.floor(candidate.createdAt / 60) !==
+            Math.floor(first.createdAt / 60)
+        )
+          break;
+        group.push(candidate);
+        followers.add(next);
+      }
+      if (group.length > 1) {
+        leaders.set(index, group);
+        index += group.length - 1;
+      }
+    }
+  }
+  return { leaders, followers };
+});
+
+const mediaGroupAttachments = index =>
+  (imageGroups.value.leaders.get(index) || []).map(message => ({
+    ...message.attachments[0],
+    messageId: message.id,
+    sender: message.sender,
+    createdAt: message.createdAt,
+  }));
+
+const selectionPayload = (message, index) => ({
+  ...message,
+  mediaGroupMessageIds: imageGroups.value.leaders
+    .get(index)
+    ?.map(item => item.id) || [message.id],
 });
 
 const currentChat = useMapGetter('getSelectedChat');
@@ -179,7 +233,9 @@ const getInReplyToMessage = parentMessage => {
         name="unreadBadge"
       />
       <Message
+        v-if="!imageGroups.followers.has(index)"
         v-bind="message"
+        :media-group="mediaGroupAttachments(index)"
         :is-email-inbox="isAnEmailChannel"
         :in-reply-to="getInReplyToMessage(message)"
         :group-with-next="shouldGroupWithNext(index, allMessages)"
@@ -189,7 +245,8 @@ const getInReplyToMessage = parentMessage => {
         :is-selected="selectedMessageIds.includes(message.id)"
         data-clarity-mask="True"
         @retry="emit('retry', message)"
-        @select="emit('select', message)"
+        @select="emit('select', selectionPayload(message, index))"
+        @forward="emit('forward', $event)"
       />
     </template>
     <slot name="after" />

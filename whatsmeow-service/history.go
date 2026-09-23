@@ -138,6 +138,17 @@ func handleHistorySync(c *gin.Context) {
 		c.JSON(500, gin.H{"error": "Could not prepare synchronization"})
 		return
 	}
+	// A previous pass may have acknowledged a record that was not saved as a
+	// Chatwoot message (for example, a self-chat before support was added).
+	// Revisit only missing records; replaying existing media would be costly.
+	_, err = statusLookupDB.Exec(`UPDATE whatsmeow_history_messages h
+		SET imported_at=NULL,attempts=0,retry_at=NOW()
+		WHERE h.inbox_id=$1 AND h.message_at >= $2 AND h.imported_at IS NOT NULL
+		AND NOT EXISTS (SELECT 1 FROM messages m WHERE m.inbox_id=h.inbox_id AND m.source_id=h.message_id)`, inbox, time.Unix(request.From, 0))
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Could not retry missing messages"})
+		return
+	}
 	_, err = statusLookupDB.Exec(`UPDATE whatsmeow_history_messages SET attempts=0,retry_at=NOW() WHERE inbox_id=$1 AND imported_at IS NULL`, inbox)
 	if err != nil {
 		c.JSON(500, gin.H{"error": "Could not resume imports"})
@@ -283,10 +294,15 @@ func runHistoryPass(inbox string, client *whatsmeow.Client) error {
 	if failed > 0 {
 		phase = "error"
 	}
-	if received, ok := s.State["received_at"].(float64); ok && time.Since(time.Unix(int64(received), 0)) < 90*time.Second && pending == 0 {
-		phase = "waiting"
+	var stored, conversations int
+	err = statusLookupDB.QueryRow(`SELECT COUNT(*),COUNT(DISTINCT conversation_id) FROM messages
+		WHERE inbox_id=$1 AND created_at >= $2`, inbox, cutoff).Scan(&stored, &conversations)
+	if err != nil {
+		return err
 	}
-	values := gin.H{"phase": phase, "received": total, "imported": imported, "pending": pending, "failed": failed, "waiting": waiting, "unavailable": unavailable, "updated_at": time.Now().Unix()}
+	values := gin.H{"phase": phase, "received": total, "imported": imported, "stored": stored,
+		"conversations": conversations, "pending": pending, "failed": failed, "waiting": waiting,
+		"unavailable": unavailable, "updated_at": time.Now().Unix()}
 	if phase == "idle" || phase == "partial" || phase == "error" {
 		values["manual"] = false
 	}
@@ -310,9 +326,9 @@ func seedHistoryChats(inbox string, reset bool) error {
 		FROM messages m JOIN conversations c ON c.id=m.conversation_id JOIN contact_inboxes ci ON ci.id=c.contact_inbox_id
 		WHERE m.inbox_id=$1 AND m.source_id IS NOT NULL AND m.message_type IN(0,1)
 		AND ci.source_id ~ '@(s.whatsapp.net|lid|g.us)$'
-		ORDER BY ci.source_id,m.created_at DESC ON CONFLICT(inbox_id,chat_jid) DO UPDATE SET
+		ORDER BY ci.source_id,m.created_at ASC ON CONFLICT(inbox_id,chat_jid) DO UPDATE SET
 		message_id=EXCLUDED.message_id,message_at=EXCLUDED.message_at,from_me=EXCLUDED.from_me
-		WHERE $2`, inbox, reset)
+		WHERE $2 AND EXCLUDED.message_at < whatsmeow_history_chats.message_at`, inbox, reset)
 	return err
 }
 
@@ -353,6 +369,11 @@ func requestOlderHistory(inbox string, client *whatsmeow.Client, cutoff time.Tim
 	_, err = client.SendPeerMessage(ctx, client.BuildHistorySyncRequest(anchor, 50))
 	if err != nil {
 		log.Printf("History request inbox %s failed: %v", inbox, err)
+		_, clearErr := statusLookupDB.Exec(`UPDATE whatsmeow_history_chats SET requested_id=NULL,requested_at=NULL
+			WHERE inbox_id=$1 AND chat_jid=$2 AND requested_id=$3`, inbox, chat, id)
+		if clearErr != nil {
+			return clearErr
+		}
 	}
 	return err
 }

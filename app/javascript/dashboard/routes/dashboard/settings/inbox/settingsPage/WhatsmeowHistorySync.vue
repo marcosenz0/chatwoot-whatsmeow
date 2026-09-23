@@ -161,9 +161,17 @@ onBeforeUnmount(() => clearInterval(interval));
       <p>
         {{
           t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.HISTORY.COUNTS', {
-            imported: state.imported || 0,
+            stored: state.stored || 0,
+            conversations: state.conversations || 0,
             received: state.received || 0,
             pending: state.pending || 0,
+          })
+        }}
+      </p>
+      <p v-if="state.imported">
+        {{
+          t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.HISTORY.PROCESSED', {
+            imported: state.imported,
           })
         }}
       </p>

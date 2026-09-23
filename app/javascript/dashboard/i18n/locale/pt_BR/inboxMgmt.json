@@ -1014,6 +1014,36 @@
           "DISCONNECT_ERROR": "Não foi possível desconectar a sessão do WhatsApp Direct.",
           "STATUS_ERROR": "Não foi possível atualizar o status do WhatsApp Direct.",
           "QR_ERROR": "Não foi possível gerar o QR Code de pareamento do WhatsApp."
+        },
+        "HISTORY": {
+          "TITLE": "Sincronização de mensagens",
+          "DESCRIPTION": "Importe o histórico de conversas recebido do seu celular e acompanhe o andamento.",
+          "AUTO": "Sincronizar histórico automaticamente",
+          "AUTO_DESCRIPTION": "Importa o histórico recebido e solicita mensagens antigas das conversas conhecidas dentro do período escolhido. Mensagens novas continuam chegando normalmente.",
+          "DAYS": "Período automático do histórico (dias)",
+          "FROM": "Sincronizar mensagens desde",
+          "START": "Sincronizar agora",
+          "SAVE": "Salvar preferências",
+          "PAUSE": "Pausar histórico",
+          "SAVED": "Preferências de sincronização atualizadas",
+          "ERROR": "Não foi possível atualizar a sincronização. Confira a conexão e tente novamente.",
+          "COUNTS": "{stored} mensagens disponíveis em {conversations} conversas · {received} registros recebidos · {pending} pendentes",
+          "PROCESSED": "{imported} registros de histórico processados. Isso não significa que todas as conversas do celular foram recebidas.",
+          "UPDATED": "Última atualização: {time}",
+          "NOT_YET": "Ainda não iniciada",
+          "SIDEBAR": "Importando · {count} mensagens disponíveis",
+          "SIDEBAR_WAITING": "Aguardando histórico do WhatsApp",
+          "UNAVAILABLE": "O celular não forneceu mensagens antigas de {count} conversas. Você pode tentar novamente com o WhatsApp aberto no celular.",
+          "FAILED": "{count} mensagens precisam de outra tentativa. Sincronize novamente para repetir.",
+          "LIMITS": "Mantenha o WhatsApp conectado no celular. O histórico chega em lotes; a disponibilidade de mensagens e mídias antigas depende do WhatsApp. Mensagens existentes não são duplicadas. O total processado inclui registros recebidos nos últimos 7 dias e não significa que todas as conversas do celular foram importadas.",
+          "PHASE": {
+            "IDLE": "Histórico recebido processado",
+            "SYNCING": "Importando histórico de mensagens",
+            "WAITING": "Aguardando histórico do WhatsApp",
+            "PARTIAL": "Histórico disponível processado; algumas solicitações ficaram sem resposta",
+            "PAUSED": "Sincronização do histórico pausada",
+            "ERROR": "Sincronização precisa de atenção"
+          }
         }
       }
     },

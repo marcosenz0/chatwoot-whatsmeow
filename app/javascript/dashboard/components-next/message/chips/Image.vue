@@ -15,7 +15,8 @@ defineProps({
 const hasError = ref(false);
 const showGallery = ref(false);
 
-const { filteredCurrentChatAttachments } = useMessageContext();
+const { filteredCurrentChatAttachments, conversationId, forwardMediaMessage } =
+  useMessageContext();
 
 const handleError = () => {
   hasError.value = true;
@@ -46,6 +47,8 @@ const handleError = () => {
     v-model:show="showGallery"
     :attachment="useSnakeCase(attachment)"
     :all-attachments="filteredCurrentChatAttachments"
+    :conversation-id="conversationId"
+    @forward="forwardMediaMessage"
     @error="handleError"
     @close="() => (showGallery = false)"
   />

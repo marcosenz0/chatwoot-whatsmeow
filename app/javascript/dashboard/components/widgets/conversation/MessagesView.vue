@@ -28,6 +28,8 @@ import { getTypingUsersText } from '../../../helper/commons';
 import { calculateScrollTop } from './helpers/scrollTopCalculationHelper';
 import { LocalStorage } from 'shared/helpers/localStorage';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
+import { downloadFile } from '@chatwoot/utils';
+import { zip } from 'fflate';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import { useAlert } from 'dashboard/composables';
 import {
@@ -96,10 +98,12 @@ export default {
       labelSuggestions: [],
       isMessageSelectionMode: false,
       selectedMessageIds: [],
+      galleryForwardMessage: null,
       showBulkDeleteModal: false,
       isBulkDeleting: false,
       isForwardModalOpen: false,
       isForwardingMessages: false,
+      isDownloadingSelection: false,
     };
   },
 
@@ -265,9 +269,16 @@ export default {
       return { incoming, outgoing };
     },
     selectedMessages() {
-      return this.getMessages.filter(message =>
+      const loaded = this.getMessages.filter(message =>
         this.selectedMessageIds.includes(message.id)
       );
+      if (
+        this.galleryForwardMessage &&
+        !loaded.some(message => message.id === this.galleryForwardMessage.id)
+      ) {
+        return [...loaded, this.galleryForwardMessage];
+      }
+      return loaded;
     },
     forwardableSelectedMessages() {
       return this.selectedMessages.filter(message =>
@@ -276,6 +287,13 @@ export default {
     },
     canForwardSelectedMessages() {
       return this.forwardableSelectedMessages.length > 0;
+    },
+    downloadableSelectedAttachments() {
+      return this.selectedMessages.flatMap(message =>
+        this.messageAttachments(message).filter(attachment =>
+          Boolean(this.attachmentUrl(attachment))
+        )
+      );
     },
   },
 
@@ -667,16 +685,18 @@ export default {
       return this.$t('CONVERSATION.MESSAGE_SELECTION.CANCEL');
     },
     toggleMessageSelection(message) {
-      const messageId = message.id;
-      if (!messageId) return;
+      const messageIds = message.mediaGroupMessageIds || [message.id];
+      if (!messageIds[0]) return;
 
       this.isMessageSelectionMode = true;
-      if (this.selectedMessageIds.includes(messageId)) {
+      if (messageIds.every(id => this.selectedMessageIds.includes(id))) {
         this.selectedMessageIds = this.selectedMessageIds.filter(
-          selectedId => selectedId !== messageId
+          selectedId => !messageIds.includes(selectedId)
         );
       } else {
-        this.selectedMessageIds = [...this.selectedMessageIds, messageId];
+        this.selectedMessageIds = [
+          ...new Set([...this.selectedMessageIds, ...messageIds]),
+        ];
       }
 
       if (!this.selectedMessageIds.length) {
@@ -686,6 +706,7 @@ export default {
     clearMessageSelection() {
       this.isMessageSelectionMode = false;
       this.selectedMessageIds = [];
+      this.galleryForwardMessage = null;
       this.showBulkDeleteModal = false;
       this.isForwardModalOpen = false;
     },
@@ -702,6 +723,56 @@ export default {
 
       await copyTextToClipboard(text);
       useAlert(this.messageSelectionText('COPIED'));
+    },
+    async downloadSelectedAttachments() {
+      const attachments = this.downloadableSelectedAttachments;
+      if (!attachments.length || this.isDownloadingSelection) return;
+
+      this.isDownloadingSelection = true;
+      try {
+        if (attachments.length === 1) {
+          const attachment = attachments[0];
+          await downloadFile({
+            url: this.attachmentUrl(attachment),
+            type: attachment.file_type || attachment.fileType || 'file',
+            extension: attachment.extension,
+          });
+        } else {
+          const files = await Promise.all(
+            attachments.map((attachment, index) =>
+              this.attachmentToFile(attachment, index)
+            )
+          );
+          const contents = await Promise.all(
+            files.map(file => file.arrayBuffer())
+          );
+          const entries = Object.fromEntries(
+            files.map((file, index) => [
+              `${index + 1}-${file.name.replace(/[\\/]/g, '_')}`,
+              new Uint8Array(contents[index]),
+            ])
+          );
+          const archive = await new Promise((resolve, reject) => {
+            zip(entries, { level: 0 }, (error, data) => {
+              if (error) reject(error);
+              else resolve(data);
+            });
+          });
+          const url = URL.createObjectURL(
+            new Blob([archive], { type: 'application/zip' })
+          );
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = 'anexos-chatwoot.zip';
+          link.click();
+          setTimeout(() => URL.revokeObjectURL(url), 60000);
+        }
+        useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.DOWNLOADED'));
+      } catch {
+        useAlert(this.$t('CONVERSATION.MESSAGE_SELECTION.DOWNLOAD_FAILED'));
+      } finally {
+        this.isDownloadingSelection = false;
+      }
     },
     openBulkDeleteModal() {
       if (!this.selectedMessages.length) return;
@@ -738,6 +809,21 @@ export default {
         return;
       }
       this.isForwardModalOpen = true;
+    },
+    openGalleryForward(attachment) {
+      const messageId = Number(attachment.message_id || attachment.messageId);
+      if (!messageId) return;
+      this.clearMessageSelection();
+      this.galleryForwardMessage = this.getMessages.find(
+        message => message.id === messageId
+      ) || {
+        id: messageId,
+        content: '',
+        attachments: [attachment],
+      };
+      this.selectedMessageIds = [messageId];
+      this.isMessageSelectionMode = true;
+      this.openForwardModal();
     },
     async conversationIdForForwardTarget(target) {
       if (target.type === 'conversation') return target.conversationId;
@@ -831,6 +917,7 @@ export default {
       :selected-message-ids="selectedMessageIds"
       @retry="handleMessageRetry"
       @select="toggleMessageSelection"
+      @forward="openGalleryForward"
     >
       <template #beforeAll>
         <transition name="slide-up">
@@ -867,10 +954,13 @@ export default {
       v-if="isMessageSelectionMode"
       :selected-count="selectedMessageIds.length"
       :can-forward="canForwardSelectedMessages"
+      :can-download="downloadableSelectedAttachments.length > 0"
+      :is-downloading="isDownloadingSelection"
       :is-deleting="isBulkDeleting"
       :is-forwarding="isForwardingMessages"
       @clear="clearMessageSelection"
       @copy="copySelectedMessages"
+      @download="downloadSelectedAttachments"
       @delete="openBulkDeleteModal"
       @forward="openForwardModal"
     />

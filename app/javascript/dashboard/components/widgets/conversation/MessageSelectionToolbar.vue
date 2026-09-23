@@ -12,6 +12,14 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  canDownload: {
+    type: Boolean,
+    default: false,
+  },
+  isDownloading: {
+    type: Boolean,
+    default: false,
+  },
   isDeleting: {
     type: Boolean,
     default: false,
@@ -22,7 +30,7 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(['clear', 'copy', 'delete', 'forward']);
+const emit = defineEmits(['clear', 'copy', 'download', 'delete', 'forward']);
 const { t, locale } = useI18n();
 
 const isPortugueseLocale = computed(() =>
@@ -34,11 +42,13 @@ const isPortugueseLocale = computed(() =>
 const selectionText = key => {
   if (isPortugueseLocale.value) {
     if (key === 'COPY') return 'Copiar';
+    if (key === 'DOWNLOAD') return 'Baixar anexos';
     if (key === 'DELETE') return 'Apagar';
     if (key === 'FORWARD') return 'Encaminhar';
   }
 
   if (key === 'COPY') return t('CONVERSATION.MESSAGE_SELECTION.COPY');
+  if (key === 'DOWNLOAD') return t('CONVERSATION.MESSAGE_SELECTION.DOWNLOAD');
   if (key === 'DELETE') return t('CONVERSATION.MESSAGE_SELECTION.DELETE');
   return t('CONVERSATION.MESSAGE_SELECTION.FORWARD');
 };
@@ -83,6 +93,17 @@ const selectedLabel = computed(() => {
         icon="i-lucide-copy"
         :disabled="isDeleting || isForwarding"
         @click="emit('copy')"
+      />
+      <NextButton
+        v-if="canDownload"
+        v-tooltip.top="selectionText('DOWNLOAD')"
+        ghost
+        slate
+        md
+        icon="i-lucide-download"
+        :is-loading="isDownloading"
+        :disabled="isDownloading || isDeleting || isForwarding"
+        @click="emit('download')"
       />
       <NextButton
         v-tooltip.top="selectionText('DELETE')"

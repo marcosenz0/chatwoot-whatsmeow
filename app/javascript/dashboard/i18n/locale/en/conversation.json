@@ -313,6 +313,9 @@
     },
     "CONTEXT_MENU": {
       "COPY": "Copy",
+      "DOWNLOAD": "Download attachments",
+      "DOWNLOADED": "Attachments downloaded",
+      "DOWNLOAD_FAILED": "Could not download the selected attachments.",
       "REPLY_TO": "Reply to this message",
       "DELETE": "Delete",
       "CREATE_A_CANNED_RESPONSE": "Add to canned responses",
@@ -726,6 +729,13 @@
     "TRY_THESE_PROMPTS": "Try these prompts"
   },
   "GALLERY_VIEW": {
-    "ERROR_DOWNLOADING": "Unable to download attachment. Please try again"
+    "ERROR_DOWNLOADING": "Unable to download attachment. Please try again",
+    "COUNT": "{current} of {total}",
+    "YOU": "You",
+    "REACT": "React",
+    "FORWARD": "Forward",
+    "MORE": "More options",
+    "SAVE_AS": "Save as...",
+    "GO_TO_MESSAGE": "Go to message"
   }
 }

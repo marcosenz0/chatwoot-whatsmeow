@@ -69,6 +69,10 @@ class Whatsmeow::IncomingMessageService
     boolean_param(:is_group)
   end
 
+  def self_chat?
+    boolean_param(:self_chat)
+  end
+
   def message_already_imported?
     imported_message.present?
   end
@@ -125,7 +129,7 @@ class Whatsmeow::IncomingMessageService
   def direct_source_ids
     ([phone_source_id] + direct_peer_source_ids)
       .compact_blank
-      .reject { |source_id| group_source(source_id) || own_phone_source?(source_id) }
+      .reject { |source_id| group_source(source_id) || (!self_chat? && own_phone_source?(source_id)) }
       .uniq
   end
 
@@ -147,7 +151,7 @@ class Whatsmeow::IncomingMessageService
         source_id.to_s.downcase.include?('@lid') && source_id.to_s.downcase != trusted_lid
       end
     end
-    identifiers.compact_blank.reject { |source_id| group_source(source_id) || own_phone_source?(source_id) }.uniq
+    identifiers.compact_blank.reject { |source_id| group_source(source_id) || (!self_chat? && own_phone_source?(source_id)) }.uniq
   end
 
   def explicit_contact_contract?
@@ -190,7 +194,7 @@ class Whatsmeow::IncomingMessageService
     candidates = direct_phone_candidates.filter_map do |candidate|
       normalized_phone_number(candidate)
     end
-    @phone_number = candidates.find { |candidate| candidate != inbox_phone_number }
+    @phone_number = self_chat? ? inbox_phone_number : candidates.find { |candidate| candidate != inbox_phone_number }
   end
 
   def direct_phone_candidates
@@ -402,7 +406,7 @@ class Whatsmeow::IncomingMessageService
     return group_contact_attributes if group_message?
 
     {
-      name: params[:sender_name].presence || phone_number || sender_identifier,
+      name: self_chat? ? 'Mensagens para mim' : (params[:sender_name].presence || phone_number || sender_identifier),
       phone_number: phone_number
     }
   end

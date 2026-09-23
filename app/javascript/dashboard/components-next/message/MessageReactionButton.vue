@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { ORIENTATION } from './constants';
+import EmojiPicker from 'shared/components/emoji/EmojiPicker.vue';
 
 const props = defineProps({
   orientation: {
@@ -23,25 +24,8 @@ const quickEmojis = [
   '\u{1F622}',
   '\u{1F64F}',
 ];
-const moreEmojis = [
-  '\u{1F44F}',
-  '\u{1F525}',
-  '\u{1F60D}',
-  '\u{1F389}',
-  '\u{2705}',
-  '\u{1F440}',
-  '\u{1F4AF}',
-  '\u{1F60E}',
-  '\u{1F914}',
-  '\u{1F605}',
-  '\u{1F64C}',
-  '\u{1F4AA}',
-];
-
 const pickerPositionClass = computed(() => {
-  return props.orientation === ORIENTATION.RIGHT
-    ? 'right-0 -translate-x-8'
-    : 'left-0 translate-x-8';
+  return props.orientation === ORIENTATION.RIGHT ? 'right-0' : 'left-0';
 });
 
 function togglePicker() {
@@ -83,7 +67,7 @@ onBeforeUnmount(() =>
     </button>
     <div
       v-if="isOpen"
-      class="skip-context-menu absolute bottom-8 z-50 flex items-center gap-1 rounded-full border border-n-weak bg-n-background px-2 py-1 shadow-xl"
+      class="skip-context-menu absolute bottom-8 z-50 flex items-center gap-1 rounded-full border border-n-weak bg-n-background px-2 py-1.5 shadow-xl"
       :class="pickerPositionClass"
       @click.stop
       @contextmenu.stop.prevent
@@ -92,32 +76,24 @@ onBeforeUnmount(() =>
         v-for="emoji in quickEmojis"
         :key="emoji"
         type="button"
-        class="flex size-7 items-center justify-center rounded-full text-base hover:bg-n-alpha-2"
+        class="flex size-9 items-center justify-center rounded-full text-xl hover:bg-n-alpha-2"
         @click="handleReaction(emoji)"
       >
         {{ emoji }}
       </button>
       <button
         type="button"
-        class="flex size-7 items-center justify-center rounded-full text-n-slate-11 hover:bg-n-alpha-2"
+        class="flex size-9 items-center justify-center rounded-full text-n-slate-11 hover:bg-n-alpha-2"
         @click="showMore = !showMore"
       >
         <i class="i-lucide-plus size-4" />
       </button>
       <div
         v-if="showMore"
-        class="absolute top-10 grid w-48 grid-cols-6 gap-1 rounded-lg border border-n-weak bg-n-background p-2 shadow-xl"
+        class="absolute bottom-12 z-[60] w-[22rem]"
         :class="pickerPositionClass"
       >
-        <button
-          v-for="emoji in moreEmojis"
-          :key="emoji"
-          type="button"
-          class="flex size-7 items-center justify-center rounded-md text-base hover:bg-n-alpha-2"
-          @click="handleReaction(emoji)"
-        >
-          {{ emoji }}
-        </button>
+        <EmojiPicker @select="handleReaction($event.value)" />
       </div>
     </div>
   </div>

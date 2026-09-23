@@ -49,9 +49,11 @@ const reauthorizationRequired = computed(() => {
     >
       <span class="i-lucide-loader-circle size-3 animate-spin" />
       {{
-        $t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.HISTORY.SIDEBAR', {
-          count: historyState.imported || 0,
-        })
+        historyState.phase === 'waiting'
+          ? $t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.HISTORY.SIDEBAR_WAITING')
+          : $t('INBOX_MGMT.SETTINGS_POPUP.WHATSMEOW.HISTORY.SIDEBAR', {
+              count: historyState.stored || 0,
+            })
       }}
     </span>
   </div>

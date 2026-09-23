@@ -10,7 +10,12 @@ import { ATTACHMENT_TYPES } from '../constants';
 const emit = defineEmits(['error']);
 const hasError = ref(false);
 const showGallery = ref(false);
-const { filteredCurrentChatAttachments, attachments } = useMessageContext();
+const {
+  filteredCurrentChatAttachments,
+  attachments,
+  conversationId,
+  forwardMediaMessage,
+} = useMessageContext();
 
 const handleError = () => {
   hasError.value = true;
@@ -28,7 +33,7 @@ const isReel = computed(() => {
 
 <template>
   <BaseBubble
-    class="overflow-hidden p-3"
+    class="max-w-[20rem] overflow-hidden p-1.5"
     data-bubble-name="video"
     @click="showGallery = true"
   >
@@ -41,11 +46,11 @@ const isReel = computed(() => {
       </div>
       <video
         controls
-        class="rounded-lg skip-context-menu"
+        class="max-h-[22rem] max-w-full rounded-lg bg-black object-contain skip-context-menu"
         :src="attachment.dataUrl"
         :class="{
-          'max-w-48': isReel,
-          'max-w-full': !isReel,
+          'w-48': isReel,
+          'w-80': !isReel,
         }"
         @click.stop
         @error="handleError"
@@ -57,7 +62,9 @@ const isReel = computed(() => {
     v-model:show="showGallery"
     :attachment="useSnakeCase(attachment)"
     :all-attachments="filteredCurrentChatAttachments"
-    @error="onError"
+    :conversation-id="conversationId"
+    @forward="forwardMediaMessage"
+    @error="handleError"
     @close="() => (showGallery = false)"
   />
 </template>

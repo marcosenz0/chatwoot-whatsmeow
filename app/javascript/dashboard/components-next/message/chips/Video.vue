@@ -14,7 +14,8 @@ defineProps({
 
 const showGallery = ref(false);
 
-const { filteredCurrentChatAttachments } = useMessageContext();
+const { filteredCurrentChatAttachments, conversationId, forwardMediaMessage } =
+  useMessageContext();
 </script>
 
 <template>
@@ -46,6 +47,8 @@ const { filteredCurrentChatAttachments } = useMessageContext();
     v-model:show="showGallery"
     :attachment="useSnakeCase(attachment)"
     :all-attachments="filteredCurrentChatAttachments"
+    :conversation-id="conversationId"
+    @forward="forwardMediaMessage"
     @error="onError"
     @close="() => (showGallery = false)"
   />

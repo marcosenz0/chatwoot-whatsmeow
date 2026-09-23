@@ -295,6 +295,9 @@
     },
     "CONTEXT_MENU": {
       "COPY": "Copiar",
+      "DOWNLOAD": "Baixar anexos",
+      "DOWNLOADED": "Anexos baixados",
+      "DOWNLOAD_FAILED": "Não foi possível baixar os anexos selecionados.",
       "REPLY_TO": "Responder mensagem",
       "DELETE": "Excluir",
       "CREATE_A_CANNED_RESPONSE": "Adicionar às respostas prontas",
@@ -688,6 +691,13 @@
     "TRY_THESE_PROMPTS": "Experimente estes comandos"
   },
   "GALLERY_VIEW": {
-    "ERROR_DOWNLOADING": "Não foi possível baixar o anexo. Por favor, tente novamente"
+    "ERROR_DOWNLOADING": "Não foi possível baixar o anexo. Tente novamente.",
+    "COUNT": "{current} de {total}",
+    "YOU": "Você",
+    "REACT": "Reagir",
+    "FORWARD": "Encaminhar",
+    "MORE": "Mais opções",
+    "SAVE_AS": "Salvar como...",
+    "GO_TO_MESSAGE": "Ir para a mensagem"
   }
 }

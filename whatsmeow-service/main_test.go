@@ -134,6 +134,23 @@ func TestResolveMessageContactUsesDeviceSentDestinationFallback(t *testing.T) {
 	}
 }
 
+func TestResolveMessageContactPreservesSelfChatWithoutExternalRecipient(t *testing.T) {
+	ownJID := types.NewJID("556392645568", types.DefaultUserServer)
+	ownLID := types.NewJID("100000000000001", types.HiddenUserServer)
+	client := &whatsmeow.Client{Store: &store.Device{ID: &ownJID, LID: ownLID}}
+	info := types.MessageInfo{MessageSource: types.MessageSource{
+		IsFromMe:  true,
+		Sender:    ownLID,
+		SenderAlt: ownJID,
+		Chat:      ownLID,
+	}}
+
+	contact := resolveMessageContact(client, info)
+	if !sameBareJID(contact.JID, ownJID) || contact.PhoneNumber != "+556392645568" {
+		t.Fatalf("self-chat contact = %s, %q; want %s and own phone", contact.JID, contact.PhoneNumber, ownJID)
+	}
+}
+
 func TestResolveMessageContactInboundIgnoresRecipientIdentity(t *testing.T) {
 	ownJID := types.NewJID("5563999999999", types.DefaultUserServer)
 	ownLID := types.NewJID("100000000000001", types.HiddenUserServer)

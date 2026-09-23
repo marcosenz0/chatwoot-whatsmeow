@@ -121,6 +121,8 @@ Practical checklist for any change impacting core logic or public APIs
 
 Detailed Whatsmeow fork progress is tracked in `docs/whatsmeow-progress.md`. Installation/deployment instructions are tracked in `docs/whatsmeow-installation.md`. Keep this section short and move implementation notes there when they grow.
 
+This fork serves both `chatwoot.marcoswt.com.br` and `chatwootmx.marcoswt.com.br`. For requested fork changes, deploy the same validated Chatwoot image to both web/Sidekiq pairs and the matching Go changes to both Whatsmeow services; verify each instance independently. Keep their databases, sessions, and domains separate.
+
 ### 🌟 Project Status
 All primary core integrations between Chatwoot Staging and the Go-based `whatsmeow-service` are implemented, deployed, and healthy.
 - **Connection indicators**: Green check / red X badges render correctly overlaying the WhatsApp icon inside `ChannelIcon.vue`.

@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, useTemplateRef } from 'vue';
+import { useStore } from 'vuex';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 
@@ -12,6 +13,7 @@ import { downloadFile } from '@chatwoot/utils';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Avatar from 'next/avatar/Avatar.vue';
 import TeleportWithDirection from 'dashboard/components-next/TeleportWithDirection.vue';
+import EmojiPicker from 'shared/components/emoji/EmojiPicker.vue';
 
 const props = defineProps({
   attachment: {
@@ -26,12 +28,17 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  conversationId: {
+    type: Number,
+    default: null,
+  },
 });
 
-const emit = defineEmits(['close']);
+const emit = defineEmits(['close', 'forward']);
 const show = defineModel('show', { type: Boolean, default: false });
 
 const { t } = useI18n();
+const store = useStore();
 const getters = useStoreGetters();
 
 const ALLOWED_FILE_TYPES = {
@@ -41,13 +48,35 @@ const ALLOWED_FILE_TYPES = {
   AUDIO: 'audio',
 };
 
+const galleryItems = computed(() => {
+  const items =
+    props.attachment.file_type === ALLOWED_FILE_TYPES.AUDIO
+      ? props.allAttachments
+      : props.allAttachments.filter(item =>
+          [
+            ALLOWED_FILE_TYPES.IMAGE,
+            ALLOWED_FILE_TYPES.VIDEO,
+            ALLOWED_FILE_TYPES.IG_REEL,
+          ].includes(item.file_type)
+        );
+  return items.length ? items : [props.attachment];
+});
+
 const isDownloading = ref(false);
+const showReactionPicker = ref(false);
+const showMoreMenu = ref(false);
 const activeAttachment = ref({});
 const activeFileType = ref('');
 const activeImageIndex = ref(
-  props.allAttachments.findIndex(
-    attachment => attachment.message_id === props.attachment.message_id
-  ) || 0
+  Math.max(
+    0,
+    galleryItems.value.findIndex(
+      attachment =>
+        (attachment.id && attachment.id === props.attachment.id) ||
+        (attachment.message_id === props.attachment.message_id &&
+          attachment.data_url === props.attachment.data_url)
+    )
+  )
 );
 
 const imageRef = useTemplateRef('imageRef');
@@ -66,9 +95,7 @@ const {
 } = useImageZoom(imageRef);
 
 const currentUser = computed(() => getters.getCurrentUser.value);
-const hasMoreThanOneAttachment = computed(
-  () => props.allAttachments.length > 1
-);
+const hasMoreThanOneAttachment = computed(() => galleryItems.value.length > 1);
 
 const readableTime = computed(() => {
   const { created_at: createdAt } = activeAttachment.value;
@@ -98,7 +125,10 @@ const senderDetails = computed(() => {
   } = activeAttachment.value?.sender || props.attachment?.sender || {};
 
   return {
-    name: currentUser.value?.id === id ? 'You' : name || availableName || '',
+    name:
+      currentUser.value?.id === id
+        ? t('GALLERY_VIEW.YOU')
+        : name || availableName || '',
     avatar: thumbnail || avatar_url || '',
   };
 });
@@ -143,12 +173,41 @@ const onClickDownload = async () => {
   }
 };
 
+const onReact = async ({ value }) => {
+  if (!props.conversationId || !activeAttachment.value.message_id) return;
+  try {
+    await store.dispatch('reactToMessage', {
+      conversationId: props.conversationId,
+      messageId: activeAttachment.value.message_id,
+      emoji: value,
+    });
+    showReactionPicker.value = false;
+  } catch (error) {
+    useAlert(error?.response?.data?.error || t('CONVERSATION.SEND_FAILED'));
+  }
+};
+
+const onForward = () => {
+  emit('forward', activeAttachment.value);
+  onClose();
+};
+
+const goToMessage = () => {
+  const id = activeAttachment.value.message_id;
+  onClose();
+  requestAnimationFrame(() => {
+    document
+      .getElementById(`message${id}`)
+      ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  });
+};
+
 const keyboardEvents = {
   Escape: { action: onClose },
   ArrowLeft: {
     action: () => {
       onClickChangeAttachment(
-        props.allAttachments[activeImageIndex.value - 1],
+        galleryItems.value[activeImageIndex.value - 1],
         activeImageIndex.value - 1
       );
     },
@@ -156,7 +215,7 @@ const keyboardEvents = {
   ArrowRight: {
     action: () => {
       onClickChangeAttachment(
-        props.allAttachments[activeImageIndex.value + 1],
+        galleryItems.value[activeImageIndex.value + 1],
         activeImageIndex.value + 1
       );
     },
@@ -221,6 +280,29 @@ onMounted(() => {
           </div>
 
           <div class="flex items-center gap-2 ml-2 shrink-0">
+            <div v-if="conversationId" class="relative">
+              <NextButton
+                v-tooltip.bottom="t('GALLERY_VIEW.REACT')"
+                icon="i-lucide-smile-plus"
+                slate
+                ghost
+                @click="showReactionPicker = !showReactionPicker"
+              />
+              <div
+                v-if="showReactionPicker"
+                class="absolute right-0 top-12 z-50 w-[22rem]"
+              >
+                <EmojiPicker @select="onReact" />
+              </div>
+            </div>
+            <NextButton
+              v-if="conversationId"
+              v-tooltip.bottom="t('GALLERY_VIEW.FORWARD')"
+              icon="i-lucide-forward"
+              slate
+              ghost
+              @click="onForward"
+            />
             <NextButton
               v-if="isImage"
               icon="i-lucide-zoom-in"
@@ -257,6 +339,35 @@ onMounted(() => {
               :disabled="isDownloading"
               @click="onClickDownload"
             />
+            <div class="relative">
+              <NextButton
+                v-tooltip.bottom="t('GALLERY_VIEW.MORE')"
+                icon="i-lucide-ellipsis-vertical"
+                slate
+                ghost
+                @click="showMoreMenu = !showMoreMenu"
+              />
+              <div
+                v-if="showMoreMenu"
+                class="absolute right-0 top-12 z-50 min-w-44 rounded-lg border border-n-weak bg-n-background p-1 shadow-xl"
+              >
+                <button
+                  type="button"
+                  class="flex w-full rounded px-3 py-2 text-sm text-n-slate-12 hover:bg-n-alpha-2"
+                  @click="onClickDownload"
+                >
+                  {{ t('GALLERY_VIEW.SAVE_AS') }}
+                </button>
+                <button
+                  v-if="conversationId"
+                  type="button"
+                  class="flex w-full rounded px-3 py-2 text-sm text-n-slate-12 hover:bg-n-alpha-2"
+                  @click="goToMessage"
+                >
+                  {{ t('GALLERY_VIEW.GO_TO_MESSAGE') }}
+                </button>
+              </div>
+            </div>
             <NextButton icon="i-lucide-x" slate ghost @click="onClose" />
           </div>
         </header>
@@ -273,7 +384,7 @@ onMounted(() => {
               :disabled="activeImageIndex === 0"
               @click.stop="
                 onClickChangeAttachment(
-                  allAttachments[activeImageIndex - 1],
+                  galleryItems[activeImageIndex - 1],
                   activeImageIndex - 1
                 )
               "
@@ -338,10 +449,10 @@ onMounted(() => {
               blue
               faded
               lg
-              :disabled="activeImageIndex === allAttachments.length - 1"
+              :disabled="activeImageIndex === galleryItems.length - 1"
               @click.stop="
                 onClickChangeAttachment(
-                  allAttachments[activeImageIndex + 1],
+                  galleryItems[activeImageIndex + 1],
                   activeImageIndex + 1
                 )
               "
@@ -350,12 +461,54 @@ onMounted(() => {
         </main>
 
         <footer
-          class="z-10 flex items-center justify-center h-12 border-t border-n-weak"
+          class="z-10 flex flex-col items-center justify-center gap-2 border-t border-n-weak px-4 py-2"
         >
+          <span class="text-xs text-n-slate-11">
+            {{
+              t('GALLERY_VIEW.COUNT', {
+                current: activeImageIndex + 1,
+                total: galleryItems.length,
+              })
+            }}
+          </span>
           <div
-            class="rounded-md flex items-center justify-center px-3 py-1 bg-n-slate-3 text-n-slate-12 text-sm font-medium"
+            v-if="hasMoreThanOneAttachment"
+            class="flex max-w-full gap-2 overflow-x-auto"
           >
-            {{ `${activeImageIndex + 1} / ${allAttachments.length}` }}
+            <button
+              v-for="(item, index) in galleryItems"
+              :key="item.id || `${item.message_id}-${index}`"
+              type="button"
+              class="size-16 shrink-0 overflow-hidden rounded-lg border-2 transition hover:opacity-80"
+              :class="
+                activeImageIndex === index
+                  ? 'border-n-brand'
+                  : 'border-transparent'
+              "
+              @click.stop="onClickChangeAttachment(item, index)"
+            >
+              <img
+                v-if="item.file_type === ALLOWED_FILE_TYPES.IMAGE"
+                :src="item.thumb_url || item.data_url"
+                class="size-full object-cover"
+              />
+              <video
+                v-else-if="
+                  [
+                    ALLOWED_FILE_TYPES.VIDEO,
+                    ALLOWED_FILE_TYPES.IG_REEL,
+                  ].includes(item.file_type)
+                "
+                :src="item.data_url"
+                class="size-full object-cover"
+                muted
+                preload="metadata"
+              />
+              <span
+                v-else
+                class="i-lucide-music-2 mx-auto size-6 text-n-slate-11"
+              />
+            </button>
           </div>
         </footer>
       </div>

@@ -3982,6 +3982,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 	isGroup := isGroupMessage(messageEvent.Info)
 	contact := resolveMessageContact(client, messageEvent.Info)
 	contactJID := contact.JID
+	isSelfChat := !isGroup && isCurrentClientJID(client, messageEvent.Info.Chat) && isCurrentClientJID(client, contactJID)
 	participant := ResolvedGroupParticipant{}
 	groupName := ""
 	if isGroup {
@@ -4022,6 +4023,9 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 	}
 
 	senderName := getContactDisplayName(client, contactJID, messageEvent.Info.PushName)
+	if isSelfChat {
+		senderName = "Mensagens para mim"
+	}
 	if isGroup && groupName != "" {
 		senderName = groupName
 	}
@@ -4041,6 +4045,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		"contact_phone":       contact.PhoneNumber,
 		"contact_lid_jid":     jidString(contact.LIDJID),
 		"from_me":             messageEvent.Info.IsFromMe,
+		"self_chat":           isSelfChat,
 		"message_id":          messageEvent.Info.ID,
 		"content":             messageText,
 		"attachments":         attachments,
@@ -5579,6 +5584,10 @@ func optionalBoolPtr(value bool) *bool {
 func resolveMessageContact(client *whatsmeow.Client, info types.MessageInfo) MessageContact {
 	candidates := externalMessageContactCandidates(client, info)
 	if len(candidates) == 0 {
+		if isCurrentClientJID(client, info.Chat) {
+			ownJID, phone := currentClientJID(client)
+			return MessageContact{JID: ownJID, PhoneNumber: phone}
+		}
 		return MessageContact{}
 	}
 
