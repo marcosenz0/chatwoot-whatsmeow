@@ -207,7 +207,7 @@ func runHistoryPass(inbox string, client *whatsmeow.Client) error {
 	cutoff := historyCutoff(s)
 	rows, err := statusLookupDB.Query(`SELECT id, chat_jid, payload FROM whatsmeow_history_messages
 		WHERE inbox_id=$1 AND imported_at IS NULL AND message_at >= $2 AND attempts < 5 AND retry_at <= NOW()
-		ORDER BY message_at,id LIMIT 10`, inbox, cutoff)
+		ORDER BY message_at DESC,id DESC LIMIT 10`, inbox, cutoff)
 	if err != nil {
 		return err
 	}
