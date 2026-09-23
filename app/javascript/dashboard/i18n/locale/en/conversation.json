@@ -313,9 +313,6 @@
     },
     "CONTEXT_MENU": {
       "COPY": "Copy",
-      "DOWNLOAD": "Download attachments",
-      "DOWNLOADED": "Attachments downloaded",
-      "DOWNLOAD_FAILED": "Could not download the selected attachments.",
       "REPLY_TO": "Reply to this message",
       "DELETE": "Delete",
       "CREATE_A_CANNED_RESPONSE": "Add to canned responses",
@@ -403,6 +400,9 @@
       "CANCEL": "Cancel"
     },
     "MESSAGE_SELECTION": {
+      "DOWNLOAD": "Download attachments",
+      "DOWNLOADED": "Attachments downloaded",
+      "DOWNLOAD_FAILED": "Could not download the selected attachments.",
       "SELECTED_COUNT": "{count} selected",
       "COPY": "Copy",
       "COPIED": "Selected messages copied",

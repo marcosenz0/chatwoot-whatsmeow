@@ -295,9 +295,6 @@
     },
     "CONTEXT_MENU": {
       "COPY": "Copiar",
-      "DOWNLOAD": "Baixar anexos",
-      "DOWNLOADED": "Anexos baixados",
-      "DOWNLOAD_FAILED": "Não foi possível baixar os anexos selecionados.",
       "REPLY_TO": "Responder mensagem",
       "DELETE": "Excluir",
       "CREATE_A_CANNED_RESPONSE": "Adicionar às respostas prontas",
@@ -385,6 +382,9 @@
       "CANCEL": "Cancelar"
     },
     "MESSAGE_SELECTION": {
+      "DOWNLOAD": "Baixar anexos",
+      "DOWNLOADED": "Anexos baixados",
+      "DOWNLOAD_FAILED": "Não foi possível baixar os anexos selecionados.",
       "SELECTED_COUNT": "{count} selecionada | {count} selecionadas",
       "COPY": "Copiar",
       "COPIED": "Mensagens selecionadas copiadas",
