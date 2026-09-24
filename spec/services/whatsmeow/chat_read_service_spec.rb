@@ -14,7 +14,7 @@ RSpec.describe Whatsmeow::ChatReadService do
                      source_id: 'first-message', created_at: first_message_at)
     create(:message, account: account, inbox: inbox, conversation: conversation, sender: contact,
                      source_id: 'later-message', created_at: later_message_at)
-    conversation.update_columns(agent_last_seen_at: 3.hours.ago, assignee_last_seen_at: 3.hours.ago)
+    conversation.update!(agent_last_seen_at: 3.hours.ago, assignee_last_seen_at: 3.hours.ago)
   end
 
   it 'marks only messages up to the WhatsApp read cursor as read' do
