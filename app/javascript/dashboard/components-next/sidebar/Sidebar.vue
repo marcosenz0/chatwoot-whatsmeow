@@ -31,6 +31,7 @@ import ComposeConversation from 'dashboard/components-next/NewConversation/Compo
 import WhatsmeowStatusesAPI from 'dashboard/api/whatsmeowStatuses';
 import { LocalStorage } from 'shared/helpers/localStorage';
 import StatusSidebarIcon from './StatusSidebarIcon.vue';
+import TeleportWithDirection from 'dashboard/components-next/TeleportWithDirection.vue';
 import {
   SIDEBAR_SORT_SECTIONS,
   getSidebarSortOptions,
@@ -1325,17 +1326,19 @@ const menuItems = computed(() => {
         </button>
       </div>
     </ContextMenu>
-    <woot-confirm-delete-modal
-      v-if="showDeleteInbox"
-      v-model:show="showDeleteInbox"
-      :title="t('INBOX_MGMT.DELETE.CONFIRM.TITLE')"
-      :message="deleteConfirmMessage"
-      :confirm-text="deleteConfirmText"
-      :reject-text="deleteRejectText"
-      :confirm-value="inboxToDelete.name"
-      :confirm-place-holder-text="deletePlaceholderText"
-      @on-confirm="confirmInboxDeletion"
-      @on-close="closeInboxDeletion"
-    />
+    <TeleportWithDirection to="body">
+      <woot-confirm-delete-modal
+        v-if="showDeleteInbox"
+        v-model:show="showDeleteInbox"
+        :title="t('INBOX_MGMT.DELETE.CONFIRM.TITLE')"
+        :message="deleteConfirmMessage"
+        :confirm-text="deleteConfirmText"
+        :reject-text="deleteRejectText"
+        :confirm-value="inboxToDelete.name"
+        :confirm-place-holder-text="deletePlaceholderText"
+        @on-confirm="confirmInboxDeletion"
+        @on-close="closeInboxDeletion"
+      />
+    </TeleportWithDirection>
   </aside>
 </template>
