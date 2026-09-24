@@ -110,7 +110,7 @@ export default {
       },
       pinOption: {
         key: MENU.PIN,
-        icon: this.isPinned ? 'pin-off' : 'pin',
+        icon: this.isPinned ? 'i-lucide-pin-off' : 'i-lucide-pin',
         label: this.isPinned
           ? this.$t('CONVERSATION.CARD_CONTEXT_MENU.UNPIN')
           : this.$t('CONVERSATION.CARD_CONTEXT_MENU.PIN'),
@@ -391,7 +391,7 @@ export default {
             </template>
           </NextInput>
         </div>
-        <div class="overflow-x-hidden overflow-y-auto max-h-[12.5rem]">
+        <div class="overflow-x-hidden">
           <MenuItem
             v-for="label in filteredLabels"
             :key="label.id"

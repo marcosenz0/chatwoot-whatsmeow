@@ -12,7 +12,7 @@
 ########################################################
 webhooks:
   id: webhook
-  logo: webhooks.png
+  logo: webhook.png
   i18n_key: webhooks
   action: /webhook
   hook_type: account
@@ -311,7 +311,7 @@ dialogflow:
   visible_properties: ['project_id', 'region', 'language_code']
 google_translate:
   id: google_translate
-  logo: google-translate.png
+  logo: google_translate.png
   i18n_key: google_translate
   action: /google_translate
   hook_type: account
