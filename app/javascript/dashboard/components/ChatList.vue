@@ -10,6 +10,7 @@ import {
 } from 'vue';
 import { useStore } from 'vuex';
 import { useRoute, useRouter } from 'vue-router';
+import { useEventListener, useWindowSize } from '@vueuse/core';
 import {
   useMapGetter,
   useFunctionGetter,
@@ -75,10 +76,63 @@ const props = defineProps({
 
 const emit = defineEmits(['conversationLoad']);
 const { uiSettings, updateUISettings } = useUISettings();
+const { width: windowWidth } = useWindowSize();
 const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
 const store = useStore();
+
+const MIN_LIST_WIDTH = 280;
+const maxListWidth = computed(() => (windowWidth.value >= 1536 ? 412 : 340));
+const resizedListWidth = ref(null);
+const listWidth = computed(() =>
+  Math.max(
+    MIN_LIST_WIDTH,
+    Math.min(
+      maxListWidth.value,
+      resizedListWidth.value ??
+        uiSettings.value.conversation_list_width ??
+        maxListWidth.value
+    )
+  )
+);
+const isResizingList = ref(false);
+let resizeStartX = 0;
+let resizeStartWidth = 0;
+
+const onListResizeStart = event => {
+  if (event.button !== 0) return;
+  isResizingList.value = true;
+  resizeStartX = event.clientX;
+  resizeStartWidth = listWidth.value;
+  document.body.classList.add('cursor-col-resize', 'select-none');
+  event.preventDefault();
+};
+
+const onListResizeMove = event => {
+  if (!isResizingList.value) return;
+  const direction = document.documentElement.dir === 'rtl' ? -1 : 1;
+  resizedListWidth.value = Math.max(
+    MIN_LIST_WIDTH,
+    Math.min(
+      maxListWidth.value,
+      resizeStartWidth + (event.clientX - resizeStartX) * direction
+    )
+  );
+};
+
+const onListResizeEnd = () => {
+  if (!isResizingList.value) return;
+  isResizingList.value = false;
+  document.body.classList.remove('cursor-col-resize', 'select-none');
+  updateUISettings({ conversation_list_width: listWidth.value });
+};
+
+useEventListener(document, 'pointermove', onListResizeMove);
+useEventListener(document, 'pointerup', onListResizeEnd);
+useEventListener(document, 'pointercancel', onListResizeEnd);
+useEventListener(window, 'blur', onListResizeEnd);
+onBeforeUnmount(onListResizeEnd);
 
 const resolveAttributesModalRef = ref(null);
 
@@ -1121,7 +1175,22 @@ watch(conversationFilters, (newVal, oldVal) => {
       { hidden: !showConversationList },
       isOnExpandedLayout ? 'basis-full' : 'w-[340px] 2xl:w-[412px]',
     ]"
+    :style="
+      !isOnExpandedLayout && windowWidth >= 1024
+        ? { width: `${listWidth}px` }
+        : undefined
+    "
   >
+    <div
+      v-if="!isOnExpandedLayout && showConversationList"
+      class="hidden lg:block absolute top-0 h-full w-3 z-50 cursor-col-resize touch-none group ltr:-right-3 rtl:-left-3"
+      @pointerdown="onListResizeStart"
+    >
+      <div
+        class="absolute top-0 h-full w-0.5 bg-transparent group-hover:bg-n-brand transition-colors ltr:left-0 rtl:right-0"
+        :class="{ 'bg-n-brand': isResizingList }"
+      />
+    </div>
     <slot />
     <ChatListHeader
       v-model:search-query="conversationSearchQuery"
