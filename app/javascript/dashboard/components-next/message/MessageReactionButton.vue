@@ -65,7 +65,9 @@ function handleDocumentClick(event) {
   showMore.value = false;
 }
 
-const closeOnScroll = () => {
+const closeOnScroll = event => {
+  if (menu.value?.contains(event.target)) return;
+
   isOpen.value = false;
   showMore.value = false;
 };
