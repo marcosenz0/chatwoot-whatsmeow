@@ -180,6 +180,9 @@
       "CONFIRM": "Delete"
     },
     "CARD_CONTEXT_MENU": {
+      "PIN": "Pin conversation",
+      "UNPIN": "Unpin conversation",
+      "PINNED": "Pinned conversation",
       "PENDING": "Mark as pending",
       "RESOLVED": "Mark as resolved",
       "MARK_AS_UNREAD": "Mark as unread",

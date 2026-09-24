@@ -59,6 +59,7 @@ import {
   filterItemsByPermission,
 } from 'dashboard/helper/permissionsHelper.js';
 import { matchesFilters } from '../store/modules/conversations/helpers/filterHelpers';
+import { sortComparator } from '../store/modules/conversations/helpers';
 import { CONVERSATION_EVENTS } from '../helper/AnalyticsHelper/events';
 import { ASSIGNEE_TYPE_TAB_PERMISSIONS } from 'dashboard/constants/permissions.js';
 
@@ -108,6 +109,14 @@ let conversationSearchTimer = null;
 let conversationSearchRequestToken = 0;
 
 const currentUser = useMapGetter('getCurrentUser');
+const currentAccountId = useMapGetter('getCurrentAccountId');
+const pinnedSettingsKey = computed(
+  () => `pinned_conversations_${currentAccountId.value}`
+);
+const pinnedConversationIds = computed(() => {
+  const ids = uiSettings.value[pinnedSettingsKey.value];
+  return Array.isArray(ids) ? ids.map(Number).filter(Number.isFinite) : [];
+});
 const chatLists = useMapGetter('getFilteredConversations');
 const mineChatsList = useMapGetter('getMineChats');
 const allChatList = useMapGetter('getAllStatusChats');
@@ -126,7 +135,6 @@ const campaigns = useMapGetter('campaigns/getAllCampaigns');
 const labels = useMapGetter('labels/getLabels');
 const pipelines = useMapGetter('pipelines/getPipelines');
 const pipelineStages = useMapGetter('pipelines/getPipelineStageOptions');
-const currentAccountId = useMapGetter('getCurrentAccountId');
 // We can't useFunctionGetter here since it needs to be called on setup?
 const getTeamFn = useMapGetter('teams/getTeam');
 const getConversationById = useMapGetter('getConversationById');
@@ -385,15 +393,33 @@ const conversationList = computed(() => {
     });
   }
 
-  if (
-    !hasAppliedFiltersOrActiveFolders.value &&
+  const sorted =
     activeSortBy.value === wootConstants.SORT_BY_TYPE.UNREAD
-  ) {
-    localConversationList = sortByUnreadStatus(localConversationList);
-  }
-
-  return localConversationList;
+      ? sortByUnreadStatus(localConversationList)
+      : [...localConversationList].sort((a, b) =>
+          sortComparator(a, b, activeSortBy.value)
+        );
+  const pinned = pinnedConversationIds.value;
+  return sorted.sort((a, b) => {
+    const aIndex = pinned.indexOf(a.id);
+    const bIndex = pinned.indexOf(b.id);
+    if (aIndex === -1 && bIndex === -1) return 0;
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return bIndex - aIndex;
+  });
 });
+
+const isConversationPinned = id => pinnedConversationIds.value.includes(id);
+
+const toggleConversationPin = id => {
+  const pinned = pinnedConversationIds.value.filter(value => value !== id);
+  updateUISettings({
+    [pinnedSettingsKey.value]: isConversationPinned(id)
+      ? pinned
+      : [...pinned.slice(-2), id],
+  });
+};
 
 const normalizedConversationSearchQuery = computed(() =>
   conversationSearchQuery.value.trim()
@@ -692,6 +718,12 @@ async function fetchConversations() {
       hideGroupTabs: [],
     });
   }
+
+  await Promise.all(
+    pinnedConversationIds.value
+      .filter(id => !getConversationById.value(id))
+      .map(id => store.dispatch('getConversation', id))
+  );
 
   emitConversationLoaded();
 }
@@ -1000,6 +1032,8 @@ provide('markAsRead', markAsRead);
 provide('assignPriority', assignPriority);
 provide('isConversationSelected', isConversationSelected);
 provide('deleteConversation', handleDelete);
+provide('isConversationPinned', isConversationPinned);
+provide('toggleConversationPin', toggleConversationPin);
 
 watch(activeTeam, () => resetAndFetchData());
 

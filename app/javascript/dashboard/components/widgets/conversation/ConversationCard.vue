@@ -22,6 +22,7 @@ const props = defineProps({
   inbox: { type: Object, default: () => ({}) },
   selected: { type: Boolean, default: false },
   isActiveChat: { type: Boolean, default: false },
+  isPinned: { type: Boolean, default: false },
   showAssignee: { type: Boolean, default: false },
   showInboxName: { type: Boolean, default: false },
   hideThumbnail: { type: Boolean, default: false },
@@ -196,6 +197,11 @@ watch(
         :class="hasUnread ? 'font-semibold' : 'font-medium'"
       >
         {{ currentContact.name }}
+        <span
+          v-if="isPinned"
+          v-tooltip.top="$t('CONVERSATION.CARD_CONTEXT_MENU.PINNED')"
+          class="i-lucide-pin inline-block size-3.5 align-middle text-n-slate-10"
+        />
       </h4>
       <p
         v-if="presenceText"

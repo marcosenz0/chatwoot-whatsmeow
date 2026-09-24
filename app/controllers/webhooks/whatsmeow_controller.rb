@@ -5,6 +5,7 @@ class Webhooks::WhatsmeowController < ActionController::API
     'status_published' => :process_status_published,
     'status_view' => :process_status_view,
     'receipt' => :process_receipt,
+    'chat_read' => :process_chat_read,
     'reaction' => :process_reaction,
     'edit' => :process_edit,
     'delete' => :process_delete,
@@ -74,6 +75,10 @@ class Webhooks::WhatsmeowController < ActionController::API
 
   def process_receipt
     Whatsmeow::ReceiptService.new(inbox: inbox, params: params.to_unsafe_hash).perform
+  end
+
+  def process_chat_read
+    Whatsmeow::ChatReadService.new(inbox: inbox, params: params.to_unsafe_hash).perform
   end
 
   def process_reaction

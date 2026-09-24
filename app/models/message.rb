@@ -471,6 +471,17 @@ class Message < ApplicationRecord
   end
 
   def set_conversation_activity
+    if inbox.channel_type == 'Channel::Whatsmeow' && content_attributes['external_created_at'].present?
+      # WhatsApp can deliver a delayed message after a newer one. Its original
+      # timestamp must not move the conversation down the inbox list.
+      # rubocop:disable Rails/SkipsModelValidations
+      Conversation.where(id: conversation_id).where('last_activity_at IS NULL OR last_activity_at < ?', created_at)
+                  .update_all(last_activity_at: created_at, updated_at: Time.current)
+      # rubocop:enable Rails/SkipsModelValidations
+      conversation.reload
+      return
+    end
+
     # rubocop:disable Rails/SkipsModelValidations
     conversation.update_columns(last_activity_at: created_at, updated_at: Time.current)
     # rubocop:enable Rails/SkipsModelValidations

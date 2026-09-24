@@ -665,7 +665,7 @@
         "NO": "Não, Mantenha "
       },
       "API": {
-        "SUCCESS_MESSAGE": "Agente excluído com sucesso",
+        "SUCCESS_MESSAGE": "Caixa de entrada excluída com sucesso",
         "ERROR_MESSAGE": "Não foi possível excluir a caixa de entrada. Tente novamente mais tarde.",
         "AVATAR_SUCCESS_MESSAGE": "Perfil da caixa de entrada excluído com sucesso",
         "AVATAR_ERROR_MESSAGE": "Não foi possível excluir o perfil da caixa de entrada. Por favor, tente novamente mais tarde."

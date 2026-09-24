@@ -22,6 +22,7 @@ const props = defineProps({
   inbox: { type: Object, default: () => ({}) },
   selected: { type: Boolean, default: false },
   isActiveChat: { type: Boolean, default: false },
+  isPinned: { type: Boolean, default: false },
   showAssignee: { type: Boolean, default: false },
   showInboxName: { type: Boolean, default: false },
   isInboxView: { type: Boolean, default: false },
@@ -167,6 +168,11 @@ const selectedModel = computed({
         class="text-heading-3 my-0 capitalize truncate text-n-slate-12 font-medium w-32 flex-shrink-0"
       >
         {{ currentContact.name }}
+        <span
+          v-if="isPinned"
+          v-tooltip.top="$t('CONVERSATION.CARD_CONTEXT_MENU.PINNED')"
+          class="i-lucide-pin inline-block size-3.5 align-middle text-n-slate-10"
+        />
       </h4>
 
       <CardContent
