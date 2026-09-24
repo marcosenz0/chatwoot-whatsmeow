@@ -139,6 +139,7 @@ describe('#mutations', () => {
           ],
           unread_count: 0,
           timestamp: 1602256198,
+          last_activity_at: 1602256198,
         },
       ]);
       expect(emitter.emit).not.toHaveBeenCalled();
@@ -167,9 +168,32 @@ describe('#mutations', () => {
           ],
           unread_count: 0,
           timestamp: 1602256198,
+          last_activity_at: 1602256198,
         },
       ]);
       expect(emitter.emit).toHaveBeenCalledWith('SCROLL_TO_MESSAGE');
+    });
+
+    it('keeps the newer activity time when a delayed WhatsApp message arrives', () => {
+      const state = {
+        allConversations: [
+          {
+            id: 1,
+            messages: [],
+            timestamp: 1602256300,
+            last_activity_at: 1602256300,
+          },
+        ],
+        selectedChatId: -1,
+      };
+
+      mutations[types.ADD_MESSAGE](state, {
+        conversation_id: 1,
+        content: 'Delayed message',
+        created_at: 1602256198,
+      });
+
+      expect(state.allConversations[0].last_activity_at).toBe(1602256300);
     });
 
     it('update message if it exist in the store', () => {

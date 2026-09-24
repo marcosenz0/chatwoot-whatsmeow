@@ -168,6 +168,9 @@
       "CONFIRM": "Excluir"
     },
     "CARD_CONTEXT_MENU": {
+      "PIN": "Fixar conversa",
+      "UNPIN": "Desafixar conversa",
+      "PINNED": "Conversa fixada",
       "PENDING": "Deixar pendente",
       "RESOLVED": "Marcar como resolvida",
       "MARK_AS_UNREAD": "Marcar como não lida",

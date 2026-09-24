@@ -1,7 +1,8 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import { ORIENTATION } from './constants';
 import EmojiPicker from 'shared/components/emoji/EmojiPicker.vue';
+import TeleportWithDirection from 'dashboard/components-next/TeleportWithDirection.vue';
 
 const props = defineProps({
   orientation: {
@@ -13,8 +14,12 @@ const props = defineProps({
 const emit = defineEmits(['react']);
 
 const wrapper = ref(null);
+const menu = ref(null);
 const isOpen = ref(false);
 const showMore = ref(false);
+const menuPosition = ref({ top: '0px', left: '0px' });
+const showPickerAbove = ref(true);
+const showPickerOnRight = ref(false);
 
 const quickEmojis = [
   '\u{1F44D}',
@@ -24,13 +29,23 @@ const quickEmojis = [
   '\u{1F622}',
   '\u{1F64F}',
 ];
-const pickerPositionClass = computed(() => {
-  return props.orientation === ORIENTATION.RIGHT ? 'right-0' : 'left-0';
-});
+function positionMenu() {
+  const rect = wrapper.value?.getBoundingClientRect();
+  if (!rect) return;
+
+  const preferredLeft =
+    props.orientation === ORIENTATION.RIGHT ? rect.right - 272 : rect.left;
+  const left = Math.max(8, Math.min(preferredLeft, window.innerWidth - 288));
+  const top = rect.top > 48 ? rect.top - 44 : rect.bottom + 8;
+  menuPosition.value = { top: `${top}px`, left: `${left}px` };
+  showPickerAbove.value = top >= 264 || window.innerHeight - top < 320;
+  showPickerOnRight.value = left + 352 > window.innerWidth - 8;
+}
 
 function togglePicker() {
   isOpen.value = !isOpen.value;
   showMore.value = false;
+  if (isOpen.value) positionMenu();
 }
 
 function handleReaction(emoji) {
@@ -40,16 +55,33 @@ function handleReaction(emoji) {
 }
 
 function handleDocumentClick(event) {
-  if (!wrapper.value || wrapper.value.contains(event.target)) return;
+  if (
+    wrapper.value?.contains(event.target) ||
+    menu.value?.contains(event.target)
+  )
+    return;
 
   isOpen.value = false;
   showMore.value = false;
 }
 
-onMounted(() => document.addEventListener('click', handleDocumentClick));
-onBeforeUnmount(() =>
-  document.removeEventListener('click', handleDocumentClick)
-);
+const closeOnScroll = event => {
+  if (menu.value?.contains(event.target)) return;
+
+  isOpen.value = false;
+  showMore.value = false;
+};
+
+onMounted(() => {
+  document.addEventListener('click', handleDocumentClick);
+  window.addEventListener('scroll', closeOnScroll, true);
+  window.addEventListener('resize', closeOnScroll);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick);
+  window.removeEventListener('scroll', closeOnScroll, true);
+  window.removeEventListener('resize', closeOnScroll);
+});
 </script>
 
 <template>
@@ -65,36 +97,41 @@ onBeforeUnmount(() =>
     >
       <i class="i-lucide-smile-plus size-4" />
     </button>
-    <div
-      v-if="isOpen"
-      class="skip-context-menu absolute bottom-8 z-50 flex items-center gap-1 rounded-full border border-n-weak bg-n-background px-2 py-1.5 shadow-xl"
-      :class="pickerPositionClass"
-      @click.stop
-      @contextmenu.stop.prevent
-    >
-      <button
-        v-for="emoji in quickEmojis"
-        :key="emoji"
-        type="button"
-        class="flex size-9 items-center justify-center rounded-full text-xl hover:bg-n-alpha-2"
-        @click="handleReaction(emoji)"
-      >
-        {{ emoji }}
-      </button>
-      <button
-        type="button"
-        class="flex size-9 items-center justify-center rounded-full text-n-slate-11 hover:bg-n-alpha-2"
-        @click="showMore = !showMore"
-      >
-        <i class="i-lucide-plus size-4" />
-      </button>
+    <TeleportWithDirection v-if="isOpen" to="body">
       <div
-        v-if="showMore"
-        class="absolute bottom-12 z-[60] w-[22rem]"
-        :class="pickerPositionClass"
+        ref="menu"
+        class="skip-context-menu fixed z-[9999] flex items-center gap-1 rounded-full border border-n-weak bg-n-background px-2 py-1 shadow-xl"
+        :style="menuPosition"
+        @click.stop
+        @contextmenu.stop.prevent
       >
-        <EmojiPicker @select="handleReaction($event.value)" />
+        <button
+          v-for="emoji in quickEmojis"
+          :key="emoji"
+          type="button"
+          class="flex size-8 items-center justify-center rounded-full text-lg hover:bg-n-alpha-2"
+          @click="handleReaction(emoji)"
+        >
+          {{ emoji }}
+        </button>
+        <button
+          type="button"
+          class="flex size-8 items-center justify-center rounded-full text-n-slate-11 hover:bg-n-alpha-2"
+          @click="showMore = !showMore"
+        >
+          <i class="i-lucide-plus size-4" />
+        </button>
+        <div
+          v-if="showMore"
+          class="absolute z-[60] w-[min(22rem,calc(100vw-1rem))]"
+          :class="[
+            showPickerOnRight ? 'right-0' : 'left-0',
+            showPickerAbove ? 'bottom-11' : 'top-11',
+          ]"
+        >
+          <EmojiPicker @select="handleReaction($event.value)" />
+        </div>
       </div>
-    </div>
+    </TeleportWithDirection>
   </div>
 </template>

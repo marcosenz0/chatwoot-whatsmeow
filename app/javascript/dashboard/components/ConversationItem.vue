@@ -34,6 +34,8 @@ const markAsRead = inject('markAsRead');
 const assignPriority = inject('assignPriority');
 const isConversationSelected = inject('isConversationSelected');
 const deleteConversation = inject('deleteConversation');
+const isConversationPinned = inject('isConversationPinned', () => false);
+const toggleConversationPin = inject('toggleConversationPin', () => {});
 
 // --- Context menu state (shared by both layouts) ---
 const showContextMenu = ref(false);
@@ -68,6 +70,7 @@ const currentContact = computed(() =>
 );
 
 const isActiveChat = computed(() => currentChat.value.id === props.source.id);
+const isPinned = computed(() => isConversationPinned(props.source.id));
 
 const inbox = computed(() => {
   const inboxId = props.source.inbox_id;
@@ -179,6 +182,11 @@ const onDeleteConversation = () => {
   deleteConversation(props.source.id);
   closeContextMenu();
 };
+
+const onTogglePin = () => {
+  toggleConversationPin(props.source.id);
+  closeContextMenu();
+};
 </script>
 
 <template>
@@ -191,6 +199,7 @@ const onDeleteConversation = () => {
     :inbox="inbox"
     :selected="isConversationSelected(source.id)"
     :is-active-chat="isActiveChat"
+    :is-pinned="isPinned"
     :show-assignee="showAssigneeForExpandedCard"
     :show-inbox-name="showInboxName"
     :is-inbox-view="isInboxView"
@@ -210,6 +219,7 @@ const onDeleteConversation = () => {
     :inbox="inbox"
     :selected="isConversationSelected(source.id)"
     :is-active-chat="isActiveChat"
+    :is-pinned="isPinned"
     :show-assignee="showAssignee"
     :show-inbox-name="showInboxName"
     :typing-users="typingUsers"
@@ -232,6 +242,7 @@ const onDeleteConversation = () => {
       :priority="source.priority"
       :chat-id="source.id"
       :has-unread-messages="source.unread_count > 0"
+      :is-pinned="isPinned"
       :conversation-labels="source.labels"
       :conversation-url="conversationPath"
       @update-conversation="onUpdateConversation"
@@ -243,6 +254,7 @@ const onDeleteConversation = () => {
       @mark-as-read="onMarkAsRead"
       @assign-priority="onAssignPriority"
       @delete-conversation="onDeleteConversation"
+      @toggle-pin="onTogglePin"
       @close="closeContextMenu"
     />
   </ContextMenu>

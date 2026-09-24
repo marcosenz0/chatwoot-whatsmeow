@@ -220,6 +220,10 @@ export const mutations = {
     } else {
       chat.messages.push(message);
       chat.timestamp = Math.max(chat.timestamp || 0, message.created_at);
+      chat.last_activity_at = Math.max(
+        chat.last_activity_at || 0,
+        message.created_at
+      );
       if (message.content_attributes?.historical) {
         chat.messages.sort(
           (a, b) => a.created_at - b.created_at || a.id - b.id

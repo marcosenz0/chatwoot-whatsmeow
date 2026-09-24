@@ -27,6 +27,7 @@ const MENU = {
   DELETE: 'delete',
   OPEN_NEW_TAB: 'open-new-tab',
   COPY_LINK: 'copy-link',
+  PIN: 'pin',
 };
 
 export default {
@@ -47,6 +48,10 @@ export default {
       default: '',
     },
     hasUnreadMessages: {
+      type: Boolean,
+      default: false,
+    },
+    isPinned: {
       type: Boolean,
       default: false,
     },
@@ -82,6 +87,7 @@ export default {
     'removeLabel',
     'deleteConversation',
     'close',
+    'togglePin',
   ],
   setup() {
     const { isAdmin } = useAdmin();
@@ -101,6 +107,13 @@ export default {
       unreadOption: {
         label: this.$t('CONVERSATION.CARD_CONTEXT_MENU.MARK_AS_UNREAD'),
         icon: 'mail-unread',
+      },
+      pinOption: {
+        key: MENU.PIN,
+        icon: this.isPinned ? 'pin-off' : 'pin',
+        label: this.isPinned
+          ? this.$t('CONVERSATION.CARD_CONTEXT_MENU.UNPIN')
+          : this.$t('CONVERSATION.CARD_CONTEXT_MENU.PIN'),
       },
       statusMenuConfig: [
         {
@@ -297,6 +310,16 @@ export default {
   <div
     class="p-1 rounded-md shadow-xl bg-n-alpha-3/50 backdrop-blur-[100px] outline-1 outline outline-n-weak/50"
   >
+    <MenuItem
+      v-if="isAllowed([MENU.PIN])"
+      :option="pinOption"
+      variant="icon"
+      @click.stop="$emit('togglePin')"
+    />
+    <hr
+      v-if="isAllowed([MENU.PIN])"
+      class="m-1 rounded border-b border-n-weak dark:border-n-weak"
+    />
     <template v-if="isAllowed([MENU.MARK_AS_READ, MENU.MARK_AS_UNREAD])">
       <MenuItem
         v-if="!hasUnreadMessages"

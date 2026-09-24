@@ -8,6 +8,8 @@ import { useMapGetter } from 'dashboard/composables/store';
 import { useStore } from 'vuex';
 import { useRouter } from 'vue-router';
 import { usePolicy } from 'dashboard/composables/usePolicy';
+import { useAdmin } from 'dashboard/composables/useAdmin';
+import { useAlert } from 'dashboard/composables';
 import { useI18n } from 'vue-i18n';
 import { useSidebarKeyboardShortcuts } from './useSidebarKeyboardShortcuts';
 import { vOnClickOutside } from '@vueuse/components';
@@ -67,7 +69,25 @@ const searchShortcut = useKbd([`$mod`, 'k']);
 const { t } = useI18n();
 const router = useRouter();
 const { shouldShow } = usePolicy();
+const { isAdmin } = useAdmin();
 const inboxContextMenu = ref(null);
+const inboxToDelete = ref(null);
+const showDeleteInbox = ref(false);
+const deleteConfirmMessage = computed(
+  () =>
+    `${t('INBOX_MGMT.DELETE.CONFIRM.MESSAGE')} ${inboxToDelete.value?.name}?`
+);
+const deleteConfirmText = computed(
+  () => `${t('INBOX_MGMT.DELETE.CONFIRM.YES')} ${inboxToDelete.value?.name}`
+);
+const deleteRejectText = computed(
+  () => `${t('INBOX_MGMT.DELETE.CONFIRM.NO')} ${inboxToDelete.value?.name}`
+);
+const deletePlaceholderText = computed(() =>
+  t('INBOX_MGMT.DELETE.CONFIRM.PLACE_HOLDER', {
+    inboxName: inboxToDelete.value?.name,
+  })
+);
 
 const closeInboxContextMenu = () => {
   inboxContextMenu.value = null;
@@ -82,13 +102,42 @@ const openInboxContextMenu = (event, inbox) => {
   if (!shouldShow(featureFlag, permissions)) return;
 
   event.preventDefault();
-  inboxContextMenu.value = { x: event.clientX, y: event.clientY, to };
+  inboxContextMenu.value = { x: event.clientX, y: event.clientY, to, inbox };
 };
 
 const openInboxConfiguration = () => {
   const { to } = inboxContextMenu.value;
   closeInboxContextMenu();
   router.push(to);
+};
+
+const openInboxDeletion = () => {
+  if (!isAdmin.value) return;
+
+  inboxToDelete.value = inboxContextMenu.value?.inbox;
+  closeInboxContextMenu();
+  showDeleteInbox.value = true;
+};
+
+const closeInboxDeletion = () => {
+  showDeleteInbox.value = false;
+  inboxToDelete.value = null;
+};
+
+const confirmInboxDeletion = async () => {
+  const inbox = inboxToDelete.value;
+  if (!inbox || !isAdmin.value) return;
+
+  try {
+    await store.dispatch('inboxes/delete', inbox.id);
+    useAlert(t('INBOX_MGMT.DELETE.API.SUCCESS_MESSAGE'));
+    if (Number(route.params.inbox_id || route.params.inboxId) === inbox.id) {
+      router.push(accountScopedRoute('home'));
+    }
+    closeInboxDeletion();
+  } catch (error) {
+    useAlert(t('INBOX_MGMT.DELETE.API.ERROR_MESSAGE'));
+  }
 };
 
 watch(() => router.currentRoute.value.fullPath, closeInboxContextMenu);
@@ -1264,7 +1313,29 @@ const menuItems = computed(() => {
           <span class="i-lucide-settings size-4" />
           {{ t('INBOX_MGMT.TABS.CONFIGURATION') }}
         </button>
+        <button
+          v-if="isAdmin"
+          type="button"
+          class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-n-ruby-11 hover:bg-n-ruby-2"
+          @mousedown.prevent
+          @click="openInboxDeletion"
+        >
+          <span class="i-lucide-trash-2 size-4" />
+          {{ t('INBOX_MGMT.DELETE.BUTTON_TEXT') }}
+        </button>
       </div>
     </ContextMenu>
+    <woot-confirm-delete-modal
+      v-if="showDeleteInbox"
+      v-model:show="showDeleteInbox"
+      :title="t('INBOX_MGMT.DELETE.CONFIRM.TITLE')"
+      :message="deleteConfirmMessage"
+      :confirm-text="deleteConfirmText"
+      :reject-text="deleteRejectText"
+      :confirm-value="inboxToDelete.name"
+      :confirm-place-holder-text="deletePlaceholderText"
+      @on-confirm="confirmInboxDeletion"
+      @on-close="closeInboxDeletion"
+    />
   </aside>
 </template>

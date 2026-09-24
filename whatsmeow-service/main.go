@@ -27,6 +27,7 @@ import (
 	"github.com/skip2/go-qrcode"
 
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/binary/proto"
 	waWeb "go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/store"
@@ -416,6 +417,7 @@ func main() {
 	// Endpoints
 	r.POST("/sessions", internalTokenMiddleware(), handleCreateSession)
 	r.POST("/sessions/:channel_id/history/sync", internalTokenMiddleware(), handleHistorySync)
+	r.POST("/sessions/:channel_id/read-state/sync", internalTokenMiddleware(), handleSyncChatReadState)
 	r.GET("/sessions/:channel_id/qr", internalTokenMiddleware(), handleGetQR)
 	r.GET("/sessions/:channel_id/status", handleGetStatus)
 	r.GET("/sessions/:channel_id/groups", internalTokenMiddleware(), handleGetGroups)
@@ -3444,9 +3446,30 @@ func safeDisconnectClient(client *whatsmeow.Client) {
 }
 
 func registerEventHandler(client *whatsmeow.Client) {
+	client.EmitAppStateEventsOnFullSync = true
 	client.AddEventHandler(func(evt interface{}) {
 		eventHandler(client, evt)
 	})
+}
+
+func handleSyncChatReadState(c *gin.Context) {
+	channelID := c.Param("channel_id")
+	clientsMu.RLock()
+	client := clients[channelID]
+	clientsMu.RUnlock()
+	if client == nil || !client.IsConnected() || !client.IsLoggedIn() {
+		c.JSON(http.StatusConflict, gin.H{"error": "WhatsApp session is not connected"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Minute)
+	defer cancel()
+	if err := client.FetchAppState(ctx, appstate.WAPatchRegularLow, true, false); err != nil {
+		log.Printf("Could not synchronize WhatsApp read state for inbox %s: %v", channelID, err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Could not synchronize WhatsApp read state"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "synchronized"})
 }
 
 func eventHandler(client *whatsmeow.Client, evt interface{}) {
@@ -3508,12 +3531,35 @@ func processEventForInbox(channelID string, accountID string, client *whatsmeow.
 	case *events.Receipt:
 		processReceiptForInbox(channelID, accountID, client, v)
 
+	case *events.MarkChatAsRead:
+		processChatReadForInbox(channelID, accountID, client, v)
+
 	case *events.ChatPresence:
 		processChatPresenceForInbox(channelID, accountID, client, v)
 
 	case *events.HistorySync:
 		processHistorySyncForInbox(channelID, accountID, client, v)
 	}
+}
+
+func processChatReadForInbox(channelID string, accountID string, client *whatsmeow.Client, event *events.MarkChatAsRead) {
+	if event == nil || event.Action == nil || event.JID.Server == "broadcast" {
+		return
+	}
+
+	chat := event.JID.ToNonAD()
+	phone := resolvePhoneJID(client, chat)
+	lid := resolveLIDJID(client, chat)
+	payload := map[string]interface{}{
+		"event":      "chat_read",
+		"chat":       jidString(chat),
+		"phone_jid":  jidString(phone),
+		"lid_jid":    jidString(lid),
+		"read":       event.Action.GetRead(),
+		"timestamp":  event.Timestamp.Unix(),
+		"message_at": event.Action.GetMessageRange().GetLastMessageTimestamp(),
+	}
+	sendWebhookNotification(accountID, channelID, payload)
 }
 
 func refreshPresenceForChannel(channelID string, client *whatsmeow.Client) {
@@ -3560,6 +3606,10 @@ func processReceiptForInbox(channelID string, accountID string, client *whatsmeo
 	if receipt == nil {
 		return
 	}
+	if receipt.Type == types.ReceiptTypeReadSelf {
+		processChatReadReceiptForInbox(channelID, accountID, client, receipt)
+		return
+	}
 
 	// Status view receipts are not always delivered with status@broadcast as
 	// the chat. Check every read/played receipt against our persisted outgoing
@@ -3593,6 +3643,34 @@ func processReceiptForInbox(channelID string, accountID string, client *whatsmeo
 		"chat":         jidString(receipt.Chat),
 		"sender":       jidString(receipt.Sender),
 		"timestamp":    receipt.Timestamp.Unix(),
+	}
+	sendWebhookNotification(accountID, channelID, payload)
+}
+
+func processChatReadReceiptForInbox(channelID string, accountID string, client *whatsmeow.Client, receipt *events.Receipt) {
+	if len(receipt.MessageIDs) == 0 || receipt.Chat.Server == "broadcast" {
+		return
+	}
+
+	chat := receipt.Chat.ToNonAD()
+	messageIDs := make([]string, 0, len(receipt.MessageIDs))
+	for _, id := range receipt.MessageIDs {
+		if id != "" {
+			messageIDs = append(messageIDs, string(id))
+		}
+	}
+	if len(messageIDs) == 0 {
+		return
+	}
+
+	payload := map[string]interface{}{
+		"event":       "chat_read",
+		"chat":        jidString(chat),
+		"phone_jid":   jidString(resolvePhoneJID(client, chat)),
+		"lid_jid":     jidString(resolveLIDJID(client, chat)),
+		"read":        true,
+		"timestamp":   receipt.Timestamp.Unix(),
+		"message_ids": messageIDs,
 	}
 	sendWebhookNotification(accountID, channelID, payload)
 }
