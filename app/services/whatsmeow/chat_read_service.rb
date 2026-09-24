@@ -34,28 +34,42 @@ class Whatsmeow::ChatReadService
     read_cursor = message_at(conversation)
     return if read_cursor.blank?
 
-    changed = false
-    conversation.with_lock do
-      event_at = params[:timestamp].to_i
-      previous_event_at = conversation.additional_attributes['whatsmeow_read_event_at'].to_i
-      next if event_at.positive? && event_at <= previous_event_at
+    changed = conversation.with_lock do
+      next false if stale_event?(conversation)
 
-      last_seen = if ActiveModel::Type::Boolean.new.cast(params[:read])
-                    [conversation.agent_last_seen_at, read_cursor].compact.max
-                  else
-                    unread_cutoff(conversation, read_cursor)
-                  end
-      next if last_seen.blank?
+      last_seen = read? ? [conversation.agent_last_seen_at, read_cursor].compact.max : unread_cutoff(conversation, read_cursor)
+      next false if last_seen.blank?
 
-      attributes = { agent_last_seen_at: last_seen, assignee_last_seen_at: last_seen }
-      if event_at.positive?
-        attributes[:additional_attributes] = conversation.additional_attributes.merge('whatsmeow_read_event_at' => event_at)
-      end
-      conversation.update_columns(attributes)
-      changed = true
+      # The read cursor is an external device state; model update callbacks must
+      # not publish a second conversation event or trigger unrelated workflows.
+      # rubocop:disable Rails/SkipsModelValidations
+      conversation.update_columns(read_attributes(conversation, last_seen))
+      # rubocop:enable Rails/SkipsModelValidations
+      true
     end
     return unless changed
 
+    notify(conversation)
+  end
+
+  def stale_event?(conversation)
+    event_at = params[:timestamp].to_i
+    event_at.positive? && event_at <= conversation.additional_attributes['whatsmeow_read_event_at'].to_i
+  end
+
+  def read?
+    ActiveModel::Type::Boolean.new.cast(params[:read])
+  end
+
+  def read_attributes(conversation, last_seen)
+    attributes = { agent_last_seen_at: last_seen, assignee_last_seen_at: last_seen }
+    event_at = params[:timestamp].to_i
+    return attributes unless event_at.positive?
+
+    attributes.merge(additional_attributes: conversation.additional_attributes.merge('whatsmeow_read_event_at' => event_at))
+  end
+
+  def notify(conversation)
     conversation.dispatch_conversation_updated_event
     Conversations::UnreadCounts::Notifier.new(conversation).perform
     Conversations::UnreadCounts::FilteredCountInvalidator.new(conversation.account).conversation_changed!
