@@ -200,6 +200,13 @@ const GROUP_VISIBILITY_TABS = [
   wootConstants.ASSIGNEE_TYPE.ALL,
 ];
 
+const visibleAssigneeTabs = computed(() => {
+  const tabs = uiSettings.value.conversations_visible_tabs;
+  return Array.isArray(tabs)
+    ? [wootConstants.ASSIGNEE_TYPE.ALL, ...tabs]
+    : Object.values(wootConstants.ASSIGNEE_TYPE);
+});
+
 const shownGroupTabs = computed(() => {
   const tabs = uiSettings.value.conversations_show_groups_in_tabs;
   return Array.isArray(tabs) ? tabs : [];
@@ -223,11 +230,13 @@ const assigneeTabItems = computed(() => {
     ASSIGNEE_TYPE_TAB_PERMISSIONS,
     userPermissions.value,
     item => item.permissions
-  ).map(({ key, count: countKey }) => ({
-    key,
-    name: t(`CHAT_LIST.ASSIGNEE_TYPE_TABS.${key}`),
-    count: conversationStats.value[countKey] || 0,
-  }));
+  )
+    .filter(({ key }) => visibleAssigneeTabs.value.includes(key))
+    .map(({ key, count: countKey }) => ({
+      key,
+      name: t(`CHAT_LIST.ASSIGNEE_TYPE_TABS.${key}`),
+      count: conversationStats.value[countKey] || 0,
+    }));
 });
 
 const showAssigneeInConversationCard = computed(() => {
@@ -789,6 +798,10 @@ function onUpdateShownGroupTabs(tabs) {
   });
 }
 
+function onUpdateVisibleTabs(tabs) {
+  updateUISettings({ conversations_visible_tabs: tabs });
+}
+
 function openLastSavedItemInFolder() {
   const lastItemOfFolder = folders.value[folders.value.length - 1];
   const lastItemId = lastItemOfFolder.id;
@@ -1055,6 +1068,16 @@ watch(
   () => resetAndFetchData()
 );
 
+watch(
+  visibleAssigneeTabs,
+  tabs => {
+    if (!tabs.includes(activeAssigneeTab.value)) {
+      updateAssigneeTab(wootConstants.ASSIGNEE_TYPE.ALL);
+    }
+  },
+  { immediate: true }
+);
+
 watch(activeFolder, (newVal, oldVal) => {
   if (newVal !== oldVal) {
     store.dispatch('customViews/setActiveConversationFolder', newVal || null);
@@ -1219,9 +1242,11 @@ watch(conversationFilters, (newVal, oldVal) => {
         :folder-name="activeFolderName"
         :is-folder-view="hasActiveFolders"
         :shown-group-tabs="shownGroupTabs"
+        :visible-tabs="visibleAssigneeTabs"
         @apply-filter="onApplyFilter"
         @update-folder="onUpdateSavedFilter"
         @update-shown-group-tabs="onUpdateShownGroupTabs"
+        @update-visible-tabs="onUpdateVisibleTabs"
         @close="closeAdvanceFiltersModal"
       />
     </TeleportWithDirection>

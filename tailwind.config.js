@@ -2,6 +2,7 @@ const { slateDark } = require('@radix-ui/colors');
 import { colors } from './theme/colors';
 import { icons } from './theme/icons';
 const defaultTheme = require('tailwindcss/defaultTheme');
+const plugin = require('tailwindcss/plugin');
 const {
   iconsPlugin,
   getIconCollections,
@@ -261,6 +262,33 @@ const tailwindConfig = {
     },
   },
   plugins: [
+    plugin(({ addBase }) => {
+      addBase({
+        '*': {
+          scrollbarWidth: 'thin',
+          scrollbarColor: 'rgb(var(--slate-8) / 0.45) transparent',
+        },
+        '*::-webkit-scrollbar': {
+          width: '8px',
+          height: '8px',
+        },
+        '*::-webkit-scrollbar-track': {
+          backgroundColor: 'transparent',
+        },
+        '*::-webkit-scrollbar-thumb': {
+          backgroundColor: 'rgb(var(--slate-8) / 0.45)',
+          border: '2px solid transparent',
+          borderRadius: '9999px',
+          backgroundClip: 'padding-box',
+        },
+        '*::-webkit-scrollbar-thumb:hover': {
+          backgroundColor: 'rgb(var(--slate-8) / 0.7)',
+        },
+        '*::-webkit-scrollbar-button': {
+          display: 'none',
+        },
+      });
+    }),
     // eslint-disable-next-line
     require('@tailwindcss/typography'),
     iconsPlugin({

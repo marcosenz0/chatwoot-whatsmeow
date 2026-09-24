@@ -25,12 +25,17 @@ const props = defineProps({
     type: Array,
     default: () => [],
   },
+  visibleTabs: {
+    type: Array,
+    default: () => [],
+  },
 });
 
 const emit = defineEmits([
   'applyFilter',
   'updateFolder',
   'updateShownGroupTabs',
+  'updateVisibleTabs',
   'close',
 ]);
 const { filterTypes } = useConversationFilterContext();
@@ -48,6 +53,7 @@ const DEFAULT_FILTER = {
   queryOperator: 'and',
 };
 const SHOW_GROUP_TAB_KEYS = ['me', 'unassigned', 'all'];
+const VISIBLE_TAB_KEYS = ['me', 'unassigned', 'all', 'groups'];
 
 const { t } = useI18n();
 const store = useStore();
@@ -119,6 +125,26 @@ const groupTabOptions = computed(() =>
 
 const isGroupTabShown = key => props.shownGroupTabs.includes(key);
 
+const visibleTabOptions = computed(() =>
+  VISIBLE_TAB_KEYS.map(key => ({
+    key,
+    label: {
+      me: t('CHAT_LIST.ASSIGNEE_TYPE_TABS.me'),
+      unassigned: t('CHAT_LIST.ASSIGNEE_TYPE_TABS.unassigned'),
+      all: t('CHAT_LIST.ASSIGNEE_TYPE_TABS.all'),
+      groups: t('CHAT_LIST.ASSIGNEE_TYPE_TABS.groups'),
+    }[key],
+  }))
+);
+
+const toggleVisibleTab = key => {
+  if (key === 'all') return;
+  const nextTabs = props.visibleTabs.includes(key)
+    ? props.visibleTabs.filter(tab => tab !== key)
+    : [...props.visibleTabs, key];
+  emit('updateVisibleTabs', nextTabs);
+};
+
 const toggleGroupTab = key => {
   const nextTabs = isGroupTabShown(key)
     ? props.shownGroupTabs.filter(tab => tab !== key)
@@ -142,6 +168,35 @@ const outsideClickHandler = [
     <h3 class="text-base font-medium leading-6 text-n-slate-12">
       {{ filterModalHeaderTitle }}
     </h3>
+    <div
+      v-if="!props.isFolderView"
+      class="grid gap-3 p-3 border rounded-lg border-n-weak bg-n-alpha-1"
+    >
+      <h4 class="text-sm font-medium text-n-slate-12">
+        {{ t('FILTER.TAB_VISIBILITY.TITLE') }}
+      </h4>
+      <div class="flex flex-wrap gap-2">
+        <label
+          v-for="option in visibleTabOptions"
+          :key="option.key"
+          class="inline-flex items-center gap-2 px-2.5 py-1.5 border rounded-md select-none border-n-weak bg-n-alpha-2 text-n-slate-12"
+          :class="
+            option.key === 'all'
+              ? 'opacity-70'
+              : 'cursor-pointer hover:bg-n-alpha-3'
+          "
+        >
+          <input
+            type="checkbox"
+            class="reset-base size-4 rounded border-n-strong text-n-blue-9"
+            :checked="visibleTabs.includes(option.key)"
+            :disabled="option.key === 'all'"
+            @change="toggleVisibleTab(option.key)"
+          />
+          <span class="text-sm font-medium">{{ option.label }}</span>
+        </label>
+      </div>
+    </div>
     <div
       v-if="!props.isFolderView"
       class="grid gap-3 p-3 border rounded-lg border-n-weak bg-n-alpha-1"

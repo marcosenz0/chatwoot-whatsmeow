@@ -16,6 +16,9 @@
       "TITLE": "Show groups in tabs",
       "DESCRIPTION": "Select where group conversations should also appear. The Groups tab always shows every group."
     },
+    "TAB_VISIBILITY": {
+      "TITLE": "Show conversation tabs"
+    },
     "EMPTY_VALUE_ERROR": "Value is required.",
     "TOOLTIP_LABEL": "Filter conversations",
     "QUERY_DROPDOWN_LABELS": {

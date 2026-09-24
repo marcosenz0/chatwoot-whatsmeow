@@ -1286,13 +1286,13 @@ const menuItems = computed(() => {
     </section>
     <!-- Resize Handle (desktop only) -->
     <div
-      class="hidden md:block absolute top-0 h-full w-1 cursor-col-resize z-40 ltr:right-0 rtl:left-0 group"
+      class="hidden md:block absolute top-0 h-full w-3 cursor-col-resize z-50 ltr:-right-1.5 rtl:-left-1.5 group"
       @mousedown="onResizeStart"
       @touchstart="onResizeStart"
       @dblclick="onResizeHandleDoubleClick"
     >
       <div
-        class="absolute top-0 h-full w-px ltr:right-0 rtl:left-0 bg-transparent group-hover:bg-n-brand transition-colors"
+        class="absolute top-0 h-full w-0.5 left-1/2 -translate-x-1/2 bg-transparent group-hover:bg-n-brand transition-colors"
         :class="{ 'bg-n-brand': isResizing }"
       />
     </div>
