@@ -171,6 +171,40 @@ describe('#actions', () => {
         ],
       ]);
     });
+
+    it('keeps a newer preference while an older save finishes', async () => {
+      axios.put.mockClear();
+      let finishFirstSave;
+      axios.put
+        .mockImplementationOnce(
+          () =>
+            new Promise(resolve => {
+              finishFirstSave = resolve;
+            })
+        )
+        .mockResolvedValueOnce({
+          data: {
+            ui_settings: { sidebar_width: 280, conversation_list_width: 350 },
+          },
+        });
+
+      const firstSave = actions.updateUISettings(
+        { commit },
+        { uiSettings: { sidebar_width: 280 } }
+      );
+      const secondSave = actions.updateUISettings(
+        { commit },
+        { uiSettings: { conversation_list_width: 350 } }
+      );
+      await Promise.resolve();
+      expect(axios.put).toHaveBeenCalledTimes(1);
+
+      finishFirstSave({ data: { ui_settings: { sidebar_width: 280 } } });
+      await Promise.all([firstSave, secondSave]);
+      expect(commit).toHaveBeenCalledWith(types.SET_CURRENT_USER, {
+        ui_settings: { sidebar_width: 280, conversation_list_width: 350 },
+      });
+    });
   });
 
   describe('#setUser', () => {

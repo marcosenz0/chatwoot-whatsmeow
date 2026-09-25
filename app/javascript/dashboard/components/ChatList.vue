@@ -60,7 +60,11 @@ import {
   filterItemsByPermission,
 } from 'dashboard/helper/permissionsHelper.js';
 import { matchesFilters } from '../store/modules/conversations/helpers/filterHelpers';
-import { sortComparator } from '../store/modules/conversations/helpers';
+import {
+  filterByHiddenGroups,
+  isWhatsmeowGroupConversation,
+  sortComparator,
+} from '../store/modules/conversations/helpers';
 import { CONVERSATION_EVENTS } from '../helper/AnalyticsHelper/events';
 import { ASSIGNEE_TYPE_TAB_PERMISSIONS } from 'dashboard/constants/permissions.js';
 
@@ -405,15 +409,26 @@ const pageTitle = computed(() => {
 });
 
 function filterByAssigneeTab(conversations) {
+  const visibleConversations = conversations.filter(conversation =>
+    filterByHiddenGroups(
+      true,
+      hiddenGroupTabs.value,
+      activeAssigneeTab.value,
+      conversation
+    )
+  );
+  if (activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.GROUPS) {
+    return visibleConversations.filter(isWhatsmeowGroupConversation);
+  }
   if (activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.ME) {
-    return conversations.filter(
+    return visibleConversations.filter(
       c => c.meta?.assignee?.id === currentUser.value?.id
     );
   }
   if (activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.UNASSIGNED) {
-    return conversations.filter(c => !c.meta?.assignee);
+    return visibleConversations.filter(c => !c.meta?.assignee);
   }
-  return [...conversations];
+  return visibleConversations;
 }
 
 function sortByUnreadStatus(conversations) {
@@ -446,7 +461,9 @@ const conversationList = computed(() => {
       localConversationList = [...allChatList.value(filters)];
     }
   } else {
-    localConversationList = [...chatLists.value];
+    localConversationList = hasActiveFolders.value
+      ? [...chatLists.value]
+      : filterByAssigneeTab(chatLists.value);
   }
 
   if (activeFolder.value) {
@@ -807,6 +824,11 @@ function resetAndFetchData() {
   fetchConversations();
 }
 
+function onClearAdvancedFilters() {
+  resetAndFetchData();
+  closeAdvanceFiltersModal();
+}
+
 function loadMoreConversations() {
   if (
     isConversationSearchActive.value ||
@@ -831,7 +853,7 @@ function updateAssigneeTab(selectedTab) {
     resetBulkActions();
     emitter.emit('clearSearchInput');
     activeAssigneeTab.value = selectedTab;
-    if (!currentPage.value) {
+    if (!currentPage.value && !hasAppliedFilters.value) {
       fetchConversations();
     }
   }
@@ -1233,7 +1255,7 @@ watch(conversationFilters, (newVal, oldVal) => {
     />
 
     <ChatTypeTabs
-      v-if="!hasAppliedFiltersOrActiveFolders && !isConversationSearchActive"
+      v-if="!hasActiveFolders && !isConversationSearchActive"
       :items="assigneeTabItems"
       :active-tab="activeAssigneeTab"
       is-compact
@@ -1316,6 +1338,7 @@ watch(conversationFilters, (newVal, oldVal) => {
         @update-folder="onUpdateSavedFilter"
         @update-shown-group-tabs="onUpdateShownGroupTabs"
         @update-visible-tabs="onUpdateVisibleTabs"
+        @clear-filters="onClearAdvancedFilters"
         @close="closeAdvanceFiltersModal"
       />
     </TeleportWithDirection>

@@ -38,10 +38,6 @@ const onBasicFilterChange = (value, type) => {
   emit('basicFilterChange', value, type);
 };
 
-const hasAppliedFiltersOrActiveFolders = computed(() => {
-  return props.hasAppliedFilters || props.hasActiveFolders;
-});
-
 const allCount = computed(() => props.conversationStats?.allCount || 0);
 const formattedAllCount = computed(() => formatNumber(allCount.value));
 
@@ -65,7 +61,7 @@ const toggleConversationLayout = () => {
   <div
     class="flex items-center justify-between gap-2 px-3 h-[3.25rem]"
     :class="{
-      'border-b border-n-strong': hasAppliedFiltersOrActiveFolders,
+      'border-b border-n-strong': hasActiveFolders,
     }"
   >
     <div v-if="isSearchActive" class="flex-1 min-w-0">
@@ -88,16 +84,14 @@ const toggleConversationLayout = () => {
         {{ pageTitle }}
       </h1>
       <span
-        v-if="
-          allCount > 0 && hasAppliedFiltersOrActiveFolders && !isListLoading
-        "
+        v-if="allCount > 0 && hasActiveFolders && !isListLoading"
         class="px-2 py-1 my-0.5 mx-1 rounded-md capitalize bg-n-slate-3 text-xxs text-n-slate-12 shrink-0"
         :title="allCount"
       >
         {{ formattedAllCount }}
       </span>
       <span
-        v-if="!hasAppliedFiltersOrActiveFolders"
+        v-if="!hasActiveFolders"
         class="px-2 py-1 my-0.5 mx-1 rounded-md capitalize bg-n-slate-3 text-xxs text-n-slate-12 shrink-0"
       >
         {{ $t(`CHAT_LIST.CHAT_STATUS_FILTER_ITEMS.${activeStatus}.TEXT`) }}
@@ -183,7 +177,7 @@ const toggleConversationLayout = () => {
         />
       </div>
       <ConversationBasicFilter
-        v-if="!hasAppliedFiltersOrActiveFolders"
+        v-if="!hasActiveFolders"
         :is-on-expanded-layout="isOnExpandedLayout"
         @change-filter="onBasicFilterChange"
       />

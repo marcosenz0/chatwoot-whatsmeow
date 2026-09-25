@@ -18,6 +18,9 @@ const initialState = {
   },
 };
 
+let uiSettingsSaveQueue = Promise.resolve();
+const pendingUISettingsUpdates = [];
+
 // getters
 export const getters = {
   isLoggedIn($state) {
@@ -154,21 +157,32 @@ export const actions = {
     }
   },
 
-  updateUISettings: async ({ commit }, params) => {
-    try {
-      commit(types.SET_CURRENT_USER_UI_SETTINGS, params);
+  updateUISettings: ({ commit }, params) => {
+    commit(types.SET_CURRENT_USER_UI_SETTINGS, params);
 
-      const isImpersonating = SessionStorage.get(
-        SESSION_STORAGE_KEYS.IMPERSONATION_USER
-      );
+    const isImpersonating = SessionStorage.get(
+      SESSION_STORAGE_KEYS.IMPERSONATION_USER
+    );
+    if (isImpersonating) return Promise.resolve();
 
-      if (!isImpersonating) {
+    pendingUISettingsUpdates.push(params.uiSettings);
+    uiSettingsSaveQueue = uiSettingsSaveQueue
+      .then(async () => {
         const response = await authAPI.updateUISettings(params);
-        commit(types.SET_CURRENT_USER, response.data);
-      }
-    } catch (error) {
-      // Ignore error
-    }
+        pendingUISettingsUpdates.shift();
+        commit(types.SET_CURRENT_USER, {
+          ...response.data,
+          ui_settings: {
+            ...response.data.ui_settings,
+            ...Object.assign({}, ...pendingUISettingsUpdates),
+          },
+        });
+      })
+      .catch(() => {
+        pendingUISettingsUpdates.shift();
+      });
+
+    return uiSettingsSaveQueue;
   },
 
   updateAvailability: async (
