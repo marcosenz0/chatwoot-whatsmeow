@@ -188,6 +188,7 @@ RSpec.describe 'Profile API', type: :request do
       end
 
       it 'updates the ui settings' do
+        agent.update!(ui_settings: { sidebar_width: 300 })
         put '/api/v1/profile',
             params: { profile: { ui_settings: { is_contact_sidebar_open: false } } },
             headers: agent.create_new_auth_token,
@@ -196,6 +197,8 @@ RSpec.describe 'Profile API', type: :request do
         expect(response).to have_http_status(:success)
         json_response = response.parsed_body
         expect(json_response['ui_settings']['is_contact_sidebar_open']).to be(false)
+        expect(json_response['ui_settings']['sidebar_width']).to eq(300)
+        expect(agent.reload.ui_settings['sidebar_width']).to eq(300)
       end
     end
 

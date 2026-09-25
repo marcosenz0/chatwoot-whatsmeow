@@ -10,9 +10,14 @@ class Api::V1::ProfilesController < Api::BaseController
       @user.update!(password_params.except(:current_password))
     end
 
-    @user.assign_attributes(profile_params)
-    @user.custom_attributes.merge!(custom_attributes_params)
-    @user.save!
+    @user.with_lock do
+      permitted_params = profile_params
+      ui_settings = permitted_params.delete(:ui_settings)
+      @user.assign_attributes(permitted_params)
+      @user.ui_settings = @user.ui_settings.merge(ui_settings.to_h) if ui_settings.present?
+      @user.custom_attributes.merge!(custom_attributes_params)
+      @user.save!
+    end
   end
 
   def avatar

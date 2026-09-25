@@ -1,12 +1,14 @@
 <script setup>
-import { useTemplateRef, onBeforeUnmount, computed, ref } from 'vue';
+import { useTemplateRef, onBeforeUnmount, computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useDebounceFn } from '@vueuse/core';
 import { useTrack } from 'dashboard/composables';
 import { useStore } from 'dashboard/composables/store';
 import { vOnClickOutside } from '@vueuse/components';
 import { CONVERSATION_EVENTS } from 'dashboard/helper/AnalyticsHelper/events';
 import { useConversationFilterContext } from './provider.js';
 import { useSnakeCase } from 'dashboard/composables/useTransformKeys';
+import { validateSingleFilter } from 'dashboard/helper/validations';
 
 import Button from 'next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
@@ -36,6 +38,7 @@ const emit = defineEmits([
   'updateFolder',
   'updateShownGroupTabs',
   'updateVisibleTabs',
+  'clearFilters',
   'close',
 ]);
 const { filterTypes } = useConversationFilterContext();
@@ -104,6 +107,19 @@ function validateAndSubmit() {
     })),
   });
 }
+
+const applyValidFilters = useDebounceFn(() => {
+  if (
+    props.isFolderView ||
+    !filters.value.length ||
+    filters.value.some(filter => validateSingleFilter(useSnakeCase(filter)))
+  ) {
+    return;
+  }
+  validateAndSubmit();
+}, 400);
+
+watch(filters, applyValidFilters, { deep: true });
 
 const filterModalHeaderTitle = computed(() => {
   return !props.isFolderView
@@ -268,7 +284,12 @@ const outsideClickHandler = [
         {{ $t('FILTER.ADD_NEW_FILTER') }}
       </Button>
       <div class="flex gap-2">
-        <Button sm faded slate @click="resetFilter">
+        <Button
+          sm
+          faded
+          slate
+          @click="isFolderView ? resetFilter() : emit('clearFilters')"
+        >
           {{ t('FILTER.CLEAR_BUTTON_LABEL') }}
         </Button>
         <Button
@@ -280,9 +301,6 @@ const outsideClickHandler = [
           @click="updateSavedCustomViews"
         >
           {{ t('FILTER.UPDATE_BUTTON_LABEL') }}
-        </Button>
-        <Button v-else sm solid blue @click="validateAndSubmit">
-          {{ t('FILTER.SUBMIT_BUTTON_LABEL') }}
         </Button>
       </div>
     </div>
