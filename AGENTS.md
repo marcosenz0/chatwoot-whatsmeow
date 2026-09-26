@@ -121,6 +121,8 @@ Practical checklist for any change impacting core logic or public APIs
 
 Detailed Whatsmeow fork progress is tracked in `docs/whatsmeow-progress.md`. Installation/deployment instructions are tracked in `docs/whatsmeow-installation.md`. Keep this section short and move implementation notes there when they grow.
 
+After each shipped change to either custom Chatwoot instance, update the relevant Markdown handoff before closing the task: record the user-visible behavior, key implementation decisions, deployment targets, validation, and any remaining limitation. Keep transient secrets and personal message contents out of these files. The two custom targets are `chatwootmx.marcoswt.com.br` and `chatwoot.marcoswt.com.br`; `chatwootoficial.marcoswt.com.br` is out of scope unless explicitly requested.
+
 This fork serves both `chatwoot.marcoswt.com.br` and `chatwootmx.marcoswt.com.br`. For requested fork changes, deploy the same validated Chatwoot image to both web/Sidekiq pairs and the matching Go changes to both Whatsmeow services; verify each instance independently. Keep their databases, sessions, and domains separate.
 
 ### 🌟 Project Status
