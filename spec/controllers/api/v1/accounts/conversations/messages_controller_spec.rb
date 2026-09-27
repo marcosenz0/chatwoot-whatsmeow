@@ -36,6 +36,21 @@ RSpec.describe 'Conversation Messages API', type: :request do
         expect(conversation.messages.first.content).to eq(params[:content])
       end
 
+      it 'rejects Pix metadata sent through the generic messages endpoint' do
+        post api_v1_account_conversation_messages_url(account_id: account.id, conversation_id: conversation.display_id),
+             params: {
+               content: 'Example Store',
+               content_attributes: {
+                 whatsmeow_pix: { key_type: 'EMAIL', key: 'payments@example.com', merchant_name: 'Example Store' }
+               }
+             },
+             headers: agent.create_new_auth_token,
+             as: :json
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(conversation.messages.count).to eq(0)
+      end
+
       it 'does not create the message' do
         params = { content: "#{'h' * 150 * 1000}a", private: true }
 

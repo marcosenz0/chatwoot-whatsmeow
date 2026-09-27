@@ -5,8 +5,9 @@ class Messages::MessageBuilder
 
   attr_reader :message
 
-  def initialize(user, conversation, params)
+  def initialize(user, conversation, params, allow_whatsmeow_pix: false)
     @params = params
+    @allow_whatsmeow_pix = allow_whatsmeow_pix
     @private = params[:private] || false
     @conversation = conversation
     @user = user
@@ -22,6 +23,13 @@ class Messages::MessageBuilder
   end
 
   def perform
+    if content_attributes.with_indifferent_access.key?(:whatsmeow_pix) && !@allow_whatsmeow_pix
+      raise CustomExceptions::Whatsmeow::InvalidPixPayload.new(
+        code: 'pix_endpoint_required',
+        message: I18n.t('errors.whatsmeow.pix.endpoint_required')
+      )
+    end
+
     @message = @conversation.messages.build(message_params)
     process_attachments
     process_whatsmeow_contacts

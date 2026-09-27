@@ -19,8 +19,29 @@ class Channel::Whatsmeow < ApplicationRecord
   ].freeze
 
   validates :history_sync_days, numericality: { only_integer: true, greater_than: 0, less_than_or_equal_to: 3650 }
+  validate :valid_pix_configuration
+
+  encrypts :pix_key if Chatwoot.encryption_configured?
 
   def name
     'Whatsmeow'
+  end
+
+  def pix_configured?
+    pix_key_type.present? && pix_key.present? && pix_merchant_name.present?
+  end
+
+  private
+
+  def valid_pix_configuration
+    values = [pix_key_type, pix_key, pix_merchant_name]
+    return if values.all?(&:blank?)
+
+    payload = Whatsmeow::PixPayload.new(key_type: pix_key_type, key: pix_key, merchant_name: pix_merchant_name)
+    return if payload.valid?
+
+    payload.errors.each do |error|
+      errors.add("pix_#{error.attribute}", error.message)
+    end
   end
 end

@@ -48,6 +48,7 @@ class Whatsmeow::SendOnWhatsmeowService
       body: body_content,
       attachments: attachments_payload,
       contacts: contacts_payload,
+      pix: pix_payload,
       quoted: quoted_payload
     }.compact_blank
   end
@@ -110,6 +111,13 @@ class Whatsmeow::SendOnWhatsmeowService
 
       normalized_contact_payload(contact.with_indifferent_access)
     end
+  end
+
+  def pix_payload
+    pix = message_content_attributes[:whatsmeow_pix]
+    return unless pix.respond_to?(:with_indifferent_access)
+
+    Whatsmeow::PixPayload.new(pix.with_indifferent_access).validate!.to_h
   end
 
   def normalized_contact_payload(contact)

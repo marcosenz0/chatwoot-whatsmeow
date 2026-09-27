@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
+	goproto "google.golang.org/protobuf/proto"
 )
 
 type fakeContactStore struct {
@@ -485,5 +487,171 @@ func TestShouldRetryWebhookStatus(t *testing.T) {
 		if shouldRetryWebhookStatus(statusCode) {
 			t.Fatalf("did not expect HTTP %d to be retried", statusCode)
 		}
+	}
+}
+
+func TestMessageRequestDecodesPixPayload(t *testing.T) {
+	var request MessageRequest
+	err := json.Unmarshal([]byte(`{
+		"channel_id":"12",
+		"to":"5511999999999",
+		"pix":{"key":"financeiro@example.com","key_type":"EMAIL","merchant_name":"Loja Exemplo"}
+	}`), &request)
+	if err != nil {
+		t.Fatalf("decode MessageRequest: %v", err)
+	}
+	if request.Pix == nil {
+		t.Fatal("expected Pix payload")
+	}
+	if request.Pix.Key != "financeiro@example.com" || request.Pix.KeyType != "EMAIL" || request.Pix.MerchantName != "Loja Exemplo" {
+		t.Fatalf("Pix payload = %+v", request.Pix)
+	}
+}
+
+func TestBuildOutgoingPixMessageUsesNativePaymentFlow(t *testing.T) {
+	message, err := buildOutgoingMessage(context.Background(), nil, MessageRequest{
+		Body: " Pague com Pix ",
+		Pix: &PixMessageRequest{
+			Key:          " financeiro@example.com ",
+			KeyType:      " email ",
+			MerchantName: " Loja Exemplo ",
+		},
+		Quoted: &QuotedMessageRequest{
+			MessageID:   "quoted-message-id",
+			Participant: "5511988887777@s.whatsapp.net",
+			Text:        "Mensagem original",
+		},
+	})
+	if err != nil {
+		t.Fatalf("build outgoing Pix message: %v", err)
+	}
+	encoded, err := goproto.Marshal(message)
+	if err != nil {
+		t.Fatalf("marshal outgoing Pix protobuf: %v", err)
+	}
+	message = &proto.Message{}
+	if err := goproto.Unmarshal(encoded, message); err != nil {
+		t.Fatalf("unmarshal outgoing Pix protobuf: %v", err)
+	}
+	if message.GetViewOnceMessage() != nil {
+		t.Fatal("Pix message must be sent directly, without a ViewOnce wrapper")
+	}
+	if message.GetMessageContextInfo().GetDeviceListMetadata() == nil {
+		t.Fatal("expected device list metadata")
+	}
+	if version := message.GetMessageContextInfo().GetDeviceListMetadataVersion(); version != 2 {
+		t.Fatalf("device list metadata version = %d; want 2", version)
+	}
+
+	interactive := message.GetInteractiveMessage()
+	if interactive == nil {
+		t.Fatal("expected interactive message")
+	}
+	if body := interactive.GetBody().GetText(); body != "Pague com Pix" {
+		t.Fatalf("interactive body = %q; want Pague com Pix", body)
+	}
+	if stanzaID := interactive.GetContextInfo().GetStanzaID(); stanzaID != "quoted-message-id" {
+		t.Fatalf("quoted stanza ID = %q; want quoted-message-id", stanzaID)
+	}
+
+	nativeFlow := interactive.GetNativeFlowMessage()
+	if nativeFlow == nil {
+		t.Fatal("expected native flow message")
+	}
+	if version := nativeFlow.GetMessageVersion(); version != 1 {
+		t.Fatalf("native flow message version = %d; want 1", version)
+	}
+	buttons := nativeFlow.GetButtons()
+	if len(buttons) != 1 || buttons[0].GetName() != pixNativeFlowName {
+		t.Fatalf("native flow buttons = %+v; want one payment_info button", buttons)
+	}
+
+	var params struct {
+		PaymentSettings []struct {
+			Type          string            `json:"type"`
+			PixStaticCode map[string]string `json:"pix_static_code"`
+		} `json:"payment_settings"`
+	}
+	if err := json.Unmarshal([]byte(buttons[0].GetButtonParamsJSON()), &params); err != nil {
+		t.Fatalf("decode Pix button params: %v", err)
+	}
+	if len(params.PaymentSettings) != 1 || params.PaymentSettings[0].Type != pixStaticCodeType {
+		t.Fatalf("payment settings = %+v; want one pix_static_code setting", params.PaymentSettings)
+	}
+	pix := params.PaymentSettings[0].PixStaticCode
+	if len(pix) != 3 || pix["key"] != "financeiro@example.com" || pix["key_type"] != "EMAIL" || pix["merchant_name"] != "Loja Exemplo" {
+		t.Fatalf("Pix static code = %+v", pix)
+	}
+}
+
+func TestBuildOutgoingPixMessageRejectsInvalidPayload(t *testing.T) {
+	tests := map[string]PixMessageRequest{
+		"missing key":      {KeyType: "EMAIL", MerchantName: "Loja Exemplo"},
+		"missing key type": {Key: "financeiro@example.com", MerchantName: "Loja Exemplo"},
+		"missing merchant": {Key: "financeiro@example.com", KeyType: "EMAIL"},
+		"unsupported type": {Key: "12345678000190", KeyType: "CNPJ", MerchantName: "Loja Exemplo"},
+	}
+
+	for name, pix := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, err := buildOutgoingPixMessage("", pix, nil); err == nil {
+				t.Fatal("expected invalid Pix payload error")
+			}
+		})
+	}
+}
+
+func TestOutgoingMessageSendRequestExtraAddsPixCapability(t *testing.T) {
+	extra := outgoingMessageSendRequestExtra(MessageRequest{Pix: &PixMessageRequest{}})
+	if extra.Timeout != sendMessageTimeout-5*time.Second {
+		t.Fatalf("timeout = %s; want %s", extra.Timeout, sendMessageTimeout-5*time.Second)
+	}
+	if extra.AdditionalNodes == nil || len(*extra.AdditionalNodes) != 1 {
+		t.Fatalf("additional nodes = %+v; want one biz node", extra.AdditionalNodes)
+	}
+	node := (*extra.AdditionalNodes)[0]
+	if node.Tag != "biz" || node.Attrs["xmlns"] != "w:b" || node.Attrs["native_flow_name"] != pixNativeFlowName {
+		t.Fatalf("Pix capability node = %+v", node)
+	}
+
+	if regular := outgoingMessageSendRequestExtra(MessageRequest{}); regular.AdditionalNodes != nil {
+		t.Fatalf("regular message additional nodes = %+v; want nil", regular.AdditionalNodes)
+	}
+}
+
+func TestExtractPixMessageFromWrappedNativeFlow(t *testing.T) {
+	message, err := buildOutgoingPixMessage("", PixMessageRequest{
+		Key:          "123e4567-e89b-12d3-a456-426614174000",
+		KeyType:      "EVP",
+		MerchantName: "Loja Exemplo",
+	}, nil)
+	if err != nil {
+		t.Fatalf("build outgoing Pix message: %v", err)
+	}
+	wrapper := &proto.Message{ViewOnceMessage: &proto.FutureProofMessage{Message: message}}
+
+	pix := extractPixMessage(wrapper)
+	if pix == nil {
+		t.Fatal("expected Pix metadata from wrapped native flow")
+	}
+	if pix.Key != "123e4567-e89b-12d3-a456-426614174000" || pix.KeyType != "EVP" || pix.MerchantName != "Loja Exemplo" {
+		t.Fatalf("extracted Pix metadata = %+v", pix)
+	}
+}
+
+func TestExtractPixMessageIgnoresMalformedPaymentInfo(t *testing.T) {
+	message := &proto.Message{InteractiveMessage: &proto.InteractiveMessage{
+		InteractiveMessage: &proto.InteractiveMessage_NativeFlowMessage_{
+			NativeFlowMessage: &proto.InteractiveMessage_NativeFlowMessage{
+				Buttons: []*proto.InteractiveMessage_NativeFlowMessage_NativeFlowButton{{
+					Name:             stringPtr(pixNativeFlowName),
+					ButtonParamsJSON: stringPtr("not-json"),
+				}},
+			},
+		},
+	}}
+
+	if pix := extractPixMessage(message); pix != nil {
+		t.Fatalf("malformed payment_info extracted as %+v; want nil", pix)
 	}
 }

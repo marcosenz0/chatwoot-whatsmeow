@@ -313,6 +313,57 @@ attachments[]: voz.mp3`,
     ],
   },
   {
+    title: 'Chave Pix',
+    icon: 'i-lucide-badge-dollar-sign',
+    description:
+      'Configure uma chave por inbox e envie o cartao nativo do WhatsApp. Os mesmos endpoints podem ser usados pelo n8n com api_access_token.',
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/api/v1/accounts/{account_id}/inboxes/{inbox_id}/whatsmeow_pix',
+        title: 'Consultar a chave padrao da inbox',
+        note: 'Agentes atribuidos podem consultar. Acrescente ?conversation_id={conversation_id} para acesso por equipe. can_manage informa se o usuario pode alterar.',
+        response: `{
+  "configured": true,
+  "can_manage": true,
+  "pix": {
+    "key_type": "EMAIL",
+    "key": "financeiro@empresa.com.br",
+    "merchant_name": "Empresa Exemplo"
+  }
+}`,
+      },
+      {
+        method: 'PATCH',
+        path: '/api/v1/accounts/{account_id}/inboxes/{inbox_id}/whatsmeow_pix',
+        title: 'Salvar a chave padrao da inbox',
+        note: 'Somente administradores. key_type aceita PHONE, CPF, EMAIL ou EVP.',
+        body: `{
+  "key_type": "EMAIL",
+  "key": "financeiro@empresa.com.br",
+  "merchant_name": "Empresa Exemplo"
+}`,
+      },
+      {
+        method: 'DELETE',
+        path: '/api/v1/accounts/{account_id}/inboxes/{inbox_id}/whatsmeow_pix',
+        title: 'Remover a chave padrao da inbox',
+        note: 'Somente administradores. Mensagens Pix ja enviadas continuam no historico.',
+      },
+      {
+        method: 'POST',
+        path: '/api/v1/accounts/{account_id}/conversations/{conversation_id}/messages/pix',
+        title: 'Enviar chave Pix na conversa',
+        note: 'Envie {} para usar a chave padrao. Para um envio avulso, informe os tres campos sem alterar a configuracao da inbox.',
+        body: `{
+  "key_type": "EVP",
+  "key": "123e4567-e89b-42d3-a456-426614174000",
+  "merchant_name": "Empresa Exemplo"
+}`,
+      },
+    ],
+  },
+  {
     title: 'Grupos e conversa direta',
     icon: 'i-lucide-users-round',
     description:

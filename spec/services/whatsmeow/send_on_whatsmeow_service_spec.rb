@@ -95,4 +95,27 @@ RSpec.describe Whatsmeow::SendOnWhatsmeowService do
       end
     end
   end
+
+  describe '#pix_payload' do
+    let(:message) do
+      instance_double(
+        Message,
+        content_attributes: {
+          'whatsmeow_pix' => {
+            'key_type' => 'EMAIL',
+            'key' => 'PAYMENTS@EXAMPLE.COM',
+            'merchant_name' => 'Example Store'
+          }
+        }
+      )
+    end
+
+    it 'normalizes the Pix data sent to the Whatsmeow service' do
+      expect(service.send(:pix_payload)).to eq(
+        key_type: 'EMAIL',
+        key: 'payments@example.com',
+        merchant_name: 'Example Store'
+      )
+    end
+  end
 end

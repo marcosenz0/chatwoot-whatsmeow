@@ -74,6 +74,12 @@ en:
       cannot_revoke_current: You cannot revoke the current session.
 
   errors:
+    whatsmeow:
+      pix:
+        unsupported_channel: Pix keys can only be sent from a Whatsmeow inbox.
+        not_configured: Configure a Pix key for this inbox or provide one in the request.
+        invalid_params: Provide an empty body to use the inbox key, or key_type, key and merchant_name as strings.
+        endpoint_required: Send Pix keys through the dedicated Pix message endpoint.
     account:
       not_authorized: You are not authorized to access this account
       email_limit_exceeded: The daily email limit for this account has been reached
