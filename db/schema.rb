@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_22_190000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_26_120000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -708,6 +708,9 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_22_190000) do
     t.integer "history_sync_days", default: 90, null: false
     t.boolean "history_sync_auto", default: true, null: false
     t.jsonb "history_sync_state", default: {}, null: false
+    t.string "pix_key_type"
+    t.text "pix_key"
+    t.string "pix_merchant_name"
     t.index ["phone_number"], name: "index_channel_whatsmeow_on_phone_number"
   end
 

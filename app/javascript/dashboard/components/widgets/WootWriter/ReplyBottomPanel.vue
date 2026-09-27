@@ -12,10 +12,11 @@ import VideoCallButton from '../VideoCallButton.vue';
 import { INBOX_TYPES } from 'dashboard/helper/inbox';
 import { mapGetters } from 'vuex';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import PixIcon from 'next/icon/PixIcon.vue';
 
 export default {
   name: 'ReplyBottomPanel',
-  components: { NextButton, FileUpload, VideoCallButton },
+  components: { NextButton, FileUpload, PixIcon, VideoCallButton },
   mixins: [inboxMixin],
   props: {
     isNote: {
@@ -66,6 +67,10 @@ export default {
       default: () => {},
     },
     toggleStickerPicker: {
+      type: Function,
+      default: () => {},
+    },
+    togglePixModal: {
       type: Function,
       default: () => {},
     },
@@ -131,6 +136,10 @@ export default {
       default: false,
     },
     showStickerPicker: {
+      type: Boolean,
+      default: false,
+    },
+    showPixButton: {
       type: Boolean,
       default: false,
     },
@@ -289,6 +298,9 @@ export default {
     stickerPickerTooltip() {
       return this.$t('CONVERSATION.WHATSMEOW_STICKER.TIP_STICKER_ICON');
     },
+    pixButtonTooltip() {
+      return this.$t('CONVERSATION.WHATSMEOW_PIX.TIP_PIX_ICON');
+    },
   },
   mounted() {
     ActiveStorage.start();
@@ -368,6 +380,19 @@ export default {
         sm
         @click="toggleStickerPicker"
       />
+      <NextButton
+        v-if="showPixButton"
+        v-tooltip.top-end="pixButtonTooltip"
+        slate
+        faded
+        sm
+        :aria-label="pixButtonTooltip"
+        @click="togglePixModal"
+      >
+        <template #icon>
+          <PixIcon class="size-4" />
+        </template>
+      </NextButton>
       <NextButton
         v-if="showAudioPlayStopButton"
         :icon="audioRecorderPlayStopIcon"

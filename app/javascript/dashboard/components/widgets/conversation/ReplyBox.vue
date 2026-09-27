@@ -18,6 +18,7 @@ import MessageSignatureMissingAlert from './MessageSignatureMissingAlert.vue';
 import ReplyBoxBanner from './ReplyBoxBanner.vue';
 import QuotedEmailPreview from './QuotedEmailPreview.vue';
 import WhatsmeowContactSendModal from './WhatsmeowContactSendModal.vue';
+import WhatsmeowPixModal from './WhatsmeowPixModal.vue';
 import WhatsmeowStickerPicker from './WhatsmeowStickerPicker.vue';
 import { REPLY_EDITOR_MODES } from 'dashboard/components/widgets/WootWriter/constants';
 import WootMessageEditor from 'dashboard/components/widgets/WootWriter/Editor.vue';
@@ -82,6 +83,7 @@ export default {
     WootMessageEditor,
     QuotedEmailPreview,
     WhatsmeowContactSendModal,
+    WhatsmeowPixModal,
     WhatsmeowStickerPicker,
     CopilotEditorSection,
     CopilotReplyBottomPanel,
@@ -132,6 +134,7 @@ export default {
       showWhatsAppTemplatesModal: false,
       showContentTemplatesModal: false,
       showWhatsmeowContactModal: false,
+      showWhatsmeowPixModal: false,
       showWhatsmeowStickerPicker: false,
       updateEditorSelectionWith: '',
       undefinedVariableMessage: '',
@@ -186,6 +189,13 @@ export default {
       );
     },
     showWhatsmeowStickerButton() {
+      return (
+        this.isAWhatsmeowChannel &&
+        !this.isOnPrivateNote &&
+        !this.isEditorDisabled
+      );
+    },
+    showWhatsmeowPixButton() {
       return (
         this.isAWhatsmeowChannel &&
         !this.isOnPrivateNote &&
@@ -821,6 +831,12 @@ export default {
     hideWhatsmeowContactModal() {
       this.showWhatsmeowContactModal = false;
     },
+    openWhatsmeowPixModal() {
+      this.showWhatsmeowPixModal = true;
+    },
+    hideWhatsmeowPixModal() {
+      this.showWhatsmeowPixModal = false;
+    },
     toggleWhatsmeowStickerPicker() {
       this.showWhatsmeowStickerPicker = !this.showWhatsmeowStickerPicker;
     },
@@ -842,6 +858,27 @@ export default {
         this.$store.dispatch('addMessage', message);
       }
       this.hideWhatsmeowStickerPicker();
+      this.resetReplyToMessage();
+      this.hideEmojiPicker();
+      emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
+      emitter.emit(BUS_EVENTS.MESSAGE_SENT);
+    },
+    onSendWhatsmeowPix(message) {
+      if (message) {
+        const messageConversationId = Number(
+          message.conversation_id || message.conversationId || 0
+        );
+        if (
+          messageConversationId &&
+          messageConversationId !== Number(this.conversationId)
+        ) {
+          useAlert(this.$t('CONVERSATION.WHATSMEOW_PIX.CONVERSATION_CHANGED'));
+          this.hideWhatsmeowPixModal();
+          return;
+        }
+        this.$store.dispatch('addMessage', message);
+      }
+      this.hideWhatsmeowPixModal();
       this.resetReplyToMessage();
       this.hideEmojiPicker();
       emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);
@@ -1577,6 +1614,7 @@ export default {
         :show-contact-picker="showWhatsmeowContactButton"
         :show-emoji-picker="showEmojiPicker"
         :show-file-upload="showFileUpload"
+        :show-pix-button="showWhatsmeowPixButton"
         :show-quoted-reply-toggle="shouldShowQuotedReplyToggle"
         :show-sticker-picker="showWhatsmeowStickerButton"
         :quoted-reply-enabled="quotedReplyPreference"
@@ -1584,6 +1622,7 @@ export default {
         :toggle-audio-recorder="toggleAudioRecorder"
         :toggle-contact-picker="openWhatsmeowContactModal"
         :toggle-emoji-picker="toggleEmojiPicker"
+        :toggle-pix-modal="openWhatsmeowPixModal"
         :toggle-sticker-picker="toggleWhatsmeowStickerPicker"
         :message="message"
         :portal-slug="connectedPortalSlug"
@@ -1615,6 +1654,14 @@ export default {
       :is-open="showWhatsmeowContactModal"
       @close="hideWhatsmeowContactModal"
       @send="onSendWhatsmeowContact"
+    />
+
+    <WhatsmeowPixModal
+      :is-open="showWhatsmeowPixModal"
+      :inbox-id="inboxId"
+      :conversation-id="conversationId"
+      @close="hideWhatsmeowPixModal"
+      @sent="onSendWhatsmeowPix"
     />
 
     <WhatsmeowStickerPicker

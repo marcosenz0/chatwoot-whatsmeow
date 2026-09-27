@@ -215,6 +215,7 @@ Rails.application.routes.draw do
                   post :delete_for_everyone
                 end
               end
+              post 'messages/pix', to: 'whatsmeow_pix_messages#create'
               resources :assignments, only: [:create]
               resources :labels, only: [:create, :index]
               resource :pipeline, only: [:create, :destroy]
@@ -335,6 +336,7 @@ Rails.application.routes.draw do
           resources :custom_filters, only: [:index, :show, :create, :update, :destroy]
           resource :branded_email_layout, only: [:show, :update]
           resources :inboxes, only: [:index, :show, :create, :update, :destroy] do
+            resource :whatsmeow_pix, only: [:show, :update, :destroy], module: :inboxes
             get :assignable_agents, on: :member
             get :campaigns, on: :member
             get :agent_bot, on: :member

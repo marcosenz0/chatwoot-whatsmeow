@@ -43,6 +43,7 @@ import LocationBubble from './bubbles/Location.vue';
 import CSATBubble from './bubbles/CSAT.vue';
 import FormBubble from './bubbles/Form.vue';
 import VoiceCallBubble from './bubbles/VoiceCall.vue';
+import WhatsmeowPixBubble from './bubbles/WhatsmeowPix.vue';
 import WhatsmeowParticipantActions from './WhatsmeowParticipantActions.vue';
 import MessageReactionButton from './MessageReactionButton.vue';
 import MessageReactionPopover from './MessageReactionPopover.vue';
@@ -338,6 +339,13 @@ const componentToRender = computed(() => {
 
   if (props.contentAttributes?.isUnsupported) {
     return UnsupportedBubble;
+  }
+
+  if (
+    props.contentAttributes?.whatsmeowPix ||
+    props.contentAttributes?.whatsmeow_pix
+  ) {
+    return WhatsmeowPixBubble;
   }
 
   if (props.contentAttributes.type === 'dyte') {

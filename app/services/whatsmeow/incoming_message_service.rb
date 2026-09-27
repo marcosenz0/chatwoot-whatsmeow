@@ -524,6 +524,7 @@ class Whatsmeow::IncomingMessageService
     attributes.merge!(group_content_attributes) if group_message?
     attributes.merge!(quoted_content_attributes) if quoted_message?
     attributes[:whatsmeow_contacts] = contact_params if contact_message?
+    attributes[:whatsmeow_pix] = pix_payload if pix_payload.present?
     attributes[:whatsmeow_ad] = ad_context if ad_context.present?
     attributes
   end
@@ -560,7 +561,16 @@ class Whatsmeow::IncomingMessageService
   end
 
   def message_content
-    params[:content].presence || contact_message_content
+    params[:content].presence || pix_payload&.fetch(:merchant_name) || contact_message_content
+  end
+
+  def pix_payload
+    return @pix_payload if defined?(@pix_payload)
+
+    raw_payload = params[:pix]
+    @pix_payload = if raw_payload.respond_to?(:with_indifferent_access)
+                     Whatsmeow::PixPayload.new(raw_payload.with_indifferent_access).to_h
+                   end
   end
 
   def contact_message_content

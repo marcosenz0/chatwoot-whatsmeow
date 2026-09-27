@@ -180,6 +180,74 @@ curl http://localhost:8080/health
 
 Depois acesse o Chatwoot, crie uma caixa de entrada WhatsApp Direct, gere o QR Code e escaneie no celular.
 
+## API de chave Pix para Chatwoot e n8n
+
+Todas as rotas abaixo usam a autenticacao normal da API do Chatwoot:
+
+```http
+api_access_token: SEU_TOKEN_DE_ACESSO
+Content-Type: application/json
+```
+
+Os tipos aceitos sao `PHONE`, `CPF`, `EMAIL` e `EVP` (chave aleatoria). A configuracao pertence a inbox Whatsmeow compartilhada; somente administradores podem altera-la. Agentes atribuidos a inbox podem consultar e enviar a chave.
+
+Consultar a configuracao:
+
+```http
+GET /api/v1/accounts/{account_id}/inboxes/{inbox_id}/whatsmeow_pix
+```
+
+Se o agente acessa a conversa pela equipe, sem ser membro direto da inbox, acrescente `?conversation_id={conversation_id}` na consulta. Tokens de AgentBot precisam estar vinculados a inbox de destino.
+
+Salvar ou substituir a configuracao:
+
+```http
+PATCH /api/v1/accounts/{account_id}/inboxes/{inbox_id}/whatsmeow_pix
+
+{
+  "key_type": "EMAIL",
+  "key": "financeiro@empresa.com.br",
+  "merchant_name": "Empresa Exemplo"
+}
+```
+
+Remover a configuracao:
+
+```http
+DELETE /api/v1/accounts/{account_id}/inboxes/{inbox_id}/whatsmeow_pix
+```
+
+Enviar a chave configurada para uma conversa:
+
+```http
+POST /api/v1/accounts/{account_id}/conversations/{conversation_id}/messages/pix
+
+{}
+```
+
+Para um envio avulso pelo n8n, envie os mesmos tres campos no `POST`. Isso nao altera a configuracao da inbox:
+
+```json
+{
+  "key_type": "EVP",
+  "key": "123e4567-e89b-42d3-a456-426614174000",
+  "merchant_name": "Empresa Exemplo"
+}
+```
+
+Uma resposta bem-sucedida e o objeto padrao de mensagem do Chatwoot. Erros de validacao usam um formato estavel para automacoes:
+
+```json
+{
+  "error": {
+    "code": "invalid_pix_payload",
+    "message": "Key is invalid"
+  }
+}
+```
+
+O `POST` cria primeiro a mensagem no historico do Chatwoot e o Sidekiq envia o Native Flow `payment_info` ao WhatsApp pelo `whatsmeow-service`. Por isso, web e Sidekiq devem executar a mesma imagem e o servico Go deve ser atualizado junto.
+
 ## Instalacao local com Docker Compose
 
 Use este modo quando quiser simular mais de perto o ambiente de servidor.

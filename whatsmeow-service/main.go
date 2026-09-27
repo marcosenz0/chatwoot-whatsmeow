@@ -28,7 +28,9 @@ import (
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/appstate"
+	waBinary "go.mau.fi/whatsmeow/binary"
 	"go.mau.fi/whatsmeow/binary/proto"
+	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
 	waWeb "go.mau.fi/whatsmeow/proto/waWeb"
 	"go.mau.fi/whatsmeow/store"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -48,6 +50,8 @@ const (
 	maxAdThumbnailBytes          = 256 * 1024
 	maxAdMetadataRunes           = 8 * 1024
 	maxAdURLRunes                = 4 * 1024
+	pixNativeFlowName            = "payment_info"
+	pixStaticCodeType            = "pix_static_code"
 )
 
 // Active clients map
@@ -111,7 +115,23 @@ type MessageRequest struct {
 	Body        string                `json:"body"`
 	Attachments []WhatsmeowAttachment `json:"attachments"`
 	Contacts    []WhatsmeowContact    `json:"contacts"`
+	Pix         *PixMessageRequest    `json:"pix"`
 	Quoted      *QuotedMessageRequest `json:"quoted"`
+}
+
+type PixMessageRequest struct {
+	Key          string `json:"key"`
+	KeyType      string `json:"key_type"`
+	MerchantName string `json:"merchant_name"`
+}
+
+type pixPaymentButtonParams struct {
+	PaymentSettings []pixPaymentSetting `json:"payment_settings"`
+}
+
+type pixPaymentSetting struct {
+	Type          string            `json:"type"`
+	PixStaticCode PixMessageRequest `json:"pix_static_code"`
 }
 
 type StatusRequest struct {
@@ -1735,8 +1755,8 @@ func handleSendMessage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if strings.TrimSpace(req.Body) == "" && len(req.Attachments) == 0 && len(req.Contacts) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Message body, attachment or contact is required"})
+	if strings.TrimSpace(req.Body) == "" && len(req.Attachments) == 0 && len(req.Contacts) == 0 && req.Pix == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Message body, attachment, contact or Pix key is required"})
 		return
 	}
 
@@ -1764,7 +1784,7 @@ func handleSendMessage(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	resp, err := client.SendMessage(sendCtx, targetJID, msg, whatsmeow.SendRequestExtra{Timeout: sendMessageTimeout - 5*time.Second})
+	resp, err := client.SendMessage(sendCtx, targetJID, msg, outgoingMessageSendRequestExtra(req))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to send message: %v", err)})
 		return
@@ -2696,6 +2716,10 @@ func handleEditMessage(c *gin.Context) {
 func buildOutgoingMessage(ctx context.Context, client *whatsmeow.Client, req MessageRequest) (*proto.Message, error) {
 	contextInfo := quotedContextInfo(req.Quoted)
 
+	if req.Pix != nil {
+		return buildOutgoingPixMessage(req.Body, *req.Pix, contextInfo)
+	}
+
 	if len(req.Contacts) > 0 {
 		return buildOutgoingContactMessage(req.Contacts, contextInfo)
 	}
@@ -2716,6 +2740,78 @@ func buildOutgoingMessage(ctx context.Context, client *whatsmeow.Client, req Mes
 	return &proto.Message{
 		Conversation: stringPtr(req.Body),
 	}, nil
+}
+
+func buildOutgoingPixMessage(body string, pix PixMessageRequest, contextInfo *proto.ContextInfo) (*proto.Message, error) {
+	normalizedPix, err := normalizePixMessage(pix)
+	if err != nil {
+		return nil, err
+	}
+
+	buttonParams, err := json.Marshal(pixPaymentButtonParams{
+		PaymentSettings: []pixPaymentSetting{{
+			Type:          pixStaticCodeType,
+			PixStaticCode: normalizedPix,
+		}},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build Pix payment settings: %w", err)
+	}
+
+	return &proto.Message{
+		MessageContextInfo: &proto.MessageContextInfo{
+			DeviceListMetadata:        &waE2E.DeviceListMetadata{},
+			DeviceListMetadataVersion: protobuf.Int32(2),
+		},
+		InteractiveMessage: &proto.InteractiveMessage{
+			Body: &proto.InteractiveMessage_Body{
+				Text: stringPtr(strings.TrimSpace(body)),
+			},
+			InteractiveMessage: &proto.InteractiveMessage_NativeFlowMessage_{
+				NativeFlowMessage: &proto.InteractiveMessage_NativeFlowMessage{
+					Buttons: []*proto.InteractiveMessage_NativeFlowMessage_NativeFlowButton{{
+						Name:             stringPtr(pixNativeFlowName),
+						ButtonParamsJSON: stringPtr(string(buttonParams)),
+					}},
+					MessageVersion: protobuf.Int32(1),
+				},
+			},
+			ContextInfo: contextInfo,
+		},
+	}, nil
+}
+
+func normalizePixMessage(pix PixMessageRequest) (PixMessageRequest, error) {
+	pix.Key = strings.TrimSpace(pix.Key)
+	pix.KeyType = strings.ToUpper(strings.TrimSpace(pix.KeyType))
+	pix.MerchantName = strings.TrimSpace(pix.MerchantName)
+	if pix.Key == "" || pix.KeyType == "" || pix.MerchantName == "" {
+		return PixMessageRequest{}, fmt.Errorf("Pix key, key type and merchant name are required")
+	}
+
+	switch pix.KeyType {
+	case "PHONE", "CPF", "EMAIL", "EVP":
+		return pix, nil
+	default:
+		return PixMessageRequest{}, fmt.Errorf("unsupported Pix key type: %s", pix.KeyType)
+	}
+}
+
+func outgoingMessageSendRequestExtra(req MessageRequest) whatsmeow.SendRequestExtra {
+	extra := whatsmeow.SendRequestExtra{Timeout: sendMessageTimeout - 5*time.Second}
+	if req.Pix == nil {
+		return extra
+	}
+
+	additionalNodes := []waBinary.Node{{
+		Tag: "biz",
+		Attrs: waBinary.Attrs{
+			"xmlns":            "w:b",
+			"native_flow_name": pixNativeFlowName,
+		},
+	}}
+	extra.AdditionalNodes = &additionalNodes
+	return extra
 }
 
 func buildOutgoingContactMessage(contacts []WhatsmeowContact, contextInfo *proto.ContextInfo) (*proto.Message, error) {
@@ -4039,12 +4135,16 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 	messageText := extractMessageText(messageEvent.Message)
 	attachments := extractMediaAttachments(client, messageEvent.Message)
 	contacts := extractContactCards(client, messageEvent.Message)
+	pix := extractPixMessage(messageEvent.Message)
 	quotedMessage := extractQuotedMessage(messageEvent.Message)
 	adContext := extractAdContext(messageEvent.Message)
 	if messageText == "" && adContext != nil {
 		messageText = firstNonBlank(adContext.Body, adContext.Title)
 	}
-	if messageText == "" && len(attachments) == 0 && len(contacts) == 0 {
+	if messageText == "" && pix != nil {
+		messageText = pix.MerchantName
+	}
+	if messageText == "" && len(attachments) == 0 && len(contacts) == 0 && pix == nil {
 		if adContext == nil && !hasMediaMessage(messageEvent.Message) {
 			return nil
 		}
@@ -4148,6 +4248,9 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 	}
 	if adContext != nil {
 		payload["ad_context"] = adContext
+	}
+	if pix != nil {
+		payload["pix"] = pix
 	}
 	if historical {
 		payload["historical"] = true
@@ -4718,6 +4821,9 @@ func extractContextInfo(message *proto.Message) *proto.ContextInfo {
 	if item := message.GetContactsArrayMessage(); item != nil {
 		return item.GetContextInfo()
 	}
+	if item := message.GetInteractiveMessage(); item != nil {
+		return item.GetContextInfo()
+	}
 
 	return nil
 }
@@ -4863,6 +4969,9 @@ func extractMessageText(message *proto.Message) string {
 	if text := message.GetDocumentMessage().GetCaption(); text != "" {
 		return text
 	}
+	if text := message.GetInteractiveMessage().GetBody().GetText(); text != "" {
+		return text
+	}
 	if inner := message.GetEphemeralMessage().GetMessage(); inner != nil {
 		return extractMessageText(inner)
 	}
@@ -4879,6 +4988,40 @@ func extractMessageText(message *proto.Message) string {
 		return extractMessageText(inner)
 	}
 	return ""
+}
+
+func extractPixMessage(message *proto.Message) *PixMessageRequest {
+	message = unwrapMessage(message)
+	if message == nil {
+		return nil
+	}
+
+	nativeFlow := message.GetInteractiveMessage().GetNativeFlowMessage()
+	if nativeFlow == nil {
+		return nil
+	}
+
+	for _, button := range nativeFlow.GetButtons() {
+		if button.GetName() != pixNativeFlowName {
+			continue
+		}
+
+		var params pixPaymentButtonParams
+		if err := json.Unmarshal([]byte(button.GetButtonParamsJSON()), &params); err != nil {
+			continue
+		}
+		for _, paymentSetting := range params.PaymentSettings {
+			if paymentSetting.Type != pixStaticCodeType {
+				continue
+			}
+			pix, err := normalizePixMessage(paymentSetting.PixStaticCode)
+			if err == nil {
+				return &pix
+			}
+		}
+	}
+
+	return nil
 }
 
 func extractContactCards(client *whatsmeow.Client, message *proto.Message) []WhatsmeowContact {
