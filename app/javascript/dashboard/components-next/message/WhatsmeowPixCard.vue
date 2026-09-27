@@ -37,6 +37,7 @@ const keyTypeLabel = computed(() => {
 const displayKey = computed(
   () => pixKey.value || t('CONVERSATION.WHATSMEOW_PIX.PREVIEW_KEY')
 );
+const keySummary = computed(() => `${keyTypeLabel.value}: ${displayKey.value}`);
 
 const displayMerchantName = computed(
   () => merchantName.value || t('CONVERSATION.WHATSMEOW_PIX.PREVIEW_MERCHANT')
@@ -56,39 +57,30 @@ const copyPixKey = async () => {
 
 <template>
   <div
-    class="w-full overflow-hidden"
+    class="w-full min-w-0 overflow-hidden rounded-xl border border-n-teal-7 bg-n-teal-3"
     :class="{
-      'rounded-xl border border-n-weak bg-n-solid-1': standalone,
+      'shadow-sm': standalone,
     }"
   >
-    <div class="flex items-start gap-3 bg-n-teal-9/10 p-4">
+    <div class="flex items-center gap-3 px-4 py-3.5">
       <div
-        class="grid size-10 shrink-0 place-content-center rounded-full bg-n-teal-9 text-white"
+        class="grid size-11 shrink-0 place-content-center rounded-full bg-n-teal-5 text-n-teal-11"
       >
-        <PixIcon class="size-5" />
+        <PixIcon class="size-6" />
       </div>
       <div class="min-w-0 flex-1">
-        <p class="m-0 text-sm font-semibold text-n-slate-12">
-          {{ t('CONVERSATION.WHATSMEOW_PIX.CARD_TITLE') }}
-        </p>
-        <p class="m-0 mt-0.5 truncate text-sm text-n-slate-11">
+        <p class="m-0 truncate text-sm font-semibold text-n-slate-12">
           {{ displayMerchantName }}
         </p>
+        <p class="m-0 mt-1 break-all text-sm text-n-slate-11">
+          {{ keySummary }}
+        </p>
       </div>
-    </div>
-
-    <div class="grid gap-1 px-4 py-3">
-      <p class="m-0 text-xs font-medium text-n-slate-10">
-        {{ keyTypeLabel }}
-      </p>
-      <p class="m-0 break-all font-mono text-sm text-n-slate-12">
-        {{ displayKey }}
-      </p>
     </div>
 
     <button
       type="button"
-      class="flex w-full items-center justify-center gap-2 border-t border-n-weak px-4 py-2.5 text-sm font-semibold text-n-teal-11 hover:bg-n-alpha-2 disabled:cursor-not-allowed disabled:opacity-50"
+      class="flex w-full items-center justify-center gap-2 border-t border-n-teal-7 bg-n-teal-4 px-4 py-3 text-sm font-semibold text-n-teal-11 transition-colors hover:bg-n-teal-5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-n-teal-9 disabled:cursor-not-allowed disabled:opacity-50"
       :disabled="!pixKey"
       @click.stop="copyPixKey"
     >

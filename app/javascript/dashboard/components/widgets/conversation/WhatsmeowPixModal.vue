@@ -358,9 +358,9 @@ watch(activeConversationId, conversationId => {
   >
     <div class="flex min-w-0 items-center gap-3">
       <div
-        class="grid size-10 shrink-0 place-content-center rounded-lg bg-n-teal-9/15 text-n-teal-11"
+        class="grid size-11 shrink-0 place-content-center rounded-xl bg-n-teal-3 text-n-teal-11"
       >
-        <PixIcon class="size-5" />
+        <PixIcon class="size-6" />
       </div>
       <div class="min-w-0">
         <h3 class="m-0 truncate text-base font-semibold text-n-slate-12">

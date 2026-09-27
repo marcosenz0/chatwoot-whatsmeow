@@ -383,14 +383,13 @@ export default {
       <NextButton
         v-if="showPixButton"
         v-tooltip.top-end="pixButtonTooltip"
-        slate
-        faded
+        teal
         sm
         :aria-label="pixButtonTooltip"
         @click="togglePixModal"
       >
         <template #icon>
-          <PixIcon class="size-4" />
+          <PixIcon class="size-6" />
         </template>
       </NextButton>
       <NextButton
