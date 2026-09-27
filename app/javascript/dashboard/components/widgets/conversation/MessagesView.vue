@@ -952,20 +952,27 @@ export default {
         />
       </template>
     </MessageList>
-    <MessageSelectionToolbar
-      v-if="isMessageSelectionMode"
-      :selected-count="selectedMessageIds.length"
-      :can-forward="canForwardSelectedMessages"
-      :can-download="downloadableSelectedAttachments.length > 0"
-      :is-downloading="isDownloadingSelection"
-      :is-deleting="isBulkDeleting"
-      :is-forwarding="isForwardingMessages"
-      @clear="clearMessageSelection"
-      @copy="copySelectedMessages"
-      @download="downloadSelectedAttachments"
-      @delete="openBulkDeleteModal"
-      @forward="openForwardModal"
-    />
+    <Transition
+      enter-active-class="transition-all duration-200 ease-out motion-reduce:transition-none"
+      enter-from-class="translate-y-full opacity-0"
+      leave-active-class="transition-all duration-150 ease-in motion-reduce:transition-none"
+      leave-to-class="translate-y-full opacity-0"
+    >
+      <MessageSelectionToolbar
+        v-if="isMessageSelectionMode"
+        :selected-count="selectedMessageIds.length"
+        :can-forward="canForwardSelectedMessages"
+        :can-download="downloadableSelectedAttachments.length > 0"
+        :is-downloading="isDownloadingSelection"
+        :is-deleting="isBulkDeleting"
+        :is-forwarding="isForwardingMessages"
+        @clear="clearMessageSelection"
+        @copy="copySelectedMessages"
+        @download="downloadSelectedAttachments"
+        @delete="openBulkDeleteModal"
+        @forward="openForwardModal"
+      />
+    </Transition>
     <ForwardMessagesModal
       :is-open="isForwardModalOpen"
       :conversations="allConversations"
@@ -989,7 +996,7 @@ export default {
       />
     </Teleport>
     <div
-      class="flex relative flex-col bg-n-surface-1"
+      class="flex relative flex-col bg-n-surface-1 transition-[padding] duration-200 ease-out motion-reduce:transition-none"
       :class="{ 'pb-14': isMessageSelectionMode }"
     >
       <div
