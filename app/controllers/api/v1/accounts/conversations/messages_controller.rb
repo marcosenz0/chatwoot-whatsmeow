@@ -48,6 +48,9 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
 
   def retry
     return if message.blank?
+    if message.content_attributes.key?('whatsmeow_pix') || message.content_attributes.key?('whatsmeowPix')
+      return render_could_not_create_error(I18n.t('errors.whatsmeow.pix.retry_unavailable'))
+    end
 
     service = Messages::StatusUpdateService.new(message, 'sent')
     service.perform

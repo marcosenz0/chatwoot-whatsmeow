@@ -14,4 +14,16 @@ describe('Whatsmeow Pix translations', () => {
       i18n.global.t('CONVERSATION.WHATSMEOW_PIX.KEY_PLACEHOLDERS.EMAIL')
     ).toBe('Email address');
   });
+
+  it('has a label for editing the saved configuration', () => {
+    const i18n = createI18n({
+      legacy: false,
+      locale: 'en',
+      messages: { en: conversation },
+    });
+
+    expect(i18n.global.t('CONVERSATION.WHATSMEOW_PIX.EDIT_CONFIGURATION')).toBe(
+      'Edit configuration'
+    );
+  });
 });

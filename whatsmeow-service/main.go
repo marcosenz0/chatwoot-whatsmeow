@@ -2773,7 +2773,8 @@ func buildOutgoingPixMessage(body string, pix PixMessageRequest, contextInfo *pr
 						Name:             stringPtr(pixNativeFlowName),
 						ButtonParamsJSON: stringPtr(string(buttonParams)),
 					}},
-					MessageVersion: protobuf.Int32(1),
+					MessageParamsJSON: stringPtr("{}"),
+					MessageVersion:    protobuf.Int32(1),
 				},
 			},
 			ContextInfo: contextInfo,
@@ -2806,7 +2807,6 @@ func outgoingMessageSendRequestExtra(req MessageRequest) whatsmeow.SendRequestEx
 	additionalNodes := []waBinary.Node{{
 		Tag: "biz",
 		Attrs: waBinary.Attrs{
-			"xmlns":            "w:b",
 			"native_flow_name": pixNativeFlowName,
 		},
 	}}
