@@ -542,7 +542,7 @@
       "TIP_PIX_ICON": "Send Pix key",
       "CONFIGURATION": "Pix configuration",
       "CONFIGURATION_HINT": "These details are saved for this WhatsApp inbox. You can still review them before sending.",
-      "READ_ONLY_HINT": "Only inbox administrators can change these details.",
+      "READ_ONLY_HINT": "Only account administrators can change these details.",
       "KEY_TYPE": "Key type",
       "KEY": "Pix key",
       "MERCHANT_NAME": "Recipient name",

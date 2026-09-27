@@ -17,17 +17,26 @@ class Api::V1::Accounts::Conversations::WhatsmeowPixMessagesController < Api::V1
   private
 
   def pix_params
-    body = request.request_parameters.with_indifferent_access
-    return {} if body.empty?
+    body = request.raw_post.present? ? ActiveSupport::JSON.decode(request.raw_post) : {}
+    invalid_pix_params! unless valid_pix_body?(body)
 
-    if body.keys.sort != PIX_FIELDS.sort || body.values.any? { |value| !value.is_a?(String) }
-      raise CustomExceptions::Whatsmeow::InvalidPixPayload.new(
-        code: 'invalid_pix_payload',
-        message: I18n.t('errors.whatsmeow.pix.invalid_params')
-      )
-    end
+    body
+  rescue JSON::ParserError
+    invalid_pix_params!
+  end
 
-    body.slice(*PIX_FIELDS)
+  def valid_pix_body?(body)
+    return false unless body.is_a?(Hash)
+    return true if body.empty?
+
+    body.keys.sort == PIX_FIELDS.sort && body.values.all?(String)
+  end
+
+  def invalid_pix_params!
+    raise CustomExceptions::Whatsmeow::InvalidPixPayload.new(
+      code: 'invalid_pix_payload',
+      message: I18n.t('errors.whatsmeow.pix.invalid_params')
+    )
   end
 
   def ensure_bot_inbox_access

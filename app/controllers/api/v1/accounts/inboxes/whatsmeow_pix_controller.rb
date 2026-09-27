@@ -1,5 +1,6 @@
 class Api::V1::Accounts::Inboxes::WhatsmeowPixController < Api::V1::Accounts::BaseController
   before_action :fetch_inbox
+  before_action :ensure_bot_inbox_access
   before_action :ensure_whatsmeow_inbox
 
   def show
@@ -29,10 +30,6 @@ class Api::V1::Accounts::Inboxes::WhatsmeowPixController < Api::V1::Accounts::Ba
 
   def fetch_inbox
     @inbox = Current.account.inboxes.find(params[:inbox_id])
-    if @resource.is_a?(AgentBot) && !@resource.agent_bot_inboxes.active.exists?(account_id: Current.account.id, inbox_id: @inbox.id)
-      raise Pundit::NotAuthorizedError
-    end
-
     return unless action_name == 'show'
 
     if Current.account_user&.administrator?
@@ -43,6 +40,13 @@ class Api::V1::Accounts::Inboxes::WhatsmeowPixController < Api::V1::Accounts::Ba
     else
       authorize @inbox, :show?
     end
+  end
+
+  def ensure_bot_inbox_access
+    return unless @resource.is_a?(AgentBot)
+    return if @resource.agent_bot_inboxes.active.exists?(account_id: Current.account.id, inbox_id: @inbox.id)
+
+    raise Pundit::NotAuthorizedError
   end
 
   def ensure_whatsmeow_inbox

@@ -57,9 +57,7 @@ class Whatsmeow::PixPayload
       normalize_phone(raw_key)
     when 'CPF'
       raw_key.delete('^0-9')
-    when 'EMAIL'
-      raw_key.downcase
-    when 'EVP'
+    when 'EMAIL', 'EVP'
       raw_key.downcase
     else
       raw_key
@@ -75,13 +73,16 @@ class Whatsmeow::PixPayload
   def key_matches_type
     return if key.blank? || key_type.blank? || KEY_TYPES.exclude?(key_type)
 
-    valid = case key_type
-            when 'PHONE' then key.match?(/\A\+[1-9]\d{9,14}\z/)
-            when 'CPF' then valid_cpf?
-            when 'EMAIL' then key.match?(URI::MailTo::EMAIL_REGEXP)
-            when 'EVP' then key.match?(/\A[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/i)
-            end
-    errors.add(:key, :invalid) unless valid
+    errors.add(:key, :invalid) unless valid_key?
+  end
+
+  def valid_key?
+    case key_type
+    when 'PHONE' then key.match?(/\A\+[1-9]\d{9,14}\z/)
+    when 'CPF' then valid_cpf?
+    when 'EMAIL' then key.match?(URI::MailTo::EMAIL_REGEXP)
+    when 'EVP' then key.match?(/\A[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z/i)
+    end
   end
 
   def valid_cpf?

@@ -518,13 +518,12 @@ class Whatsmeow::IncomingMessageService
   end
 
   def message_content_attributes
-    attributes = { external_created_at: message_timestamp.to_i }
+    attributes = { external_created_at: message_timestamp.to_i, whatsmeow_pix: pix_payload }.compact_blank
     attributes[:historical] = true if historical?
     attributes[:external_echo] = true if outgoing_echo?
     attributes.merge!(group_content_attributes) if group_message?
     attributes.merge!(quoted_content_attributes) if quoted_message?
     attributes[:whatsmeow_contacts] = contact_params if contact_message?
-    attributes[:whatsmeow_pix] = pix_payload if pix_payload.present?
     attributes[:whatsmeow_ad] = ad_context if ad_context.present?
     attributes
   end
@@ -568,9 +567,9 @@ class Whatsmeow::IncomingMessageService
     return @pix_payload if defined?(@pix_payload)
 
     raw_payload = params[:pix]
-    @pix_payload = if raw_payload.respond_to?(:with_indifferent_access)
-                     Whatsmeow::PixPayload.new(raw_payload.with_indifferent_access).to_h
-                   end
+    return @pix_payload = nil unless raw_payload.respond_to?(:with_indifferent_access)
+
+    @pix_payload = Whatsmeow::PixPayload.new(raw_payload.with_indifferent_access).to_h
   end
 
   def contact_message_content
