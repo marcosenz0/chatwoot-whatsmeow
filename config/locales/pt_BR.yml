@@ -58,6 +58,13 @@ pt_BR:
     sessions:
       cannot_revoke_current: Você não pode revogar a sessão atual.
   errors:
+    whatsmeow:
+      pix:
+        unsupported_channel: Chaves Pix só podem ser enviadas por uma caixa de entrada Whatsmeow.
+        not_configured: Cadastre uma chave Pix nesta caixa de entrada ou informe uma na solicitação.
+        invalid_params: Envie um corpo vazio para usar a chave da caixa de entrada ou informe key_type, key e merchant_name como texto.
+        endpoint_required: Envie chaves Pix pelo endpoint específico de mensagens Pix.
+        retry_unavailable: Não é possível reenviar um cartão Pix. Envie um novo cartão com a chave Pix.
     account:
       not_authorized: Você não está autorizado a acessar esta conta
       reporting_timezone:
