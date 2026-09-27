@@ -556,7 +556,7 @@
       "KEY_PLACEHOLDERS": {
         "PHONE": "+55 11 99999-9999",
         "CPF": "000.000.000-00",
-        "EMAIL": "pix@example.com",
+        "EMAIL": "Email address",
         "EVP": "00000000-0000-0000-0000-000000000000"
       },
       "PREVIEW": "Message preview",
