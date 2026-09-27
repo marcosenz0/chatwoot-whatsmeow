@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, reactive, ref, watch } from 'vue';
+import { OnClickOutside } from '@vueuse/components';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import WhatsmeowPixAPI from 'dashboard/api/whatsmeowPix';
@@ -29,6 +30,8 @@ const { t } = useI18n();
 
 const dialogRef = ref(null);
 const keyTypeInput = ref(null);
+const keyTypeMenu = ref(null);
+const isKeyTypeMenuOpen = ref(false);
 const sendButton = ref(null);
 const closeButton = ref(null);
 const previouslyFocusedElement = ref(null);
@@ -57,14 +60,28 @@ const keyTypes = computed(() => [
   {
     value: 'PHONE',
     label: t('CONVERSATION.WHATSMEOW_PIX.KEY_TYPES.PHONE'),
+    icon: 'i-lucide-smartphone',
   },
-  { value: 'CPF', label: t('CONVERSATION.WHATSMEOW_PIX.KEY_TYPES.CPF') },
+  {
+    value: 'CPF',
+    label: t('CONVERSATION.WHATSMEOW_PIX.KEY_TYPES.CPF'),
+    icon: 'i-lucide-id-card',
+  },
   {
     value: 'EMAIL',
     label: t('CONVERSATION.WHATSMEOW_PIX.KEY_TYPES.EMAIL'),
+    icon: 'i-lucide-mail',
   },
-  { value: 'EVP', label: t('CONVERSATION.WHATSMEOW_PIX.KEY_TYPES.EVP') },
+  {
+    value: 'EVP',
+    label: t('CONVERSATION.WHATSMEOW_PIX.KEY_TYPES.EVP'),
+    icon: 'i-lucide-key-round',
+  },
 ]);
+
+const selectedKeyType = computed(() =>
+  keyTypes.value.find(keyType => keyType.value === form.keyType)
+);
 
 const activeConversationId = computed(() => Number(props.conversationId || 0));
 const isEditing = computed(() => mode.value === 'edit');
@@ -122,6 +139,70 @@ const focusControl = control => {
   element?.focus?.();
 };
 
+const focusKeyTypeOption = index => {
+  nextTick(() => {
+    keyTypeMenu.value?.querySelectorAll('[role="option"]')[index]?.focus();
+  });
+};
+
+const openKeyTypeMenu = () => {
+  if (!canManage.value || isBusy.value) return;
+  isKeyTypeMenuOpen.value = true;
+  const selectedIndex = keyTypes.value.findIndex(
+    keyType => keyType.value === form.keyType
+  );
+  focusKeyTypeOption(Math.max(0, selectedIndex));
+};
+
+const toggleKeyTypeMenu = () => {
+  if (isKeyTypeMenuOpen.value) {
+    isKeyTypeMenuOpen.value = false;
+  } else {
+    openKeyTypeMenu();
+  }
+};
+
+const closeKeyTypeMenu = () => {
+  isKeyTypeMenuOpen.value = false;
+  focusControl(keyTypeInput);
+};
+
+const selectKeyType = value => {
+  form.keyType = value;
+  closeKeyTypeMenu();
+};
+
+const handleKeyTypeFocusOut = event => {
+  if (!event.currentTarget.contains(event.relatedTarget)) {
+    isKeyTypeMenuOpen.value = false;
+  }
+};
+
+const handleKeyTypeMenuKeydown = event => {
+  const options = keyTypeMenu.value?.querySelectorAll('[role="option"]');
+  if (!options?.length) return;
+
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closeKeyTypeMenu();
+    return;
+  }
+
+  const currentIndex = Array.from(options).indexOf(document.activeElement);
+  const lastIndex = options.length - 1;
+  const nextIndex = {
+    ArrowDown: Math.min(currentIndex + 1, lastIndex),
+    ArrowUp: Math.max(currentIndex - 1, 0),
+    Home: 0,
+    End: lastIndex,
+  }[event.key];
+
+  if (nextIndex !== undefined) {
+    event.preventDefault();
+    options[nextIndex].focus();
+  }
+};
+
 const focusRelevantControl = () => {
   nextTick(() => {
     if (isEditing.value && canManage.value) {
@@ -149,6 +230,7 @@ const resetModal = () => {
   isConfigured.value = false;
   canManage.value = false;
   confirmDelete.value = false;
+  isKeyTypeMenuOpen.value = false;
   savedPix.value = null;
   mode.value = 'edit';
   resetForm();
@@ -216,6 +298,7 @@ const loadConfiguration = async () => {
 
 const enterEditMode = () => {
   if (!canManage.value || isBusy.value) return;
+  isKeyTypeMenuOpen.value = false;
   Object.assign(form, savedPix.value || emptyForm());
   confirmDelete.value = false;
   mode.value = 'edit';
@@ -223,6 +306,7 @@ const enterEditMode = () => {
 };
 
 const cancelEdit = () => {
+  isKeyTypeMenuOpen.value = false;
   if (!isConfigured.value) {
     close();
     return;
@@ -382,44 +466,117 @@ watch(activeConversationId, conversationId => {
     </div>
 
     <template v-else-if="isEditing">
-      <div class="grid min-w-0 gap-6 md:grid-cols-2">
+      <div class="grid min-w-0 items-start gap-4 md:grid-cols-2">
         <fieldset
-          class="m-0 grid min-w-0 content-start gap-4 border-0 p-0"
+          class="m-0 grid min-w-0 content-start gap-4 rounded-2xl border border-n-weak bg-n-surface-1 p-4 shadow-sm"
           :disabled="!canManage || isBusy"
         >
-          <div>
-            <h4 class="m-0 text-sm font-semibold text-n-slate-12">
-              {{ t('CONVERSATION.WHATSMEOW_PIX.CONFIGURATION') }}
-            </h4>
-            <p class="m-0 mt-1 text-xs text-n-slate-11">
-              {{
-                canManage
-                  ? t('CONVERSATION.WHATSMEOW_PIX.CONFIGURATION_HINT')
-                  : t('CONVERSATION.WHATSMEOW_PIX.READ_ONLY_HINT')
-              }}
-            </p>
+          <div class="flex items-start gap-2.5">
+            <div
+              class="grid size-8 shrink-0 place-content-center rounded-lg bg-n-teal-3 text-n-teal-11"
+            >
+              <Icon icon="i-lucide-wallet-cards" class="size-4" />
+            </div>
+            <div class="min-w-0">
+              <h4 class="m-0 text-sm font-semibold text-n-slate-12">
+                {{ t('CONVERSATION.WHATSMEOW_PIX.CONFIGURATION') }}
+              </h4>
+              <p class="m-0 mt-1 text-xs leading-5 text-n-slate-11">
+                {{
+                  canManage
+                    ? t('CONVERSATION.WHATSMEOW_PIX.CONFIGURATION_HINT')
+                    : t('CONVERSATION.WHATSMEOW_PIX.READ_ONLY_HINT')
+                }}
+              </p>
+            </div>
           </div>
 
-          <label class="grid min-w-0 gap-1" for="whatsmeow-pix-key-type">
-            <span class="text-sm font-medium text-n-slate-12">
+          <div class="grid min-w-0 gap-1.5">
+            <span
+              id="whatsmeow-pix-key-type-label"
+              class="text-sm font-medium text-n-slate-12"
+            >
               {{ t('CONVERSATION.WHATSMEOW_PIX.KEY_TYPE') }}
             </span>
-            <select
-              id="whatsmeow-pix-key-type"
-              ref="keyTypeInput"
-              v-model="form.keyType"
-              class="reset-base h-10 min-w-0 rounded-lg border border-n-weak bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-60"
-              :autofocus="canManage"
-            >
-              <option
-                v-for="keyType in keyTypes"
-                :key="keyType.value"
-                :value="keyType.value"
-              >
-                {{ keyType.label }}
-              </option>
-            </select>
-          </label>
+            <OnClickOutside @trigger="isKeyTypeMenuOpen = false">
+              <div class="relative min-w-0" @focusout="handleKeyTypeFocusOut">
+                <button
+                  id="whatsmeow-pix-key-type"
+                  ref="keyTypeInput"
+                  type="button"
+                  class="reset-base flex h-11 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-n-weak bg-n-alpha-1 px-3.5 text-left text-sm text-n-slate-12 shadow-sm transition-colors hover:border-n-teal-8 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-n-teal-9 disabled:cursor-not-allowed disabled:opacity-60"
+                  :class="{ 'border-n-teal-9': isKeyTypeMenuOpen }"
+                  :disabled="!canManage || isBusy"
+                  :aria-expanded="isKeyTypeMenuOpen"
+                  aria-haspopup="listbox"
+                  aria-controls="whatsmeow-pix-key-type-options"
+                  aria-labelledby="whatsmeow-pix-key-type-label whatsmeow-pix-key-type-value"
+                  @click="toggleKeyTypeMenu"
+                  @keydown.down.prevent="openKeyTypeMenu"
+                  @keydown.up.prevent="openKeyTypeMenu"
+                >
+                  <span class="flex min-w-0 items-center gap-2.5">
+                    <Icon
+                      :icon="selectedKeyType?.icon"
+                      class="size-4 shrink-0 text-n-teal-11"
+                    />
+                    <span id="whatsmeow-pix-key-type-value" class="truncate">
+                      {{ selectedKeyType?.label }}
+                    </span>
+                  </span>
+                  <Icon
+                    icon="i-lucide-chevron-down"
+                    class="size-4 shrink-0 text-n-slate-11 transition-transform duration-200"
+                    :class="{ 'rotate-180': isKeyTypeMenuOpen }"
+                  />
+                </button>
+
+                <Transition
+                  enter-active-class="transition duration-150 ease-out motion-reduce:transition-none"
+                  enter-from-class="-translate-y-1 opacity-0"
+                  enter-to-class="translate-y-0 opacity-100"
+                  leave-active-class="transition duration-100 ease-in motion-reduce:transition-none"
+                  leave-from-class="translate-y-0 opacity-100"
+                  leave-to-class="-translate-y-1 opacity-0"
+                >
+                  <div
+                    v-if="isKeyTypeMenuOpen"
+                    id="whatsmeow-pix-key-type-options"
+                    ref="keyTypeMenu"
+                    role="listbox"
+                    :aria-label="t('CONVERSATION.WHATSMEOW_PIX.KEY_TYPE')"
+                    class="absolute inset-x-0 top-full z-30 mt-2 grid gap-1 rounded-xl border border-n-weak bg-n-solid-1 p-1.5 shadow-xl"
+                    @keydown="handleKeyTypeMenuKeydown"
+                  >
+                    <button
+                      v-for="keyType in keyTypes"
+                      :key="keyType.value"
+                      type="button"
+                      role="option"
+                      :aria-selected="keyType.value === form.keyType"
+                      class="reset-base flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-teal-9"
+                      :class="
+                        keyType.value === form.keyType
+                          ? 'bg-n-teal-3 font-medium text-n-teal-11'
+                          : 'text-n-slate-12 hover:bg-n-alpha-2'
+                      "
+                      @click="selectKeyType(keyType.value)"
+                    >
+                      <Icon :icon="keyType.icon" class="size-4 shrink-0" />
+                      <span class="min-w-0 flex-1 truncate">{{
+                        keyType.label
+                      }}</span>
+                      <Icon
+                        v-if="keyType.value === form.keyType"
+                        icon="i-lucide-check"
+                        class="size-4 shrink-0"
+                      />
+                    </button>
+                  </div>
+                </Transition>
+              </div>
+            </OnClickOutside>
+          </div>
 
           <label class="grid min-w-0 gap-1" for="whatsmeow-pix-key">
             <span class="text-sm font-medium text-n-slate-12">
@@ -428,7 +585,7 @@ watch(activeConversationId, conversationId => {
             <input
               id="whatsmeow-pix-key"
               v-model="form.key"
-              class="reset-base h-10 min-w-0 rounded-lg border border-n-weak bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-60"
+              class="reset-base h-11 min-w-0 rounded-xl border border-n-weak bg-n-alpha-1 px-3.5 text-sm text-n-slate-12 shadow-sm outline-none transition-colors focus:border-n-teal-9 focus:ring-2 focus:ring-n-teal-9/20 disabled:cursor-not-allowed disabled:opacity-60"
               :type="inputType"
               :placeholder="keyPlaceholder"
               maxlength="255"
@@ -443,7 +600,7 @@ watch(activeConversationId, conversationId => {
             <input
               id="whatsmeow-pix-merchant-name"
               v-model="form.merchantName"
-              class="reset-base h-10 min-w-0 rounded-lg border border-n-weak bg-n-alpha-1 px-3 text-sm text-n-slate-12 outline-none focus:border-n-brand disabled:cursor-not-allowed disabled:opacity-60"
+              class="reset-base h-11 min-w-0 rounded-xl border border-n-weak bg-n-alpha-1 px-3.5 text-sm text-n-slate-12 shadow-sm outline-none transition-colors focus:border-n-teal-9 focus:ring-2 focus:ring-n-teal-9/20 disabled:cursor-not-allowed disabled:opacity-60"
               type="text"
               maxlength="100"
               :placeholder="
@@ -455,23 +612,33 @@ watch(activeConversationId, conversationId => {
 
           <p
             v-if="!isConfigured"
-            class="m-0 rounded-lg border border-n-amber-7 bg-n-amber-3 px-3 py-2 text-xs text-n-amber-12"
+            class="m-0 flex items-start gap-2 rounded-xl border border-n-teal-7 bg-n-teal-3 px-3 py-2.5 text-xs leading-5 text-n-teal-11"
           >
+            <Icon icon="i-lucide-info" class="mt-0.5 size-3.5 shrink-0" />
             {{ t('CONVERSATION.WHATSMEOW_PIX.NOT_CONFIGURED') }}
           </p>
         </fieldset>
 
-        <div class="grid min-w-0 content-start gap-4">
-          <div>
-            <h4 class="m-0 text-sm font-semibold text-n-slate-12">
-              {{ t('CONVERSATION.WHATSMEOW_PIX.PREVIEW') }}
-            </h4>
-            <p class="m-0 mt-1 text-xs text-n-slate-11">
-              {{ t('CONVERSATION.WHATSMEOW_PIX.PREVIEW_HINT') }}
-            </p>
+        <div
+          class="grid min-w-0 content-start gap-4 rounded-2xl border border-n-weak bg-n-surface-1 p-4 shadow-sm"
+        >
+          <div class="flex items-start gap-2.5">
+            <div
+              class="grid size-8 shrink-0 place-content-center rounded-lg bg-n-teal-3 text-n-teal-11"
+            >
+              <Icon icon="i-lucide-eye" class="size-4" />
+            </div>
+            <div class="min-w-0">
+              <h4 class="m-0 text-sm font-semibold text-n-slate-12">
+                {{ t('CONVERSATION.WHATSMEOW_PIX.PREVIEW') }}
+              </h4>
+              <p class="m-0 mt-1 text-xs leading-5 text-n-slate-11">
+                {{ t('CONVERSATION.WHATSMEOW_PIX.PREVIEW_HINT') }}
+              </p>
+            </div>
           </div>
           <WhatsmeowPixCard :pix="previewPix" standalone />
-          <p class="m-0 text-xs text-n-slate-10">
+          <p class="m-0 text-xs leading-5 text-n-slate-10">
             {{ t('CONVERSATION.WHATSMEOW_PIX.DELIVERY_NOTE') }}
           </p>
         </div>
