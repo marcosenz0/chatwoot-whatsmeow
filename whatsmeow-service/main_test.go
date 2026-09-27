@@ -561,6 +561,9 @@ func TestBuildOutgoingPixMessageUsesNativePaymentFlow(t *testing.T) {
 	if version := nativeFlow.GetMessageVersion(); version != 1 {
 		t.Fatalf("native flow message version = %d; want 1", version)
 	}
+	if params := nativeFlow.GetMessageParamsJSON(); params != "{}" {
+		t.Fatalf("native flow message params = %q; want {}", params)
+	}
 	buttons := nativeFlow.GetButtons()
 	if len(buttons) != 1 || buttons[0].GetName() != pixNativeFlowName {
 		t.Fatalf("native flow buttons = %+v; want one payment_info button", buttons)
@@ -610,7 +613,7 @@ func TestOutgoingMessageSendRequestExtraAddsPixCapability(t *testing.T) {
 		t.Fatalf("additional nodes = %+v; want one biz node", extra.AdditionalNodes)
 	}
 	node := (*extra.AdditionalNodes)[0]
-	if node.Tag != "biz" || node.Attrs["xmlns"] != "w:b" || node.Attrs["native_flow_name"] != pixNativeFlowName {
+	if node.Tag != "biz" || len(node.Attrs) != 1 || node.Attrs["native_flow_name"] != pixNativeFlowName {
 		t.Fatalf("Pix capability node = %+v", node)
 	}
 

@@ -314,6 +314,24 @@ RSpec.describe 'Conversation Messages API', type: :request do
         expect(message.reload.status).to eq('sent')
         expect(message.reload.content_attributes['external_error']).to be_nil
       end
+
+      it 'rejects retrying a Pix card without clearing its payment details' do
+        message.update!(content_attributes: {
+                          'whatsmeow_pix' => { 'key_type' => 'EMAIL', 'key' => 'payments@example.com', 'merchant_name' => 'Example Store' },
+                          'external_error' => 'delivery failed'
+                        })
+
+        expect do
+          post "/api/v1/accounts/#{account.id}/conversations/#{message.conversation.display_id}/messages/#{message.id}/retry",
+               headers: agent.create_new_auth_token,
+               as: :json
+        end.not_to have_enqueued_job(SendReplyJob)
+
+        expect(response).to have_http_status(:unprocessable_entity)
+        expect(response.parsed_body['error']).to eq(I18n.t('errors.whatsmeow.pix.retry_unavailable'))
+        expect(message.reload.status).to eq('failed')
+        expect(message.content_attributes['whatsmeow_pix']['key']).to eq('payments@example.com')
+      end
     end
 
     context 'when the message id is invalid' do

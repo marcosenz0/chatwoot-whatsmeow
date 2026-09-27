@@ -12,15 +12,31 @@ defineProps({
 
 const emit = defineEmits(['retry']);
 
-const { orientation, status, createdAt, content, attachments } =
-  useMessageContext();
+const {
+  orientation,
+  status,
+  createdAt,
+  content,
+  attachments,
+  contentAttributes,
+} = useMessageContext();
 
 const { t } = useI18n();
+
+const isPixMessage = computed(
+  () =>
+    !!contentAttributes.value?.whatsmeowPix ||
+    !!contentAttributes.value?.whatsmeow_pix
+);
 
 const canRetry = computed(() => {
   const hasContent = content.value !== null;
   const hasAttachments = attachments.value && attachments.value.length > 0;
-  return !hasOneDayPassed(createdAt.value) && (hasContent || hasAttachments);
+  return (
+    !isPixMessage.value &&
+    !hasOneDayPassed(createdAt.value) &&
+    (hasContent || hasAttachments)
+  );
 });
 </script>
 
@@ -28,22 +44,27 @@ const canRetry = computed(() => {
   <div class="text-xs text-n-ruby-11 flex items-center gap-1.5">
     <span>{{ t('CHAT_LIST.FAILED_TO_SEND') }}</span>
     <div class="relative group">
-      <div
+      <button
+        type="button"
+        :aria-label="error"
         class="bg-n-alpha-2 rounded-md size-5 grid place-content-center cursor-pointer"
       >
         <Icon
           icon="i-lucide-alert-triangle"
           class="text-n-ruby-11 size-[14px]"
         />
-      </div>
+      </button>
       <div
-        class="absolute bg-n-alpha-3 px-4 py-3 border rounded-xl border-n-strong text-n-slate-12 bottom-6 w-52 text-xs backdrop-blur-[100px] shadow-[0px_0px_24px_0px_rgba(0,0,0,0.12)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all break-all"
+        class="absolute bg-n-alpha-3 px-4 py-3 border rounded-xl border-n-strong text-n-slate-12 bottom-6 w-52 text-xs backdrop-blur-[100px] shadow-[0px_0px_24px_0px_rgba(0,0,0,0.12)] opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all break-all"
         :class="{
           'ltr:left-0 rtl:right-0': orientation === ORIENTATION.LEFT,
           'ltr:right-0 rtl:left-0': orientation === ORIENTATION.RIGHT,
         }"
       >
         {{ error }}
+        <span v-if="isPixMessage" class="block mt-2">
+          {{ t('CONVERSATION.WHATSMEOW_PIX.RETRY_UNAVAILABLE') }}
+        </span>
       </div>
     </div>
     <button
