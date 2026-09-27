@@ -649,6 +649,14 @@ function handleSelect() {
   emit('select', payloadForContextMenu.value);
 }
 
+function isInteractiveSelectionTarget(target) {
+  return target?.closest?.(
+    'a,button,input,textarea,select,audio,video,[role="button"],[data-selection-ignore]'
+  );
+}
+
+const HOLD_DURATION_MS = 900;
+const isHolding = ref(false);
 let holdTimer;
 let holdStart;
 let suppressHoldClick = false;
@@ -657,20 +665,29 @@ function cancelHold() {
   clearTimeout(holdTimer);
   holdTimer = undefined;
   holdStart = undefined;
+  isHolding.value = false;
 }
 
 function startHold(event) {
-  if (!isSelectableMessage.value || event.button !== 0) return;
-  if (event.target.closest?.('[data-selection-ignore]')) return;
+  if (
+    props.isSelectionMode ||
+    !isSelectableMessage.value ||
+    event.button !== 0 ||
+    isInteractiveSelectionTarget(event.target)
+  )
+    return;
   suppressHoldClick = false;
   cancelHold();
   holdStart = { x: event.clientX, y: event.clientY };
+  isHolding.value = true;
   holdTimer = setTimeout(() => {
     holdTimer = undefined;
+    holdStart = undefined;
+    isHolding.value = false;
     suppressHoldClick = true;
     handleSelect();
     window.getSelection()?.removeAllRanges();
-  }, 2000);
+  }, HOLD_DURATION_MS);
 }
 
 function moveHold(event) {
@@ -692,12 +709,6 @@ function handleHoldClick(event) {
 }
 
 onBeforeUnmount(cancelHold);
-
-function isInteractiveSelectionTarget(target) {
-  return target?.closest?.(
-    'a,button,input,textarea,select,audio,video,[role="button"],[data-selection-ignore]'
-  );
-}
 
 function handleSelectionModeClick(event) {
   if (!props.isSelectionMode || !isSelectableMessage.value) return;
@@ -847,7 +858,7 @@ provideMessageContext({
   <div
     v-if="shouldRenderMessage"
     :id="`message${props.id}`"
-    class="group/message relative flex w-full mb-2 message-bubble-container"
+    class="group/message relative flex w-full mb-2 message-bubble-container transition-all duration-200 ease-out motion-reduce:transition-none"
     :data-message-id="props.id"
     :class="[
       flexOrientationClass,
@@ -867,25 +878,51 @@ provideMessageContext({
     @click.capture="handleHoldClick"
     @click="handleSelectionModeClick"
   >
-    <button
-      v-if="isSelectionMode && isSelectableMessage"
-      type="button"
-      data-selection-ignore
-      class="absolute left-2 top-1/2 z-10 grid size-8 -translate-y-1/2 place-content-center rounded-full text-n-slate-11 opacity-90 transition hover:bg-n-alpha-2 group-hover/message:opacity-100"
-      :aria-pressed="isSelected"
-      @click.stop="handleSelect"
+    <div
+      v-if="isSelectableMessage && !isSelectionMode"
+      aria-hidden="true"
+      class="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-0.5 overflow-hidden rounded-full"
     >
       <span
-        class="grid size-5 place-content-center rounded border transition"
+        class="block h-full origin-left bg-n-brand transition-transform ease-linear motion-reduce:transition-none"
         :class="
-          isSelected
-            ? 'border-n-brand bg-n-brand text-white shadow-sm'
-            : 'border-n-slate-8 bg-n-solid-1'
+          isHolding ? 'scale-x-100 duration-[900ms]' : 'scale-x-0 duration-0'
         "
+      />
+    </div>
+    <Transition
+      enter-active-class="transition-all duration-200 ease-out motion-reduce:transition-none"
+      enter-from-class="opacity-0 scale-75"
+      leave-active-class="transition-all duration-150 ease-in motion-reduce:transition-none"
+      leave-to-class="opacity-0 scale-75"
+    >
+      <button
+        v-if="isSelectionMode && isSelectableMessage"
+        type="button"
+        data-selection-ignore
+        class="absolute left-2 top-1/2 z-10 grid size-8 -translate-y-1/2 place-content-center rounded-full text-n-slate-11 opacity-90 transition hover:bg-n-alpha-2 group-hover/message:opacity-100"
+        :aria-pressed="isSelected"
+        @click.stop="handleSelect"
       >
-        <fluent-icon v-if="isSelected" icon="checkmark" size="12" />
-      </span>
-    </button>
+        <span
+          class="grid size-5 place-content-center rounded border transition-all duration-200 ease-out motion-reduce:transition-none"
+          :class="
+            isSelected
+              ? 'border-n-brand bg-n-brand text-white shadow-sm'
+              : 'border-n-slate-8 bg-n-solid-1'
+          "
+        >
+          <Transition
+            enter-active-class="transition-all duration-200 ease-out motion-reduce:transition-none"
+            enter-from-class="opacity-0 scale-50"
+            leave-active-class="transition-all duration-150 ease-in motion-reduce:transition-none"
+            leave-to-class="opacity-0 scale-50"
+          >
+            <fluent-icon v-if="isSelected" icon="checkmark" size="12" />
+          </Transition>
+        </span>
+      </button>
+    </Transition>
     <div v-if="variant === MESSAGE_VARIANTS.ACTIVITY">
       <ActivityBubble :content="content" />
     </div>
