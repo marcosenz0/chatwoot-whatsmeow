@@ -365,12 +365,12 @@ Exponha a API do Go publicamente somente se precisar consultar health/status for
 
 ### Chamadas de voz e vídeo pelo WhatsApp Direct
 
-O navegador precisa alcançar o WebSocket de chamadas por HTTPS. Configure um domínio próprio para cada serviço Whatsmeow, apontando no EasyPanel para a porta interna `8081`; mantenha a API normal na porta `8080`. Não compartilhe o mesmo domínio de chamadas entre as três instâncias.
+O navegador precisa alcançar o WebSocket de chamadas por HTTPS. Em cada serviço Whatsmeow, adicione no EasyPanel uma rota de domínio usando o mesmo host do Chatwoot correspondente, caminho público `/calls`, porta de destino `8081` e caminho de destino `/calls`. A rota existente do Chatwoot continua recebendo os outros caminhos. Mantenha a API normal do Go na porta `8080`.
 
 No Chatwoot web de cada instância:
 
 ```env
-WHATSMEOW_CALLS_URL=https://dominio-de-chamadas-da-instancia
+WHATSMEOW_CALLS_URL=https://dominio-do-chatwoot-da-instancia
 ```
 
 No serviço Whatsmeow correspondente:

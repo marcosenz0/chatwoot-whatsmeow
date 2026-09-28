@@ -9,7 +9,7 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 ## September 28, 2026: WhatsApp Direct Calls (Implementation In Progress)
 
 - Branch `codex/whatsmeow-voice-calls` adds voice and video buttons to eligible direct Whatsmeow conversations, a floating call panel with microphone and camera controls, a short-lived session token issued by Rails, and an authenticated Go WebSocket media bridge.
-- The Go service uses pinned `meowcaller` and `hypermeow` revisions for call signaling and media, with the existing Status receipt patch adapted to the fork. The call listener is separate on port `8081` and disabled until `WHATSMEOW_CALLS_ENABLED=true` is configured. Each custom instance needs its own HTTPS calls domain and origin setting; see `docs/whatsmeow-installation.md`.
+- The Go service uses pinned `meowcaller` and `hypermeow` revisions for call signaling and media, with the existing Status receipt patch adapted to the fork. The call listener is separate on port `8081` and disabled until `WHATSMEOW_CALLS_ENABLED=true` is configured. Each custom instance needs a `/calls` route on its own Chatwoot HTTPS host and matching origin setting; see `docs/whatsmeow-installation.md`.
 - Local Go unit tests, `go vet`, Go build, Ruby syntax, Vue SFC compilation, and ESLint for new frontend files pass. Docker image build and real WhatsApp audio/video calls are not yet validated. The call library documents inbound and outbound video media as experimental. Do not mark this feature shipped until real calls and all three instance deployments are verified independently.
 
 ## September 28, 2026: Third Fork Instance (MD)
