@@ -306,6 +306,18 @@ Crie ou mantenha os servicos abaixo no mesmo projeto/rede:
 - Chatwoot Sidekiq, usando a mesma imagem do web.
 - Whatsmeow service, usando o Dockerfile em `whatsmeow-service/`.
 
+### Instancias do fork em `marcos-apps`
+
+| Instancia | Dominio | Web | Sidekiq | Postgres | Redis | Whatsmeow |
+| --- | --- | --- | --- | --- | --- | --- |
+| Principal | `chatwoot.marcoswt.com.br` | `chatwoot-staging` | `chatwoot-staging-sidekiq` | `chatwoot-staging-db` | `chatwoot-staging-redis` | `whatsmeow-staging` |
+| MX | `chatwootmx.marcoswt.com.br` | `chatwoot-mx` | `chatwoot-mx-sidekiq` | `chatwoot-mx-db` | `chatwoot-mx-redis` | `whatsmeow-mx` |
+| MD | `chatwootmd.marcoswt.com.br` | `chatwoot-md` | `chatwoot-md-sidekiq` | `chatwoot-md-db` | `chatwoot-md-redis` | `whatsmeow-md` |
+
+Cada instancia usa banco, Redis, chaves de aplicacao, sessoes WhatsApp e dominio proprios. O Chatwoot oficial em `chatwootoficial.marcoswt.com.br` nao faz parte dos deploys deste fork. Para uma mudanca do fork destinada a todos os ambientes, valide e implante a mesma imagem Chatwoot nos tres pares web/Sidekiq e o Go correspondente nos tres servicos Whatsmeow.
+
+Na instancia MD, o web e o Sidekiq usam a mesma imagem do fork fixada por digest. O Go usa a branch `develop` do repositorio `marcosenz0/chatwoot-whatsmeow`, com contexto `/whatsmeow-service`. O dominio HTTPS aponta apenas para `chatwoot-md:3000`; Sidekiq e Go permanecem internos. O webhook interno do Go usa `http://chatwoot-md:3000/webhooks/whatsmeow/%s/%s`.
+
 ### Chatwoot web
 
 Comando:
@@ -346,7 +358,7 @@ Variaveis:
 ```env
 PORT=8080
 DATABASE_URL=postgres://postgres:senha_segura@nome-interno-do-postgres:5432/chatwoot?sslmode=disable
-WEBHOOK_URL=http://nome-interno-do-chatwoot:3000/api/v1/accounts/%s/whatsmeow/%s/callback
+WEBHOOK_URL=http://nome-interno-do-chatwoot:3000/webhooks/whatsmeow/%s/%s
 ```
 
 Exponha a API do Go publicamente somente se precisar consultar health/status fora da rede interna. Para funcionamento normal, rede interna basta.
@@ -354,13 +366,22 @@ Exponha a API do Go publicamente somente se precisar consultar health/status for
 ### Sequencia de deploy
 
 1. Suba Postgres e Redis.
-2. Suba Chatwoot web e Sidekiq.
-3. Rode migrations/preparo do banco:
+2. Prepare um banco novo com o esquema atual antes do primeiro boot do web/Sidekiq. Use o comando de preparacao do Chatwoot:
 
 ```bash
 bundle exec rails db:chatwoot_prepare
 ```
 
+   Se `db:migrate` ja iniciou migracoes antigas e falhou numa base nova ainda sem dados, carregue o `db/schema.rb` da mesma imagem uma unica vez, execute `db:seed` e volte ao comando permanente `db:chatwoot_prepare`:
+
+   ```bash
+   DISABLE_DATABASE_ENVIRONMENT_CHECK=1 bundle exec rails db:schema:load
+   bundle exec rails db:seed
+   ```
+
+   Execute esses comandos apenas na base nova sem dados. Nunca deixe `db:schema:load` no boot permanente: ele pode substituir dados em reinicios futuros.
+
+3. Suba Chatwoot web e Sidekiq usando a mesma imagem.
 4. Suba o `whatsmeow-service`.
 5. Confira o health:
 

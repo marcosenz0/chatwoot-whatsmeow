@@ -6,6 +6,15 @@ This file records the important project context for future sessions. Do not add 
 
 Make the Chatwoot fork behave like official Chatwoot in the conversation UI while keeping the direct WhatsApp connection through `whatsmeow-service`.
 
+## September 28, 2026: Third Fork Instance (MD)
+
+- Added `https://chatwootmd.marcoswt.com.br` as the third custom Chatwoot fork instance in Easypanel project `marcos-apps`, alongside the principal and MX instances. Hostinger DNS points the MD hostname to the Easypanel VPS, and the HTTPS proxy routes only to `chatwoot-md:3000`.
+- MD services are `chatwoot-md`, `chatwoot-md-sidekiq`, `chatwoot-md-db`, `chatwoot-md-redis`, and `whatsmeow-md`. The MD database, Redis, application keys, Whatsmeow shared secret, WhatsApp sessions, and domain are separate from the principal and MX instances. Sidekiq and Go have no public domain.
+- Web and Sidekiq use the same pinned fork image as MX: `ghcr.io/marcosenz0/chatwoot-whatsmeow@sha256:e421766a9452075212afb2df7aa37804afc76162789ec94de8d6188821f27eb7`. The MD Go service builds from `marcosenz0/chatwoot-whatsmeow` branch `develop`, directory `/whatsmeow-service`.
+- The initial web boot using `db:migrate` failed on the legacy `AddCachedLabelsList` migration against a new database. The current schema and seeds were loaded once into the new MD database; the permanent web boot now runs `db:chatwoot_prepare` before Puma. Do not run `db:schema:load` again after user data exists.
+- Validation: MD web `/health` returned HTTP 200 with `{"status":"woot"}`, the root URL opened the first administrator onboarding page, Sidekiq started and processed a scheduled job, and the Go container returned `{"status":"healthy"}` from its internal `/health`. The principal and MX web health endpoints also returned HTTP 200 during this deployment.
+- The MD database has not yet had its first administrator created, and WhatsApp inbox pairing has not been performed. Complete the onboarding form in the live MD page, then create and pair a WhatsApp Direct inbox before testing real messages.
+
 ## Implemented Integration
 
 - `Channel::Whatsmeow` exists as a Chatwoot inbox type and is routed through `SendReplyJob`.

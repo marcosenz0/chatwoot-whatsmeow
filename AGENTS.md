@@ -121,9 +121,9 @@ Practical checklist for any change impacting core logic or public APIs
 
 Detailed Whatsmeow fork progress is tracked in `docs/whatsmeow-progress.md`. Installation/deployment instructions are tracked in `docs/whatsmeow-installation.md`. Keep this section short and move implementation notes there when they grow.
 
-After each shipped change to either custom Chatwoot instance, update the relevant Markdown handoff before closing the task: record the user-visible behavior, key implementation decisions, deployment targets, validation, and any remaining limitation. Keep transient secrets and personal message contents out of these files. The two custom targets are `chatwootmx.marcoswt.com.br` and `chatwoot.marcoswt.com.br`; `chatwootoficial.marcoswt.com.br` is out of scope unless explicitly requested.
+After each shipped change to a custom Chatwoot instance, update the relevant Markdown handoff before closing the task: record the user-visible behavior, key implementation decisions, deployment targets, validation, and any remaining limitation. Keep transient secrets and personal message contents out of these files. The three custom targets are `chatwoot.marcoswt.com.br`, `chatwootmx.marcoswt.com.br`, and `chatwootmd.marcoswt.com.br`; `chatwootoficial.marcoswt.com.br` is out of scope unless explicitly requested.
 
-This fork serves both `chatwoot.marcoswt.com.br` and `chatwootmx.marcoswt.com.br`. For requested fork changes, deploy the same validated Chatwoot image to both web/Sidekiq pairs and the matching Go changes to both Whatsmeow services; verify each instance independently. Keep their databases, sessions, and domains separate.
+This fork serves `chatwoot.marcoswt.com.br`, `chatwootmx.marcoswt.com.br`, and `chatwootmd.marcoswt.com.br`. For requested fork changes, deploy the same validated Chatwoot image to all three web/Sidekiq pairs and the matching Go changes to all three Whatsmeow services; verify each instance independently. Keep their databases, sessions, and domains separate.
 
 ### 🌟 Project Status
 All primary core integrations between Chatwoot Staging and the Go-based `whatsmeow-service` are implemented, deployed, and healthy.
@@ -132,8 +132,10 @@ All primary core integrations between Chatwoot Staging and the Go-based `whatsme
 - **Inline QR Code**: QR code generation and pairing are built directly inside the *Configuration* tab status card. It automatically polls the Go status API until pairing succeeds.
 - **Deletes fix**: Staging runs the `:async` adapter for `DeleteObjectJob`, making inbox deletions instant on refresh.
 
-### 🌐 Staging Environments & Credentials
+### 🌐 Custom Environments & Credentials
 - **Chatwoot Fork/Staging Primary**: [https://chatwoot.marcoswt.com.br](https://chatwoot.marcoswt.com.br)
+- **Chatwoot Fork/MX**: [https://chatwootmx.marcoswt.com.br](https://chatwootmx.marcoswt.com.br)
+- **Chatwoot Fork/MD**: [https://chatwootmd.marcoswt.com.br](https://chatwootmd.marcoswt.com.br)
 - **Chatwoot Fork/Staging Legacy Alias**: [https://staging-crm.marcoswt.com.br](https://staging-crm.marcoswt.com.br)
 - **Official Chatwoot**: [https://chatwootoficial.marcoswt.com.br](https://chatwootoficial.marcoswt.com.br)
 - **Whatsmeow API (Health)**: [https://staging-api.marcoswt.com.br/health](https://staging-api.marcoswt.com.br/health)
