@@ -14,7 +14,7 @@ func TestCallToken(t *testing.T) {
 	t.Setenv("WHATSMEOW_SHARED_SECRET", "test-call-secret")
 	claims := callClaims{
 		InboxID:        "27",
-		ContactJID:     "5563992645568@s.whatsapp.net",
+		ContactJID:     "15551234567@s.whatsapp.net",
 		ConversationID: 3058,
 		AgentID:        1,
 		RegisteredClaims: jwt.RegisteredClaims{
