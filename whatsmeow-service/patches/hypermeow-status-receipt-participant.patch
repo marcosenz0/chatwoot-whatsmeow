@@ -1,11 +1,7 @@
 diff --git a/receipt.go b/receipt.go
-index 083f9ef..9ddf80a 100644
 --- a/receipt.go
 +++ b/receipt.go
-@@ -60,6 +60,20 @@ func (cli *Client) parseReceipt(node *waBinary.Node) (*events.Receipt, error) {
- 	if err != nil {
- 		return nil, err
- 	}
+@@ -70,0 +71,14 @@ func (cli *Client) parseReceipt(node *waBinary.Node) (*events.Receipt, []waBinary.Node, error) {
 +	participant := ag.OptionalJIDOrEmpty("participant")
 +	if !participant.IsEmpty() && source.IsFromMe && source.Chat.ToNonAD() == types.StatusBroadcastJID {
 +		// Status view receipts may be addressed from our own JID to
@@ -20,6 +16,3 @@ index 083f9ef..9ddf80a 100644
 +			source.SenderAlt = ag.OptionalJIDOrEmpty("participant_lid")
 +		}
 +	}
- 	receipt := events.Receipt{
- 		MessageSource: source,
- 		Timestamp:     ag.UnixTime("t"),

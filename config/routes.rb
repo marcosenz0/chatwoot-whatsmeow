@@ -216,6 +216,7 @@ Rails.application.routes.draw do
                 end
               end
               post 'messages/pix', to: 'whatsmeow_pix_messages#create'
+              post 'whatsmeow_call_session', to: 'whatsmeow_call_sessions#create'
               resources :assignments, only: [:create]
               resources :labels, only: [:create, :index]
               resource :pipeline, only: [:create, :destroy]

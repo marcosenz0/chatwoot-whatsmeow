@@ -1,0 +1,29 @@
+name: Whatsmeow Service
+
+on:
+  pull_request:
+    paths:
+      - 'whatsmeow-service/**'
+      - '.github/workflows/whatsmeow_service.yml'
+  push:
+    branches:
+      - develop
+    paths:
+      - 'whatsmeow-service/**'
+      - '.github/workflows/whatsmeow_service.yml'
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: whatsmeow-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-file: whatsmeow-service/go.mod
+          cache-dependency-path: whatsmeow-service/go.sum
+      - run: go test ./...
+      - run: go vet ./...
+      - run: docker build -t whatsmeow-service:check .

@@ -363,6 +363,26 @@ WEBHOOK_URL=http://nome-interno-do-chatwoot:3000/webhooks/whatsmeow/%s/%s
 
 Exponha a API do Go publicamente somente se precisar consultar health/status fora da rede interna. Para funcionamento normal, rede interna basta.
 
+### Chamadas de voz e vídeo pelo WhatsApp Direct
+
+O navegador precisa alcançar o WebSocket de chamadas por HTTPS. Configure um domínio próprio para cada serviço Whatsmeow, apontando no EasyPanel para a porta interna `8081`; mantenha a API normal na porta `8080`. Não compartilhe o mesmo domínio de chamadas entre as três instâncias.
+
+No Chatwoot web de cada instância:
+
+```env
+WHATSMEOW_CALLS_URL=https://dominio-de-chamadas-da-instancia
+```
+
+No serviço Whatsmeow correspondente:
+
+```env
+WHATSMEOW_CALLS_ENABLED=true
+WHATSMEOW_CALLS_PORT=8081
+WHATSMEOW_CALLS_ORIGIN=https://dominio-do-chatwoot-da-instancia
+```
+
+O web e o Go devem usar o mesmo `WHATSMEOW_SHARED_SECRET` já empregado pelas rotas internas. O proxy precisa permitir upgrade de WebSocket. Para receber chamadas no painel, mantenha `Reject Calls` desligado na configuração do inbox. As chamadas recebidas aparecem enquanto a conversa direta correspondente está aberta no navegador. A mídia de vídeo depende de WebCodecs no navegador; valide voz, vídeo e a troca de voz para vídeo com uma sessão WhatsApp real antes de ativar em produção.
+
 ### Sequencia de deploy
 
 1. Suba Postgres e Redis.

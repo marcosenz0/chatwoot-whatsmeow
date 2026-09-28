@@ -1,5 +1,23 @@
 {
   "CONVERSATION": {
+    "WHATSMEOW_CALL": {
+      "TITLE": "WhatsApp call",
+      "VOICE": "Voice call",
+      "VIDEO": "Video call",
+      "CONNECTING": "Connecting",
+      "INCOMING": "Incoming call",
+      "DIALING": "Calling",
+      "ANSWERING": "Answering",
+      "CONNECTED": "Connected",
+      "ENDED": "Call ended",
+      "ANSWER": "Answer call",
+      "END": "End call",
+      "MUTE": "Mute microphone",
+      "CAMERA": "Turn camera on or off",
+      "ACCEPT_VIDEO": "Accept video",
+      "VIDEO_UNSUPPORTED": "This browser does not support video calls",
+      "FAILED": "Could not connect the WhatsApp call"
+    },
     "404": "Sorry, we cannot find the conversation. Please try again",
     "SELECT_A_CONVERSATION": "Please select a conversation from left pane",
     "CSAT_REPLY_MESSAGE": "Please rate the conversation",

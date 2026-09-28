@@ -26,17 +26,17 @@ import (
 	"github.com/lib/pq"
 	"github.com/skip2/go-qrcode"
 
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/appstate"
-	waBinary "go.mau.fi/whatsmeow/binary"
-	"go.mau.fi/whatsmeow/binary/proto"
-	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
-	waWeb "go.mau.fi/whatsmeow/proto/waWeb"
-	"go.mau.fi/whatsmeow/store"
-	"go.mau.fi/whatsmeow/store/sqlstore"
-	"go.mau.fi/whatsmeow/types"
-	"go.mau.fi/whatsmeow/types/events"
-	waLog "go.mau.fi/whatsmeow/util/log"
+	"github.com/polymorfa/hypermeow"
+	"github.com/polymorfa/hypermeow/appstate"
+	waBinary "github.com/polymorfa/hypermeow/binary"
+	"github.com/polymorfa/hypermeow/binary/proto"
+	waE2E "github.com/polymorfa/hypermeow/proto/waE2E"
+	waWeb "github.com/polymorfa/hypermeow/proto/waWeb"
+	"github.com/polymorfa/hypermeow/store"
+	"github.com/polymorfa/hypermeow/store/sqlstore"
+	"github.com/polymorfa/hypermeow/types"
+	"github.com/polymorfa/hypermeow/types/events"
+	waLog "github.com/polymorfa/hypermeow/util/log"
 	protobuf "google.golang.org/protobuf/proto"
 )
 
@@ -462,6 +462,19 @@ func main() {
 	r.POST("/messages/reaction", internalTokenMiddleware(), handleSendReaction)
 	r.POST("/messages/delete", internalTokenMiddleware(), handleDeleteMessage)
 	r.POST("/messages/edit", internalTokenMiddleware(), handleEditMessage)
+
+	if os.Getenv("WHATSMEOW_CALLS_ENABLED") == "true" {
+		callsPort := os.Getenv("WHATSMEOW_CALLS_PORT")
+		if callsPort == "" {
+			callsPort = "8081"
+		}
+		callRouter := gin.New()
+		callRouter.Use(gin.Recovery())
+		callRouter.GET("/calls/:channel_id", handleBrowserCall)
+		go func() {
+			log.Fatal(callRouter.Run(":" + callsPort))
+		}()
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -3533,6 +3546,7 @@ func safeDisconnectClient(client *whatsmeow.Client) {
 	if client == nil {
 		return
 	}
+	stopBrowserCalls(client)
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("Recovered from Whatsmeow disconnect panic: %v", r)
@@ -3543,6 +3557,7 @@ func safeDisconnectClient(client *whatsmeow.Client) {
 
 func registerEventHandler(client *whatsmeow.Client) {
 	client.EmitAppStateEventsOnFullSync = true
+	registerBrowserCalls(client)
 	client.AddEventHandler(func(evt interface{}) {
 		eventHandler(client, evt)
 	})

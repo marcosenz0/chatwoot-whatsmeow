@@ -54,6 +54,11 @@ json.can_reply conversation.can_reply?
 json.contact_last_seen_at conversation.contact_last_seen_at.to_i
 json.custom_attributes conversation.custom_attributes
 json.inbox_id conversation.inbox_id
+if conversation.inbox&.channel_type == 'Channel::Whatsmeow'
+  source_id = conversation.contact_inbox&.source_id.to_s
+  json.whatsmeow_call_available ENV['WHATSMEOW_CALLS_URL'].present? &&
+                                source_id.match?(/\A(?:[1-9]\d{9,14}|[1-9]\d+@(s\.whatsapp\.net|lid))\z/)
+end
 json.labels conversation.cached_label_list_array
 json.pipeline conversation.pipeline_push_data
 json.muted conversation.muted?
