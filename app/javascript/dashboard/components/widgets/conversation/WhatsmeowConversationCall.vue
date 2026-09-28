@@ -29,6 +29,7 @@ const remoteCanvas = ref(null);
 let socket;
 let socketConversationId;
 let openingSocket;
+let reconnectTimer;
 let audioContext;
 let microphone;
 let microphoneSource;
@@ -376,7 +377,20 @@ const ensureSocket = async () => {
       connection.binaryType = 'arraybuffer';
       connection.onmessage = onSocketMessage;
       connection.onclose = () => {
-        if (socket === connection) resetCall();
+        if (socket === connection) {
+          const hadCall = isInCall.value;
+          socket = null;
+          resetCall();
+          if (
+            !hadCall &&
+            isDirectWhatsmeow.value &&
+            props.chat.id === conversationId
+          ) {
+            reconnectTimer = setTimeout(() => {
+              ensureSocket().catch(() => {});
+            }, 10000);
+          }
+        }
       };
       await new Promise((resolve, reject) => {
         connection.onopen = resolve;
@@ -446,9 +460,10 @@ const acceptVideo = async () => {
 };
 
 watch(
-  [() => props.chat.id, isDirectWhatsmeow],
+  [() => props.chat.id, isDirectWhatsmeow, isInCall],
   () => {
     if (!isInCall.value) {
+      clearTimeout(reconnectTimer);
       socket?.close();
       socket = null;
       socketConversationId = null;
@@ -462,6 +477,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  clearTimeout(reconnectTimer);
   if (isInCall.value) sendCommand('hangup');
   socket?.close();
   resetCall();
