@@ -6,11 +6,13 @@ This file records the important project context for future sessions. Do not add 
 
 Make the Chatwoot fork behave like official Chatwoot in the conversation UI while keeping the direct WhatsApp connection through `whatsmeow-service`.
 
-## September 28, 2026: WhatsApp Direct Calls (Implementation In Progress)
+## September 29, 2026: WhatsApp Direct Calls (Deployed, Media Validation Pending)
 
 - Branch `codex/whatsmeow-voice-calls` adds voice and video buttons to eligible direct Whatsmeow conversations, a floating call panel with microphone and camera controls, a short-lived session token issued by Rails, and an authenticated Go WebSocket media bridge.
 - The Go service uses pinned `meowcaller` and `hypermeow` revisions for call signaling and media, with the existing Status receipt patch adapted to the fork. The call listener is separate on port `8081` and disabled until `WHATSMEOW_CALLS_ENABLED=true` is configured. Each custom instance needs a `/calls` route on its own Chatwoot HTTPS host and matching origin setting; see `docs/whatsmeow-installation.md`.
-- Local Go unit tests, `go vet`, Go build, Ruby syntax, Vue SFC compilation, and ESLint for new frontend files pass. Docker image build and real WhatsApp audio/video calls are not yet validated. The call library documents inbound and outbound video media as experimental. Do not mark this feature shipped until real calls and all three instance deployments are verified independently.
+- The same Chatwoot image `ghcr.io/marcosenz0/chatwoot-whatsmeow:calls-73dfd600d0101e2b47b72fcd44ca3a521c43c269` was deployed to the principal, MX, and MD web/Sidekiq pairs. The matching Go branch `codex/whatsmeow-voice-calls` was deployed to `whatsmeow-staging`, `whatsmeow-mx`, and `whatsmeow-md`, each with its own call listener, origin, session store, and `/calls` route. All three Chatwoot `/health` endpoints returned HTTP 200; all three call routes returned 403 without Origin and 401 with their matching Origin but no token.
+- A real inbound voice call from the owner's WhatsApp Desktop to the principal Pocobusinecl inbox was answered in Chatwoot without phone interaction. Chatwoot moved from Incoming to Connected, the Windows call timer advanced, the browser microphone mute control toggled, and ending from Chatwoot closed the Windows call window. A prior outbound voice call from Chatwoot was also accepted in WhatsApp Desktop and ended successfully. These observations verify signaling and call controls; intelligible two-way audio was not independently measured.
+- Go unit tests and build, Ruby syntax, Vue SFC compilation, frontend lint/tests, Docker image publishing, and the call canary workflow passed. Repository-wide Ruby lint and several backend CI shards still report unrelated pre-existing failures. The PC has no camera device, so video transmission and upgrading voice to video remain unverified. The pinned call library describes video as experimental. Keep the PR in draft until two-way media and video are tested with suitable devices.
 
 ## September 28, 2026: Third Fork Instance (MD)
 

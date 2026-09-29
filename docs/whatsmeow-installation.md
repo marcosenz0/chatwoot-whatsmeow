@@ -316,7 +316,7 @@ Crie ou mantenha os servicos abaixo no mesmo projeto/rede:
 
 Cada instancia usa banco, Redis, chaves de aplicacao, sessoes WhatsApp e dominio proprios. O Chatwoot oficial em `chatwootoficial.marcoswt.com.br` nao faz parte dos deploys deste fork. Para uma mudanca do fork destinada a todos os ambientes, valide e implante a mesma imagem Chatwoot nos tres pares web/Sidekiq e o Go correspondente nos tres servicos Whatsmeow.
 
-Na instancia MD, o web e o Sidekiq usam a mesma imagem do fork fixada por digest. O Go usa a branch `develop` do repositorio `marcosenz0/chatwoot-whatsmeow`, com contexto `/whatsmeow-service`. O dominio HTTPS aponta apenas para `chatwoot-md:3000`; Sidekiq e Go permanecem internos. O webhook interno do Go usa `http://chatwoot-md:3000/webhooks/whatsmeow/%s/%s`.
+Em 29 de setembro de 2026, os tres pares web/Sidekiq usam a imagem de chamadas `ghcr.io/marcosenz0/chatwoot-whatsmeow:calls-73dfd600d0101e2b47b72fcd44ca3a521c43c269`. Os tres servicos Go usam a branch `codex/whatsmeow-voice-calls`, com contexto `/whatsmeow-service`. Esta implantacao e um canario da PR #21; depois da validacao de midia, publique a versao aprovada em `develop` e fixe a mesma imagem nos tres pares. O webhook interno do MD usa `http://chatwoot-md:3000/webhooks/whatsmeow/%s/%s`.
 
 ### Chatwoot web
 
@@ -381,7 +381,7 @@ WHATSMEOW_CALLS_PORT=8081
 WHATSMEOW_CALLS_ORIGIN=https://dominio-do-chatwoot-da-instancia
 ```
 
-O web e o Go devem usar o mesmo `WHATSMEOW_SHARED_SECRET` já empregado pelas rotas internas. O proxy precisa permitir upgrade de WebSocket. Para receber chamadas no painel, mantenha `Reject Calls` desligado na configuração do inbox. As chamadas recebidas aparecem enquanto a conversa direta correspondente está aberta no navegador. A mídia de vídeo depende de WebCodecs no navegador; valide voz, vídeo e a troca de voz para vídeo com uma sessão WhatsApp real antes de ativar em produção.
+O web e o Go devem usar o mesmo `WHATSMEOW_SHARED_SECRET` já empregado pelas rotas internas. O proxy precisa permitir upgrade de WebSocket. Para receber chamadas no painel, mantenha `Reject Calls` desligado na configuração do inbox. As chamadas recebidas aparecem enquanto a conversa direta correspondente está aberta no navegador. A mídia de vídeo depende de WebCodecs no navegador. A chamada de voz real foi estabelecida e encerrada pelo painel da instancia principal, mas a inteligibilidade do audio em ambos os sentidos ainda precisa ser aferida. Nao ha camera neste PC para validar video ou a troca de voz para video; a biblioteca de chamadas marca video como experimental. Mantenha a PR em rascunho ate concluir esses testes com dispositivos adequados.
 
 ### Sequencia de deploy
 
