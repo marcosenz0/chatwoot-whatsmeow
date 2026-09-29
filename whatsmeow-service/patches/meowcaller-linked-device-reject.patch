@@ -1,0 +1,171 @@
+--- a/engine.go
++++ b/engine.go
+@@ -14,12 +14,12 @@
+ 	"time"
+ 	"unsafe"
+ 
+-	"github.com/purpshell/meowcaller/signaling"
+ 	"github.com/polymorfa/hypermeow"
+ 	waBinary "github.com/polymorfa/hypermeow/binary"
+ 	"github.com/polymorfa/hypermeow/proto/waE2E"
+ 	"github.com/polymorfa/hypermeow/types"
+ 	"github.com/polymorfa/hypermeow/types/events"
++	"github.com/purpshell/meowcaller/signaling"
+ 	"google.golang.org/protobuf/proto"
+ )
+ 
+@@ -53,26 +53,28 @@
+ 	creator types.JID // call-creator JID (for accept/relaylatency)
+ 	from    types.JID // the <call> "from" — where stanzas are addressed
+ 
+-	direction         CallDirection
+-	codec             AudioCodec   // audio codec for this call, selected from voip_settings (MLow default)
+-	localVideo        bool         // this client is sending, or has requested to send, video
+-	remoteVideo       bool         // the peer is sending video to this client
+-	videoGate         bool         // outbound upgrade is waiting for peer acceptance
+-	peerVideoUpgrade  bool         // the peer's inbound upgrade is waiting for local acceptance
+-	videoTx           *videoSender // video send pipeline, live while media runs
+-	appDataTx         *appDataSender
+-	rekeyPeer         func(string) error
+-	group             bool
+-	groupUpdate       *groupCallUpdate
+-	groupReceivers    *participantReceiveRegistry
+-	groupRawEpoch     []byte
+-	groupEpochTxID    uint32
+-	hasGroupEpoch     bool
+-	started           bool
+-	cancel            context.CancelFunc // tears down this call's media goroutine
+-	waitingRoomCancel context.CancelFunc
+-	inviteSelfDevice  groupCallDevice
+-	invitePeerDevice  groupCallDevice
++	direction          CallDirection
++	codec              AudioCodec   // audio codec for this call, selected from voip_settings (MLow default)
++	localVideo         bool         // this client is sending, or has requested to send, video
++	remoteVideo        bool         // the peer is sending video to this client
++	videoGate          bool         // outbound upgrade is waiting for peer acceptance
++	peerVideoUpgrade   bool         // the peer's inbound upgrade is waiting for local acceptance
++	videoTx            *videoSender // video send pipeline, live while media runs
++	appDataTx          *appDataSender
++	rekeyPeer          func(string) error
++	group              bool
++	groupUpdate        *groupCallUpdate
++	groupReceivers     *participantReceiveRegistry
++	groupRawEpoch      []byte
++	groupEpochTxID     uint32
++	hasGroupEpoch      bool
++	started            bool
++	cancel             context.CancelFunc // tears down this call's media goroutine
++	waitingRoomCancel  context.CancelFunc
++	inviteSelfDevice   groupCallDevice
++	invitePeerDevice   groupCallDevice
++	preAcceptedDevices map[types.JID]bool
++	answeringDevice    types.JID
+ 
+ 	// The callee <accept> is deferred until the caller's <mute_v2> arrives.
+ 	acceptPending bool
+@@ -836,13 +838,17 @@
+ 	if m.call != nil && m.call.State() == CallPhaseCalling {
+ 		m.call.setPhase(CallPhaseRinging)
+ 	}
+-	if device, ok := inviteDeviceCapability(ev.From, ev.Data); ok {
+-		e.mu.Lock()
+-		if current := e.calls[ev.CallID]; current != nil {
++	e.mu.Lock()
++	if current := e.calls[ev.CallID]; current != nil {
++		if current.preAcceptedDevices == nil {
++			current.preAcceptedDevices = make(map[types.JID]bool)
++		}
++		current.preAcceptedDevices[ev.From] = true
++		if device, ok := inviteDeviceCapability(ev.From, ev.Data); ok {
+ 			current.invitePeerDevice = device
+ 		}
+-		e.mu.Unlock()
+-	}
++	}
++	e.mu.Unlock()
+ 	e.c.log.Info().
+ 		Str("call_id", ev.CallID).
+ 		Str("from", ev.From.String()).
+@@ -880,6 +886,7 @@
+ 	var rekeyPeer func(string) error
+ 	answeringPeer := ev.From.String()
+ 	if current := e.calls[ev.CallID]; current != nil {
++		current.answeringDevice = ev.From
+ 		if device, ok := inviteDeviceCapability(ev.From, ev.Data); ok {
+ 			current.invitePeerDevice = device
+ 		}
+@@ -960,8 +967,26 @@
+ 
+ // onReject tears down an outgoing call when the peer declines it.
+ func (e *engine) onReject(ev *events.CallReject) {
+-	m := e.lookup(ev.CallID)
++	e.mu.Lock()
++	m := e.calls[ev.CallID]
++	ignore := false
++	if m != nil && m.direction == CallDirectionOutgoing && !m.group {
++		// Offers reach every linked device. An unsupported secondary device can
++		// reject before ringing; other devices can also reject after one answers.
++		// Neither is a user decline from the device handling this call.
++		if !m.answeringDevice.IsEmpty() {
++			ignore = ev.From != m.answeringDevice
++		} else {
++			ignore = ev.From.Device != 0 && !m.preAcceptedDevices[ev.From]
++		}
++	}
++	e.mu.Unlock()
+ 	if m == nil {
++		return
++	}
++	if ignore {
++		e.c.log.Info().Str("call_id", ev.CallID).Str("from", ev.From.String()).
++			Msg("ignoring reject from another linked device")
+ 		return
+ 	}
+ 	e.c.log.Info().
+--- /dev/null
++++ b/engine_linked_device_reject_test.go
+@@ -0,0 +1,44 @@
++package meowcaller
++
++import (
++	"testing"
++
++	"github.com/polymorfa/hypermeow/types"
++	"github.com/polymorfa/hypermeow/types/events"
++)
++
++func TestLinkedDeviceRejection(t *testing.T) {
++	primary := peerJID().ToNonAD()
++	desktop := primary
++	desktop.Device = 22
++	otherDesktop := primary
++	otherDesktop.Device = 26
++	for _, tc := range []struct {
++		name      string
++		rejecting types.JID
++		preaccept types.JID
++		answering types.JID
++		ended     bool
++	}{
++		{name: "unsupported secondary before preaccept", rejecting: desktop},
++		{name: "unsupported secondary while phone rings", rejecting: desktop, preaccept: primary},
++		{name: "different secondary while desktop rings", rejecting: otherDesktop, preaccept: desktop},
++		{name: "primary decline", rejecting: primary, preaccept: desktop, ended: true},
++		{name: "desktop decline after preaccept without capability", rejecting: desktop, preaccept: desktop, ended: true},
++		{name: "phone dismissal after desktop answered", rejecting: primary, answering: desktop},
++		{name: "desktop dismissal after phone answered", rejecting: desktop, answering: primary},
++		{name: "answering device decline", rejecting: desktop, answering: desktop, ended: true},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			e, call := testEngineWithOutgoingCall()
++			if !tc.preaccept.IsEmpty() {
++				e.onPreAccept(&events.CallPreAccept{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: tc.preaccept}})
++			}
++			e.calls[call.ID()].answeringDevice = tc.answering
++			e.onReject(&events.CallReject{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: tc.rejecting}})
++			if got := call.State() == CallPhaseEnded; got != tc.ended {
++				t.Fatalf("call ended = %v, want %v", got, tc.ended)
++			}
++		})
++	}
++}

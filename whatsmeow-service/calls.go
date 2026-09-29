@@ -239,6 +239,7 @@ func (m *browserCallManager) notifyCall(call *meowcaller.Call, event, direction,
 		}
 		if owner != nil && owner.claims.InboxID == inboxID {
 			payload["agent_id"] = owner.claims.AgentID
+			payload["conversation_id"] = owner.claims.ConversationID
 		}
 		sendWebhookNotification(accountIDs[index], inboxID, payload)
 	}
@@ -289,6 +290,7 @@ func (m *browserCallManager) onIncoming(call *meowcaller.Call) {
 func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call, direction string) {
 	audio := newBrowserAudioSource()
 	var firstReceived sync.Once
+	mediaReady, peerAccepted := false, direction == "incoming"
 	m.mu.Lock()
 	m.audio = audio
 	m.mu.Unlock()
@@ -324,16 +326,30 @@ func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call, d
 		log.Printf("Whatsmeow browser call: phase %d", phase)
 		socket.event(callEvent{Event: "phase", CallID: call.ID(), Phase: int(phase), Video: call.IsVideo()})
 	})
-	call.OnReady(func() {
+	markConnected := func(ready bool) {
 		m.mu.Lock()
-		if m.active == call && m.connectedAt.IsZero() {
-			m.connectedAt = time.Now()
+		if ready {
+			mediaReady = true
+		} else {
+			peerAccepted = true
 		}
+		// Relay packets can arrive while the destination is still ringing.
+		// Count duration only after the peer actually answers and media is ready.
+		if m.active != call || !mediaReady || !peerAccepted || !m.connectedAt.IsZero() {
+			m.mu.Unlock()
+			return
+		}
+		m.connectedAt = time.Now()
 		connectedAt := m.connectedAt
 		m.mu.Unlock()
 		m.notifyCall(call, "call_connected", direction, "", socket, connectedAt)
 		socket.event(callEvent{Event: "connected", CallID: call.ID(), Video: call.IsVideo()})
-	})
+	}
+	call.OnReady(func() { markConnected(true) })
+	call.OnPeerAccept(func() { markConnected(false) })
+	if call.State() == meowcaller.CallPhaseActive {
+		markConnected(true)
+	}
 	call.OnEnd(func(reason string) {
 		m.mu.Lock()
 		connectedAt := m.connectedAt
@@ -382,9 +398,9 @@ func (m *browserCallManager) dial(ctx context.Context, socket *callSocket, video
 	if err != nil {
 		return err
 	}
-	m.attach(socket, call, "outgoing")
 	m.notifyCall(call, "call_started", "outgoing", "", socket, time.Time{})
 	socket.event(callEvent{Event: "dialing", CallID: call.ID(), Video: video})
+	m.attach(socket, call, "outgoing")
 	return nil
 }
 

@@ -8,6 +8,8 @@ For the complete September 29 calls architecture, deployment map, tests, limitat
 
 Make the Chatwoot fork behave like official Chatwoot in the conversation UI while keeping the direct WhatsApp connection through `whatsmeow-service`.
 
+Current deployment scope, explicitly changed by the owner on September 29: development, tests and deployments are limited to the principal `chatwoot.marcoswt.com.br`. MX/MD publication requires a later explicit request. Current work addresses call cards in the conversation, premature call termination, local/remote video layout, movable/resizable call panels and device selection. Earlier three-instance deployments below are historical evidence, not authorization to update those instances now.
+
 ## September 29, 2026: WhatsApp Direct Calls (Deployed, Media Validation Pending)
 
 - Branch `codex/whatsmeow-voice-calls` adds voice and video buttons to eligible direct Whatsmeow conversations, a floating call panel with microphone and camera controls, a short-lived session token issued by Rails, and an authenticated Go WebSocket media bridge.

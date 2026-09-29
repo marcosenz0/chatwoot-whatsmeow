@@ -4,6 +4,7 @@ Este arquivo permite retomar a integracao em outro chat ou com outra IA. Nao reg
 
 ## Onde continuar
 
+- **Regra atual do usuario (29/09): desenvolver, testar e publicar somente na principal `chatwoot.marcoswt.com.br`. MX/MD so devem receber publicacao quando o usuario pedir explicitamente.** As implantacoes anteriores nas tres instancias sao historicas. O trabalho atual corrige desligamento imediato, registra chamadas na conversa e melhora previa de video, janela movel/redimensionavel e seletores de dispositivos.
 - Repositorio: `marcosenz0/chatwoot-whatsmeow`; PR [#21](https://github.com/marcosenz0/chatwoot-whatsmeow/pull/21), **em rascunho**; branch remota `codex/whatsmeow-voice-calls`.
 - Checkout isolado: `C:\Users\marco\.codex\worktrees\whatsmeow-voice-calls\Fork Chatwoot Marcos`. Os seis servicos Chatwoot foram implantados com a imagem do commit `2da34374b58ffcabce53c2914b44cd410b152fc2`, que inclui os seletores de dispositivos, a captura `VideoFrame` e o cancelamento seguro. Conferir o HEAD da PR, GitHub Actions e EasyPanel antes de presumir que uma revisao posterior esta no ar.
 - A pasta principal `C:\Users\marco\OneDrive\Área de Trabalho\Projeto\Fork Chatwoot Marcos` esta em `develop` e contem outras alteracoes locais nao relacionadas. Nao usar `git reset`, `git clean`, `git pull` ou troca de branch que as descarte. O codigo de chamadas esta na branch/PR acima, nao no `develop` desse checkout.

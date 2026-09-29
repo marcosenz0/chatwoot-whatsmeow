@@ -43,6 +43,7 @@ import LocationBubble from './bubbles/Location.vue';
 import CSATBubble from './bubbles/CSAT.vue';
 import FormBubble from './bubbles/Form.vue';
 import VoiceCallBubble from './bubbles/VoiceCall.vue';
+import WhatsmeowCallBubble from './bubbles/WhatsmeowCall.vue';
 import WhatsmeowPixBubble from './bubbles/WhatsmeowPix.vue';
 import WhatsmeowParticipantActions from './WhatsmeowParticipantActions.vue';
 import MessageReactionButton from './MessageReactionButton.vue';
@@ -330,6 +331,11 @@ const componentToRender = computed(() => {
   }
 
   if (props.contentType === CONTENT_TYPES.VOICE_CALL) {
+    if (
+      props.contentAttributes.whatsmeowCall ||
+      props.contentAttributes.whatsmeow_call
+    )
+      return WhatsmeowCallBubble;
     return VoiceCallBubble;
   }
 
@@ -391,7 +397,11 @@ const shouldShowContextMenu = computed(() => {
 });
 
 const isBubble = computed(() => {
-  return props.messageType !== MESSAGE_TYPES.ACTIVITY;
+  return (
+    props.messageType !== MESSAGE_TYPES.ACTIVITY &&
+    !props.contentAttributes.whatsmeowCall &&
+    !props.contentAttributes.whatsmeow_call
+  );
 });
 
 const isMessageDeleted = computed(() => {

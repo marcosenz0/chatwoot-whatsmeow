@@ -6,6 +6,7 @@ class Whatsmeow::CallEventService
     update_call(call)
     apply_event(call)
     call.save!
+    Whatsmeow::CallMessageService.new(call: call).perform if call.ended_at
   end
 
   private
@@ -56,14 +57,22 @@ class Whatsmeow::CallEventService
   end
 
   def attach_contact(call)
-    return if call.contact_id
+    return if call.conversation_id
+
+    if params['conversation_id'].present?
+      call.conversation = inbox.conversations.find(params.fetch('conversation_id'))
+      call.contact = call.conversation.contact
+      return
+    end
 
     source_ids = [call.peer_jid, params['phone_jid']].compact_blank.uniq
     contact_inbox = inbox.contact_inboxes.where(source_id: source_ids).includes(:contact).first
-    return unless contact_inbox
-
-    call.contact = contact_inbox.contact
-    call.conversation = contact_inbox.conversations.order(id: :desc).first
+    call.conversation = contact_inbox&.conversations&.order(id: :desc)&.first
+    call.conversation ||= Whatsmeow::DirectConversationBuilder.new(
+      inbox: inbox,
+      params: { participant_jid: params['phone_jid'].presence || call.peer_jid, participant_lid_jid: call.peer_jid }
+    ).perform
+    call.contact = call.conversation.contact
   end
 
   def final_status(call)

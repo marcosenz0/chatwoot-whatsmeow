@@ -123,7 +123,7 @@ Detailed Whatsmeow fork progress is tracked in `docs/whatsmeow-progress.md`. Ins
 
 After each shipped change to a custom Chatwoot instance, update the relevant Markdown handoff before closing the task: record the user-visible behavior, key implementation decisions, deployment targets, validation, and any remaining limitation. Keep transient secrets and personal message contents out of these files. The three custom targets are `chatwoot.marcoswt.com.br`, `chatwootmx.marcoswt.com.br`, and `chatwootmd.marcoswt.com.br`; `chatwootoficial.marcoswt.com.br` is out of scope unless explicitly requested.
 
-This fork serves `chatwoot.marcoswt.com.br`, `chatwootmx.marcoswt.com.br`, and `chatwootmd.marcoswt.com.br`. For requested fork changes, deploy the same validated Chatwoot image to all three web/Sidekiq pairs and the matching Go changes to all three Whatsmeow services; verify each instance independently. Keep their databases, sessions, and domains separate.
+Current user instruction (September 29, 2026): develop, test, and deploy only to `chatwoot.marcoswt.com.br` (principal). Do not test or update MX/MD until the user explicitly requests publication there. Their prior deployments remain historical context. Keep the databases, sessions, domains, and Whatsmeow services separate whenever publication to another instance is authorized.
 
 ### 🌟 Project Status
 All primary core integrations between Chatwoot Staging and the Go-based `whatsmeow-service` are implemented, deployed, and healthy.

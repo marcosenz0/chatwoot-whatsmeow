@@ -10,9 +10,13 @@ import {
 } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
+import { useResizeObserver } from '@vueuse/core';
+import { emitter } from 'shared/helpers/mitt';
+import { BUS_EVENTS } from 'shared/constants/busEvents';
 import { useAlert } from 'dashboard/composables';
 import whatsmeowCalls from 'dashboard/api/whatsmeowCalls';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import WhatsmeowCallWindow from './WhatsmeowCallWindow.vue';
 
 const props = defineProps({
   inbox: { type: Object, default: () => ({}) },
@@ -40,6 +44,14 @@ const connectedAt = ref(null);
 const elapsedSeconds = ref(0);
 const localVideo = ref(null);
 const remoteCanvas = ref(null);
+const videoStage = ref(null);
+const stageSize = ref({ width: 0, height: 0 });
+const previewCorner = ref('bottom-right');
+const previewPoint = ref(null);
+const mediaError = ref('');
+const endedText = ref('');
+let previewGesture;
+let mediaGeneration = 0;
 const devices = ref([]);
 const selectedMicrophoneId = ref('default');
 const selectedSpeakerId = ref('default');
@@ -71,6 +83,89 @@ const isInCall = computed(() =>
   ['connecting', 'dialing', 'answering', 'connected'].includes(state.value)
 );
 const showPanel = computed(() => state.value !== 'idle');
+const previewSize = computed(() => ({
+  width: Math.min(144, stageSize.value.width * 0.32),
+  height: Math.min(108, stageSize.value.height * 0.32),
+}));
+const previewGeometry = computed(() => {
+  if (!remoteVideoOn.value) return { x: 0, y: 0, ...stageSize.value };
+  const { width, height } = previewSize.value;
+  return {
+    x:
+      previewPoint.value?.x ??
+      (previewCorner.value.endsWith('right')
+        ? stageSize.value.width - width - 8
+        : 8),
+    y:
+      previewPoint.value?.y ??
+      (previewCorner.value.startsWith('bottom')
+        ? stageSize.value.height - height - 8
+        : 8),
+    width,
+    height,
+  };
+});
+useResizeObserver(videoStage, entries => {
+  stageSize.value = {
+    width: entries[0].contentRect.width,
+    height: entries[0].contentRect.height,
+  };
+});
+const startPreviewDrag = event => {
+  if (!remoteVideoOn.value || event.button !== 0) return;
+  event.preventDefault();
+  previewGesture = {
+    clientX: event.clientX,
+    clientY: event.clientY,
+    x: previewGeometry.value.x,
+    y: previewGeometry.value.y,
+  };
+  event.currentTarget.setPointerCapture(event.pointerId);
+};
+const movePreview = event => {
+  if (!previewGesture) return;
+  previewPoint.value = {
+    x: Math.max(
+      8,
+      Math.min(
+        stageSize.value.width - previewSize.value.width - 8,
+        previewGesture.x + event.clientX - previewGesture.clientX
+      )
+    ),
+    y: Math.max(
+      8,
+      Math.min(
+        stageSize.value.height - previewSize.value.height - 8,
+        previewGesture.y + event.clientY - previewGesture.clientY
+      )
+    ),
+  };
+};
+const finishPreviewDrag = () => {
+  if (!previewGesture) return;
+  const point = previewPoint.value || previewGeometry.value;
+  previewCorner.value = `${point.y + previewSize.value.height / 2 < stageSize.value.height / 2 ? 'top' : 'bottom'}-${point.x + previewSize.value.width / 2 < stageSize.value.width / 2 ? 'left' : 'right'}`;
+  previewPoint.value = null;
+  previewGesture = null;
+};
+const rotatePreviewCorner = () => {
+  const corners = ['top-left', 'top-right', 'bottom-right', 'bottom-left'];
+  previewCorner.value =
+    corners[(corners.indexOf(previewCorner.value) + 1) % corners.length];
+};
+const reportMediaError = error => {
+  const keys = {
+    NotAllowedError: 'MEDIA_DENIED',
+    NotFoundError: 'MEDIA_MISSING',
+    NotReadableError: 'MEDIA_BUSY',
+    OverconstrainedError: 'MEDIA_MISSING',
+    VideoUnsupportedError: 'VIDEO_UNSUPPORTED',
+  };
+  mediaError.value = keys[error.name]
+    ? t(`CONVERSATION.WHATSMEOW_CALL.${keys[error.name]}`)
+    : t('CONVERSATION.WHATSMEOW_CALL.FAILED');
+  useAlert(mediaError.value);
+};
 const contactName = computed(
   () =>
     props.contact?.name ||
@@ -95,7 +190,8 @@ const deviceChoices = kind => [
     label: t('CONVERSATION.WHATSMEOW_CALL.DEFAULT_DEVICE'),
   },
   ...devices.value.filter(
-    device => device.kind === kind && device.deviceId !== 'default'
+    device =>
+      device.kind === kind && device.deviceId && device.deviceId !== 'default'
   ),
 ];
 const microphones = computed(() => deviceChoices('audioinput'));
@@ -116,6 +212,8 @@ const statusText = computed(() => {
       return t('CONVERSATION.WHATSMEOW_CALL.ANSWERING');
     case 'connected':
       return t('CONVERSATION.WHATSMEOW_CALL.CONNECTED');
+    case 'ended':
+      return endedText.value;
     default:
       return t('CONVERSATION.WHATSMEOW_CALL.CONNECTING');
   }
@@ -157,6 +255,7 @@ const stopMicrophone = async () => {
 
 const startMicrophone = async () => {
   if (microphone) return;
+  const generation = mediaGeneration;
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: {
       echoCancellation: true,
@@ -166,28 +265,32 @@ const startMicrophone = async () => {
       }),
     },
   });
-  if (state.value === 'idle') {
+  if (generation !== mediaGeneration || state.value === 'idle') {
     stream.getTracks().forEach(track => track.stop());
     return;
   }
   microphone = stream;
   audioContext = new AudioContext({ sampleRate: 16000 });
   if (selectedSpeakerId.value !== 'default') {
-    await audioContext.setSinkId(selectedSpeakerId.value);
+    if (audioContext.setSinkId) {
+      await audioContext.setSinkId(selectedSpeakerId.value);
+    } else {
+      selectedSpeakerId.value = 'default';
+      useAlert(t('CONVERSATION.WHATSMEOW_CALL.OUTPUT_UNSUPPORTED'));
+    }
   }
   await audioContext.resume();
   microphoneSource = audioContext.createMediaStreamSource(microphone);
   audioProcessor = audioContext.createScriptProcessor(1024, 1, 1);
   audioProcessor.onaudioprocess = event => {
     event.outputBuffer.getChannelData(0).fill(0);
-    if (muted.value) return;
     const input = event.inputBuffer.getChannelData(0);
     const ratio = 16000 / audioContext.sampleRate;
     input.forEach(sample => {
       captureProgress += ratio;
       if (captureProgress >= 1) {
         captureProgress -= 1;
-        captureBuffer.push(sample);
+        captureBuffer.push(muted.value ? 0 : sample);
         if (captureBuffer.length === 960) {
           const pcm = new Int16Array(960);
           captureBuffer.forEach((value, index) => {
@@ -209,6 +312,8 @@ const selectMicrophone = async deviceId => {
   if (deviceId === selectedMicrophoneId.value) return;
   try {
     if (microphone) {
+      const context = audioContext;
+      const generation = mediaGeneration;
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -216,7 +321,11 @@ const selectMicrophone = async deviceId => {
           ...(deviceId !== 'default' && { deviceId: { exact: deviceId } }),
         },
       });
-      const source = audioContext.createMediaStreamSource(stream);
+      if (generation !== mediaGeneration || context !== audioContext) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      const source = context.createMediaStreamSource(stream);
       source.connect(audioProcessor);
       microphoneSource?.disconnect();
       microphone?.getTracks().forEach(track => track.stop());
@@ -226,7 +335,7 @@ const selectMicrophone = async deviceId => {
     selectedMicrophoneId.value = deviceId;
     await loadDevices();
   } catch (error) {
-    useAlert(error.message);
+    reportMediaError(error);
   }
 };
 
@@ -236,13 +345,14 @@ const selectSpeaker = async deviceId => {
   try {
     if (audioContext) {
       if (!audioContext.setSinkId) {
-        throw new Error(t('CONVERSATION.WHATSMEOW_CALL.OUTPUT_UNSUPPORTED'));
+        useAlert(t('CONVERSATION.WHATSMEOW_CALL.OUTPUT_UNSUPPORTED'));
+        return;
       }
-      await audioContext.setSinkId(deviceId);
+      await audioContext.setSinkId(deviceId === 'default' ? '' : deviceId);
     }
     selectedSpeakerId.value = deviceId;
   } catch (error) {
-    useAlert(error.message);
+    reportMediaError(error);
   }
 };
 
@@ -313,7 +423,7 @@ const pumpCamera = encoder => {
       }
       frame.close();
     } catch (error) {
-      useAlert(error.message);
+      reportMediaError(error);
       stopCamera();
     }
   }, 1000 / 15);
@@ -321,11 +431,14 @@ const pumpCamera = encoder => {
 
 const startCamera = async () => {
   if (camera) return;
+  const generation = mediaGeneration;
   if (
     typeof VideoFrame === 'undefined' ||
     typeof VideoEncoder === 'undefined'
   ) {
-    throw new Error(t('CONVERSATION.WHATSMEOW_CALL.VIDEO_UNSUPPORTED'));
+    const error = new Error();
+    error.name = 'VideoUnsupportedError';
+    throw error;
   }
   const stream = await navigator.mediaDevices.getUserMedia({
     video: {
@@ -337,24 +450,26 @@ const startCamera = async () => {
       }),
     },
   });
-  if (state.value === 'idle') {
+  if (generation !== mediaGeneration || state.value === 'idle') {
     stream.getTracks().forEach(track => track.stop());
     return;
   }
   camera = stream;
   cameraOn.value = true;
   await nextTick();
+  if (generation !== mediaGeneration || camera !== stream) return;
   if (localVideo.value) {
     localVideo.value.srcObject = camera;
     await localVideo.value.play();
   }
+  if (generation !== mediaGeneration || camera !== stream) return;
   videoEncoder = new VideoEncoder({
     output: chunk => {
       const bytes = new Uint8Array(chunk.byteLength);
       chunk.copyTo(bytes);
       sendMedia(2, bytes);
     },
-    error: error => useAlert(error.message),
+    error: reportMediaError,
   });
   forceKeyframe = true;
   frameCount = 0;
@@ -372,10 +487,10 @@ const selectCamera = async deviceId => {
     await stopCamera();
     await startCamera();
   } catch (error) {
-    useAlert(error.message);
+    reportMediaError(error);
     await stopCamera();
     selectedCameraId.value = previousId;
-    await startCamera().catch(restoreError => useAlert(restoreError.message));
+    await startCamera().catch(reportMediaError);
   }
 };
 
@@ -413,7 +528,7 @@ const decodeVideo = bytes => {
         }
         frame.close();
       },
-      error: error => useAlert(error.message),
+      error: reportMediaError,
     });
     videoDecoder.configure({ codec: 'avc1.42E01F', optimizeForLatency: true });
   }
@@ -428,6 +543,7 @@ const decodeVideo = bytes => {
 };
 
 const resetCall = async () => {
+  mediaGeneration += 1;
   state.value = 'idle';
   busy.value = false;
   muted.value = false;
@@ -448,6 +564,19 @@ const resetCall = async () => {
   cameraDevicesOpen.value = false;
 };
 
+const finishCall = async reason => {
+  if (state.value === 'idle' || state.value === 'ended') return;
+  const wasVideo = videoCall.value;
+  const previousError = mediaError.value;
+  endedText.value = t(
+    `CONVERSATION.WHATSMEOW_CALL.${/reject|declin/.test(reason || '') ? 'DECLINED' : 'ENDED'}`
+  );
+  await resetCall();
+  videoCall.value = wasVideo;
+  mediaError.value = previousError;
+  state.value = 'ended';
+};
+
 const onSocketMessage = event => {
   if (typeof event.data !== 'string') {
     const bytes = new Uint8Array(event.data);
@@ -457,12 +586,13 @@ const onSocketMessage = event => {
   }
   const update = JSON.parse(event.data);
   if (update.event === 'error') {
-    useAlert(t('CONVERSATION.WHATSMEOW_CALL.FAILED'));
+    mediaError.value = t('CONVERSATION.WHATSMEOW_CALL.FAILED');
+    useAlert(mediaError.value);
     if (
       !callId ||
       ['connecting', 'dialing', 'answering'].includes(state.value)
     ) {
-      resetCall();
+      finishCall(update.message);
     }
     return;
   }
@@ -487,7 +617,7 @@ const onSocketMessage = event => {
       }, 1000);
     }
   } else if (update.event === 'ended') {
-    resetCall();
+    finishCall(update.message);
   } else if (update.event === 'video_state') {
     videoCall.value = update.video;
     if ([0, 6].includes(update.video_state)) remoteVideoOn.value = false;
@@ -530,7 +660,10 @@ const ensureSocket = async () => {
         if (socket === connection) {
           const hadCall = isInCall.value;
           socket = null;
-          resetCall();
+          if (hadCall) {
+            mediaError.value = t('CONVERSATION.WHATSMEOW_CALL.CONNECTION_LOST');
+            finishCall('connection_lost');
+          }
           if (
             !hadCall &&
             isDirectWhatsmeow.value &&
@@ -558,8 +691,10 @@ const ensureSocket = async () => {
 };
 
 const startCall = async video => {
-  if (busy.value || state.value !== 'idle') return;
+  if (busy.value || !['idle', 'ended'].includes(state.value)) return;
   busy.value = true;
+  mediaError.value = '';
+  videoCall.value = video;
   state.value = 'connecting';
   try {
     await startMicrophone();
@@ -570,26 +705,37 @@ const startCall = async video => {
     if (state.value !== 'connecting') return;
     sendCommand(video ? 'dial_video' : 'dial_audio');
   } catch (error) {
-    useAlert(error.message || t('CONVERSATION.WHATSMEOW_CALL.FAILED'));
-    await resetCall();
+    reportMediaError(error);
+    await finishCall('failed');
   } finally {
     busy.value = false;
   }
 };
 
 const answer = async () => {
+  if (busy.value) return;
+  busy.value = true;
+  const incomingCallId = callId;
   try {
     await startMicrophone();
+    if (state.value !== 'incoming' || callId !== incomingCallId) return;
     sendCommand('answer');
     state.value = 'answering';
   } catch (error) {
-    useAlert(error.message);
+    reportMediaError(error);
+  } finally {
+    busy.value = false;
   }
 };
 
 const endCall = () => {
+  if (state.value === 'ended') {
+    mediaError.value = '';
+    resetCall();
+    return;
+  }
   sendCommand(state.value === 'incoming' ? 'reject' : 'hangup');
-  resetCall();
+  finishCall('hangup');
 };
 
 const toggleCamera = async () => {
@@ -602,7 +748,7 @@ const toggleCamera = async () => {
       sendCommand(videoCall.value ? 'enable_video' : 'start_video');
     }
   } catch (error) {
-    useAlert(error.message);
+    reportMediaError(error);
     await stopCamera();
   }
 };
@@ -626,7 +772,7 @@ watch(
     if (
       !available ||
       !['voice', 'video'].includes(requested) ||
-      state.value !== 'idle'
+      !['idle', 'ended'].includes(state.value)
     )
       return;
     router.replace({ query: { ...route.query, whatsmeowCall: undefined } });
@@ -636,7 +782,7 @@ watch(
 );
 
 watch(
-  [() => props.chat.id, isDirectWhatsmeow, isInCall],
+  [() => props.chat.id, isDirectWhatsmeow],
   () => {
     if (!isInCall.value) {
       clearTimeout(reconnectTimer);
@@ -652,12 +798,19 @@ watch(
   { immediate: true }
 );
 
+const handleCallBack = ({ conversationId, video }) => {
+  if (conversationId === props.chat.id && isDirectWhatsmeow.value)
+    startCall(video);
+};
+
 onMounted(() => {
   loadDevices().catch(() => {});
   navigator.mediaDevices.addEventListener('devicechange', loadDevices);
+  emitter.on(BUS_EVENTS.WHATSMEOW_START_CALL, handleCallBack);
 });
 
 onBeforeUnmount(() => {
+  emitter.off(BUS_EVENTS.WHATSMEOW_START_CALL, handleCallBack);
   navigator.mediaDevices.removeEventListener('devicechange', loadDevices);
   clearTimeout(reconnectTimer);
   if (isInCall.value) sendCommand('hangup');
@@ -674,7 +827,8 @@ onBeforeUnmount(() => {
       ghost
       slate
       icon="i-lucide-phone"
-      :disabled="busy || state !== 'idle'"
+      :aria-label="t('CONVERSATION.WHATSMEOW_CALL.VOICE')"
+      :disabled="busy || !['idle', 'ended'].includes(state)"
       @click="startCall(false)"
     />
     <NextButton
@@ -683,63 +837,120 @@ onBeforeUnmount(() => {
       ghost
       slate
       icon="i-lucide-video"
-      :disabled="busy || state !== 'idle'"
+      :aria-label="t('CONVERSATION.WHATSMEOW_CALL.VIDEO')"
+      :disabled="busy || !['idle', 'ended'].includes(state)"
       @click="startCall(true)"
     />
   </template>
   <Teleport to="body">
-    <div
+    <WhatsmeowCallWindow
       v-if="showPanel"
-      class="fixed bottom-6 right-6 z-50 flex w-96 max-w-[calc(100vw-2rem)] flex-col gap-4 rounded-2xl border border-n-weak bg-n-solid-1 p-5 shadow-xl"
-      role="dialog"
-      :aria-label="t('CONVERSATION.WHATSMEOW_CALL.TITLE')"
+      :video="videoCall || cameraOn || remoteVideoOn"
     >
-      <div class="flex items-center gap-3">
-        <img
-          v-if="contactAvatar"
-          :src="contactAvatar"
-          alt=""
-          class="size-12 rounded-full object-cover"
-        />
-        <span
-          v-else
-          class="flex size-12 items-center justify-center rounded-full bg-n-alpha-2 text-n-slate-11"
-          ><span class="i-lucide-user-round size-6"
-        /></span>
-        <div class="min-w-0 flex-1">
-          <div class="truncate text-sm font-semibold text-n-slate-12">
-            {{ contactName }}
-          </div>
-          <div v-if="contactPhone" class="truncate text-xs text-n-slate-11">
-            {{ contactPhone }}
-          </div>
-          <div class="text-xs text-n-slate-11">
-            {{ statusText
-            }}<span v-if="state === 'connected'"> · {{ elapsedTime }}</span>
+      <template #header>
+        <div class="flex items-center gap-3">
+          <img
+            v-if="contactAvatar"
+            :src="contactAvatar"
+            alt=""
+            class="size-12 rounded-full object-cover"
+          />
+          <span
+            v-else
+            class="flex size-12 items-center justify-center rounded-full bg-n-alpha-2 text-n-slate-11"
+            ><span class="i-lucide-user-round size-6"
+          /></span>
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-sm font-semibold text-n-slate-12">
+              {{ contactName }}
+            </div>
+            <div v-if="contactPhone" class="truncate text-xs text-n-slate-11">
+              {{ contactPhone }}
+            </div>
+            <div class="text-xs text-n-slate-11">
+              {{ statusText
+              }}<span v-if="state === 'connected'"> · {{ elapsedTime }}</span>
+            </div>
           </div>
         </div>
-        <span
-          :class="videoCall ? 'i-lucide-video' : 'i-lucide-phone'"
-          class="size-5 text-n-slate-11"
-        />
+      </template>
+      <div
+        v-if="mediaError"
+        role="alert"
+        class="rounded-lg bg-n-ruby-3 px-3 py-2 text-sm text-n-ruby-11"
+      >
+        {{ mediaError }}
       </div>
       <div
-        v-show="cameraOn || remoteVideoOn"
-        class="relative overflow-hidden rounded-lg bg-black"
+        ref="videoStage"
+        v-show="videoCall || cameraOn || remoteVideoOn"
+        class="relative min-h-0 flex-1 overflow-hidden rounded-xl bg-black"
       >
+        <div
+          v-if="!cameraOn && !remoteVideoOn"
+          class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/80"
+        >
+          <span class="i-lucide-video-off size-8" />
+          <span class="px-3 text-center text-sm">{{
+            t('CONVERSATION.WHATSMEOW_CALL.WAITING_VIDEO')
+          }}</span>
+        </div>
         <canvas
           ref="remoteCanvas"
-          class="h-44 w-full object-contain"
+          class="absolute inset-0 h-full w-full object-contain"
           :class="{ hidden: !remoteVideoOn }"
         />
-        <video
-          ref="localVideo"
-          autoplay
-          muted
-          playsinline
-          class="absolute bottom-2 right-2 h-20 w-28 rounded-md bg-n-slate-2 object-cover"
-          :class="{ hidden: !cameraOn }"
-        />
+        <svg
+          class="pointer-events-none absolute inset-0 h-full w-full"
+          role="presentation"
+        >
+          <foreignObject
+            :x="previewGeometry.x"
+            :y="previewGeometry.y"
+            :width="previewGeometry.width"
+            :height="previewGeometry.height"
+          >
+            <div
+              class="pointer-events-auto relative h-full w-full touch-none overflow-hidden rounded-lg"
+              :class="remoteVideoOn ? 'cursor-grab border border-white/40' : ''"
+              :role="remoteVideoOn ? 'button' : undefined"
+              :tabindex="remoteVideoOn ? 0 : undefined"
+              :aria-label="t('CONVERSATION.WHATSMEOW_CALL.MOVE_PREVIEW')"
+              @pointerdown="startPreviewDrag"
+              @pointermove="movePreview"
+              @pointerup="finishPreviewDrag"
+              @pointercancel="finishPreviewDrag"
+              @keydown.enter.prevent="rotatePreviewCorner"
+              @keydown.space.prevent="rotatePreviewCorner"
+            >
+              <video
+                ref="localVideo"
+                autoplay
+                muted
+                playsinline
+                class="h-full w-full bg-black"
+                :class="[
+                  cameraOn ? '' : 'hidden',
+                  remoteVideoOn ? 'object-cover' : 'object-contain',
+                ]"
+              />
+              <span
+                v-if="cameraOn"
+                class="absolute bottom-1 left-2 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white"
+                >{{ t('CONVERSATION.WHATSMEOW_CALL.YOU') }}</span
+              >
+            </div>
+          </foreignObject>
+        </svg>
+      </div>
+      <div
+        v-if="!videoCall && !cameraOn && !remoteVideoOn && !mediaError"
+        class="flex min-h-0 flex-1 items-center justify-center"
+      >
+        <span
+          class="flex size-14 items-center justify-center rounded-full bg-n-alpha-2 text-n-slate-11"
+          ><span class="i-lucide-phone size-6"
+        /></span>
       </div>
       <form
         v-if="inviteOpen && state === 'connected'"
@@ -759,99 +970,120 @@ onBeforeUnmount(() => {
           {{ t('CONVERSATION.WHATSMEOW_CALL.INVITE') }}
         </button>
       </form>
-      <div class="flex items-center justify-center gap-3">
-        <button
-          v-if="state === 'incoming'"
-          type="button"
-          class="flex h-10 w-10 items-center justify-center rounded-full bg-n-teal-9 text-white"
-          :aria-label="t('CONVERSATION.WHATSMEOW_CALL.ANSWER')"
-          @click="answer"
-        >
-          <span class="i-lucide-phone" />
-        </button>
-        <template v-if="isInCall && state !== 'connecting'">
-          <div
-            class="flex items-center rounded-full bg-n-slate-3 text-n-slate-12"
-          >
-            <button
-              type="button"
-              class="flex size-10 items-center justify-center rounded-full"
-              :class="{ 'bg-n-ruby-3': muted }"
-              :aria-label="t('CONVERSATION.WHATSMEOW_CALL.MUTE')"
-              @click="muted = !muted"
-            >
-              <span :class="muted ? 'i-lucide-mic-off' : 'i-lucide-mic'" />
-            </button>
-            <button
-              type="button"
-              class="flex h-10 w-5 items-center justify-center rounded-r-full"
-              :aria-label="t('CONVERSATION.WHATSMEOW_CALL.AUDIO_DEVICES')"
-              :aria-expanded="audioDevicesOpen"
-              @click="
-                audioDevicesOpen = !audioDevicesOpen;
-                cameraDevicesOpen = false;
-              "
-            >
-              <span class="i-lucide-chevron-down size-4" />
-            </button>
-          </div>
-          <div
-            class="flex items-center rounded-full bg-n-slate-3 text-n-slate-12"
-          >
-            <button
-              type="button"
-              class="flex size-10 items-center justify-center rounded-full"
-              :class="{ 'bg-n-teal-3': cameraOn }"
-              :aria-label="t('CONVERSATION.WHATSMEOW_CALL.CAMERA')"
-              @click="toggleCamera"
-            >
-              <span
-                :class="cameraOn ? 'i-lucide-video-off' : 'i-lucide-video'"
-              />
-            </button>
-            <button
-              type="button"
-              class="flex h-10 w-5 items-center justify-center rounded-r-full"
-              :aria-label="t('CONVERSATION.WHATSMEOW_CALL.CAMERA_DEVICES')"
-              :aria-expanded="cameraDevicesOpen"
-              @click="
-                cameraDevicesOpen = !cameraDevicesOpen;
-                audioDevicesOpen = false;
-              "
-            >
-              <span class="i-lucide-chevron-down size-4" />
-            </button>
-          </div>
+      <template #footer>
+        <div class="flex items-center justify-center gap-3">
           <button
-            v-if="state === 'connected'"
+            v-if="state === 'ended'"
             type="button"
-            class="flex size-10 items-center justify-center rounded-full bg-n-slate-3 text-n-slate-12"
-            :aria-label="t('CONVERSATION.WHATSMEOW_CALL.ADD_PARTICIPANT')"
-            @click="inviteOpen = !inviteOpen"
+            class="flex size-10 items-center justify-center rounded-full bg-n-teal-9 text-white"
+            :aria-label="t('CONVERSATION.WHATSMEOW_CALL.CALL_BACK')"
+            @click="startCall(videoCall)"
           >
-            <span class="i-lucide-user-round-plus" />
+            <span class="i-lucide-phone" />
           </button>
           <button
+            v-if="state === 'incoming'"
             type="button"
-            class="flex size-10 items-center justify-center rounded-full bg-n-slate-3 text-n-slate-12"
-            :aria-label="t('CONVERSATION.WHATSMEOW_CALL.CHAT')"
-            @click="openChat"
+            class="flex h-10 w-10 items-center justify-center rounded-full bg-n-teal-9 text-white"
+            :aria-label="t('CONVERSATION.WHATSMEOW_CALL.ANSWER')"
+            :disabled="busy"
+            @click="answer"
           >
-            <span class="i-lucide-message-circle" />
+            <span class="i-lucide-phone" />
           </button>
-        </template>
-        <button
-          type="button"
-          class="flex h-10 w-10 items-center justify-center rounded-full bg-n-ruby-9 text-white"
-          :aria-label="t('CONVERSATION.WHATSMEOW_CALL.END')"
-          @click="endCall"
-        >
-          <span class="i-lucide-phone-off" />
-        </button>
-      </div>
+          <template v-if="isInCall || state === 'incoming'">
+            <div
+              class="flex items-center rounded-full bg-n-slate-3 text-n-slate-12"
+            >
+              <button
+                type="button"
+                class="flex size-10 items-center justify-center rounded-full"
+                :class="{ 'bg-n-ruby-3': muted }"
+                :aria-label="t('CONVERSATION.WHATSMEOW_CALL.MUTE')"
+                :aria-pressed="muted"
+                @click="muted = !muted"
+              >
+                <span :class="muted ? 'i-lucide-mic-off' : 'i-lucide-mic'" />
+              </button>
+              <button
+                type="button"
+                class="flex h-10 w-5 items-center justify-center rounded-r-full"
+                :aria-label="t('CONVERSATION.WHATSMEOW_CALL.AUDIO_DEVICES')"
+                :aria-expanded="audioDevicesOpen"
+                @click="
+                  audioDevicesOpen = !audioDevicesOpen;
+                  cameraDevicesOpen = false;
+                "
+              >
+                <span class="i-lucide-chevron-down size-4" />
+              </button>
+            </div>
+            <div
+              class="flex items-center rounded-full bg-n-slate-3 text-n-slate-12"
+            >
+              <button
+                type="button"
+                class="flex size-10 items-center justify-center rounded-full"
+                :class="{ 'bg-n-teal-3': cameraOn }"
+                :aria-label="t('CONVERSATION.WHATSMEOW_CALL.CAMERA')"
+                :aria-pressed="cameraOn"
+                :disabled="busy || state === 'incoming'"
+                @click="toggleCamera"
+              >
+                <span
+                  :class="cameraOn ? 'i-lucide-video-off' : 'i-lucide-video'"
+                />
+              </button>
+              <button
+                type="button"
+                class="flex h-10 w-5 items-center justify-center rounded-r-full"
+                :aria-label="t('CONVERSATION.WHATSMEOW_CALL.CAMERA_DEVICES')"
+                :aria-expanded="cameraDevicesOpen"
+                @click="
+                  cameraDevicesOpen = !cameraDevicesOpen;
+                  audioDevicesOpen = false;
+                "
+              >
+                <span class="i-lucide-chevron-down size-4" />
+              </button>
+            </div>
+            <button
+              v-if="state === 'connected'"
+              type="button"
+              class="flex size-10 items-center justify-center rounded-full bg-n-slate-3 text-n-slate-12"
+              :aria-label="t('CONVERSATION.WHATSMEOW_CALL.ADD_PARTICIPANT')"
+              @click="inviteOpen = !inviteOpen"
+            >
+              <span class="i-lucide-user-round-plus" />
+            </button>
+            <button
+              type="button"
+              class="flex size-10 items-center justify-center rounded-full bg-n-slate-3 text-n-slate-12"
+              :aria-label="t('CONVERSATION.WHATSMEOW_CALL.CHAT')"
+              @click="openChat"
+            >
+              <span class="i-lucide-message-circle" />
+            </button>
+          </template>
+          <button
+            type="button"
+            class="flex h-10 w-10 items-center justify-center rounded-full bg-n-ruby-9 text-white"
+            :aria-label="
+              t(
+                `CONVERSATION.WHATSMEOW_CALL.${state === 'ended' ? 'CLOSE' : 'END'}`
+              )
+            "
+            @click="endCall"
+          >
+            <span
+              :class="state === 'ended' ? 'i-lucide-x' : 'i-lucide-phone-off'"
+            />
+          </button>
+        </div>
+      </template>
       <div
         v-if="audioDevicesOpen"
-        class="absolute bottom-20 left-4 z-10 max-h-72 w-72 max-w-[calc(100vw-3rem)] overflow-y-auto rounded-xl border border-n-weak bg-n-solid-1 p-2 shadow-xl"
+        class="absolute bottom-20 left-3 top-3 z-10 w-72 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-xl border border-n-weak bg-n-solid-1 p-2 shadow-xl"
       >
         <div class="px-2 py-1 text-xs font-semibold text-n-slate-11">
           {{ t('CONVERSATION.WHATSMEOW_CALL.MICROPHONES') }}
@@ -896,7 +1128,7 @@ onBeforeUnmount(() => {
       </div>
       <div
         v-if="cameraDevicesOpen"
-        class="absolute bottom-20 left-4 z-10 max-h-72 w-72 max-w-[calc(100vw-3rem)] overflow-y-auto rounded-xl border border-n-weak bg-n-solid-1 p-2 shadow-xl"
+        class="absolute bottom-20 left-3 top-3 z-10 w-72 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-xl border border-n-weak bg-n-solid-1 p-2 shadow-xl"
       >
         <div class="px-2 py-1 text-xs font-semibold text-n-slate-11">
           {{ t('CONVERSATION.WHATSMEOW_CALL.CAMERAS') }}
@@ -917,6 +1149,6 @@ onBeforeUnmount(() => {
           }}</span>
         </button>
       </div>
-    </div>
+    </WhatsmeowCallWindow>
   </Teleport>
 </template>

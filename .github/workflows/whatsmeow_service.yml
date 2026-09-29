@@ -23,7 +23,17 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-file: whatsmeow-service/go.mod
-          cache-dependency-path: whatsmeow-service/go.sum
+          cache: false
+      - name: Apply pinned dependency patches
+        run: |
+          go mod download
+          module_dir="$(go list -m -f '{{.Dir}}' github.com/polymorfa/hypermeow)"
+          chmod -R u+w "$module_dir"
+          patch -d "$module_dir" -p1 < patches/hypermeow-status-receipt-participant.patch
+          module_dir="$(go list -m -f '{{.Dir}}' github.com/purpshell/meowcaller)"
+          chmod -R u+w "$module_dir"
+          patch -d "$module_dir" -p1 < patches/meowcaller-linked-device-reject.patch
+      - run: go test github.com/purpshell/meowcaller -run TestLinkedDeviceRejection -count=1 -v
       - run: go test ./...
       - run: go vet ./...
       - run: docker build -t whatsmeow-service:check .

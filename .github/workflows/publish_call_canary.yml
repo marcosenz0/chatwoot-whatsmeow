@@ -10,7 +10,39 @@ permissions:
   packages: write
 
 jobs:
+  validate-call-history:
+    runs-on: ubuntu-latest
+    env:
+      RAILS_ENV: test
+      POSTGRES_HOST: localhost
+      POSTGRES_USERNAME: postgres
+      REDIS_URL: redis://localhost:6379
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - run: bundle exec rake db:create db:schema:load
+      - run: bundle exec rspec spec/services/whatsmeow/call_event_service_spec.rb
+
   publish:
+    needs: validate-call-history
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -5,7 +5,10 @@ COPY . .
 RUN go mod download && \
     module_dir="$(go list -m -f '{{.Dir}}' github.com/polymorfa/hypermeow)" && \
     chmod -R u+w "$module_dir" && \
-    patch -d "$module_dir" -p1 < patches/hypermeow-status-receipt-participant.patch
+    patch -d "$module_dir" -p1 < patches/hypermeow-status-receipt-participant.patch && \
+    module_dir="$(go list -m -f '{{.Dir}}' github.com/purpshell/meowcaller)" && \
+    chmod -R u+w "$module_dir" && \
+    patch -d "$module_dir" -p1 < patches/meowcaller-linked-device-reject.patch
 RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -o main .
 

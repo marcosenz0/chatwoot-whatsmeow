@@ -38,6 +38,11 @@ const readableTime = computed(() =>
 
 const showStatusIndicator = computed(() => {
   if (isPrivate.value) return false;
+  if (
+    contentAttributes.value?.whatsmeowCall ||
+    contentAttributes.value?.whatsmeow_call
+  )
+    return false;
   // Don't show status for failed messages, we already show error message
   if (status.value === MESSAGE_STATUS.FAILED) return false;
   // Don't show status for deleted messages
