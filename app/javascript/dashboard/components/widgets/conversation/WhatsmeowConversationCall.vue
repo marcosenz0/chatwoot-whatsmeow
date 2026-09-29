@@ -157,7 +157,7 @@ const stopMicrophone = async () => {
 
 const startMicrophone = async () => {
   if (microphone) return;
-  microphone = await navigator.mediaDevices.getUserMedia({
+  const stream = await navigator.mediaDevices.getUserMedia({
     audio: {
       echoCancellation: true,
       noiseSuppression: true,
@@ -166,6 +166,11 @@ const startMicrophone = async () => {
       }),
     },
   });
+  if (state.value === 'idle') {
+    stream.getTracks().forEach(track => track.stop());
+    return;
+  }
+  microphone = stream;
   audioContext = new AudioContext({ sampleRate: 16000 });
   if (selectedSpeakerId.value !== 'default') {
     await audioContext.setSinkId(selectedSpeakerId.value);
@@ -322,7 +327,7 @@ const startCamera = async () => {
   ) {
     throw new Error(t('CONVERSATION.WHATSMEOW_CALL.VIDEO_UNSUPPORTED'));
   }
-  camera = await navigator.mediaDevices.getUserMedia({
+  const stream = await navigator.mediaDevices.getUserMedia({
     video: {
       width: { ideal: 640, max: 1280 },
       height: { ideal: 480, max: 720 },
@@ -332,6 +337,11 @@ const startCamera = async () => {
       }),
     },
   });
+  if (state.value === 'idle') {
+    stream.getTracks().forEach(track => track.stop());
+    return;
+  }
+  camera = stream;
   cameraOn.value = true;
   await nextTick();
   if (localVideo.value) {
@@ -553,8 +563,11 @@ const startCall = async video => {
   state.value = 'connecting';
   try {
     await startMicrophone();
+    if (state.value !== 'connecting') return;
     if (video) await startCamera();
+    if (state.value !== 'connecting') return;
     await ensureSocket();
+    if (state.value !== 'connecting') return;
     sendCommand(video ? 'dial_video' : 'dial_audio');
   } catch (error) {
     useAlert(error.message || t('CONVERSATION.WHATSMEOW_CALL.FAILED'));
