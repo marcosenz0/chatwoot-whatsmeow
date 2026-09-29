@@ -55,6 +55,7 @@ class Api::V1::Accounts::WhatsmeowCallsController < Api::V1::Accounts::BaseContr
       conversation_id: call.conversation&.display_id,
       contact_id: call.contact_id,
       **call_identity(call),
+      avatar_url: call.contact&.avatar_url,
       direction: call.direction,
       status: call.status,
       video: call.video,
@@ -68,8 +69,7 @@ class Api::V1::Accounts::WhatsmeowCallsController < Api::V1::Accounts::BaseContr
     peer_number = call.peer_jid.split('@').first
     {
       name: call.contact&.name.presence || phone || peer_number,
-      phone_number: phone || ("+#{peer_number}" if call.peer_jid.end_with?('@s.whatsapp.net')),
-      avatar_url: call.contact&.avatar_url
+      phone_number: phone || ("+#{peer_number}" if call.peer_jid.end_with?('@s.whatsapp.net'))
     }
   end
 end

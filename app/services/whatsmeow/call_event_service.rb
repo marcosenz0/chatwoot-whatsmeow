@@ -24,21 +24,27 @@ class Whatsmeow::CallEventService
 
   def apply_event(call)
     case params.fetch('event')
-    when 'call_started'
-      call.status ||= 'ringing'
     when 'call_connected'
-      unless call.ended_at
-        call.status = 'connected'
-        call.connected_at ||= connected_time
-      end
+      connect_call(call)
     when 'call_ended'
-      unless call.ended_at
-        call.ended_at = event_time
-        call.end_reason = params['reason'].to_s.first(255)
-        call.connected_at ||= connected_time if params['connected_at'].present?
-        call.status = final_status(call)
-      end
+      end_call(call)
     end
+  end
+
+  def connect_call(call)
+    return if call.ended_at
+
+    call.status = 'connected'
+    call.connected_at ||= connected_time
+  end
+
+  def end_call(call)
+    return if call.ended_at
+
+    call.ended_at = event_time
+    call.end_reason = params['reason'].to_s.first(255)
+    call.connected_at ||= connected_time if params['connected_at'].present?
+    call.status = final_status(call)
   end
 
   def event_time
