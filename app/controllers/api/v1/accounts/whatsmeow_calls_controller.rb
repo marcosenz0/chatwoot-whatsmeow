@@ -48,7 +48,7 @@ class Api::V1::Accounts::WhatsmeowCallsController < Api::V1::Accounts::BaseContr
       id: call.id,
       inbox_id: call.inbox_id,
       inbox_name: call.inbox.name,
-      conversation_id: call.conversation_id,
+      conversation_id: call.conversation&.display_id,
       contact_id: call.contact_id,
       name: call.contact&.name.presence || call.contact&.phone_number.presence || call.peer_jid.split('@').first,
       phone_number: call.contact&.phone_number.presence || ("+#{call.peer_jid.split('@').first}" if call.peer_jid.end_with?('@s.whatsapp.net')),
