@@ -352,12 +352,9 @@ onBeforeUnmount(() => clearInterval(pollTimer));
           @click="selectMode('favorite')"
         >
           <span
-            class="flex size-10 items-center justify-center rounded-full bg-n-teal-9 text-white"
+            class="flex size-10 items-center justify-center rounded-full bg-n-teal-9 text-xl text-white"
           >
-            <Icon
-              icon="i-lucide-user-round-plus"
-              class="size-5"
-            />
+            <Icon icon="i-lucide-user-round-plus" />
           </span>
           <span class="text-sm font-medium text-n-slate-12">{{
             t('WHATSAPP_CALLS.ADD_FAVORITE')
@@ -478,12 +475,9 @@ onBeforeUnmount(() => clearInterval(pollTimer));
             @click="selectMode(action.mode)"
           >
             <span
-              class="flex size-14 items-center justify-center rounded-full bg-n-alpha-2 hover:bg-n-alpha-3"
+              class="flex size-14 items-center justify-center rounded-full bg-n-alpha-2 text-2xl hover:bg-n-alpha-3"
             >
-              <Icon
-                :icon="action.icon"
-                class="size-6"
-              />
+              <Icon :icon="action.icon" />
             </span>
             {{ t(`WHATSAPP_CALLS.${action.label}`) }}
           </button>
