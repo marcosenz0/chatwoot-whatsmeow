@@ -23,15 +23,7 @@ class Api::V1::Accounts::WhatsmeowCallsController < Api::V1::Accounts::BaseContr
     lookup = Whatsmeow::SessionClient.new(inbox: inbox).check_number("+#{phone}")
     return render json: { message: 'Este número não está no WhatsApp.' }, status: :unprocessable_entity unless lookup['is_on_whatsapp']
 
-    contact_inbox = Whatsmeow::ContactIdentityResolver.new(
-      inbox: inbox,
-      source_ids: [lookup['jid'].presence || "#{phone}@s.whatsapp.net"],
-      phone_number: "+#{phone}",
-      contact_attributes: { name: "+#{phone}", additional_attributes: {} }
-    ).perform
-    conversation = contact_inbox.conversations.where.not(status: :resolved).order(id: :desc).first ||
-                   contact_inbox.conversations.order(id: :desc).first ||
-                   Conversation.create!(account: Current.account, inbox: inbox, contact: contact_inbox.contact, contact_inbox: contact_inbox)
+    conversation = dial_conversation(inbox, phone, lookup)
     render json: { payload: { conversation_id: conversation.display_id } }
   rescue Whatsmeow::SessionClient::Error => e
     render json: { message: e.message }, status: :bad_gateway
@@ -43,6 +35,18 @@ class Api::V1::Accounts::WhatsmeowCallsController < Api::V1::Accounts::BaseContr
     policy_scope(Current.account.inboxes).where(channel_type: 'Channel::Whatsmeow')
   end
 
+  def dial_conversation(inbox, phone, lookup)
+    contact_inbox = Whatsmeow::ContactIdentityResolver.new(
+      inbox: inbox,
+      source_ids: [lookup['jid'].presence || "#{phone}@s.whatsapp.net"],
+      phone_number: "+#{phone}",
+      contact_attributes: { name: "+#{phone}", additional_attributes: {} }
+    ).perform
+    contact_inbox.conversations.where.not(status: :resolved).order(id: :desc).first ||
+      contact_inbox.conversations.order(id: :desc).first ||
+      Conversation.create!(account: Current.account, inbox: inbox, contact: contact_inbox.contact, contact_inbox: contact_inbox)
+  end
+
   def call_payload(call)
     {
       id: call.id,
@@ -50,14 +54,22 @@ class Api::V1::Accounts::WhatsmeowCallsController < Api::V1::Accounts::BaseContr
       inbox_name: call.inbox.name,
       conversation_id: call.conversation&.display_id,
       contact_id: call.contact_id,
-      name: call.contact&.name.presence || call.contact&.phone_number.presence || call.peer_jid.split('@').first,
-      phone_number: call.contact&.phone_number.presence || ("+#{call.peer_jid.split('@').first}" if call.peer_jid.end_with?('@s.whatsapp.net')),
-      avatar_url: call.contact&.avatar_url,
+      **call_identity(call),
       direction: call.direction,
       status: call.status,
       video: call.video,
       started_at: call.started_at,
       duration_seconds: call.duration_seconds
+    }
+  end
+
+  def call_identity(call)
+    phone = call.contact&.phone_number.presence
+    peer_number = call.peer_jid.split('@').first
+    {
+      name: call.contact&.name.presence || phone || peer_number,
+      phone_number: phone || ("+#{peer_number}" if call.peer_jid.end_with?('@s.whatsapp.net')),
+      avatar_url: call.contact&.avatar_url
     }
   end
 end

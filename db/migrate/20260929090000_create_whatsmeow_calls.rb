@@ -1,8 +1,7 @@
 class CreateWhatsmeowCalls < ActiveRecord::Migration[7.1]
   def change
     create_table :whatsmeow_calls do |t|
-      t.references :account, null: false, foreign_key: true
-      t.references :inbox, null: false, foreign_key: true
+      t.references :account, :inbox, null: false, foreign_key: true
       t.references :contact, foreign_key: true
       t.references :conversation, foreign_key: true
       t.references :agent, foreign_key: { to_table: :users }

@@ -26,8 +26,8 @@ RSpec.describe Whatsmeow::CallEventService do
 
   it 'keeps one completed call when webhook events arrive out of order or repeat' do
     outgoing = base_params.merge('direction' => 'outgoing', 'video' => true)
-    described_class.new(inbox: inbox, params: outgoing.merge('event' => 'call_ended', 'timestamp' => 1_780_000_020,
-                                                              'connected_at' => 1_780_000_010)).perform
+    ended = outgoing.merge('event' => 'call_ended', 'timestamp' => 1_780_000_020, 'connected_at' => 1_780_000_010)
+    described_class.new(inbox: inbox, params: ended).perform
     described_class.new(inbox: inbox, params: outgoing.merge('event' => 'call_started')).perform
     described_class.new(inbox: inbox, params: outgoing.merge('event' => 'call_ended', 'timestamp' => 1_780_000_021)).perform
 

@@ -2,13 +2,27 @@ class Whatsmeow::CallEventService
   pattr_initialize [:inbox!, :params!]
 
   def perform
-    call = WhatsmeowCall.find_or_initialize_by(inbox: inbox, source_id: params.fetch('call_id'))
+    call = find_call
+    update_call(call)
+    apply_event(call)
+    call.save!
+  end
+
+  private
+
+  def find_call
+    WhatsmeowCall.find_or_initialize_by(inbox: inbox, source_id: params.fetch('call_id'))
+  end
+
+  def update_call(call)
     call.assign_attributes(account: inbox.account, peer_jid: params.fetch('peer_jid'), direction: params.fetch('direction')) if call.new_record?
     call.started_at = [call.started_at, event_time].compact.min
     call.video ||= ActiveModel::Type::Boolean.new.cast(params['video'])
     call.agent_id ||= params['agent_id'].presence
     attach_contact(call)
+  end
 
+  def apply_event(call)
     case params.fetch('event')
     when 'call_started'
       call.status ||= 'ringing'
@@ -25,10 +39,7 @@ class Whatsmeow::CallEventService
         call.status = final_status(call)
       end
     end
-    call.save!
   end
-
-  private
 
   def event_time
     @event_time ||= Time.zone.at(params.fetch('timestamp').to_i)
