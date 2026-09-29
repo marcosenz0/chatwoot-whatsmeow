@@ -1,5 +1,6 @@
 class BackfillWhatsmeowCallMessages < ActiveRecord::Migration[7.1]
   def up
+    # Account locale 16 is pt_BR; content_attributes uses the Message JSON store coder.
     execute <<~SQL.squish
       INSERT INTO messages
         (account_id, inbox_id, conversation_id, message_type, content_type, content,
@@ -12,12 +13,12 @@ class BackfillWhatsmeowCallMessages < ActiveRecord::Migration[7.1]
         'whatsmeow-call:' || calls.source_id,
         CASE calls.direction WHEN 'incoming' THEN 'Contact' ELSE 'User' END,
         CASE calls.direction WHEN 'incoming' THEN calls.contact_id ELSE calls.agent_id END,
-        jsonb_build_object('historical', true, 'skip_send_reply_job', true,
+        to_json(jsonb_build_object('historical', true, 'skip_send_reply_job', true,
           'external_echo', calls.direction = 'outgoing', 'whatsmeow_call', jsonb_build_object(
             'id', calls.id, 'direction', calls.direction, 'status', calls.status, 'video', calls.video,
             'end_reason', calls.end_reason, 'duration_seconds',
             CASE WHEN calls.connected_at IS NULL THEN 0
-              ELSE GREATEST(EXTRACT(EPOCH FROM calls.ended_at - calls.connected_at)::integer, 0) END)),
+              ELSE GREATEST(EXTRACT(EPOCH FROM calls.ended_at - calls.connected_at)::integer, 0) END))::text),
         calls.started_at, CURRENT_TIMESTAMP
       FROM whatsmeow_calls calls JOIN accounts ON accounts.id = calls.account_id
       WHERE calls.ended_at IS NOT NULL AND calls.conversation_id IS NOT NULL
