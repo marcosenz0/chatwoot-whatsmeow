@@ -1,5 +1,5 @@
 <script setup>
-/* global MediaStreamTrackProcessor, VideoEncoder, VideoDecoder, EncodedVideoChunk */
+/* global VideoFrame, VideoEncoder, VideoDecoder, EncodedVideoChunk */
 import {
   computed,
   nextTick,
@@ -58,7 +58,7 @@ let captureProgress = 0;
 let captureBuffer = [];
 let nextPlaybackTime = 0;
 let camera;
-let videoReader;
+let videoFrameTimer;
 let videoEncoder;
 let videoDecoder;
 let videoDecodeStarted = false;
@@ -264,9 +264,8 @@ const playAudio = bytes => {
 };
 
 const stopCamera = async () => {
-  const reader = videoReader;
-  videoReader = null;
-  if (reader) await reader.cancel().catch(() => {});
+  clearInterval(videoFrameTimer);
+  videoFrameTimer = null;
   if (videoEncoder && videoEncoder.state !== 'closed') videoEncoder.close();
   videoEncoder = null;
   camera?.getTracks().forEach(track => track.stop());
@@ -275,29 +274,18 @@ const stopCamera = async () => {
   cameraOn.value = false;
 };
 
-const pumpCamera = async (reader, encoder) => {
+const pumpCamera = encoder => {
   let encodedWidth = 0;
   let encodedHeight = 0;
-  try {
-    // eslint-disable-next-line no-restricted-syntax
-    while (videoReader === reader) {
-      // Camera frames are read in sequence so the encoder preserves their order.
-      // eslint-disable-next-line no-await-in-loop
-      const { value: frame, done } = await reader.read();
-      if (done) break;
-      const scale = Math.min(
-        1,
-        1280 / frame.displayWidth,
-        720 / frame.displayHeight
-      );
-      const width = Math.max(
-        2,
-        Math.floor((frame.displayWidth * scale) / 2) * 2
-      );
-      const height = Math.max(
-        2,
-        Math.floor((frame.displayHeight * scale) / 2) * 2
-      );
+  videoFrameTimer = setInterval(() => {
+    const video = localVideo.value;
+    if (!video || video.readyState < 2 || encoder.encodeQueueSize >= 2) return;
+    try {
+      const frame = new VideoFrame(video, {
+        timestamp: Math.round(performance.now() * 1000),
+      });
+      const width = frame.displayWidth;
+      const height = frame.displayHeight;
       if (width !== encodedWidth || height !== encodedHeight) {
         encodedWidth = width;
         encodedHeight = height;
@@ -312,31 +300,32 @@ const pumpCamera = async (reader, encoder) => {
         });
         forceKeyframe = true;
       }
-      if (encoder.state === 'configured' && encoder.encodeQueueSize < 2) {
+      if (encoder.state === 'configured') {
         const keyFrame = forceKeyframe || frameCount % 15 === 0;
         forceKeyframe = false;
         frameCount += 1;
         encoder.encode(frame, { keyFrame });
       }
       frame.close();
+    } catch (error) {
+      useAlert(error.message);
+      stopCamera();
     }
-  } catch (error) {
-    if (videoReader === reader) useAlert(error.message);
-  }
+  }, 1000 / 15);
 };
 
 const startCamera = async () => {
   if (camera) return;
   if (
-    typeof MediaStreamTrackProcessor === 'undefined' ||
+    typeof VideoFrame === 'undefined' ||
     typeof VideoEncoder === 'undefined'
   ) {
     throw new Error(t('CONVERSATION.WHATSMEOW_CALL.VIDEO_UNSUPPORTED'));
   }
   camera = await navigator.mediaDevices.getUserMedia({
     video: {
-      width: { ideal: 640 },
-      height: { ideal: 480 },
+      width: { ideal: 640, max: 1280 },
+      height: { ideal: 480, max: 720 },
       frameRate: 15,
       ...(selectedCameraId.value !== 'default' && {
         deviceId: { exact: selectedCameraId.value },
@@ -347,7 +336,7 @@ const startCamera = async () => {
   await nextTick();
   if (localVideo.value) {
     localVideo.value.srcObject = camera;
-    localVideo.value.play();
+    await localVideo.value.play();
   }
   videoEncoder = new VideoEncoder({
     output: chunk => {
@@ -357,12 +346,9 @@ const startCamera = async () => {
     },
     error: error => useAlert(error.message),
   });
-  videoReader = new MediaStreamTrackProcessor({
-    track: camera.getVideoTracks()[0],
-  }).readable.getReader();
   forceKeyframe = true;
   frameCount = 0;
-  pumpCamera(videoReader, videoEncoder);
+  pumpCamera(videoEncoder);
   await loadDevices();
 };
 
@@ -379,6 +365,7 @@ const selectCamera = async deviceId => {
     useAlert(error.message);
     await stopCamera();
     selectedCameraId.value = previousId;
+    await startCamera().catch(restoreError => useAlert(restoreError.message));
   }
 };
 
@@ -570,7 +557,7 @@ const startCall = async video => {
     await ensureSocket();
     sendCommand(video ? 'dial_video' : 'dial_audio');
   } catch (error) {
-    useAlert(t('CONVERSATION.WHATSMEOW_CALL.FAILED'));
+    useAlert(error.message || t('CONVERSATION.WHATSMEOW_CALL.FAILED'));
     await resetCall();
   } finally {
     busy.value = false;
