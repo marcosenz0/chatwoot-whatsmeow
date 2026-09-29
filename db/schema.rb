@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_26_120000) do
+ActiveRecord::Schema[7.1].define(version: 2026_09_29_090000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1776,6 +1776,33 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_26_120000) do
     t.index ["whatsmeow_status_id"], name: "index_whatsmeow_status_views_on_whatsmeow_status_id"
   end
 
+  create_table "whatsmeow_calls", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "contact_id"
+    t.bigint "conversation_id"
+    t.bigint "agent_id"
+    t.string "source_id", null: false
+    t.string "peer_jid", null: false
+    t.string "direction", null: false
+    t.string "status", default: "ringing", null: false
+    t.boolean "video", default: false, null: false
+    t.datetime "started_at", null: false
+    t.datetime "connected_at"
+    t.datetime "ended_at"
+    t.string "end_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "started_at"], name: "index_whatsmeow_calls_on_account_id_and_started_at"
+    t.index ["account_id"], name: "index_whatsmeow_calls_on_account_id"
+    t.index ["agent_id"], name: "index_whatsmeow_calls_on_agent_id"
+    t.index ["contact_id"], name: "index_whatsmeow_calls_on_contact_id"
+    t.index ["conversation_id"], name: "index_whatsmeow_calls_on_conversation_id"
+    t.index ["inbox_id", "peer_jid", "started_at"], name: "index_whatsmeow_calls_on_inbox_id_and_peer_jid_and_started_at"
+    t.index ["inbox_id", "source_id"], name: "index_whatsmeow_calls_on_inbox_id_and_source_id", unique: true
+    t.index ["inbox_id"], name: "index_whatsmeow_calls_on_inbox_id"
+  end
+
   create_table "whatsmeow_statuses", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "inbox_id", null: false
@@ -1871,6 +1898,11 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_26_120000) do
   add_foreign_key "whatsmeow_status_viewers", "whatsmeow_statuses"
   add_foreign_key "whatsmeow_status_views", "users"
   add_foreign_key "whatsmeow_status_views", "whatsmeow_statuses"
+  add_foreign_key "whatsmeow_calls", "accounts"
+  add_foreign_key "whatsmeow_calls", "inboxes"
+  add_foreign_key "whatsmeow_calls", "contacts"
+  add_foreign_key "whatsmeow_calls", "conversations"
+  add_foreign_key "whatsmeow_calls", "users", column: "agent_id"
   add_foreign_key "whatsmeow_statuses", "accounts"
   add_foreign_key "whatsmeow_statuses", "contacts"
   add_foreign_key "whatsmeow_statuses", "inboxes"

@@ -16,7 +16,13 @@
       "CAMERA": "Turn camera on or off",
       "ACCEPT_VIDEO": "Accept video",
       "VIDEO_UNSUPPORTED": "This browser does not support video calls",
-      "FAILED": "Could not connect the WhatsApp call"
+      "FAILED": "Could not connect the WhatsApp call",
+      "CHAT": "Open chat",
+      "ADD_PARTICIPANT": "Add person",
+      "PARTICIPANT_PHONE": "Number with country code",
+      "INVITE": "Invite",
+      "CANCEL": "Cancel",
+      "PARTICIPANT_INVITED": "Call invitation sent"
     },
     "404": "Sorry, we cannot find the conversation. Please try again",
     "SELECT_A_CONVERSATION": "Please select a conversation from left pane",

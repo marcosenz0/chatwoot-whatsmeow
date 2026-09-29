@@ -11,7 +11,10 @@ class Webhooks::WhatsmeowController < ActionController::API
     'delete' => :process_delete,
     'typing' => :process_typing,
     'status_delete' => :delete_status,
-    'paired' => :process_paired
+    'paired' => :process_paired,
+    'call_started' => :process_call,
+    'call_connected' => :process_call,
+    'call_ended' => :process_call
   }.freeze
 
   before_action :verify_webhook_token
@@ -103,6 +106,10 @@ class Webhooks::WhatsmeowController < ActionController::API
     channel.update!(status: 'connected')
     Whatsmeow::StatusContactCleanupJob.perform_later(inbox.id)
     Rails.logger.info("Whatsmeow Channel #{channel.id} paired successfully!")
+  end
+
+  def process_call
+    Whatsmeow::CallEventService.new(inbox: inbox, params: params.to_unsafe_hash).perform
   end
 
   def delete_status

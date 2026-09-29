@@ -589,6 +589,12 @@ const menuItems = computed(() => {
           to: accountScopedRoute('whatsmeow_statuses'),
         },
         {
+          name: 'WhatsmeowCalls',
+          label: t('SIDEBAR.CALLS'),
+          icon: 'i-lucide-phone',
+          to: accountScopedRoute('whatsmeow_calls'),
+        },
+        {
           name: 'Mentions',
           label: t('SIDEBAR.MENTIONED_CONVERSATIONS'),
           icon: 'i-lucide-at-sign',

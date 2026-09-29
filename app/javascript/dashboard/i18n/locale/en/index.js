@@ -45,6 +45,7 @@ import pipelines from './pipelines.json';
 import sessionLimit from './sessionLimit.json';
 import yearInReview from './yearInReview.json';
 import whatsappStatus from './whatsappStatus.json';
+import whatsappCalls from './whatsappCalls.json';
 import whatsappCloudStudio from './whatsappCloudStudio.json';
 
 export default {
@@ -95,5 +96,6 @@ export default {
   ...sessionLimit,
   ...yearInReview,
   ...whatsappStatus,
+  ...whatsappCalls,
   ...whatsappCloudStudio,
 };

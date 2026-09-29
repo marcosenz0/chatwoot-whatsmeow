@@ -39,6 +39,7 @@ type callClaims struct {
 
 type callCommand struct {
 	Action string `json:"action"`
+	Target string `json:"target,omitempty"`
 }
 
 type callEvent struct {
@@ -146,15 +147,16 @@ func (a *browserAudioSource) push(data []byte) {
 }
 
 type browserCallManager struct {
-	mu       sync.Mutex
-	wa       *whatsmeow.Client
-	caller   *meowcaller.Client
-	sockets  map[*callSocket]struct{}
-	active   *meowcaller.Call
-	pending  *meowcaller.Call
-	owner    *callSocket
-	audio    *browserAudioSource
-	starting bool
+	mu          sync.Mutex
+	wa          *whatsmeow.Client
+	caller      *meowcaller.Client
+	sockets     map[*callSocket]struct{}
+	active      *meowcaller.Call
+	pending     *meowcaller.Call
+	owner       *callSocket
+	audio       *browserAudioSource
+	starting    bool
+	connectedAt time.Time
 }
 
 var (
@@ -213,6 +215,32 @@ func callPeerMatches(client *whatsmeow.Client, peer types.JID, contactJID string
 	return !resolvedPeer.IsEmpty() && !resolvedTarget.IsEmpty() && sameBareJID(resolvedPeer, resolvedTarget)
 }
 
+func (m *browserCallManager) notifyCall(call *meowcaller.Call, event, direction, reason string, owner *callSocket, connectedAt time.Time) {
+	if m.wa.Store.ID == nil {
+		return
+	}
+	inboxIDs, accountIDs, err := lookupAllInboxesAndAccounts(m.wa.Store.ID.User)
+	if err != nil {
+		log.Printf("Whatsmeow call history lookup failed: %v", err)
+		return
+	}
+	phoneJID := resolvePhoneJID(m.wa, call.Peer())
+	for index, inboxID := range inboxIDs {
+		payload := map[string]interface{}{
+			"event": event, "call_id": call.ID(), "peer_jid": jidString(call.Peer()),
+			"phone_jid": jidString(phoneJID), "direction": direction,
+			"video": call.IsVideo(), "timestamp": time.Now().Unix(), "reason": reason,
+		}
+		if !connectedAt.IsZero() {
+			payload["connected_at"] = connectedAt.Unix()
+		}
+		if owner != nil && owner.claims.InboxID == inboxID {
+			payload["agent_id"] = owner.claims.AgentID
+		}
+		sendWebhookNotification(accountIDs[index], inboxID, payload)
+	}
+}
+
 func (m *browserCallManager) onIncoming(call *meowcaller.Call) {
 	m.mu.Lock()
 	if m.active != nil || m.pending != nil || m.starting {
@@ -221,6 +249,7 @@ func (m *browserCallManager) onIncoming(call *meowcaller.Call) {
 		return
 	}
 	m.pending = call
+	m.connectedAt = time.Time{}
 	sockets := make([]*callSocket, 0, len(m.sockets))
 	for socket := range m.sockets {
 		if callPeerMatches(m.wa, call.Peer(), socket.claims.ContactJID) {
@@ -243,14 +272,18 @@ func (m *browserCallManager) onIncoming(call *meowcaller.Call) {
 		for _, socket := range matching {
 			socket.event(callEvent{Event: "ended", CallID: call.ID(), Message: reason})
 		}
+		if pending {
+			m.notifyCall(call, "call_ended", "incoming", reason, nil, time.Time{})
+		}
 		m.finish(call)
 	})
+	m.notifyCall(call, "call_started", "incoming", "", nil, time.Time{})
 	for _, socket := range sockets {
 		socket.event(callEvent{Event: "incoming", CallID: call.ID(), Video: call.IsVideo()})
 	}
 }
 
-func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call) {
+func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call, direction string) {
 	audio := newBrowserAudioSource()
 	var firstReceived sync.Once
 	m.mu.Lock()
@@ -277,15 +310,31 @@ func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call) {
 	}))
 	call.OnVideoKeyframeRequest(func() { socket.event(callEvent{Event: "keyframe"}) })
 	call.OnVideoState(func(state meowcaller.VideoState) {
+		if state.Upgrade {
+			if err := call.AcceptVideo(); err != nil {
+				log.Printf("Whatsmeow call video upgrade failed: %v", err)
+			}
+		}
 		socket.event(callEvent{Event: "video_state", CallID: call.ID(), Video: call.IsVideo(), VideoState: state.Raw})
 	})
 	call.OnStateChange(func(phase meowcaller.CallPhase) {
 		socket.event(callEvent{Event: "phase", CallID: call.ID(), Phase: int(phase), Video: call.IsVideo()})
 	})
 	call.OnReady(func() {
+		m.mu.Lock()
+		if m.active == call && m.connectedAt.IsZero() {
+			m.connectedAt = time.Now()
+		}
+		connectedAt := m.connectedAt
+		m.mu.Unlock()
+		m.notifyCall(call, "call_connected", direction, "", socket, connectedAt)
 		socket.event(callEvent{Event: "connected", CallID: call.ID(), Video: call.IsVideo()})
 	})
 	call.OnEnd(func(reason string) {
+		m.mu.Lock()
+		connectedAt := m.connectedAt
+		m.mu.Unlock()
+		m.notifyCall(call, "call_ended", direction, reason, socket, connectedAt)
 		socket.event(callEvent{Event: "ended", CallID: call.ID(), Message: reason})
 		m.finish(call)
 	})
@@ -302,6 +351,7 @@ func (m *browserCallManager) finish(call *meowcaller.Call) {
 	}
 	audio := m.audio
 	m.active, m.owner, m.audio = nil, nil, nil
+	m.connectedAt = time.Time{}
 	m.mu.Unlock()
 	if audio != nil {
 		_ = audio.Close()
@@ -322,12 +372,14 @@ func (m *browserCallManager) dial(ctx context.Context, socket *callSocket, video
 	m.starting = false
 	if err == nil {
 		m.active, m.owner = call, socket
+		m.connectedAt = time.Time{}
 	}
 	m.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	m.attach(socket, call)
+	m.attach(socket, call, "outgoing")
+	m.notifyCall(call, "call_started", "outgoing", "", socket, time.Time{})
 	socket.event(callEvent{Event: "dialing", CallID: call.ID(), Video: video})
 	return nil
 }
@@ -341,17 +393,17 @@ func (m *browserCallManager) answer(socket *callSocket) error {
 	}
 	m.pending, m.active, m.owner = nil, call, socket
 	m.mu.Unlock()
-	m.attach(socket, call)
+	m.attach(socket, call, "incoming")
 	if err := call.Answer(); err != nil {
 		_ = call.Reject()
 		m.finish(call)
 		return err
 	}
-	socket.event(callEvent{Event: "connected", CallID: call.ID(), Video: call.IsVideo()})
 	return nil
 }
 
-func (m *browserCallManager) command(ctx context.Context, socket *callSocket, action string) error {
+func (m *browserCallManager) command(ctx context.Context, socket *callSocket, command callCommand) error {
+	action := command.Action
 	if action == "dial_audio" || action == "dial_video" {
 		return m.dial(ctx, socket, action == "dial_video")
 	}
@@ -383,9 +435,47 @@ func (m *browserCallManager) command(ctx context.Context, socket *callSocket, ac
 		return call.SetVideoEnabled(true)
 	case "disable_video":
 		return call.SetVideoEnabled(false)
+	case "add_participant":
+		phone := strings.TrimPrefix(strings.TrimSpace(command.Target), "+")
+		if len(phone) < 10 || len(phone) > 15 || strings.Trim(phone, "0123456789") != "" {
+			return errors.New("enter a valid phone number with country code")
+		}
+		if err := call.AddParticipant(ctx, "+"+phone); err != nil {
+			return err
+		}
+		socket.event(callEvent{Event: "participant_invited"})
+		return nil
 	default:
 		return errors.New("unknown call action")
 	}
+}
+
+func handleCreateCallLink(c *gin.Context) {
+	client, ok := clientForChannel(c.Param("channel_id"))
+	if !ok {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Session is not active or connected"})
+		return
+	}
+	manager := callManagerFor(client)
+	if manager == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Calls are not enabled for this session"})
+		return
+	}
+	var request struct {
+		Video bool `json:"video"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	link, err := manager.caller.CreateCallLink(ctx, meowcaller.CallLinkOptions{Video: request.Video})
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"url": link.URL, "video": link.Video})
 }
 
 func (m *browserCallManager) detach(socket *callSocket) {
@@ -504,7 +594,7 @@ func handleBrowserCall(c *gin.Context) {
 				continue
 			}
 			commandCtx, commandCancel := context.WithTimeout(ctx, 30*time.Second)
-			err = manager.command(commandCtx, socket, command.Action)
+			err = manager.command(commandCtx, socket, command)
 			commandCancel()
 			if err != nil {
 				socket.event(callEvent{Event: "error", Message: err.Error()})

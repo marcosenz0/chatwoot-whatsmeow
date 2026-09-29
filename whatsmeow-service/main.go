@@ -456,6 +456,7 @@ func main() {
 	r.DELETE("/sessions/:channel_id/statuses/:message_id", internalTokenMiddleware(), handleDeleteStatus)
 	r.POST("/sessions/:channel_id/statuses/read", internalTokenMiddleware(), handleReadStatus)
 	r.POST("/sessions/:channel_id/statuses/reply", internalTokenMiddleware(), handleReplyToStatus)
+	r.POST("/sessions/:channel_id/call-links", internalTokenMiddleware(), handleCreateCallLink)
 	r.DELETE("/sessions/:channel_id", internalTokenMiddleware(), handleDisconnectSession)
 	r.POST("/typing", internalTokenMiddleware(), handleTyping)
 	r.POST("/messages", internalTokenMiddleware(), handleSendMessage)

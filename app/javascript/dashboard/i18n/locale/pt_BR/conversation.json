@@ -1,5 +1,28 @@
 {
   "CONVERSATION": {
+    "WHATSMEOW_CALL": {
+      "TITLE": "Ligação pelo WhatsApp",
+      "VOICE": "Ligação de voz",
+      "VIDEO": "Ligação de vídeo",
+      "CONNECTING": "Conectando",
+      "INCOMING": "Ligação recebida",
+      "DIALING": "Chamando",
+      "ANSWERING": "Atendendo",
+      "CONNECTED": "Em ligação",
+      "ENDED": "Ligação encerrada",
+      "ANSWER": "Atender ligação",
+      "END": "Encerrar ligação",
+      "MUTE": "Ativar ou desativar microfone",
+      "CAMERA": "Ligar ou desligar câmera",
+      "VIDEO_UNSUPPORTED": "Este navegador não suporta chamadas de vídeo",
+      "FAILED": "Não foi possível conectar a ligação do WhatsApp",
+      "CHAT": "Abrir conversa",
+      "ADD_PARTICIPANT": "Adicionar pessoa",
+      "PARTICIPANT_PHONE": "Número com DDI e DDD",
+      "INVITE": "Convidar",
+      "CANCEL": "Cancelar",
+      "PARTICIPANT_INVITED": "Convite enviado para a ligação"
+    },
     "404": "Desculpe, não conseguimos encontrar a conversa. Por favor, tente novamente",
     "SELECT_A_CONVERSATION": "Por favor, selecione uma conversa no painel da esquerda",
     "CSAT_REPLY_MESSAGE": "Por favor, classifique a conversa",

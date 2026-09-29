@@ -134,6 +134,12 @@ Rails.application.routes.draw do
           resources :whatsmeow_stickers, path: 'whatsmeow/stickers', only: [:index, :create, :destroy] do
             post :send, on: :member, action: :send_sticker
           end
+          resources :whatsmeow_calls, path: 'whatsmeow/calls', only: [:index] do
+            collection do
+              post :create_link
+              post :dial
+            end
+          end
           resources :whatsmeow_statuses, path: 'whatsmeow/statuses', only: [:index, :create, :destroy] do
             get :activity, on: :collection
             post :sync, on: :collection

@@ -46,6 +46,7 @@ import whatsappCloudStudio from './whatsappCloudStudio.json';
 import whatsappTemplates from './whatsappTemplates.json';
 import yearInReview from './yearInReview.json';
 import whatsappStatus from './whatsappStatus.json';
+import whatsappCalls from './whatsappCalls.json';
 
 export default {
   ...advancedFilters,
@@ -96,4 +97,5 @@ export default {
   ...whatsappTemplates,
   ...yearInReview,
   ...whatsappStatus,
+  ...whatsappCalls,
 };

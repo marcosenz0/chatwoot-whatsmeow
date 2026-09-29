@@ -176,7 +176,11 @@ const copyConversationId = async () => {
         class="hidden md:flex"
       />
       <ConversationCallButton :inbox="inbox" :chat="currentChat" />
-      <WhatsmeowConversationCall :inbox="inbox" :chat="currentChat" />
+      <WhatsmeowConversationCall
+        :inbox="inbox"
+        :chat="currentChat"
+        :contact="currentContact"
+      />
       <MoreActions :conversation-id="currentChat.id" />
     </div>
   </div>

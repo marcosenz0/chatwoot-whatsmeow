@@ -4,6 +4,7 @@ import store from '../../../store';
 import ConversationView from './ConversationView.vue';
 
 const WhatsmeowStatuses = () => import('../status/StatusPage.vue');
+const WhatsmeowCalls = () => import('../calls/CallsPage.vue');
 
 const CONVERSATION_PERMISSIONS = [
   'administrator',
@@ -64,6 +65,14 @@ export default {
         permissions: CONVERSATION_PERMISSIONS,
       },
       component: WhatsmeowStatuses,
+    },
+    {
+      path: frontendURL('accounts/:accountId/whatsmeow/calls'),
+      name: 'whatsmeow_calls',
+      meta: {
+        permissions: CONVERSATION_PERMISSIONS,
+      },
+      component: WhatsmeowCalls,
     },
     {
       path: frontendURL('accounts/:accountId/conversations/:conversation_id'),

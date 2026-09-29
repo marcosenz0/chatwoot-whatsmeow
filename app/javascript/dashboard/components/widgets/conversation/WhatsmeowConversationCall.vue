@@ -2,6 +2,7 @@
 /* global MediaStreamTrackProcessor, VideoEncoder, VideoDecoder, EncodedVideoChunk */
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
 import whatsmeowCalls from 'dashboard/api/whatsmeowCalls';
 import NextButton from 'dashboard/components-next/button/Button.vue';
@@ -9,9 +10,12 @@ import NextButton from 'dashboard/components-next/button/Button.vue';
 const props = defineProps({
   inbox: { type: Object, default: () => ({}) },
   chat: { type: Object, default: () => ({}) },
+  contact: { type: Object, default: () => ({}) },
 });
 
 const { t } = useI18n();
+const route = useRoute();
+const router = useRouter();
 const isDirectWhatsmeow = computed(
   () =>
     props.inbox?.channel_type === 'Channel::Whatsmeow' &&
@@ -22,8 +26,11 @@ const busy = ref(false);
 const muted = ref(false);
 const cameraOn = ref(false);
 const remoteVideoOn = ref(false);
-const videoUpgradePending = ref(false);
 const videoCall = ref(false);
+const inviteOpen = ref(false);
+const participantPhone = ref('');
+const connectedAt = ref(null);
+const elapsedSeconds = ref(0);
 const localVideo = ref(null);
 const remoteCanvas = ref(null);
 let socket;
@@ -45,11 +52,30 @@ let videoDecodeStarted = false;
 let forceKeyframe = false;
 let frameCount = 0;
 let callId;
+let durationTimer;
 
 const isInCall = computed(() =>
-  ['dialing', 'answering', 'connected'].includes(state.value)
+  ['connecting', 'dialing', 'answering', 'connected'].includes(state.value)
 );
 const showPanel = computed(() => state.value !== 'idle');
+const contactName = computed(
+  () =>
+    props.contact?.name ||
+    props.chat?.meta?.sender?.name ||
+    props.contact?.phone_number ||
+    t('CONVERSATION.WHATSMEOW_CALL.TITLE')
+);
+const contactPhone = computed(
+  () =>
+    props.contact?.phone_number || props.chat?.meta?.sender?.phone_number || ''
+);
+const contactAvatar = computed(
+  () => props.contact?.thumbnail || props.chat?.meta?.sender?.thumbnail || ''
+);
+const elapsedTime = computed(
+  () =>
+    `${String(Math.floor(elapsedSeconds.value / 60)).padStart(2, '0')}:${String(elapsedSeconds.value % 60).padStart(2, '0')}`
+);
 const statusText = computed(() => {
   switch (state.value) {
     case 'incoming':
@@ -65,9 +91,9 @@ const statusText = computed(() => {
   }
 });
 
-const sendCommand = action => {
+const sendCommand = (action, target) => {
   if (socket?.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ action }));
+    socket.send(JSON.stringify({ action, target }));
   }
 };
 
@@ -303,8 +329,12 @@ const resetCall = async () => {
   busy.value = false;
   muted.value = false;
   remoteVideoOn.value = false;
-  videoUpgradePending.value = false;
   videoCall.value = false;
+  inviteOpen.value = false;
+  participantPhone.value = '';
+  connectedAt.value = null;
+  elapsedSeconds.value = 0;
+  clearInterval(durationTimer);
   callId = null;
   if (videoDecoder && videoDecoder.state !== 'closed') videoDecoder.close();
   videoDecoder = null;
@@ -322,7 +352,7 @@ const onSocketMessage = event => {
   }
   const update = JSON.parse(event.data);
   if (update.event === 'error') {
-    useAlert(update.message || t('CONVERSATION.WHATSMEOW_CALL.FAILED'));
+    useAlert(t('CONVERSATION.WHATSMEOW_CALL.FAILED'));
     if (
       !callId ||
       ['connecting', 'dialing', 'answering'].includes(state.value)
@@ -343,15 +373,26 @@ const onSocketMessage = event => {
     videoCall.value = update.video;
     state.value = 'connected';
     busy.value = false;
+    if (!connectedAt.value) {
+      connectedAt.value = Date.now();
+      durationTimer = setInterval(() => {
+        elapsedSeconds.value = Math.floor(
+          (Date.now() - connectedAt.value) / 1000
+        );
+      }, 1000);
+    }
   } else if (update.event === 'ended') {
     resetCall();
   } else if (update.event === 'video_state') {
     videoCall.value = update.video;
-    videoUpgradePending.value = [3, 11].includes(update.video_state);
     if ([0, 6].includes(update.video_state)) remoteVideoOn.value = false;
     if ([5, 8].includes(update.video_state) && !videoCall.value) stopCamera();
   } else if (update.event === 'keyframe') {
     forceKeyframe = true;
+  } else if (update.event === 'participant_invited') {
+    useAlert(t('CONVERSATION.WHATSMEOW_CALL.PARTICIPANT_INVITED'));
+    inviteOpen.value = false;
+    participantPhone.value = '';
   }
 };
 
@@ -421,7 +462,7 @@ const startCall = async video => {
     await ensureSocket();
     sendCommand(video ? 'dial_video' : 'dial_audio');
   } catch (error) {
-    useAlert(error?.response?.data?.error || error.message);
+    useAlert(t('CONVERSATION.WHATSMEOW_CALL.FAILED'));
     await resetCall();
   } finally {
     busy.value = false;
@@ -458,10 +499,33 @@ const toggleCamera = async () => {
   }
 };
 
-const acceptVideo = async () => {
-  sendCommand('accept_video');
-  videoUpgradePending.value = false;
+const inviteParticipant = () => {
+  if (!/^\+?[1-9]\d{9,14}$/.test(participantPhone.value.replace(/\D/g, ''))) {
+    useAlert(t('CONVERSATION.WHATSMEOW_CALL.PARTICIPANT_PHONE'));
+    return;
+  }
+  sendCommand('add_participant', participantPhone.value);
 };
+
+const openChat = () => {
+  inviteOpen.value = false;
+  document.querySelector('.ProseMirror')?.focus();
+};
+
+watch(
+  [isDirectWhatsmeow, () => route.query.whatsmeowCall, () => props.chat.id],
+  ([available, requested]) => {
+    if (
+      !available ||
+      !['voice', 'video'].includes(requested) ||
+      state.value !== 'idle'
+    )
+      return;
+    router.replace({ query: { ...route.query, whatsmeowCall: undefined } });
+    startCall(requested === 'video');
+  },
+  { immediate: true }
+);
 
 watch(
   [() => props.chat.id, isDirectWhatsmeow, isInCall],
@@ -512,18 +576,38 @@ onBeforeUnmount(() => {
   <Teleport to="body">
     <div
       v-if="showPanel"
-      class="fixed bottom-6 right-6 z-50 flex w-80 flex-col gap-3 rounded-xl border border-n-weak bg-n-solid-1 p-4 shadow-xl"
+      class="fixed bottom-6 right-6 z-50 flex w-96 max-w-[calc(100vw-2rem)] flex-col gap-4 rounded-2xl border border-n-weak bg-n-solid-1 p-5 shadow-xl"
       role="dialog"
       :aria-label="t('CONVERSATION.WHATSMEOW_CALL.TITLE')"
     >
-      <div class="flex items-center justify-between">
-        <div>
-          <div class="text-sm font-semibold text-n-slate-12">
-            {{ t('CONVERSATION.WHATSMEOW_CALL.TITLE') }}
+      <div class="flex items-center gap-3">
+        <img
+          v-if="contactAvatar"
+          :src="contactAvatar"
+          alt=""
+          class="size-12 rounded-full object-cover"
+        />
+        <span
+          v-else
+          class="flex size-12 items-center justify-center rounded-full bg-n-alpha-2 text-n-slate-11"
+          ><span class="i-lucide-user-round size-6"
+        /></span>
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-sm font-semibold text-n-slate-12">
+            {{ contactName }}
           </div>
-          <div class="text-xs text-n-slate-11">{{ statusText }}</div>
+          <div v-if="contactPhone" class="truncate text-xs text-n-slate-11">
+            {{ contactPhone }}
+          </div>
+          <div class="text-xs text-n-slate-11">
+            {{ statusText
+            }}<span v-if="state === 'connected'"> · {{ elapsedTime }}</span>
+          </div>
         </div>
-        <span class="i-lucide-phone text-n-slate-11" />
+        <span
+          :class="videoCall ? 'i-lucide-video' : 'i-lucide-phone'"
+          class="size-5 text-n-slate-11"
+        />
       </div>
       <div
         v-show="cameraOn || remoteVideoOn"
@@ -543,6 +627,24 @@ onBeforeUnmount(() => {
           :class="{ hidden: !cameraOn }"
         />
       </div>
+      <form
+        v-if="inviteOpen && state === 'connected'"
+        class="flex items-center gap-2"
+        @submit.prevent="inviteParticipant"
+      >
+        <input
+          v-model="participantPhone"
+          type="tel"
+          class="min-w-0 flex-1 rounded-lg border border-n-weak bg-n-solid-1 px-2 py-2 text-sm text-n-slate-12"
+          :placeholder="t('CONVERSATION.WHATSMEOW_CALL.PARTICIPANT_PHONE')"
+        />
+        <button
+          type="submit"
+          class="rounded-lg bg-n-brand px-3 py-2 text-sm text-white"
+        >
+          {{ t('CONVERSATION.WHATSMEOW_CALL.INVITE') }}
+        </button>
+      </form>
       <div class="flex items-center justify-center gap-3">
         <button
           v-if="state === 'incoming'"
@@ -553,10 +655,11 @@ onBeforeUnmount(() => {
         >
           <span class="i-lucide-phone" />
         </button>
-        <template v-if="isInCall">
+        <template v-if="isInCall && state !== 'connecting'">
           <button
             type="button"
-            class="flex h-10 w-10 items-center justify-center rounded-full bg-n-slate-3 text-n-slate-12"
+            class="flex h-10 w-10 items-center justify-center rounded-full text-n-slate-12"
+            :class="muted ? 'bg-n-ruby-3' : 'bg-n-slate-3'"
             :aria-label="t('CONVERSATION.WHATSMEOW_CALL.MUTE')"
             @click="muted = !muted"
           >
@@ -564,19 +667,29 @@ onBeforeUnmount(() => {
           </button>
           <button
             type="button"
-            class="flex h-10 w-10 items-center justify-center rounded-full bg-n-slate-3 text-n-slate-12"
+            class="flex h-10 w-10 items-center justify-center rounded-full text-n-slate-12"
+            :class="cameraOn ? 'bg-n-teal-3' : 'bg-n-slate-3'"
             :aria-label="t('CONVERSATION.WHATSMEOW_CALL.CAMERA')"
             @click="toggleCamera"
           >
             <span :class="cameraOn ? 'i-lucide-video-off' : 'i-lucide-video'" />
           </button>
           <button
-            v-if="videoUpgradePending"
+            v-if="state === 'connected'"
             type="button"
-            class="rounded-lg bg-n-teal-9 px-2 py-1 text-xs text-white"
-            @click="acceptVideo"
+            class="flex size-10 items-center justify-center rounded-full bg-n-slate-3 text-n-slate-12"
+            :aria-label="t('CONVERSATION.WHATSMEOW_CALL.ADD_PARTICIPANT')"
+            @click="inviteOpen = !inviteOpen"
           >
-            {{ t('CONVERSATION.WHATSMEOW_CALL.ACCEPT_VIDEO') }}
+            <span class="i-lucide-user-round-plus" />
+          </button>
+          <button
+            type="button"
+            class="flex size-10 items-center justify-center rounded-full bg-n-slate-3 text-n-slate-12"
+            :aria-label="t('CONVERSATION.WHATSMEOW_CALL.CHAT')"
+            @click="openChat"
+          >
+            <span class="i-lucide-message-circle" />
           </button>
         </template>
         <button
