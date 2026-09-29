@@ -159,6 +159,7 @@ type browserCallManager struct {
 	audio       *browserAudioSource
 	starting    bool
 	connectedAt time.Time
+	video       bool
 }
 
 var (
@@ -218,7 +219,7 @@ func callPeerMatches(client *whatsmeow.Client, peer types.JID, contactJID string
 	return !resolvedPeer.IsEmpty() && !resolvedTarget.IsEmpty() && sameBareJID(resolvedPeer, resolvedTarget)
 }
 
-func (m *browserCallManager) notifyCall(call *meowcaller.Call, event, direction, reason string, owner *callSocket, connectedAt time.Time) {
+func (m *browserCallManager) notifyCall(call *meowcaller.Call, event, direction, reason string, owner *callSocket, connectedAt time.Time, video bool) {
 	if m.wa.Store.ID == nil {
 		return
 	}
@@ -232,7 +233,7 @@ func (m *browserCallManager) notifyCall(call *meowcaller.Call, event, direction,
 		payload := map[string]interface{}{
 			"event": event, "call_id": call.ID(), "peer_jid": jidString(call.Peer()),
 			"phone_jid": jidString(phoneJID), "direction": direction,
-			"video": call.IsVideo(), "timestamp": time.Now().Unix(), "reason": reason,
+			"video": video, "timestamp": time.Now().Unix(), "reason": reason,
 		}
 		if !connectedAt.IsZero() {
 			payload["connected_at"] = connectedAt.Unix()
@@ -246,6 +247,7 @@ func (m *browserCallManager) notifyCall(call *meowcaller.Call, event, direction,
 }
 
 func (m *browserCallManager) onIncoming(call *meowcaller.Call) {
+	video := call.IsVideo()
 	m.mu.Lock()
 	if m.active != nil || m.pending != nil || m.starting {
 		m.mu.Unlock()
@@ -254,6 +256,7 @@ func (m *browserCallManager) onIncoming(call *meowcaller.Call) {
 	}
 	m.pending = call
 	m.connectedAt = time.Time{}
+	m.video = video
 	sockets := make([]*callSocket, 0, len(m.sockets))
 	for socket := range m.sockets {
 		if callPeerMatches(m.wa, call.Peer(), socket.claims.ContactJID) {
@@ -277,11 +280,11 @@ func (m *browserCallManager) onIncoming(call *meowcaller.Call) {
 			socket.event(callEvent{Event: "ended", CallID: call.ID(), Message: reason})
 		}
 		if pending {
-			m.notifyCall(call, "call_ended", "incoming", reason, nil, time.Time{})
+			m.notifyCall(call, "call_ended", "incoming", reason, nil, time.Time{}, video)
 		}
 		m.finish(call)
 	})
-	m.notifyCall(call, "call_started", "incoming", "", nil, time.Time{})
+	m.notifyCall(call, "call_started", "incoming", "", nil, time.Time{}, video)
 	for _, socket := range sockets {
 		socket.event(callEvent{Event: "incoming", CallID: call.ID(), Video: call.IsVideo()})
 	}
@@ -290,7 +293,6 @@ func (m *browserCallManager) onIncoming(call *meowcaller.Call) {
 func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call, direction string) {
 	audio := newBrowserAudioSource()
 	var firstReceived sync.Once
-	mediaReady, peerAccepted := false, direction == "incoming"
 	m.mu.Lock()
 	m.audio = audio
 	m.mu.Unlock()
@@ -320,41 +322,45 @@ func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call, d
 				log.Printf("Whatsmeow call video upgrade failed: %v", err)
 			}
 		}
+		m.mu.Lock()
+		if m.active == call {
+			m.video = m.video || call.IsVideo()
+		}
+		m.mu.Unlock()
 		socket.event(callEvent{Event: "video_state", CallID: call.ID(), Video: call.IsVideo(), VideoState: state.Raw})
 	})
 	call.OnStateChange(func(phase meowcaller.CallPhase) {
 		log.Printf("Whatsmeow browser call: phase %d", phase)
 		socket.event(callEvent{Event: "phase", CallID: call.ID(), Phase: int(phase), Video: call.IsVideo()})
 	})
-	markConnected := func(ready bool) {
+	markConnected := func() {
 		m.mu.Lock()
-		if ready {
-			mediaReady = true
-		} else {
-			peerAccepted = true
-		}
-		// Relay packets can arrive while the destination is still ringing.
-		// Count duration only after the peer actually answers and media is ready.
-		if m.active != call || !mediaReady || !peerAccepted || !m.connectedAt.IsZero() {
+		// Acceptance and media readiness are separate. An answered call has a
+		// duration even if the relay fails to deliver the remote audio.
+		if m.active != call || !m.connectedAt.IsZero() {
 			m.mu.Unlock()
 			return
 		}
 		m.connectedAt = time.Now()
 		connectedAt := m.connectedAt
+		video := m.video
 		m.mu.Unlock()
-		m.notifyCall(call, "call_connected", direction, "", socket, connectedAt)
-		socket.event(callEvent{Event: "connected", CallID: call.ID(), Video: call.IsVideo()})
+		m.notifyCall(call, "call_connected", direction, "", socket, connectedAt, video)
+		socket.event(callEvent{Event: "connected", CallID: call.ID(), Video: video})
 	}
-	call.OnReady(func() { markConnected(true) })
-	call.OnPeerAccept(func() { markConnected(false) })
+	markMediaReady := func() { socket.event(callEvent{Event: "media_ready", CallID: call.ID()}) }
+	call.OnReady(markMediaReady)
+	call.OnPeerAccept(markConnected)
+	call.OnLocalAccept(markConnected)
 	if call.State() == meowcaller.CallPhaseActive {
-		markConnected(true)
+		markMediaReady()
 	}
 	call.OnEnd(func(reason string) {
 		m.mu.Lock()
 		connectedAt := m.connectedAt
+		video := m.video
 		m.mu.Unlock()
-		m.notifyCall(call, "call_ended", direction, reason, socket, connectedAt)
+		m.notifyCall(call, "call_ended", direction, reason, socket, connectedAt, video)
 		socket.event(callEvent{Event: "ended", CallID: call.ID(), Message: reason})
 		m.finish(call)
 	})
@@ -372,6 +378,7 @@ func (m *browserCallManager) finish(call *meowcaller.Call) {
 	audio := m.audio
 	m.active, m.owner, m.audio = nil, nil, nil
 	m.connectedAt = time.Time{}
+	m.video = false
 	m.mu.Unlock()
 	if audio != nil {
 		_ = audio.Close()
@@ -393,12 +400,13 @@ func (m *browserCallManager) dial(ctx context.Context, socket *callSocket, video
 	if err == nil {
 		m.active, m.owner = call, socket
 		m.connectedAt = time.Time{}
+		m.video = video
 	}
 	m.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	m.notifyCall(call, "call_started", "outgoing", "", socket, time.Time{})
+	m.notifyCall(call, "call_started", "outgoing", "", socket, time.Time{}, video)
 	socket.event(callEvent{Event: "dialing", CallID: call.ID(), Video: video})
 	m.attach(socket, call, "outgoing")
 	return nil
@@ -445,14 +453,26 @@ func (m *browserCallManager) command(ctx context.Context, socket *callSocket, co
 	switch action {
 	case "hangup":
 		return call.Hangup()
-	case "start_video":
-		return call.StartVideo()
-	case "accept_video":
-		return call.AcceptVideo()
+	case "start_video", "accept_video", "enable_video":
+		var err error
+		switch action {
+		case "start_video":
+			err = call.StartVideo()
+		case "accept_video":
+			err = call.AcceptVideo()
+		case "enable_video":
+			err = call.SetVideoEnabled(true)
+		}
+		if err == nil {
+			m.mu.Lock()
+			if m.active == call {
+				m.video = true
+			}
+			m.mu.Unlock()
+		}
+		return err
 	case "stop_video":
 		return call.StopVideo()
-	case "enable_video":
-		return call.SetVideoEnabled(true)
 	case "disable_video":
 		return call.SetVideoEnabled(false)
 	case "add_participant":

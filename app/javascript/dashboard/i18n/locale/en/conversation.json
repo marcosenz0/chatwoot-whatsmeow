@@ -48,6 +48,7 @@
       "MOVE_PREVIEW": "Move your camera preview",
       "YOU": "You",
       "WAITING_VIDEO": "Waiting for video",
+      "WAITING_AUDIO": "The call was answered, but the remote audio has not arrived yet.",
       "CLOSE": "Close call window",
       "MEDIA_DENIED": "Allow the microphone and camera for this site in your browser.",
       "MEDIA_MISSING": "The selected device is unavailable. Choose another microphone or camera.",

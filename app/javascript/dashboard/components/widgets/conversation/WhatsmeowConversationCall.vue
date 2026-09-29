@@ -37,6 +37,7 @@ const busy = ref(false);
 const muted = ref(false);
 const cameraOn = ref(false);
 const remoteVideoOn = ref(false);
+const remoteMediaReady = ref(false);
 const videoCall = ref(false);
 const inviteOpen = ref(false);
 const participantPhone = ref('');
@@ -549,6 +550,7 @@ const resetCall = async (nextState = 'idle') => {
   busy.value = nextState === 'ending';
   muted.value = false;
   remoteVideoOn.value = false;
+  remoteMediaReady.value = false;
   videoCall.value = false;
   inviteOpen.value = false;
   participantPhone.value = '';
@@ -568,12 +570,14 @@ const resetCall = async (nextState = 'idle') => {
 const finishCall = async reason => {
   if (['idle', 'ending', 'ended'].includes(state.value)) return;
   const wasVideo = videoCall.value;
+  const duration = elapsedSeconds.value;
   const previousError = mediaError.value;
   endedText.value = t(
     `CONVERSATION.WHATSMEOW_CALL.${/reject|declin/.test(reason || '') ? 'DECLINED' : 'ENDED'}`
   );
   await resetCall('ending');
   videoCall.value = wasVideo;
+  elapsedSeconds.value = duration;
   mediaError.value = previousError;
   state.value = 'ended';
   busy.value = false;
@@ -618,6 +622,8 @@ const onSocketMessage = event => {
         );
       }, 1000);
     }
+  } else if (update.event === 'media_ready') {
+    remoteMediaReady.value = true;
   } else if (update.event === 'ended') {
     finishCall(update.message);
   } else if (update.event === 'video_state') {
@@ -697,6 +703,7 @@ const startCall = async video => {
   busy.value = true;
   mediaError.value = '';
   videoCall.value = video;
+  elapsedSeconds.value = 0;
   state.value = 'connecting';
   try {
     await startMicrophone();
@@ -721,7 +728,12 @@ const answer = async () => {
   try {
     await startMicrophone();
     if (state.value !== 'incoming' || callId !== incomingCallId) return;
+    if (videoCall.value) {
+      await startCamera().catch(reportMediaError);
+      if (state.value !== 'incoming' || callId !== incomingCallId) return;
+    }
     sendCommand('answer');
+    if (cameraOn.value) sendCommand('enable_video');
     state.value = 'answering';
   } catch (error) {
     reportMediaError(error);
@@ -848,7 +860,7 @@ onBeforeUnmount(() => {
   <Teleport to="body">
     <WhatsmeowCallWindow
       v-if="showPanel"
-      :video="videoCall || cameraOn || remoteVideoOn"
+      :video="state !== 'ended' && (videoCall || cameraOn || remoteVideoOn)"
     >
       <template #header>
         <div class="flex items-center gap-3">
@@ -872,7 +884,13 @@ onBeforeUnmount(() => {
             </div>
             <div class="text-xs text-n-slate-11">
               {{ statusText
-              }}<span v-if="state === 'connected'"> · {{ elapsedTime }}</span>
+              }}<span
+                v-if="
+                  state === 'connected' || (state === 'ended' && elapsedSeconds)
+                "
+              >
+                · {{ elapsedTime }}</span
+              >
             </div>
           </div>
         </div>
@@ -885,8 +903,17 @@ onBeforeUnmount(() => {
         {{ mediaError }}
       </div>
       <div
+        v-if="
+          state === 'connected' && elapsedSeconds >= 10 && !remoteMediaReady
+        "
+        role="status"
+        class="rounded-lg bg-n-amber-3 px-3 py-2 text-sm text-n-amber-11"
+      >
+        {{ t('CONVERSATION.WHATSMEOW_CALL.WAITING_AUDIO') }}
+      </div>
+      <div
+        v-show="state !== 'ended' && (videoCall || cameraOn || remoteVideoOn)"
         ref="videoStage"
-        v-show="videoCall || cameraOn || remoteVideoOn"
         class="relative min-h-0 flex-1 overflow-hidden rounded-xl bg-black"
       >
         <div
@@ -947,7 +974,10 @@ onBeforeUnmount(() => {
         </svg>
       </div>
       <div
-        v-if="!videoCall && !cameraOn && !remoteVideoOn && !mediaError"
+        v-if="
+          state === 'ended' ||
+          (!videoCall && !cameraOn && !remoteVideoOn && !mediaError)
+        "
         class="flex min-h-0 flex-1 items-center justify-center"
       >
         <span

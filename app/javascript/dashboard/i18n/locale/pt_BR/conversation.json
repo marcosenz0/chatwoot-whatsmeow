@@ -47,6 +47,7 @@
       "MOVE_PREVIEW": "Mover sua câmera",
       "YOU": "Você",
       "WAITING_VIDEO": "Aguardando vídeo",
+      "WAITING_AUDIO": "A ligação foi atendida, mas o áudio da outra pessoa ainda não chegou.",
       "CLOSE": "Fechar janela da ligação",
       "MEDIA_DENIED": "Permita o microfone e a câmera para este site no navegador.",
       "MEDIA_MISSING": "O dispositivo escolhido não está disponível. Selecione outro microfone ou câmera.",
