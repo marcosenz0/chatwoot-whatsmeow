@@ -7,11 +7,19 @@ import { BUS_EVENTS } from 'shared/constants/busEvents';
 import { useMessageContext } from '../provider';
 import { useCamelCase } from 'dashboard/composables/useTransformKeys';
 import BaseBubble from './Base.vue';
-import MessageMeta from '../MessageMeta.vue';
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const store = useStore();
-const { contentAttributes, conversationId } = useMessageContext();
+const { contentAttributes, conversationId, createdAt } = useMessageContext();
+const callTime = computed(() => new Date(createdAt.value * 1000));
+const readableTime = computed(() =>
+  new Intl.DateTimeFormat(locale.value.replace('_', '-'), {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(callTime.value)
+);
 const call = computed(() =>
   useCamelCase(
     contentAttributes.value.whatsmeowCall ||
@@ -95,7 +103,11 @@ const callBack = () =>
       </span>
     </button>
     <div class="mt-2 flex justify-end">
-      <MessageMeta class="text-n-slate-11" />
+      <time
+        class="text-xs text-n-slate-11"
+        :datetime="callTime.toISOString()"
+        >{{ readableTime }}</time
+      >
     </div>
   </BaseBubble>
 </template>

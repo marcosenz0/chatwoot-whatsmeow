@@ -284,6 +284,7 @@ const startMicrophone = async () => {
   audioProcessor = audioContext.createScriptProcessor(1024, 1, 1);
   audioProcessor.onaudioprocess = event => {
     event.outputBuffer.getChannelData(0).fill(0);
+    if (!audioContext) return;
     const input = event.inputBuffer.getChannelData(0);
     const ratio = 16000 / audioContext.sampleRate;
     input.forEach(sample => {

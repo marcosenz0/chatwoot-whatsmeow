@@ -94,7 +94,7 @@
  		if device, ok := inviteDeviceCapability(ev.From, ev.Data); ok {
  			current.invitePeerDevice = device
  		}
-@@ -960,13 +967,36 @@
+@@ -960,13 +967,40 @@
  
  // onReject tears down an outgoing call when the peer declines it.
  func (e *engine) onReject(ev *events.CallReject) {
@@ -113,7 +113,11 @@
 +		if !m.answeringDevice.IsEmpty() {
 +			ignore = ev.From != m.answeringDevice
 +		} else {
-+			ignore = ev.From.Device != 0 && (reason == "unsupported" || !m.preAcceptedDevices[ev.From])
++			preaccepted := m.preAcceptedDevices[ev.From]
++			delete(m.preAcceptedDevices, ev.From)
++			// A secondary can preaccept and immediately reject while another
++			// device is still preparing the same call. Keep that device ringing.
++			ignore = ev.From.Device != 0 && (reason == "unsupported" || !preaccepted || len(m.preAcceptedDevices) > 0)
 +		}
 +	}
 +	e.mu.Unlock()
@@ -134,12 +138,13 @@
  		"event": "peer_reject", "call_id": ev.CallID, "from": ev.From.String(),
 --- /dev/null
 +++ b/engine_linked_device_reject_test.go
-@@ -0,0 +1,47 @@
+@@ -0,0 +1,67 @@
 +package meowcaller
 +
 +import (
-+	waBinary "github.com/polymorfa/hypermeow/binary"
 +	"testing"
++
++	waBinary "github.com/polymorfa/hypermeow/binary"
 +
 +	"github.com/polymorfa/hypermeow/types"
 +	"github.com/polymorfa/hypermeow/types/events"
@@ -180,5 +185,24 @@
 +				t.Fatalf("call ended = %v, want %v", got, tc.ended)
 +			}
 +		})
++	}
++}
++
++func TestSecondaryRejectionPreservesOtherRingingDevice(t *testing.T) {
++	e, call := testEngineWithOutgoingCall()
++	desktop := peerJID().ToNonAD()
++	desktop.Device = 25
++	otherDesktop := desktop
++	otherDesktop.Device = 27
++	for _, device := range []types.JID{desktop, otherDesktop} {
++		e.onPreAccept(&events.CallPreAccept{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: device}})
++	}
++	e.onReject(&events.CallReject{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: desktop}})
++	if call.State() == CallPhaseEnded {
++		t.Fatal("one secondary rejection ended the call while another device was ringing")
++	}
++	e.onReject(&events.CallReject{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: otherDesktop}})
++	if call.State() != CallPhaseEnded {
++		t.Fatal("rejection by the last ringing device did not end the call")
 +	}
 +}
