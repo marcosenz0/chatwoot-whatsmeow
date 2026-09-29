@@ -14,12 +14,10 @@
  	"google.golang.org/protobuf/proto"
  )
  
-@@ -51,31 +51,42 @@
- 	peerLID string
- 
+@@ -53,29 +53,42 @@
  	creator types.JID // call-creator JID (for accept/relaylatency)
--	from    types.JID // the <call> "from" — where stanzas are addressed
--
+ 	from    types.JID // the <call> "from" — where stanzas are addressed
+ 
 -	direction         CallDirection
 -	codec             AudioCodec   // audio codec for this call, selected from voip_settings (MLow default)
 -	localVideo        bool         // this client is sending, or has requested to send, video
@@ -40,8 +38,6 @@
 -	waitingRoomCancel context.CancelFunc
 -	inviteSelfDevice  groupCallDevice
 -	invitePeerDevice  groupCallDevice
-+	from    types.JID // the <call> "from" â€” where stanzas are addressed
-+
 +	direction          CallDirection
 +	codec              AudioCodec   // audio codec for this call, selected from voip_settings (MLow default)
 +	localVideo         bool         // this client is sending, or has requested to send, video
@@ -64,6 +60,8 @@
 +	invitePeerDevice   groupCallDevice
 +	preAcceptedDevices map[types.JID]bool
 +	answeringDevice    types.JID
++	rejectTimer        *time.Timer
++	outgoingTimer      *time.Timer
  
  	// The callee <accept> is deferred until the caller's <mute_v2> arrives.
  	acceptPending bool
@@ -79,7 +77,7 @@
  }
  
  // newEngine creates the engine for a Client.
-@@ -346,6 +357,16 @@
+@@ -346,6 +359,16 @@
  		e.mu.Unlock()
  		return errors.New("meowcaller: call is not active")
  	}
@@ -96,7 +94,7 @@
  	m.localVideo = enabled
  	m.videoGate = false
  	to, creator, sender := m.from, m.creator, m.videoTx
-@@ -388,12 +409,31 @@
+@@ -388,12 +411,31 @@
  	}
  	e.mu.Lock()
  	m := e.calls[callID]
@@ -124,21 +122,41 @@
 +	to, creator, sender := m.from, m.creator, m.videoTx
 +	e.mu.Unlock()
 +	// The stanza announces the rotation, but receivers render by the in-band
-+	// CVO bits on each packet â€” both must carry the same value.
++	// CVO bits on each packet — both must carry the same value.
 +	if sender != nil {
 +		sender.setOrientation(orientation)
 +	}
  	node := signaling.BuildVideoStateWithParams(signaling.VideoStateParams{
  		CallID: callID, To: to, CallCreator: creator, WrapperID: e.nextCallNodeID(),
  		State: signaling.VideoStateEnabled, DeviceOrientation: &orientation,
-@@ -520,12 +560,25 @@
- 	}
+@@ -496,8 +538,26 @@
+ 	})
  
- 	// A "call ended" notification arrives offer-shaped, carrying is_call_ended/
--	// terminate_reason (e.g. accepted_elsewhere). It is not a live call — engaging it
-+	// terminate_reason (e.g. accepted_elsewhere). It is not a live call â€” engaging it
- 	// (preaccept/accept) just earns an "accept error 500". Ignore it.
- 	oag := ev.Data.AttrGetter()
+ 	if err := cli.DangerousInternals().SendNode(ctx, offer); err != nil {
++		e.finishCall(callID, "offer_failed")
+ 		return nil, fmt.Errorf("send offer: %w", err)
+ 	}
++	e.mu.Lock()
++	if current := e.calls[callID]; current != nil && current.answeringDevice.IsEmpty() {
++		current.outgoingTimer = time.AfterFunc(90*time.Second, func() {
++			if !e.finishCallMatching(callID, "timeout", func(m *engineCall) bool { return m.answeringDevice.IsEmpty() }) {
++				return
++			}
++			reason := "timeout"
++			term := signaling.BuildTerminate(&signaling.TerminateParams{CallID: callID, To: peerLID, CallCreator: self, Reason: &reason})
++			term.Attrs["id"] = e.nextCallNodeID()
++			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
++			defer cancel()
++			if err := e.transmitCallNode(ctx, term); err != nil {
++				e.c.log.Warn().Err(err).Str("call_id", callID).Msg("send unanswered call termination failed")
++			}
++		})
++	}
++	e.mu.Unlock()
+ 	e.c.log.Info().Str("call_id", callID).Bool("video", opts.Video).Msg("offer sent; media starts when the relay endpoint arrives")
+ 	e.c.diag.Emit("meta", map[string]any{"event": "offer_sent", "call_id": callID, "peer_lid": peerLID.String(), "direction": "out", "video": opts.Video})
+ 	return call, nil
+@@ -526,6 +586,19 @@
  	if oag.OptionalString("is_call_ended") == "1" || oag.OptionalString("terminate_reason") != "" {
  		e.c.log.Warn().Str("call_id", ev.CallID).Msg("ignoring already-ended offer; not a live call")
  		return
@@ -149,7 +167,7 @@
 +	// behind them in the same backlog. The wrapper's `e` attribute is the
 +	// server-computed elapsed seconds (0 on live delivery), so it is immune to
 +	// local clock skew. Anything older than the caller's own 90s ring timeout
-+	// cannot be answered â€” ringing it just races the queued terminate.
++	// cannot be answered — ringing it just races the queued terminate.
 +	if raw := oag.OptionalString("e"); raw != "" {
 +		if elapsed, err := strconv.Atoi(raw); err == nil && elapsed > 90 {
 +			e.c.log.Warn().Str("call_id", ev.CallID).Int("elapsed_s", elapsed).Msg("ignoring stale offer replayed from the offline queue")
@@ -158,34 +176,7 @@
  	}
  
  	callKey, err := decryptInboundCallKey(context.Background(), e.c.wa, ev)
-@@ -583,7 +636,7 @@
- 
- 	// Preaccept eagerly: it is a preparation step, done independently of the later
- 	// Answer/Reject decision. It keeps the offer alive and joins the relay election while
--	// the integrator decides — even a call the user goes on to decline has usually already
-+	// the integrator decides â€” even a call the user goes on to decline has usually already
- 	// been preaccepted.
- 	if err := e.sendPreaccept(ev.CallID, ev.From, ev.CallCreator, isVideo); err != nil {
- 		e.c.log.Warn().Err(err).Str("call_id", ev.CallID).Msg("preaccept failed")
-@@ -640,7 +693,7 @@
- 	}
- }
- 
--// sendPreaccept sends the <preaccept> for an inbound call — a preparation step done
-+// sendPreaccept sends the <preaccept> for an inbound call â€” a preparation step done
- // eagerly when the offer arrives (see onOffer), independent of the later Answer/Reject
- // decision. Video calls also advertise the H.264 decoder before the final accept.
- func (e *engine) sendPreaccept(callID string, to, creator types.JID, video bool) error {
-@@ -691,7 +744,7 @@
- }
- 
- // sendAccept sends the deferred callee <accept> (once), in the WA-Web format (metadata +
--// single rate — the peer keeps the call alive with this; capability+both-rates fails).
-+// single rate â€” the peer keeps the call alive with this; capability+both-rates fails).
- func (e *engine) sendAccept(callID string, to, creator types.JID) {
- 	e.mu.Lock()
- 	m := e.calls[callID]
-@@ -715,6 +768,32 @@
+@@ -715,6 +788,32 @@
  		return
  	}
  	e.c.log.Info().Str("call_id", callID).Bool("video", isVideo).Msg("accepted (after mute_v2)")
@@ -218,16 +209,7 @@
  }
  
  // reject declines an inbound call.
-@@ -787,7 +866,7 @@
- }
- 
- // onRelayLatency answers the caller's relaylatency probes (the callee's half of the
--// relay election). It does NOT send the accept — that is deferred until <mute_v2>.
-+// relay election). It does NOT send the accept â€” that is deferred until <mute_v2>.
- func (e *engine) onRelayLatency(ev *events.CallRelayLatency) {
- 	m := e.lookup(ev.CallID)
- 	if m == nil || m.direction != CallDirectionIncoming {
-@@ -797,6 +876,22 @@
+@@ -797,6 +896,22 @@
  	if rl == nil {
  		return
  	}
@@ -250,7 +232,7 @@
  	var probes []rlProbe
  	for i := range rl.GetChildren() {
  		te := &rl.GetChildren()[i]
-@@ -804,9 +899,14 @@
+@@ -804,9 +919,14 @@
  			continue
  		}
  		ag := te.AttrGetter()
@@ -266,7 +248,7 @@
  			addr:      nodeBytes(te),
  		})
  	}
-@@ -836,13 +936,17 @@
+@@ -836,13 +956,21 @@
  	if m.call != nil && m.call.State() == CallPhaseCalling {
  		m.call.setPhase(CallPhaseRinging)
  	}
@@ -275,6 +257,10 @@
 -		if current := e.calls[ev.CallID]; current != nil {
 +	e.mu.Lock()
 +	if current := e.calls[ev.CallID]; current != nil {
++		if current.rejectTimer != nil {
++			current.rejectTimer.Stop()
++			current.rejectTimer = nil
++		}
 +		if current.preAcceptedDevices == nil {
 +			current.preAcceptedDevices = make(map[types.JID]bool)
 +		}
@@ -289,15 +275,23 @@
  	e.c.log.Info().
  		Str("call_id", ev.CallID).
  		Str("from", ev.From.String()).
-@@ -880,6 +984,7 @@
+@@ -880,6 +1008,15 @@
  	var rekeyPeer func(string) error
  	answeringPeer := ev.From.String()
  	if current := e.calls[ev.CallID]; current != nil {
++		if current.rejectTimer != nil {
++			current.rejectTimer.Stop()
++			current.rejectTimer = nil
++		}
++		if current.outgoingTimer != nil {
++			current.outgoingTimer.Stop()
++			current.outgoingTimer = nil
++		}
 +		current.answeringDevice = ev.From
  		if device, ok := inviteDeviceCapability(ev.From, ev.Data); ok {
  			current.invitePeerDevice = device
  		}
-@@ -960,13 +1065,40 @@
+@@ -960,13 +1097,60 @@
  
  // onReject tears down an outgoing call when the peer declines it.
  func (e *engine) onReject(ev *events.CallReject) {
@@ -309,6 +303,7 @@
 +	e.mu.Lock()
 +	m := e.calls[ev.CallID]
 +	ignore := false
++	deferred := false
 +	if m != nil && m.direction == CallDirectionOutgoing && !m.group {
 +		// Offers reach every linked device. An unsupported secondary device can
 +		// reject before ringing; other devices can also reject after one answers.
@@ -321,10 +316,29 @@
 +			// A secondary can preaccept and immediately reject while another
 +			// device is still preparing the same call. Keep that device ringing.
 +			ignore = ev.From.Device != 0 && (reason == "unsupported" || !preaccepted || len(m.preAcceptedDevices) > 0)
++			if !ignore && ev.From.Device != 0 {
++				// Some linked clients preaccept and automatically reject before the
++				// phone/desktop's preaccept arrives. Let those responses settle, then
++				// honor the decline if no other device is ringing or has answered.
++				if m.rejectTimer != nil {
++					m.rejectTimer.Stop()
++				}
++				m.rejectTimer = time.AfterFunc(2*time.Second, func() {
++					e.finishCallMatching(ev.CallID, "rejected", func(current *engineCall) bool {
++						return current.answeringDevice.IsEmpty() && len(current.preAcceptedDevices) == 0
++					})
++				})
++				deferred = true
++			}
 +		}
 +	}
 +	e.mu.Unlock()
  	if m == nil {
++		return
++	}
++	if deferred {
++		e.c.log.Info().Str("call_id", ev.CallID).Str("from", ev.From.String()).Str("reason", reason).
++			Msg("waiting for other linked devices before honoring reject")
 +		return
 +	}
 +	if ignore {
@@ -339,77 +353,57 @@
  		Msg("peer rejected call")
  	e.c.diag.Emit("meta", map[string]any{
  		"event": "peer_reject", "call_id": ev.CallID, "from": ev.From.String(),
-@@ -1080,9 +1212,9 @@
- 		}
- 		muteState := mv.String("mute-state")
- 		muted := muteState == "1"
--		// The deferred <accept> fires on the FIRST mute_v2 only — it arrives right after
-+		// The deferred <accept> fires on the FIRST mute_v2 only â€” it arrives right after
- 		// the relaylatency/transport. Later mute_v2 nodes are in-call mute-state changes
--		// (e.g. 1→0) and must not re-run the accept path on an already-accepted call.
-+		// (e.g. 1â†’0) and must not re-run the accept path on an already-accepted call.
- 		e.mu.Lock()
- 		m := e.calls[callID]
- 		pending := m != nil && m.acceptPending
-@@ -1108,7 +1240,7 @@
- 		e.sendAccept(callID, callNode.AttrGetter().JID("from"), mv.JID("call-creator"))
- 		return false
- 	case "video":
--		// Acknowledge the <video> stanza with type="video" — the mid-call video-upgrade
-+		// Acknowledge the <video> stanza with type="video" â€” the mid-call video-upgrade
- 		// (state=11) acceptance signal. whatsmeow's generic typeless ack does not satisfy the
- 		// sender, which then cancels the upgrade after ~5s before streaming any video.
- 		e.ackVideoStanza(callNode)
-@@ -1134,8 +1266,8 @@
- 	e.c.log.Debug().Str("id", ack.AttrGetter().String("id")).Msg("sent type=video ack")
+@@ -1236,13 +1420,29 @@
  }
  
--// onVideoStanza handles an inbound standalone <video> state stanza — the peer's video
--// on/off and device orientation — and fires the Call's OnVideoState listener. whatsmeow
-+// onVideoStanza handles an inbound standalone <video> state stanza â€” the peer's video
-+// on/off and device orientation â€” and fires the Call's OnVideoState listener. whatsmeow
- // surfaces no event for it (same as mute_v2), so it is intercepted here.
- func (e *engine) onVideoStanza(v *waBinary.Node) {
- 	ag := v.AttrGetter()
-@@ -1293,8 +1425,8 @@
+ func (e *engine) finishCall(callID, reason string) {
++	e.finishCallMatching(callID, reason, nil)
++}
++
++// finishCallMatching checks the expected state and removes the call under the same
++// lock, so a late timeout/reject cannot tear down a call that has just been answered.
++func (e *engine) finishCallMatching(callID, reason string, matches func(*engineCall) bool) bool {
+ 	if callID == "" {
+-		return
++		return false
+ 	}
+ 	e.mu.Lock()
+ 	m := e.calls[callID]
+-	if m != nil {
+-		delete(e.calls, callID)
++	if m == nil || (matches != nil && !matches(m)) {
++		e.mu.Unlock()
++		return false
++	}
++	delete(e.calls, callID)
++	if m.rejectTimer != nil {
++		m.rejectTimer.Stop()
++		m.rejectTimer = nil
++	}
++	if m.outgoingTimer != nil {
++		m.outgoingTimer.Stop()
++		m.outgoingTimer = nil
+ 	}
+ 	var cancel, waitingRoomCancel context.CancelFunc
+ 	var call *Call
+@@ -1269,7 +1469,7 @@
+ 		waitingRoomCancel()
+ 	}
+ 	if call == nil || call.State() == CallPhaseEnded {
+-		return
++		return true
+ 	}
+ 	call.mu.Lock()
+ 	player := call.player
+@@ -1289,6 +1489,7 @@
+ 	if fn := call.onEndFn(); fn != nil {
+ 		fn(reason)
+ 	}
++	return true
+ }
  
  // installCallAckHook injects an "ack" entry into whatsmeow's unexported nodeHandlers map
- // and wraps the "call" handler so the engine also sees the raw <call> node (with its
--// stanza id, which the CallOffer event drops). whatsmeow has no <ack> handler — it
--// silently drops <ack> nodes — but an outbound call's relay allocation arrives only
-+// stanza id, which the CallOffer event drops). whatsmeow has no <ack> handler â€” it
-+// silently drops <ack> nodes â€” but an outbound call's relay allocation arrives only
- // inside <ack class="call" type="offer">, so without intercepting it the caller never
- // learns the relay endpoint and media never starts. Called before Connect so the map
- // write never races the receive loop.
-@@ -1353,7 +1485,7 @@
- 	callHandler := reflect.MakeFunc(field.Type().Elem(), func(args []reflect.Value) []reflect.Value {
- 		node := args[1].Interface().(*waBinary.Node)
- 		// onCallRaw returns true when it fully handled the node (incl. its own ack), so
--		// whatsmeow's generic typeless ack is skipped — the <video> upgrade needs a typed
-+		// whatsmeow's generic typeless ack is skipped â€” the <video> upgrade needs a typed
- 		// type="video" ack, which a bare ack does not satisfy (the peer reverts otherwise).
- 		if e.onCallRaw(node) {
- 			return nil
-@@ -1394,7 +1526,7 @@
- }
- 
- // resolvePeerLID turns a target (phone number, phone JID, or @lid JID) into the peer's
--// LID — the address the call's E2E keys and SSRCs derive from. A LID is used directly;
-+// LID â€” the address the call's E2E keys and SSRCs derive from. A LID is used directly;
- // a phone JID is mapped via the LID store, seeded by a usync query if not cached.
- func resolvePeerLID(ctx context.Context, cli *whatsmeow.Client, target string) (types.JID, error) {
- 	jid, err := parseCallTarget(target)
-@@ -1402,7 +1534,7 @@
- 		return types.EmptyJID, err
- 	}
- 	if jid.Server == types.HiddenUserServer {
--		return jid, nil // already a LID — call it directly
-+		return jid, nil // already a LID â€” call it directly
- 	}
- 	if lid, err := cli.Store.LIDs.GetLIDForPN(ctx, jid); err == nil && !lid.IsEmpty() {
- 		return lid, nil
-@@ -1505,12 +1637,13 @@
+@@ -1505,6 +1706,7 @@
  	tokenID     uint32
  	authTokenID uint32
  	isFNA       bool
@@ -417,15 +411,7 @@
  	addresses   []relayAddress
  }
  
- type relayData struct {
--	relayKeyASCII []byte   // raw <key> content — the STUN MESSAGE-INTEGRITY key
--	relayTokens   [][]byte // indexed <token id=…>
-+	relayKeyASCII []byte   // raw <key> content â€” the STUN MESSAGE-INTEGRITY key
-+	relayTokens   [][]byte // indexed <token id=â€¦>
- 	endpoints     []relayEndpoint
- 	peerJID       types.JID
- }
-@@ -1644,6 +1777,7 @@
+@@ -1644,6 +1846,7 @@
  			tokenID:     attrUint(child, "token_id"),
  			authTokenID: attrUint(child, "auth_token_id"),
  			isFNA:       child.AttrGetter().String("is_fna") == "1",
@@ -433,16 +419,7 @@
  			addresses: []relayAddress{{
  				ipv4: fmt.Sprintf("%d.%d.%d.%d", ab[0], ab[1], ab[2], ab[3]),
  				port: binary.BigEndian.Uint16(ab[4:6]),
-@@ -1654,7 +1788,7 @@
- 	return rd
- }
- 
--// getMediaRelayEndpoint prefers an outbound (non-FNA, auth_token_id≠0) endpoint, else
-+// getMediaRelayEndpoint prefers an outbound (non-FNA, auth_token_idâ‰ 0) endpoint, else
- // any non-FNA, else the first. For an inbound call the caller's uplink RTP lands on their
- // FNA-marked relay, so we must allocate on that same relay or the relay never bridges the
- // peer's media (the callee connects but hears nothing).
-@@ -1665,6 +1799,22 @@
+@@ -1665,6 +1868,22 @@
  				return e
  			}
  		}
@@ -467,15 +444,6 @@
  		if e := &rd.endpoints[i]; !e.isFNA && e.authTokenID != 0 {
 --- a/engine_media.go
 +++ b/engine_media.go
-@@ -39,7 +39,7 @@
- }
- 
- // maybeStartMedia launches the media loop for callID once both the callKey and the relay
--// endpoint are known. It is idempotent — the loop starts exactly once per call.
-+// endpoint are known. It is idempotent â€” the loop starts exactly once per call.
- func (e *engine) maybeStartMedia(callID string) {
- 	e.mu.Lock()
- 	m := e.calls[callID]
 @@ -107,18 +107,72 @@
  	}()
  }
@@ -554,18 +522,7 @@
  	e.c.diag.Emit("relay", map[string]any{
  		"event": "endpoint", "relay_name": ep.relayName,
  		"ipv4": ep.addresses[0].ipv4, "port": ep.addresses[0].port, "token_id": ep.tokenID,
-@@ -182,8 +236,8 @@
- }
- 
- // runMedia runs the per-frame media loop over the relay DataChannel: the Player's frames
--// (or silence) → MLow → E2E-SRTP protect → DataChannel, and DataChannel → classify →
--// unprotect → MLow decode → the Call's sink. A 1 Hz allocate+ping keepalive holds the
-+// (or silence) â†’ MLow â†’ E2E-SRTP protect â†’ DataChannel, and DataChannel â†’ classify â†’
-+// unprotect â†’ MLow decode â†’ the Call's sink. A 1 Hz allocate+ping keepalive holds the
- // relay's consent freshness; the relay's binding-requests are answered with
- // binding-success. The working recipe is preserved exactly: a consent ping (0x0801) goes
- // out with the allocate at t+0, BEFORE any RTP; no STUN binding-requests are ever sent.
-@@ -220,19 +274,26 @@
+@@ -220,13 +274,20 @@
  	if err != nil {
  		return err
  	}
@@ -588,22 +545,6 @@
  		rd.relayKeyASCII,
  		[2]uint32{hbhFECTXSSRC, hbhFECRXSSRC},
  	)
- 
- 	// Send a consent ping (0x0801) immediately, together with the allocate and BEFORE any
--	// RTP. The relay won't forward the peer's media until consent (ping → pong) is
-+	// RTP. The relay won't forward the peer's media until consent (ping â†’ pong) is
- 	// established; RTP sent before the first ping is dropped and the relay never bridges.
- 	{
- 		var ptx [12]byte
-@@ -472,7 +533,7 @@
- 	}()
- 
- 	// Keepalive: re-send the Allocate AND a WhatsApp ping (0x0801) ~1 Hz. This matches the
--	// working capture exactly — allocate+ping every second, NO STUN binding-requests at
-+	// working capture exactly â€” allocate+ping every second, NO STUN binding-requests at
- 	// all; the relay answers allocate-success + pong and bridges the peer's media.
- 	// Binding-requests instead flip the relay into ICE-consent mode and the bridge never
- 	// forms.
 @@ -517,7 +578,9 @@
  							connectedRemoteParticipantPIDs(*update, audioReceivers.selfID),
  							relayTx,
@@ -636,24 +577,6 @@
  					return
  				}
  			}
-@@ -556,7 +625,7 @@
- 	}()
- 
- 	// Send loop: frame-paced from connect, NOT gated on the Player. WhatsApp starts media
--	// on relay connection and the relay learns our SSRC from our FIRST RTP — it won't
-+	// on relay connection and the relay learns our SSRC from our FIRST RTP â€” it won't
- 	// bridge the peer's media until it sees our stream. So we send silence frames until the
- 	// Player has real audio (nextFrame() == nil means send silence).
- 	frameInterval := time.Duration(FrameSamples) * time.Second / SampleRate
-@@ -599,7 +668,7 @@
- 		}
- 	}()
- 
--	// Receive: DataChannel → classify. RTP → unprotect → decode → sink. A non-RTP STUN
-+	// Receive: DataChannel â†’ classify. RTP â†’ unprotect â†’ decode â†’ sink. A non-RTP STUN
- 	// binding request gets a binding-success reply (ICE consent freshness, RFC 7675);
- 	// without it the relay drops the binding and the peer's call fails.
- 	// Video receive uses participant-scoped WARP pipelines keyed on each video SSRC.
 @@ -804,6 +873,7 @@
  	}()
  
@@ -744,26 +667,6 @@
  	onMuteState               func(muted bool)
  	videoSink                 VideoSink
  	onVideoState              func(VideoState)
-@@ -603,8 +606,8 @@
- 	return c.videoSink
- }
- 
--// OnVideoState registers a callback fired for each inbound <video> state stanza — the peer's
--// video on/off, the audio→video upgrade, and device orientation (rotate by Orientation × 90°).
-+// OnVideoState registers a callback fired for each inbound <video> state stanza â€” the peer's
-+// video on/off, the audioâ†’video upgrade, and device orientation (rotate by Orientation Ã— 90Â°).
- func (c *Call) OnVideoState(fn func(VideoState)) {
- 	c.mu.Lock()
- 	c.onVideoState = fn
-@@ -669,7 +672,7 @@
- 	return c.onVideoState
- }
- 
--// SendVideo sends one already-encoded H.264 access unit (Annex-B) to the peer — fed from an
-+// SendVideo sends one already-encoded H.264 access unit (Annex-B) to the peer â€” fed from an
- // external encoder (browser WebCodecs, ffmpeg, hardware). Returns an error if the call has no
- // active video media yet. meowcaller does not encode pixels (no pure-Go H.264 encoder); this
- // is the video analog of writing a sample to a track.
 @@ -737,6 +740,35 @@
  	}
  }
@@ -817,9 +720,9 @@
 +// packets broadcast to every relay, inbound merges from all of them.
 +//
 +// Phones run client-side relay election shortly after accept and move their
-+// media to whichever offered relay they measured closest â€” which is frequently
++// media to whichever offered relay they measured closest — which is frequently
 +// not the first one listed. A callee bound to a single relay goes deaf at that
-+// moment (observed live as 5â€“8 comfort-noise packets then permanent silence;
++// moment (observed live as 5–8 comfort-noise packets then permanent silence;
 +// issues #21 and #22). Being connected everywhere makes the election
 +// outcome irrelevant. WhatsApp Web callers never migrate, which is why
 +// single-relay binding appeared to work when tested from web.
@@ -1006,7 +909,7 @@
 +// relay bridging the same session, one packet can arrive once per relay;
 +// duplicates reaching the playout buffer read as a zero-timestamp delta, which
 +// resets it and audibly glitches the stream. A 1024-slot ring per SSRC covers
-+// ~61s of 60ms audio frames â€” far beyond any realistic reorder window.
++// ~61s of 60ms audio frames — far beyond any realistic reorder window.
 +type rtpReplayFilter struct {
 +	streams map[uint32]*replayRing
 +}
@@ -1040,11 +943,12 @@
 +}
 --- /dev/null
 +++ b/engine_linked_device_reject_test.go
-@@ -0,0 +1,134 @@
+@@ -0,0 +1,192 @@
 +package meowcaller
 +
 +import (
 +	"testing"
++	"time"
 +
 +	waBinary "github.com/polymorfa/hypermeow/binary"
 +
@@ -1064,6 +968,7 @@
 +		preaccept types.JID
 +		answering types.JID
 +		ended     bool
++		deferred  bool
 +		reason    string
 +	}{
 +		{name: "unsupported secondary before preaccept", rejecting: desktop},
@@ -1071,18 +976,35 @@
 +		{name: "different secondary while desktop rings", rejecting: otherDesktop, preaccept: desktop},
 +		{name: "unsupported secondary after preaccept", rejecting: desktop, preaccept: desktop, reason: "unsupported"},
 +		{name: "primary decline", rejecting: primary, preaccept: desktop, ended: true},
-+		{name: "desktop decline after preaccept without capability", rejecting: desktop, preaccept: desktop, ended: true},
++		{name: "desktop decline after preaccept without capability", rejecting: desktop, preaccept: desktop, ended: true, deferred: true},
 +		{name: "phone dismissal after desktop answered", rejecting: primary, answering: desktop},
 +		{name: "desktop dismissal after phone answered", rejecting: desktop, answering: primary},
 +		{name: "answering device decline", rejecting: desktop, answering: desktop, ended: true},
 +	} {
 +		t.Run(tc.name, func(t *testing.T) {
 +			e, call := testEngineWithOutgoingCall()
++			t.Cleanup(func() { e.finishCall(call.ID(), "cleanup") })
++			ended := make(chan string, 1)
++			call.OnEnd(func(reason string) { ended <- reason })
 +			if !tc.preaccept.IsEmpty() {
 +				e.onPreAccept(&events.CallPreAccept{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: tc.preaccept}})
 +			}
 +			e.calls[call.ID()].answeringDevice = tc.answering
 +			e.onReject(&events.CallReject{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: tc.rejecting}, Data: &waBinary.Node{Tag: "reject", Attrs: waBinary.Attrs{"reason": tc.reason}}})
++			if tc.deferred {
++				if call.State() == CallPhaseEnded {
++					t.Fatal("secondary decline was honored before other devices could respond")
++				}
++				e.calls[call.ID()].rejectTimer.Reset(0)
++				select {
++				case reason := <-ended:
++					if reason != "rejected" {
++						t.Fatalf("end reason = %s, want rejected", reason)
++					}
++				case <-time.After(time.Second):
++					t.Fatal("last device decline was not honored after the response window")
++				}
++			}
 +			if got := call.State() == CallPhaseEnded; got != tc.ended {
 +				t.Fatalf("call ended = %v, want %v", got, tc.ended)
 +			}
@@ -1092,6 +1014,9 @@
 +
 +func TestSecondaryRejectionPreservesOtherRingingDevice(t *testing.T) {
 +	e, call := testEngineWithOutgoingCall()
++	t.Cleanup(func() { e.finishCall(call.ID(), "cleanup") })
++	ended := make(chan string, 1)
++	call.OnEnd(func(reason string) { ended <- reason })
 +	desktop := peerJID().ToNonAD()
 +	desktop.Device = 25
 +	otherDesktop := desktop
@@ -1104,8 +1029,44 @@
 +		t.Fatal("one secondary rejection ended the call while another device was ringing")
 +	}
 +	e.onReject(&events.CallReject{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: otherDesktop}})
-+	if call.State() != CallPhaseEnded {
-+		t.Fatal("rejection by the last ringing device did not end the call")
++	e.calls[call.ID()].rejectTimer.Reset(0)
++	select {
++	case <-ended:
++	case <-time.After(time.Second):
++		t.Fatal("rejection by the last ringing device did not end the call after the response window")
++	}
++}
++
++func TestSecondaryRejectBeforeOtherDevicePreaccepts(t *testing.T) {
++	e, call := testEngineWithOutgoingCall()
++	t.Cleanup(func() { e.finishCall(call.ID(), "cleanup") })
++	desktop := peerJID().ToNonAD()
++	desktop.Device = 26
++	e.onPreAccept(&events.CallPreAccept{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: desktop}})
++	e.onReject(&events.CallReject{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: desktop}})
++	if call.State() == CallPhaseEnded || e.calls[call.ID()].rejectTimer == nil {
++		t.Fatal("early automatic rejection must allow the other devices to respond")
++	}
++	e.onPreAccept(&events.CallPreAccept{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: peerJID().ToNonAD()}})
++	if call.State() == CallPhaseEnded || e.calls[call.ID()].rejectTimer != nil {
++		t.Fatal("later primary preaccept must cancel the deferred rejection")
++	}
++	if e.finishCallMatching(call.ID(), "rejected", func(m *engineCall) bool {
++		return m.answeringDevice.IsEmpty() && len(m.preAcceptedDevices) == 0
++	}) {
++		t.Fatal("a delayed reject callback must not end another ringing device's call")
++	}
++}
++
++func TestLateTimeoutDoesNotEndAnsweredCall(t *testing.T) {
++	e, call := testEngineWithOutgoingCall()
++	t.Cleanup(func() { e.finishCall(call.ID(), "cleanup") })
++	e.calls[call.ID()].answeringDevice = peerJID()
++	if e.finishCallMatching(call.ID(), "timeout", func(m *engineCall) bool { return m.answeringDevice.IsEmpty() }) {
++		t.Fatal("a delayed ring timeout ended the answered call")
++	}
++	if call.State() == CallPhaseEnded {
++		t.Fatal("answered call should remain active")
 +	}
 +}
 +
