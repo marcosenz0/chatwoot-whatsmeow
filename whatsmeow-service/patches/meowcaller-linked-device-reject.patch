@@ -136,9 +136,59 @@
  		Msg("peer rejected call")
  	e.c.diag.Emit("meta", map[string]any{
  		"event": "peer_reject", "call_id": ev.CallID, "from": ev.From.String(),
+@@ -1505,6 +1539,7 @@
+ 	tokenID     uint32
+ 	authTokenID uint32
+ 	isFNA       bool
++	c2rRTT      uint32
+ 	addresses   []relayAddress
+ }
+ 
+@@ -1644,6 +1679,7 @@
+ 			tokenID:     attrUint(child, "token_id"),
+ 			authTokenID: attrUint(child, "auth_token_id"),
+ 			isFNA:       child.AttrGetter().String("is_fna") == "1",
++			c2rRTT:      attrUint(child, "c2r_rtt"),
+ 			addresses: []relayAddress{{
+ 				ipv4: fmt.Sprintf("%d.%d.%d.%d", ab[0], ab[1], ab[2], ab[3]),
+ 				port: binary.BigEndian.Uint16(ab[4:6]),
+@@ -1665,6 +1701,22 @@
+ 				return e
+ 			}
+ 		}
++		// Some direct-call offers omit is_fna. Prefer the caller's relay with
++		// the lowest measured RTT, rather than our own auth-token relay.
++		// https://github.com/purpshell/meowcaller/issues/40
++		var best *relayEndpoint
++		for i := range rd.endpoints {
++			ep := &rd.endpoints[i]
++			if ep.authTokenID != 0 || ep.c2rRTT == 0 {
++				continue
++			}
++			if best == nil || ep.c2rRTT < best.c2rRTT {
++				best = ep
++			}
++		}
++		if best != nil {
++			return best
++		}
+ 	}
+ 	for i := range rd.endpoints {
+ 		if e := &rd.endpoints[i]; !e.isFNA && e.authTokenID != 0 {
+--- a/engine_media.go
++++ b/engine_media.go
+@@ -118,7 +118,7 @@
+ 		return nil, nil, fmt.Errorf("relay has no usable endpoint")
+ 	}
+ 	addr := &net.UDPAddr{IP: net.ParseIP(ep.addresses[0].ipv4), Port: int(ep.addresses[0].port)}
+-	log.Info().Str("relay_name", ep.relayName).Str("addr", addr.String()).Msg("connecting media transport to relay")
++	log.Info().Str("relay_name", ep.relayName).Str("addr", addr.String()).Bool("inbound", inbound).Bool("is_fna", ep.isFNA).Uint32("c2r_rtt", ep.c2rRTT).Msg("connecting media transport to relay")
+ 	e.c.diag.Emit("relay", map[string]any{
+ 		"event": "endpoint", "relay_name": ep.relayName,
+ 		"ipv4": ep.addresses[0].ipv4, "port": ep.addresses[0].port, "token_id": ep.tokenID,
 --- /dev/null
 +++ b/engine_linked_device_reject_test.go
-@@ -0,0 +1,67 @@
+@@ -0,0 +1,97 @@
 +package meowcaller
 +
 +import (
@@ -204,5 +254,35 @@
 +	e.onReject(&events.CallReject{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: otherDesktop}})
 +	if call.State() != CallPhaseEnded {
 +		t.Fatal("rejection by the last ringing device did not end the call")
++	}
++}
++
++func TestIncomingRelayWithoutFNA(t *testing.T) {
++	for _, test := range []struct {
++		name      string
++		inbound   bool
++		endpoints []relayEndpoint
++		want      string
++	}{
++		{"FNA remains authoritative", true, []relayEndpoint{{relayName: "own", authTokenID: 1, c2rRTT: 1}, {relayName: "caller", isFNA: true, c2rRTT: 50}}, "caller"},
++		{"lowest caller RTT with zero token index", true, []relayEndpoint{{relayName: "own", authTokenID: 1, c2rRTT: 1}, {relayName: "far", tokenID: 2, c2rRTT: 147}, {relayName: "near", tokenID: 0, c2rRTT: 38}}, "near"},
++		{"caller RTT ordering", true, []relayEndpoint{{relayName: "far", c2rRTT: 147}, {relayName: "near", c2rRTT: 38}}, "near"},
++		{"missing RTT preserves existing choice", true, []relayEndpoint{{relayName: "caller"}, {relayName: "own", authTokenID: 1}}, "own"},
++		{"outbound still uses own relay", false, []relayEndpoint{{relayName: "caller", c2rRTT: 1}, {relayName: "own", authTokenID: 1, c2rRTT: 50}}, "own"},
++	} {
++		t.Run(test.name, func(t *testing.T) {
++			ep := getMediaRelayEndpoint(&relayData{endpoints: test.endpoints}, test.inbound)
++			if ep == nil || ep.relayName != test.want {
++				t.Fatalf("relay = %+v, want %s", ep, test.want)
++			}
++		})
++	}
++}
++
++func TestParseCallerRelayRTT(t *testing.T) {
++	node := &waBinary.Node{Content: []waBinary.Node{{Tag: "te2", Attrs: waBinary.Attrs{"relay_name": "caller", "c2r_rtt": "38", "token_id": "0"}, Content: []byte{127, 0, 0, 1, 13, 150}}}}
++	rd := parseRelayData(node)
++	if len(rd.endpoints) != 1 || rd.endpoints[0].c2rRTT != 38 || rd.endpoints[0].tokenID != 0 {
++		t.Fatalf("caller relay metadata = %+v", rd.endpoints)
 +	}
 +}
