@@ -2,6 +2,8 @@
 
 This file records the important project context for future sessions. Do not add tokens, passwords, personal access keys, customer PII, or private phone/message contents here.
 
+For the complete September 29 calls architecture, deployment map, tests, limitations, and resume checklist, see [whatsmeow-calls-handoff-2026-09-29.md](whatsmeow-calls-handoff-2026-09-29.md).
+
 ## Current Goal
 
 Make the Chatwoot fork behave like official Chatwoot in the conversation UI while keeping the direct WhatsApp connection through `whatsmeow-service`.
