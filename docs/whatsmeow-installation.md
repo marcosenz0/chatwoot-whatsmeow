@@ -2,7 +2,11 @@
 
 Este documento explica como instalar e manter este fork pessoal do Chatwoot com WhatsApp Direct via `whatsmeow-service`.
 
-O estado atual do canario de chamadas nas tres instancias e as pendencias para retomar a PR #21 estao em [whatsmeow-calls-handoff-2026-09-29.md](whatsmeow-calls-handoff-2026-09-29.md).
+O estado atual do canario de chamadas na principal e as pendencias para retomar a PR #21 estao em [whatsmeow-calls-handoff-2026-09-29.md](whatsmeow-calls-handoff-2026-09-29.md).
+
+Regra atual do usuario (29/09/2026): desenvolver, testar e publicar somente em `chatwoot.marcoswt.com.br`; MX/MD exigem novo pedido explicito. Preservar servicos, bancos, sessoes e rotas separados. As instrucoes de tres instancias abaixo sao o mapa de instalacao, nao autorizacao para redeploy agora.
+
+Para diagnosticar recusa imediata, verificar todos os dispositivos vinculados ao numero de destino. Um cliente pode enviar preaccept e Reject sem motivo mesmo com o checkbox Reject Calls desligado; essa resposta e indistinguivel de uma recusa manual no Windows. Em 29/09, o numero pessoal no MX foi desconectado com autorizacao especifica e o usuario removeu as demais sessoes concorrentes; chamadas de saida de voz e video funcionaram depois. Nao reconectar esse cliente sem pedido. Investigar estados active/pending/starting no gerenciador de chamadas antes de atribuir a causa ao checkbox.
 
 Use este guia quando quiser subir o projeto no PC local, Docker, Easypanel ou Portainer. O fluxo principal continua sendo pelo GitHub, no branch `develop`.
 
