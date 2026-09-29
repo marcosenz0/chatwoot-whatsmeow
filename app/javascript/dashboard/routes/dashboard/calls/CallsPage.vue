@@ -129,15 +129,6 @@ const selectMode = value => {
   contacts.value = [];
   contactSearch.value = '';
 };
-const openConversation = conversationId => {
-  router.push({
-    name: 'inbox_conversation',
-    params: {
-      accountId: route.params.accountId,
-      conversation_id: conversationId,
-    },
-  });
-};
 const startCall = async (item, withVideo = false) => {
   if (!item.inbox_id || (!item.phone_number && !item.conversation_id)) {
     useAlert(t('WHATSAPP_CALLS.PHONE'));
@@ -362,8 +353,12 @@ onBeforeUnmount(() => clearInterval(pollTimer));
         >
           <span
             class="flex size-10 items-center justify-center rounded-full bg-n-teal-9 text-white"
-            ><Icon icon="i-lucide-user-round-plus" class="size-5"
-          /></span>
+          >
+            <Icon
+              icon="i-lucide-user-round-plus"
+              class="size-5"
+            />
+          </span>
           <span class="text-sm font-medium text-n-slate-12">{{
             t('WHATSAPP_CALLS.ADD_FAVORITE')
           }}</span>
@@ -484,8 +479,12 @@ onBeforeUnmount(() => clearInterval(pollTimer));
           >
             <span
               class="flex size-14 items-center justify-center rounded-full bg-n-alpha-2 hover:bg-n-alpha-3"
-              ><Icon :icon="action.icon" class="size-6"
-            /></span>
+            >
+              <Icon
+                :icon="action.icon"
+                class="size-6"
+              />
+            </span>
             {{ t(`WHATSAPP_CALLS.${action.label}`) }}
           </button>
         </div>

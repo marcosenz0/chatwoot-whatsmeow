@@ -1,11 +1,11 @@
 # Handoff: chamadas WhatsApp Direct no Chatwoot (29/09/2026)
 
-Este arquivo permite retomar a integracao em outro chat ou com outra IA. Nao registrar aqui segredos, numeros pessoais, conteudo de mensagens ou tokens de sessao. O estado descrito e uma implantacao canario: a sinalizacao de voz foi testada, mas a midia ainda nao recebeu validacao completa.
+Este arquivo permite retomar a integracao em outro chat ou com outra IA. Nao registrar aqui segredos, numeros pessoais, conteudo de mensagens ou tokens de sessao. A sinalizacao de voz foi testada na revisao anterior; audio e video ainda exigem validacao de midia ponta a ponta.
 
 ## Onde continuar
 
 - Repositorio: `marcosenz0/chatwoot-whatsmeow`; PR [#21](https://github.com/marcosenz0/chatwoot-whatsmeow/pull/21), **em rascunho**; branch remota `codex/whatsmeow-voice-calls`.
-- Checkout isolado: `C:\Users\marco\.codex\worktrees\whatsmeow-voice-calls\Fork Chatwoot Marcos`. A imagem implantada foi gerada do commit de codigo `73dfd600d0101e2b47b72fcd44ca3a521c43c269`; o commit `d33f7c95c7` atualizou a documentacao apos o deploy. Commits de documentacao posteriores nao exigem outra implantacao da mesma logica.
+- Checkout isolado: `C:\Users\marco\.codex\worktrees\whatsmeow-voice-calls\Fork Chatwoot Marcos`. A imagem **anteriormente implantada** foi gerada do commit `73dfd600d0101e2b47b72fcd44ca3a521c43c269`. O desenvolvimento novo iniciou no commit `a99e7157b8b509eb80d217916095d2e5afaaf825`, com correcoes subsequentes na mesma branch; conferir o HEAD da PR, GitHub Actions e EasyPanel antes de presumir que esta no ar.
 - A pasta principal `C:\Users\marco\OneDrive\Área de Trabalho\Projeto\Fork Chatwoot Marcos` esta em `develop` e contem outras alteracoes locais nao relacionadas. Nao usar `git reset`, `git clean`, `git pull` ou troca de branch que as descarte. O codigo de chamadas esta na branch/PR acima, nao no `develop` desse checkout.
 - Este handoff deve ser lido junto com [whatsmeow-progress.md](whatsmeow-progress.md) e [whatsmeow-installation.md](whatsmeow-installation.md). O Chatwoot oficial (`chatwootoficial.marcoswt.com.br`) fica fora deste escopo.
 
@@ -13,11 +13,20 @@ Este arquivo permite retomar a integracao em outro chat ou com outra IA. Nao reg
 
 - Mostrar botoes de chamada de voz e video no cabecalho de conversas diretas de `Channel::Whatsmeow`, de forma parecida com WhatsApp Web. Grupos e outros canais nao recebem os controles.
 - O painel de chamada permite iniciar, atender, recusar, silenciar o microfone, ligar/desligar a camera e encerrar. A implementacao tenta promover uma chamada de voz para video dentro da mesma ligacao.
-- A interface usa `WhatsmeowConversationCall.vue` e `ConversationHeader.vue`; a API do navegador esta em `app/javascript/dashboard/api/whatsmeowCalls.js`. Strings fonte foram adicionadas somente ao locale ingles, conforme a regra do projeto para o Crowdin.
+- A interface usa `WhatsmeowConversationCall.vue` e `ConversationHeader.vue`; a API do navegador esta em `app/javascript/dashboard/api/whatsmeowCalls.js`. A pedido explicito do usuario, as strings da ligacao e da nova pagina estao traduzidas em `pt_BR`, alem do `en` fonte.
 - Rails cria um token JWT HS256 de curta duracao (90 s) em `POST /api/v1/accounts/:account_id/conversations/:conversation_id/whatsmeow_call_session`. O controller esta em `app/controllers/api/v1/accounts/conversations/whatsmeow_call_sessions_controller.rb`; a disponibilidade da chamada sai no payload da conversa. A sessao vale para o inbox e o contato da conversa direta.
 - `whatsmeow-service/calls.go` oferece WebSocket autenticado em `/calls/:channel_id` na porta interna `8081`, separado da API Go normal na `8080`. Ele valida token e `Origin` HTTPS exata, encaminha sinalizacao WhatsApp e quadros PCM/H264, e mantem um gerenciador de chamadas por cliente/sessao WhatsApp. `whatsmeow-service/main.go` inicia esse listener somente com `WHATSMEOW_CALLS_ENABLED=true`.
 - O Go usa revisoes fixadas de `github.com/purpshell/meowcaller` e `github.com/polymorfa/hypermeow` em `go.mod`. O Dockerfile preserva a correcao local de recibos de Status por patch. A biblioteca de chamadas descreve video como experimental; nao presumir que a existencia dos botoes prove video funcional.
 - A ultima correcao (`73dfd600d0`) envia `ended` quando um convite recebido e cancelado, emite `connected` ao atender, protege o fechamento duplicado de `AudioContext` no Vue e registra o primeiro quadro de microfone e de audio remoto para diagnostico.
+
+## Revisao nova de interface e historico (`a99e7157b8`)
+
+- A subaba `Ligacoes` foi adicionada apos `Status` na barra de Conversas, com icone de telefone. Sua rota Vue e `/app/accounts/:accountId/whatsmeow/calls` e usa `CallsPage.vue`. A listagem inclui favoritas, busca, recentes de entrada/saida/perdidas, foto/nome, duracao e nome da instancia sobre cada contato. A API de leitura e `GET /api/v1/accounts/:account_id/whatsmeow/calls`, sempre limitada aos inboxes acessiveis ao agente.
+- O historico e registrado **a partir da implantacao nova** por eventos assinados `call_started`, `call_connected` e `call_ended` enviados pelo Go ao webhook existente. A tabela `whatsmeow_calls` foi criada na migration `20260929090000_create_whatsmeow_calls.rb`; o servico `Whatsmeow::CallEventService` consolida eventos repetidos ou fora de ordem e relaciona contato/conversa/instancia. Nao ha importacao retroativa de chamadas antigas do WhatsApp.
+- `Nova ligacao` busca contatos salvos; `Discar numero` verifica o numero na sessao WhatsApp do inbox escolhido e abre/cria a conversa correspondente, iniciando a chamada de voz ou video. `Novo link de ligacao` usa a API real `CreateCallLink` do `meowcaller` via Rails/Go. `Programar ligacao` cria esse link e baixa um arquivo `.ics` para o usuario adicionar convidados no calendario; isto **nao** cria um agendamento nativo dentro do WhatsApp. Favoritos sao guardados no `localStorage` por conta e usuario deste navegador, sem sincronizacao entre dispositivos.
+- O painel flutuante passou a exibir foto, nome e numero do contato, status, duracao e botoes de microfone/camera, convite de participante por numero, acesso rapido ao chat e encerrar. O Go chama `AddParticipant` para convidar e aceita automaticamente solicitacao de video durante a ligacao. A chamada recebida so passa para `connected` quando a biblioteca dispara `OnReady`, evitando mostrar uma conexao antes da midia estar pronta.
+- O controller novo e `Api::V1::Accounts::WhatsmeowCallsController` (`index`, `dial`, `create_link`); no Go, o endpoint interno e `POST /sessions/:channel_id/call-links` protegido por token compartilhado. Nao confundir com o recurso `Call` Enterprise do Chatwoot.
+- Verificacoes locais apos essa revisao: `go test ./...` passou; sintaxe Ruby e `git diff --check` passaram; Prettier analisou e formatou os componentes Vue. O Bundler/RSpec nao roda neste Windows porque faltam gems do projeto; os atalhos ESLint locais apontam para um `node_modules` compartilhado com junctions antigas. O primeiro CI do commit `a99e7157b8` apontou tres erros de ESLint em `CallsPage.vue` (helper nao usado e atributos na mesma linha); estes erros foram corrigidos em commit subsequente e precisam de nova verificacao.
 
 ## Tres instancias isoladas no EasyPanel
 
@@ -47,9 +56,9 @@ Projeto EasyPanel: `marcos-apps`. As tres bases de dados, Redis, chaves, sessoes
 ## Pendencias antes de declarar pronto
 
 1. Fazer uma chamada de voz com dois dispositivos/participantes e **ouvir** audio inteligivel nos dois sentidos, alem de confirmar quadros de microfone e audio remoto nos logs atuais do Go. Testar mudo, reconexao/cancelamento e encerramento.
-2. Em dispositivo com camera real, testar video de saida e de entrada, ligar a camera durante a mesma chamada de voz, desligar e encerrar. O PC usado ate aqui nao possui dispositivo PnP da classe Camera; video e sua promocao nao foram validados.
+2. Testar video de saida e de entrada, ligar a camera durante a mesma chamada de voz, desligar e encerrar. **Correcao:** o PC tem a camera `C922 Pro Stream Webcam`, detectada nas classes PnP `Image` e `MEDIA`; a busca anterior apenas pela classe `Camera` estava errada. O usuario informou que ja permitiu camera no Chatwoot. Video e sua promocao ainda nao foram validados.
 3. Testar uma chamada real em MX e, apos criar/parear um inbox Whatsmeow no MD, tambem no MD. Ate agora apenas o principal teve chamada real; os outros dois passaram nos testes de imagem, health e rota autenticada.
-4. Revisar as falhas de CI da PR, atualizar a documentacao conforme os resultados e so entao decidir o merge. Depois do merge, publicar a mesma revisao aprovada para os tres web/Sidekiq e o Go correspondente em cada servico. Nao redeployar o Go antigo de `develop` antes de levar o codigo de chamadas para la.
+4. Conferir CI da revisao `a99e7157b8`, publicar a imagem correspondente nos tres web/Sidekiq e atualizar cada servico Go da sua propria instancia para a mesma branch. Rodar a migration em cada banco (verificar o job de release do Dockerfile/EasyPanel), inspecionar a aba `Ligacoes` nos tres dominos, e testar chamadas reais no principal. Registrar hash/tag exatos apos o deploy. Nao redeployar o Go antigo de `develop` antes de levar o codigo de chamadas para la.
 
 ## Referencias de pesquisa
 

@@ -1,4 +1,4 @@
-class CreateWhatsmeowCalls < ActiveRecord::Migration[7.0]
+class CreateWhatsmeowCalls < ActiveRecord::Migration[7.1]
   def change
     create_table :whatsmeow_calls do |t|
       t.references :account, null: false, foreign_key: true
