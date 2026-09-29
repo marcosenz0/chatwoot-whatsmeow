@@ -6,7 +6,7 @@ class BackfillWhatsmeowCallMessages < ActiveRecord::Migration[7.1]
          source_id, sender_type, sender_id, content_attributes, created_at, updated_at)
       SELECT calls.account_id, calls.inbox_id, calls.conversation_id,
         CASE calls.direction WHEN 'incoming' THEN 0 ELSE 1 END, 12,
-        CASE WHEN accounts.locale = 'pt_BR' THEN
+        CASE WHEN accounts.locale = 16 THEN
           CASE WHEN calls.video THEN 'Ligação de vídeo' ELSE 'Ligação de voz' END
         ELSE CASE WHEN calls.video THEN 'Video call' ELSE 'Voice call' END END,
         'whatsmeow-call:' || calls.source_id,

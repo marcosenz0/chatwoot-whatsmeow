@@ -542,10 +542,10 @@ const decodeVideo = bytes => {
   );
 };
 
-const resetCall = async () => {
+const resetCall = async (nextState = 'idle') => {
   mediaGeneration += 1;
-  state.value = 'idle';
-  busy.value = false;
+  state.value = nextState;
+  busy.value = nextState === 'ending';
   muted.value = false;
   remoteVideoOn.value = false;
   videoCall.value = false;
@@ -565,16 +565,17 @@ const resetCall = async () => {
 };
 
 const finishCall = async reason => {
-  if (state.value === 'idle' || state.value === 'ended') return;
+  if (['idle', 'ending', 'ended'].includes(state.value)) return;
   const wasVideo = videoCall.value;
   const previousError = mediaError.value;
   endedText.value = t(
     `CONVERSATION.WHATSMEOW_CALL.${/reject|declin/.test(reason || '') ? 'DECLINED' : 'ENDED'}`
   );
-  await resetCall();
+  await resetCall('ending');
   videoCall.value = wasVideo;
   mediaError.value = previousError;
   state.value = 'ended';
+  busy.value = false;
 };
 
 const onSocketMessage = event => {
@@ -729,6 +730,7 @@ const answer = async () => {
 };
 
 const endCall = () => {
+  if (state.value === 'ending') return;
   if (state.value === 'ended') {
     mediaError.value = '';
     resetCall();

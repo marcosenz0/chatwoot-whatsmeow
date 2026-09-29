@@ -62,6 +62,7 @@ RSpec.describe Whatsmeow::CallEventService do
   end
 
   it 'backfills existing calls idempotently without sending WhatsApp messages' do
+    account.update!(locale: 'pt_BR')
     call = WhatsmeowCall.create!(account: account, inbox: inbox, conversation: conversation, contact: contact,
                                  source_id: 'old-call', peer_jid: '123456789012345@lid', direction: 'outgoing', status: 'completed', video: true,
                                  started_at: 3.minutes.ago, connected_at: 2.minutes.ago, ended_at: 1.minute.ago)
@@ -72,5 +73,6 @@ RSpec.describe Whatsmeow::CallEventService do
     message = conversation.messages.find_by!(source_id: 'whatsmeow-call:old-call')
     expect(message.content_attributes['whatsmeow_call']).to include('id' => call.id, 'video' => true, 'duration_seconds' => 60)
     expect(message.historical?).to be(true)
+    expect(message.content).to eq('Ligação de vídeo')
   end
 end
