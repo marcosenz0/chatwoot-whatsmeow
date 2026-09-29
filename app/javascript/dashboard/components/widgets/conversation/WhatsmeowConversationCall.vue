@@ -82,10 +82,10 @@ const sendMedia = (kind, bytes) => {
 };
 
 const stopMicrophone = async () => {
-  if (audioProcessor) audioProcessor.disconnect();
-  if (microphoneSource) microphoneSource.disconnect();
-  microphone?.getTracks().forEach(track => track.stop());
-  if (audioContext) await audioContext.close();
+  const processor = audioProcessor;
+  const source = microphoneSource;
+  const stream = microphone;
+  const context = audioContext;
   audioProcessor = null;
   microphoneSource = null;
   microphone = null;
@@ -93,6 +93,10 @@ const stopMicrophone = async () => {
   captureBuffer = [];
   captureProgress = 0;
   nextPlaybackTime = 0;
+  processor?.disconnect();
+  source?.disconnect();
+  stream?.getTracks().forEach(track => track.stop());
+  if (context && context.state !== 'closed') await context.close();
 };
 
 const startMicrophone = async () => {

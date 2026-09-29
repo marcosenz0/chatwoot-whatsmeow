@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -107,6 +108,7 @@ type browserAudioSource struct {
 	frames chan []float32
 	done   chan struct{}
 	once   sync.Once
+	first  sync.Once
 }
 
 func newBrowserAudioSource() *browserAudioSource {
@@ -131,6 +133,7 @@ func (a *browserAudioSource) push(data []byte) {
 	if len(data) != meowcaller.FrameSamples*2 {
 		return
 	}
+	a.first.Do(func() { log.Print("Whatsmeow browser call: first microphone audio frame") })
 	frame := make([]float32, meowcaller.FrameSamples)
 	for i := range frame {
 		frame[i] = float32(int16(binary.LittleEndian.Uint16(data[i*2:]))) / 32768
@@ -225,7 +228,23 @@ func (m *browserCallManager) onIncoming(call *meowcaller.Call) {
 		}
 	}
 	m.mu.Unlock()
-	call.OnEnd(func(string) { m.finish(call) })
+	call.OnEnd(func(reason string) {
+		m.mu.Lock()
+		pending := m.pending == call
+		matching := make([]*callSocket, 0, len(m.sockets))
+		if pending {
+			for socket := range m.sockets {
+				if callPeerMatches(m.wa, call.Peer(), socket.claims.ContactJID) {
+					matching = append(matching, socket)
+				}
+			}
+		}
+		m.mu.Unlock()
+		for _, socket := range matching {
+			socket.event(callEvent{Event: "ended", CallID: call.ID(), Message: reason})
+		}
+		m.finish(call)
+	})
 	for _, socket := range sockets {
 		socket.event(callEvent{Event: "incoming", CallID: call.ID(), Video: call.IsVideo()})
 	}
@@ -233,12 +252,14 @@ func (m *browserCallManager) onIncoming(call *meowcaller.Call) {
 
 func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call) {
 	audio := newBrowserAudioSource()
+	var firstReceived sync.Once
 	m.mu.Lock()
 	m.audio = audio
 	m.mu.Unlock()
 
 	call.Play(audio)
 	call.Receive(meowcaller.SinkFunc(func(frame []float32) {
+		firstReceived.Do(func() { log.Print("Whatsmeow browser call: first decoded remote audio frame") })
 		data := make([]byte, len(frame)*2)
 		for i, sample := range frame {
 			value := int(sample * 32768)
@@ -326,7 +347,7 @@ func (m *browserCallManager) answer(socket *callSocket) error {
 		m.finish(call)
 		return err
 	}
-	socket.event(callEvent{Event: "answering", CallID: call.ID(), Video: call.IsVideo()})
+	socket.event(callEvent{Event: "connected", CallID: call.ID(), Video: call.IsVideo()})
 	return nil
 }
 
