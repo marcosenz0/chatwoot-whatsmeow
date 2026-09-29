@@ -1,6 +1,13 @@
 <script setup>
 /* global MediaStreamTrackProcessor, VideoEncoder, VideoDecoder, EncodedVideoChunk */
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute, useRouter } from 'vue-router';
 import { useAlert } from 'dashboard/composables';
@@ -33,6 +40,12 @@ const connectedAt = ref(null);
 const elapsedSeconds = ref(0);
 const localVideo = ref(null);
 const remoteCanvas = ref(null);
+const devices = ref([]);
+const selectedMicrophoneId = ref('default');
+const selectedSpeakerId = ref('default');
+const selectedCameraId = ref('default');
+const audioDevicesOpen = ref(false);
+const cameraDevicesOpen = ref(false);
 let socket;
 let socketConversationId;
 let openingSocket;
@@ -76,6 +89,23 @@ const elapsedTime = computed(
   () =>
     `${String(Math.floor(elapsedSeconds.value / 60)).padStart(2, '0')}:${String(elapsedSeconds.value % 60).padStart(2, '0')}`
 );
+const deviceChoices = kind => [
+  {
+    deviceId: 'default',
+    label: t('CONVERSATION.WHATSMEOW_CALL.DEFAULT_DEVICE'),
+  },
+  ...devices.value.filter(
+    device => device.kind === kind && device.deviceId !== 'default'
+  ),
+];
+const microphones = computed(() => deviceChoices('audioinput'));
+const speakers = computed(() => deviceChoices('audiooutput'));
+const cameras = computed(() => deviceChoices('videoinput'));
+const deviceName = (device, index, kind) =>
+  device.label || `${t(`CONVERSATION.WHATSMEOW_CALL.${kind}`)} ${index + 1}`;
+const loadDevices = async () => {
+  devices.value = await navigator.mediaDevices.enumerateDevices();
+};
 const statusText = computed(() => {
   switch (state.value) {
     case 'incoming':
@@ -128,9 +158,18 @@ const stopMicrophone = async () => {
 const startMicrophone = async () => {
   if (microphone) return;
   microphone = await navigator.mediaDevices.getUserMedia({
-    audio: { echoCancellation: true, noiseSuppression: true },
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      ...(selectedMicrophoneId.value !== 'default' && {
+        deviceId: { exact: selectedMicrophoneId.value },
+      }),
+    },
   });
   audioContext = new AudioContext({ sampleRate: 16000 });
+  if (selectedSpeakerId.value !== 'default') {
+    await audioContext.setSinkId(selectedSpeakerId.value);
+  }
   await audioContext.resume();
   microphoneSource = audioContext.createMediaStreamSource(microphone);
   audioProcessor = audioContext.createScriptProcessor(1024, 1, 1);
@@ -157,6 +196,49 @@ const startMicrophone = async () => {
   };
   microphoneSource.connect(audioProcessor);
   audioProcessor.connect(audioContext.destination);
+  await loadDevices();
+};
+
+const selectMicrophone = async deviceId => {
+  audioDevicesOpen.value = false;
+  if (deviceId === selectedMicrophoneId.value) return;
+  try {
+    if (microphone) {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          ...(deviceId !== 'default' && { deviceId: { exact: deviceId } }),
+        },
+      });
+      const source = audioContext.createMediaStreamSource(stream);
+      source.connect(audioProcessor);
+      microphoneSource?.disconnect();
+      microphone?.getTracks().forEach(track => track.stop());
+      microphone = stream;
+      microphoneSource = source;
+    }
+    selectedMicrophoneId.value = deviceId;
+    await loadDevices();
+  } catch (error) {
+    useAlert(error.message);
+  }
+};
+
+const selectSpeaker = async deviceId => {
+  audioDevicesOpen.value = false;
+  if (deviceId === selectedSpeakerId.value) return;
+  try {
+    if (audioContext) {
+      if (!audioContext.setSinkId) {
+        throw new Error(t('CONVERSATION.WHATSMEOW_CALL.OUTPUT_UNSUPPORTED'));
+      }
+      await audioContext.setSinkId(deviceId);
+    }
+    selectedSpeakerId.value = deviceId;
+  } catch (error) {
+    useAlert(error.message);
+  }
 };
 
 const playAudio = bytes => {
@@ -252,7 +334,14 @@ const startCamera = async () => {
     throw new Error(t('CONVERSATION.WHATSMEOW_CALL.VIDEO_UNSUPPORTED'));
   }
   camera = await navigator.mediaDevices.getUserMedia({
-    video: { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: 15 },
+    video: {
+      width: { ideal: 640 },
+      height: { ideal: 480 },
+      frameRate: 15,
+      ...(selectedCameraId.value !== 'default' && {
+        deviceId: { exact: selectedCameraId.value },
+      }),
+    },
   });
   cameraOn.value = true;
   await nextTick();
@@ -274,6 +363,23 @@ const startCamera = async () => {
   forceKeyframe = true;
   frameCount = 0;
   pumpCamera(videoReader, videoEncoder);
+  await loadDevices();
+};
+
+const selectCamera = async deviceId => {
+  cameraDevicesOpen.value = false;
+  if (deviceId === selectedCameraId.value) return;
+  const previousId = selectedCameraId.value;
+  selectedCameraId.value = deviceId;
+  if (!cameraOn.value) return;
+  try {
+    await stopCamera();
+    await startCamera();
+  } catch (error) {
+    useAlert(error.message);
+    await stopCamera();
+    selectedCameraId.value = previousId;
+  }
 };
 
 const isKeyFrame = bytes => {
@@ -341,6 +447,8 @@ const resetCall = async () => {
   videoDecodeStarted = false;
   await stopCamera();
   await stopMicrophone();
+  audioDevicesOpen.value = false;
+  cameraDevicesOpen.value = false;
 };
 
 const onSocketMessage = event => {
@@ -544,7 +652,13 @@ watch(
   { immediate: true }
 );
 
+onMounted(() => {
+  loadDevices().catch(() => {});
+  navigator.mediaDevices.addEventListener('devicechange', loadDevices);
+});
+
 onBeforeUnmount(() => {
+  navigator.mediaDevices.removeEventListener('devicechange', loadDevices);
   clearTimeout(reconnectTimer);
   if (isInCall.value) sendCommand('hangup');
   socket?.close();
@@ -656,24 +770,58 @@ onBeforeUnmount(() => {
           <span class="i-lucide-phone" />
         </button>
         <template v-if="isInCall && state !== 'connecting'">
-          <button
-            type="button"
-            class="flex h-10 w-10 items-center justify-center rounded-full text-n-slate-12"
-            :class="muted ? 'bg-n-ruby-3' : 'bg-n-slate-3'"
-            :aria-label="t('CONVERSATION.WHATSMEOW_CALL.MUTE')"
-            @click="muted = !muted"
+          <div
+            class="flex items-center rounded-full bg-n-slate-3 text-n-slate-12"
           >
-            <span :class="muted ? 'i-lucide-mic-off' : 'i-lucide-mic'" />
-          </button>
-          <button
-            type="button"
-            class="flex h-10 w-10 items-center justify-center rounded-full text-n-slate-12"
-            :class="cameraOn ? 'bg-n-teal-3' : 'bg-n-slate-3'"
-            :aria-label="t('CONVERSATION.WHATSMEOW_CALL.CAMERA')"
-            @click="toggleCamera"
+            <button
+              type="button"
+              class="flex size-10 items-center justify-center rounded-full"
+              :class="{ 'bg-n-ruby-3': muted }"
+              :aria-label="t('CONVERSATION.WHATSMEOW_CALL.MUTE')"
+              @click="muted = !muted"
+            >
+              <span :class="muted ? 'i-lucide-mic-off' : 'i-lucide-mic'" />
+            </button>
+            <button
+              type="button"
+              class="flex h-10 w-5 items-center justify-center rounded-r-full"
+              :aria-label="t('CONVERSATION.WHATSMEOW_CALL.AUDIO_DEVICES')"
+              :aria-expanded="audioDevicesOpen"
+              @click="
+                audioDevicesOpen = !audioDevicesOpen;
+                cameraDevicesOpen = false;
+              "
+            >
+              <span class="i-lucide-chevron-down size-4" />
+            </button>
+          </div>
+          <div
+            class="flex items-center rounded-full bg-n-slate-3 text-n-slate-12"
           >
-            <span :class="cameraOn ? 'i-lucide-video-off' : 'i-lucide-video'" />
-          </button>
+            <button
+              type="button"
+              class="flex size-10 items-center justify-center rounded-full"
+              :class="{ 'bg-n-teal-3': cameraOn }"
+              :aria-label="t('CONVERSATION.WHATSMEOW_CALL.CAMERA')"
+              @click="toggleCamera"
+            >
+              <span
+                :class="cameraOn ? 'i-lucide-video-off' : 'i-lucide-video'"
+              />
+            </button>
+            <button
+              type="button"
+              class="flex h-10 w-5 items-center justify-center rounded-r-full"
+              :aria-label="t('CONVERSATION.WHATSMEOW_CALL.CAMERA_DEVICES')"
+              :aria-expanded="cameraDevicesOpen"
+              @click="
+                cameraDevicesOpen = !cameraDevicesOpen;
+                audioDevicesOpen = false;
+              "
+            >
+              <span class="i-lucide-chevron-down size-4" />
+            </button>
+          </div>
           <button
             v-if="state === 'connected'"
             type="button"
@@ -699,6 +847,74 @@ onBeforeUnmount(() => {
           @click="endCall"
         >
           <span class="i-lucide-phone-off" />
+        </button>
+      </div>
+      <div
+        v-if="audioDevicesOpen"
+        class="absolute bottom-20 left-4 z-10 max-h-72 w-72 max-w-[calc(100vw-3rem)] overflow-y-auto rounded-xl border border-n-weak bg-n-solid-1 p-2 shadow-xl"
+      >
+        <div class="px-2 py-1 text-xs font-semibold text-n-slate-11">
+          {{ t('CONVERSATION.WHATSMEOW_CALL.MICROPHONES') }}
+        </div>
+        <button
+          v-for="(device, index) in microphones"
+          :key="device.deviceId || `microphone-${index}`"
+          type="button"
+          class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
+          @click="selectMicrophone(device.deviceId)"
+        >
+          <span
+            class="size-4 shrink-0"
+            :class="{
+              'i-lucide-check': device.deviceId === selectedMicrophoneId,
+            }"
+          />
+          <span class="truncate">{{
+            deviceName(device, index, 'MICROPHONE')
+          }}</span>
+        </button>
+        <div
+          class="mt-2 border-t border-n-weak px-2 py-2 text-xs font-semibold text-n-slate-11"
+        >
+          {{ t('CONVERSATION.WHATSMEOW_CALL.SPEAKERS') }}
+        </div>
+        <button
+          v-for="(device, index) in speakers"
+          :key="device.deviceId || `speaker-${index}`"
+          type="button"
+          class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
+          @click="selectSpeaker(device.deviceId)"
+        >
+          <span
+            class="size-4 shrink-0"
+            :class="{ 'i-lucide-check': device.deviceId === selectedSpeakerId }"
+          />
+          <span class="truncate">{{
+            deviceName(device, index, 'SPEAKER')
+          }}</span>
+        </button>
+      </div>
+      <div
+        v-if="cameraDevicesOpen"
+        class="absolute bottom-20 left-4 z-10 max-h-72 w-72 max-w-[calc(100vw-3rem)] overflow-y-auto rounded-xl border border-n-weak bg-n-solid-1 p-2 shadow-xl"
+      >
+        <div class="px-2 py-1 text-xs font-semibold text-n-slate-11">
+          {{ t('CONVERSATION.WHATSMEOW_CALL.CAMERAS') }}
+        </div>
+        <button
+          v-for="(device, index) in cameras"
+          :key="device.deviceId || `camera-${index}`"
+          type="button"
+          class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm text-n-slate-12 hover:bg-n-alpha-2"
+          @click="selectCamera(device.deviceId)"
+        >
+          <span
+            class="size-4 shrink-0"
+            :class="{ 'i-lucide-check': device.deviceId === selectedCameraId }"
+          />
+          <span class="truncate">{{
+            deviceName(device, index, 'CAMERA_DEVICE')
+          }}</span>
         </button>
       </div>
     </div>

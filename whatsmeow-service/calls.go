@@ -20,6 +20,7 @@ import (
 	"github.com/polymorfa/hypermeow"
 	"github.com/polymorfa/hypermeow/types"
 	meowcaller "github.com/purpshell/meowcaller"
+	"github.com/rs/zerolog"
 )
 
 const (
@@ -57,11 +58,12 @@ type callPacket struct {
 }
 
 type callSocket struct {
-	conn   *websocket.Conn
-	claims *callClaims
-	out    chan callPacket
-	done   chan struct{}
-	once   sync.Once
+	conn      *websocket.Conn
+	claims    *callClaims
+	out       chan callPacket
+	done      chan struct{}
+	once      sync.Once
+	mediaOnce sync.Once
 }
 
 func (s *callSocket) send(typ websocket.MessageType, data []byte) {
@@ -169,7 +171,8 @@ func registerBrowserCalls(client *whatsmeow.Client) {
 		return
 	}
 	manager := &browserCallManager{wa: client, sockets: make(map[*callSocket]struct{})}
-	manager.caller = meowcaller.NewClient(client)
+	logger := zerolog.New(os.Stdout).With().Timestamp().Str("component", "meowcaller").Logger().Level(zerolog.InfoLevel)
+	manager.caller = meowcaller.NewClient(client, meowcaller.WithLogger(logger))
 	manager.caller.OnIncomingCall(manager.onIncoming)
 	browserCallsMu.Lock()
 	browserCalls[client] = manager
@@ -318,6 +321,7 @@ func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call, d
 		socket.event(callEvent{Event: "video_state", CallID: call.ID(), Video: call.IsVideo(), VideoState: state.Raw})
 	})
 	call.OnStateChange(func(phase meowcaller.CallPhase) {
+		log.Printf("Whatsmeow browser call: phase %d", phase)
 		socket.event(callEvent{Event: "phase", CallID: call.ID(), Phase: int(phase), Video: call.IsVideo()})
 	})
 	call.OnReady(func() {
@@ -610,6 +614,9 @@ func handleBrowserCall(c *gin.Context) {
 		if owner != socket || call == nil {
 			continue
 		}
+		socket.mediaOnce.Do(func() {
+			log.Printf("Whatsmeow browser call: first browser media packet kind=%d bytes=%d", data[0], len(data)-1)
+		})
 		switch data[0] {
 		case callAudioUp:
 			if audio != nil {
