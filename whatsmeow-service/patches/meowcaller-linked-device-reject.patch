@@ -14,7 +14,7 @@
  	"google.golang.org/protobuf/proto"
  )
  
-@@ -53,29 +53,42 @@
+@@ -53,29 +53,41 @@
  	creator types.JID // call-creator JID (for accept/relaylatency)
  	from    types.JID // the <call> "from" — where stanzas are addressed
  
@@ -60,7 +60,6 @@
 +	invitePeerDevice   groupCallDevice
 +	preAcceptedDevices map[types.JID]bool
 +	answeringDevice    types.JID
-+	rejectTimer        *time.Timer
 +	outgoingTimer      *time.Timer
  
  	// The callee <accept> is deferred until the caller's <mute_v2> arrives.
@@ -77,7 +76,7 @@
  }
  
  // newEngine creates the engine for a Client.
-@@ -346,6 +359,16 @@
+@@ -346,6 +358,16 @@
  		e.mu.Unlock()
  		return errors.New("meowcaller: call is not active")
  	}
@@ -94,7 +93,7 @@
  	m.localVideo = enabled
  	m.videoGate = false
  	to, creator, sender := m.from, m.creator, m.videoTx
-@@ -388,12 +411,31 @@
+@@ -388,12 +410,31 @@
  	}
  	e.mu.Lock()
  	m := e.calls[callID]
@@ -129,7 +128,7 @@
  	node := signaling.BuildVideoStateWithParams(signaling.VideoStateParams{
  		CallID: callID, To: to, CallCreator: creator, WrapperID: e.nextCallNodeID(),
  		State: signaling.VideoStateEnabled, DeviceOrientation: &orientation,
-@@ -496,8 +538,26 @@
+@@ -496,8 +537,26 @@
  	})
  
  	if err := cli.DangerousInternals().SendNode(ctx, offer); err != nil {
@@ -156,7 +155,7 @@
  	e.c.log.Info().Str("call_id", callID).Bool("video", opts.Video).Msg("offer sent; media starts when the relay endpoint arrives")
  	e.c.diag.Emit("meta", map[string]any{"event": "offer_sent", "call_id": callID, "peer_lid": peerLID.String(), "direction": "out", "video": opts.Video})
  	return call, nil
-@@ -526,6 +586,19 @@
+@@ -526,6 +585,19 @@
  	if oag.OptionalString("is_call_ended") == "1" || oag.OptionalString("terminate_reason") != "" {
  		e.c.log.Warn().Str("call_id", ev.CallID).Msg("ignoring already-ended offer; not a live call")
  		return
@@ -176,7 +175,7 @@
  	}
  
  	callKey, err := decryptInboundCallKey(context.Background(), e.c.wa, ev)
-@@ -715,6 +788,32 @@
+@@ -715,6 +787,32 @@
  		return
  	}
  	e.c.log.Info().Str("call_id", callID).Bool("video", isVideo).Msg("accepted (after mute_v2)")
@@ -209,7 +208,7 @@
  }
  
  // reject declines an inbound call.
-@@ -797,6 +896,22 @@
+@@ -797,6 +895,22 @@
  	if rl == nil {
  		return
  	}
@@ -232,7 +231,7 @@
  	var probes []rlProbe
  	for i := range rl.GetChildren() {
  		te := &rl.GetChildren()[i]
-@@ -804,9 +919,14 @@
+@@ -804,9 +918,14 @@
  			continue
  		}
  		ag := te.AttrGetter()
@@ -248,7 +247,7 @@
  			addr:      nodeBytes(te),
  		})
  	}
-@@ -836,13 +956,21 @@
+@@ -836,13 +955,17 @@
  	if m.call != nil && m.call.State() == CallPhaseCalling {
  		m.call.setPhase(CallPhaseRinging)
  	}
@@ -257,10 +256,6 @@
 -		if current := e.calls[ev.CallID]; current != nil {
 +	e.mu.Lock()
 +	if current := e.calls[ev.CallID]; current != nil {
-+		if current.rejectTimer != nil {
-+			current.rejectTimer.Stop()
-+			current.rejectTimer = nil
-+		}
 +		if current.preAcceptedDevices == nil {
 +			current.preAcceptedDevices = make(map[types.JID]bool)
 +		}
@@ -275,14 +270,10 @@
  	e.c.log.Info().
  		Str("call_id", ev.CallID).
  		Str("from", ev.From.String()).
-@@ -880,6 +1008,15 @@
+@@ -880,6 +1003,11 @@
  	var rekeyPeer func(string) error
  	answeringPeer := ev.From.String()
  	if current := e.calls[ev.CallID]; current != nil {
-+		if current.rejectTimer != nil {
-+			current.rejectTimer.Stop()
-+			current.rejectTimer = nil
-+		}
 +		if current.outgoingTimer != nil {
 +			current.outgoingTimer.Stop()
 +			current.outgoingTimer = nil
@@ -291,7 +282,7 @@
  		if device, ok := inviteDeviceCapability(ev.From, ev.Data); ok {
  			current.invitePeerDevice = device
  		}
-@@ -960,13 +1097,60 @@
+@@ -960,18 +1088,49 @@
  
  // onReject tears down an outgoing call when the peer declines it.
  func (e *engine) onReject(ev *events.CallReject) {
@@ -303,7 +294,6 @@
 +	e.mu.Lock()
 +	m := e.calls[ev.CallID]
 +	ignore := false
-+	deferred := false
 +	if m != nil && m.direction == CallDirectionOutgoing && !m.group {
 +		// Offers reach every linked device. An unsupported secondary device can
 +		// reject before ringing; other devices can also reject after one answers.
@@ -313,32 +303,14 @@
 +		} else {
 +			preaccepted := m.preAcceptedDevices[ev.From]
 +			delete(m.preAcceptedDevices, ev.From)
-+			// A secondary can preaccept and immediately reject while another
-+			// device is still preparing the same call. Keep that device ringing.
-+			ignore = ev.From.Device != 0 && (reason == "unsupported" || !preaccepted || len(m.preAcceptedDevices) > 0)
-+			if !ignore && ev.From.Device != 0 {
-+				// Some linked clients preaccept and automatically reject before the
-+				// phone/desktop's preaccept arrives. Let those responses settle, then
-+				// honor the decline if no other device is ringing or has answered.
-+				if m.rejectTimer != nil {
-+					m.rejectTimer.Stop()
-+				}
-+				m.rejectTimer = time.AfterFunc(2*time.Second, func() {
-+					e.finishCallMatching(ev.CallID, "rejected", func(current *engineCall) bool {
-+						return current.answeringDevice.IsEmpty() && len(current.preAcceptedDevices) == 0
-+					})
-+				})
-+				deferred = true
-+			}
++			// Windows sends no reason when the user declines. A device that
++			// preaccepted can decline even while the phone is also ringing.
++			// Ignore only explicit unsupported responses and devices that never rang.
++			ignore = ev.From.Device != 0 && (reason == "unsupported" || !preaccepted)
 +		}
 +	}
 +	e.mu.Unlock()
  	if m == nil {
-+		return
-+	}
-+	if deferred {
-+		e.c.log.Info().Str("call_id", ev.CallID).Str("from", ev.From.String()).Str("reason", reason).
-+			Msg("waiting for other linked devices before honoring reject")
 +		return
 +	}
 +	if ignore {
@@ -353,7 +325,16 @@
  		Msg("peer rejected call")
  	e.c.diag.Emit("meta", map[string]any{
  		"event": "peer_reject", "call_id": ev.CallID, "from": ev.From.String(),
-@@ -1236,13 +1420,29 @@
+ 	})
+-	e.finishCall(ev.CallID, "rejected")
++	e.finishCallMatching(ev.CallID, "rejected", func(current *engineCall) bool {
++		return current.direction != CallDirectionOutgoing || current.group ||
++			current.answeringDevice.IsEmpty() || current.answeringDevice == ev.From
++	})
+ }
+ 
+ // rlProbe is one relay candidate from a relaylatency probe.
+@@ -1236,13 +1395,25 @@
  }
  
  func (e *engine) finishCall(callID, reason string) {
@@ -376,17 +357,13 @@
 +		return false
 +	}
 +	delete(e.calls, callID)
-+	if m.rejectTimer != nil {
-+		m.rejectTimer.Stop()
-+		m.rejectTimer = nil
-+	}
 +	if m.outgoingTimer != nil {
 +		m.outgoingTimer.Stop()
 +		m.outgoingTimer = nil
  	}
  	var cancel, waitingRoomCancel context.CancelFunc
  	var call *Call
-@@ -1269,7 +1469,7 @@
+@@ -1269,7 +1440,7 @@
  		waitingRoomCancel()
  	}
  	if call == nil || call.State() == CallPhaseEnded {
@@ -395,7 +372,7 @@
  	}
  	call.mu.Lock()
  	player := call.player
-@@ -1289,6 +1489,7 @@
+@@ -1289,6 +1460,7 @@
  	if fn := call.onEndFn(); fn != nil {
  		fn(reason)
  	}
@@ -403,7 +380,7 @@
  }
  
  // installCallAckHook injects an "ack" entry into whatsmeow's unexported nodeHandlers map
-@@ -1505,6 +1706,7 @@
+@@ -1505,6 +1677,7 @@
  	tokenID     uint32
  	authTokenID uint32
  	isFNA       bool
@@ -411,7 +388,7 @@
  	addresses   []relayAddress
  }
  
-@@ -1644,6 +1846,7 @@
+@@ -1644,6 +1817,7 @@
  			tokenID:     attrUint(child, "token_id"),
  			authTokenID: attrUint(child, "auth_token_id"),
  			isFNA:       child.AttrGetter().String("is_fna") == "1",
@@ -419,7 +396,7 @@
  			addresses: []relayAddress{{
  				ipv4: fmt.Sprintf("%d.%d.%d.%d", ab[0], ab[1], ab[2], ab[3]),
  				port: binary.BigEndian.Uint16(ab[4:6]),
-@@ -1665,6 +1868,22 @@
+@@ -1665,6 +1839,22 @@
  				return e
  			}
  		}
@@ -943,7 +920,7 @@
 +}
 --- /dev/null
 +++ b/engine_linked_device_reject_test.go
-@@ -0,0 +1,192 @@
+@@ -0,0 +1,153 @@
 +package meowcaller
 +
 +import (
@@ -968,7 +945,6 @@
 +		preaccept types.JID
 +		answering types.JID
 +		ended     bool
-+		deferred  bool
 +		reason    string
 +	}{
 +		{name: "unsupported secondary before preaccept", rejecting: desktop},
@@ -976,7 +952,7 @@
 +		{name: "different secondary while desktop rings", rejecting: otherDesktop, preaccept: desktop},
 +		{name: "unsupported secondary after preaccept", rejecting: desktop, preaccept: desktop, reason: "unsupported"},
 +		{name: "primary decline", rejecting: primary, preaccept: desktop, ended: true},
-+		{name: "desktop decline after preaccept without capability", rejecting: desktop, preaccept: desktop, ended: true, deferred: true},
++		{name: "desktop decline after preaccept without capability", rejecting: desktop, preaccept: desktop, ended: true},
 +		{name: "phone dismissal after desktop answered", rejecting: primary, answering: desktop},
 +		{name: "desktop dismissal after phone answered", rejecting: desktop, answering: primary},
 +		{name: "answering device decline", rejecting: desktop, answering: desktop, ended: true},
@@ -984,27 +960,11 @@
 +		t.Run(tc.name, func(t *testing.T) {
 +			e, call := testEngineWithOutgoingCall()
 +			t.Cleanup(func() { e.finishCall(call.ID(), "cleanup") })
-+			ended := make(chan string, 1)
-+			call.OnEnd(func(reason string) { ended <- reason })
 +			if !tc.preaccept.IsEmpty() {
 +				e.onPreAccept(&events.CallPreAccept{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: tc.preaccept}})
 +			}
 +			e.calls[call.ID()].answeringDevice = tc.answering
 +			e.onReject(&events.CallReject{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: tc.rejecting}, Data: &waBinary.Node{Tag: "reject", Attrs: waBinary.Attrs{"reason": tc.reason}}})
-+			if tc.deferred {
-+				if call.State() == CallPhaseEnded {
-+					t.Fatal("secondary decline was honored before other devices could respond")
-+				}
-+				e.calls[call.ID()].rejectTimer.Reset(0)
-+				select {
-+				case reason := <-ended:
-+					if reason != "rejected" {
-+						t.Fatalf("end reason = %s, want rejected", reason)
-+					}
-+				case <-time.After(time.Second):
-+					t.Fatal("last device decline was not honored after the response window")
-+				}
-+			}
 +			if got := call.State() == CallPhaseEnded; got != tc.ended {
 +				t.Fatalf("call ended = %v, want %v", got, tc.ended)
 +			}
@@ -1012,49 +972,27 @@
 +	}
 +}
 +
-+func TestSecondaryRejectionPreservesOtherRingingDevice(t *testing.T) {
++func TestDesktopDeclineWhilePhoneAlsoRings(t *testing.T) {
 +	e, call := testEngineWithOutgoingCall()
 +	t.Cleanup(func() { e.finishCall(call.ID(), "cleanup") })
 +	ended := make(chan string, 1)
 +	call.OnEnd(func(reason string) { ended <- reason })
 +	desktop := peerJID().ToNonAD()
-+	desktop.Device = 25
-+	otherDesktop := desktop
-+	otherDesktop.Device = 27
-+	for _, device := range []types.JID{desktop, otherDesktop} {
++	desktop.Device = 27
++	for _, device := range []types.JID{desktop, desktop.ToNonAD()} {
 +		e.onPreAccept(&events.CallPreAccept{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: device}})
 +	}
 +	e.onReject(&events.CallReject{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: desktop}})
-+	if call.State() == CallPhaseEnded {
-+		t.Fatal("one secondary rejection ended the call while another device was ringing")
++	if call.State() != CallPhaseEnded {
++		t.Fatal("manual desktop decline with an empty reason must end the call even while the phone rings")
 +	}
-+	e.onReject(&events.CallReject{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: otherDesktop}})
-+	e.calls[call.ID()].rejectTimer.Reset(0)
 +	select {
-+	case <-ended:
++	case reason := <-ended:
++		if reason != "rejected" {
++			t.Fatalf("end reason = %s, want rejected", reason)
++		}
 +	case <-time.After(time.Second):
-+		t.Fatal("rejection by the last ringing device did not end the call after the response window")
-+	}
-+}
-+
-+func TestSecondaryRejectBeforeOtherDevicePreaccepts(t *testing.T) {
-+	e, call := testEngineWithOutgoingCall()
-+	t.Cleanup(func() { e.finishCall(call.ID(), "cleanup") })
-+	desktop := peerJID().ToNonAD()
-+	desktop.Device = 26
-+	e.onPreAccept(&events.CallPreAccept{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: desktop}})
-+	e.onReject(&events.CallReject{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: desktop}})
-+	if call.State() == CallPhaseEnded || e.calls[call.ID()].rejectTimer == nil {
-+		t.Fatal("early automatic rejection must allow the other devices to respond")
-+	}
-+	e.onPreAccept(&events.CallPreAccept{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: peerJID().ToNonAD()}})
-+	if call.State() == CallPhaseEnded || e.calls[call.ID()].rejectTimer != nil {
-+		t.Fatal("later primary preaccept must cancel the deferred rejection")
-+	}
-+	if e.finishCallMatching(call.ID(), "rejected", func(m *engineCall) bool {
-+		return m.answeringDevice.IsEmpty() && len(m.preAcceptedDevices) == 0
-+	}) {
-+		t.Fatal("a delayed reject callback must not end another ringing device's call")
++		t.Fatal("manual desktop decline did not notify the caller")
 +	}
 +}
 +
