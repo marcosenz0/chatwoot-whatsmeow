@@ -94,11 +94,15 @@
  		if device, ok := inviteDeviceCapability(ev.From, ev.Data); ok {
  			current.invitePeerDevice = device
  		}
-@@ -960,8 +967,26 @@
+@@ -960,13 +967,36 @@
  
  // onReject tears down an outgoing call when the peer declines it.
  func (e *engine) onReject(ev *events.CallReject) {
 -	m := e.lookup(ev.CallID)
++	reason := ""
++	if ev.Data != nil {
++		reason = ev.Data.AttrGetter().OptionalString("reason")
++	}
 +	e.mu.Lock()
 +	m := e.calls[ev.CallID]
 +	ignore := false
@@ -109,7 +113,7 @@
 +		if !m.answeringDevice.IsEmpty() {
 +			ignore = ev.From != m.answeringDevice
 +		} else {
-+			ignore = ev.From.Device != 0 && !m.preAcceptedDevices[ev.From]
++			ignore = ev.From.Device != 0 && (reason == "unsupported" || !m.preAcceptedDevices[ev.From])
 +		}
 +	}
 +	e.mu.Unlock()
@@ -117,17 +121,24 @@
 +		return
 +	}
 +	if ignore {
-+		e.c.log.Info().Str("call_id", ev.CallID).Str("from", ev.From.String()).
++		e.c.log.Info().Str("call_id", ev.CallID).Str("from", ev.From.String()).Str("reason", reason).
 +			Msg("ignoring reject from another linked device")
  		return
  	}
  	e.c.log.Info().
+ 		Str("call_id", ev.CallID).
+ 		Str("from", ev.From.String()).
++		Str("reason", reason).
+ 		Msg("peer rejected call")
+ 	e.c.diag.Emit("meta", map[string]any{
+ 		"event": "peer_reject", "call_id": ev.CallID, "from": ev.From.String(),
 --- /dev/null
 +++ b/engine_linked_device_reject_test.go
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,47 @@
 +package meowcaller
 +
 +import (
++	waBinary "github.com/polymorfa/hypermeow/binary"
 +	"testing"
 +
 +	"github.com/polymorfa/hypermeow/types"
@@ -146,10 +157,12 @@
 +		preaccept types.JID
 +		answering types.JID
 +		ended     bool
++		reason    string
 +	}{
 +		{name: "unsupported secondary before preaccept", rejecting: desktop},
 +		{name: "unsupported secondary while phone rings", rejecting: desktop, preaccept: primary},
 +		{name: "different secondary while desktop rings", rejecting: otherDesktop, preaccept: desktop},
++		{name: "unsupported secondary after preaccept", rejecting: desktop, preaccept: desktop, reason: "unsupported"},
 +		{name: "primary decline", rejecting: primary, preaccept: desktop, ended: true},
 +		{name: "desktop decline after preaccept without capability", rejecting: desktop, preaccept: desktop, ended: true},
 +		{name: "phone dismissal after desktop answered", rejecting: primary, answering: desktop},
@@ -162,7 +175,7 @@
 +				e.onPreAccept(&events.CallPreAccept{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: tc.preaccept}})
 +			}
 +			e.calls[call.ID()].answeringDevice = tc.answering
-+			e.onReject(&events.CallReject{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: tc.rejecting}})
++			e.onReject(&events.CallReject{BasicCallMeta: types.BasicCallMeta{CallID: call.ID(), From: tc.rejecting}, Data: &waBinary.Node{Tag: "reject", Attrs: waBinary.Attrs{"reason": tc.reason}}})
 +			if got := call.State() == CallPhaseEnded; got != tc.ended {
 +				t.Fatalf("call ended = %v, want %v", got, tc.ended)
 +			}
