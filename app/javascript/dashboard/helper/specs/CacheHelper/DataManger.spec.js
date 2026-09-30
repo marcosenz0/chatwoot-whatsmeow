@@ -1,5 +1,6 @@
 import { openDB, deleteDB } from 'idb';
 import { DataManager } from '../../CacheHelper/DataManager';
+import { DATA_VERSION } from '../../CacheHelper/version';
 
 describe('DataManager', () => {
   const accountId = 'test-account';
@@ -22,6 +23,44 @@ describe('DataManager', () => {
   });
 
   describe('initDb', () => {
+    it('should stop waiting when an older tab blocks the upgrade, then recover after it closes', async () => {
+      const dbName = 'cw-store-blocked-account';
+      const legacyDb = await openDB(dbName, 1, {
+        upgrade(db) {
+          db.createObjectStore('cache-keys');
+          db.createObjectStore('inbox', { keyPath: 'id' });
+        },
+      });
+      const blockedManager = new DataManager('blocked-account');
+
+      await expect(blockedManager.initDb()).rejects.toThrow(
+        'Local cache upgrade is blocked by another tab'
+      );
+      legacyDb.close();
+      const recoveredDb = await openDB(dbName, DATA_VERSION);
+      await vi.waitFor(() => expect(blockedManager.db).not.toBeNull());
+      await blockedManager.push({ modelName: 'inbox', data: { id: 1 } });
+      expect(await blockedManager.get({ modelName: 'inbox' })).toEqual([
+        { id: 1 },
+      ]);
+      recoveredDb.close();
+      blockedManager.db.close();
+      await deleteDB(dbName);
+    });
+
+    it('should release its connection when another tab upgrades the cache', async () => {
+      const manager = new DataManager('upgrade-account');
+      await manager.initDb();
+      const upgradedDb = await openDB(
+        'cw-store-upgrade-account',
+        DATA_VERSION + 1
+      );
+
+      expect(manager.db).toBeNull();
+      upgradedDb.close();
+      await deleteDB('cw-store-upgrade-account');
+    });
+
     it('should initialize the database', async () => {
       expect(dataManager.db).not.toBeNull();
     });

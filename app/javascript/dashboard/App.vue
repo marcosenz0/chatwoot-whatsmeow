@@ -1,5 +1,12 @@
 <script>
 import { mapGetters } from 'vuex';
+import { useRouter } from 'vue-router';
+import { useStore } from 'dashboard/composables/store';
+import { isOnOnboardingView } from 'v3/helpers/RouteHelper';
+import { useAccount } from 'dashboard/composables/useAccount';
+import { useFontSize } from 'dashboard/composables/useFontSize';
+import ReconnectService from 'dashboard/helper/ReconnectService';
+import { useUISettings } from 'dashboard/composables/useUISettings';
 import LoadingState from './components/widgets/LoadingState.vue';
 import NetworkNotification from './components/NetworkNotification.vue';
 import UpdateBanner from './components/app/UpdateBanner.vue';
@@ -8,19 +15,12 @@ import PaymentPendingBanner from './components/app/PaymentPendingBanner.vue';
 import PendingEmailVerificationBanner from './components/app/PendingEmailVerificationBanner.vue';
 import LowBackupCodesBanner from './components/app/LowBackupCodesBanner.vue';
 import vueActionCable from './helper/actionCable';
-import { useRouter } from 'vue-router';
-import { useStore } from 'dashboard/composables/store';
 import WootSnackbarBox from './components/SnackbarContainer.vue';
 import { setColorTheme } from './helper/themeHelper';
-import { isOnOnboardingView } from 'v3/helpers/RouteHelper';
-import { useAccount } from 'dashboard/composables/useAccount';
-import { useFontSize } from 'dashboard/composables/useFontSize';
 import {
   registerSubscription,
   verifyServiceWorkerExistence,
 } from './helper/pushHelper';
-import ReconnectService from 'dashboard/helper/ReconnectService';
-import { useUISettings } from 'dashboard/composables/useUISettings';
 
 export default {
   name: 'App',
@@ -118,6 +118,7 @@ export default {
       this.setLocale(this.uiSettings?.locale || locale);
       this.latestChatwootVersion = latestChatwootVersion;
       vueActionCable.init(this.store, pubsubToken);
+      this.reconnectService?.disconnect();
       this.reconnectService = new ReconnectService(this.store, this.router);
       window.reconnectService = this.reconnectService;
 

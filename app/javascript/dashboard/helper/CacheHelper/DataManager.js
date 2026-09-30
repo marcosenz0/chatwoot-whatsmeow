@@ -6,12 +6,30 @@ export class DataManager {
     this.modelsToSync = ['inbox', 'label', 'team', 'canned_response'];
     this.accountId = accountId;
     this.db = null;
+    this.connection = null;
   }
 
   async initDb() {
     if (this.db) return this.db;
+    if (this.connection) return this.connection;
     const dbName = `cw-store-${this.accountId}`;
-    this.db = await openDB(`cw-store-${this.accountId}`, DATA_VERSION, {
+    let rejectBlocked;
+    const blocked = new Promise((_resolve, reject) => {
+      rejectBlocked = reject;
+    });
+    const opening = openDB(dbName, DATA_VERSION, {
+      blocked() {
+        // Older tabs can hold a previous schema open. CacheEnabledApiClient
+        // fetches from the server when initDb rejects, instead of waiting forever.
+        rejectBlocked(
+          new Error('Local cache upgrade is blocked by another tab')
+        );
+      },
+      blocking: () => {
+        this.db.close();
+        this.db = null;
+        this.connection = null;
+      },
       upgrade(db, oldVersion, _newVersion, transaction) {
         const shouldInvalidateInboxCache =
           oldVersion > 0 && oldVersion < INBOX_CACHE_INVALIDATION_VERSION;
@@ -34,7 +52,13 @@ export class DataManager {
         createStore('team', { keyPath: 'id' });
         createStore('canned_response', { keyPath: 'id' });
       },
+    }).then(db => {
+      this.db = db;
+      this.connection = null;
+      return db;
     });
+    this.connection = Promise.race([opening, blocked]);
+    await this.connection;
 
     // Store the database name in LocalStorage
     const dbNames = JSON.parse(localStorage.getItem('cw-idb-names') || '[]');

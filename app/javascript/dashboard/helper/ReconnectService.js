@@ -13,6 +13,7 @@ class ReconnectService {
     this.store = store;
     this.router = router;
     this.disconnectTime = null;
+    this.refreshPromise = null;
 
     this.setupEventListeners();
   }
@@ -21,12 +22,19 @@ class ReconnectService {
 
   setupEventListeners = () => {
     window.addEventListener('online', this.handleOnlineEvent);
+    window.addEventListener('pageshow', this.handlePageShow);
+    document.addEventListener('visibilitychange', this.handleVisibilityChange);
     emitter.on(BUS_EVENTS.WEBSOCKET_RECONNECT, this.onReconnect);
     emitter.on(BUS_EVENTS.WEBSOCKET_DISCONNECT, this.onDisconnect);
   };
 
   removeEventListeners = () => {
     window.removeEventListener('online', this.handleOnlineEvent);
+    window.removeEventListener('pageshow', this.handlePageShow);
+    document.removeEventListener(
+      'visibilitychange',
+      this.handleVisibilityChange
+    );
     emitter.off(BUS_EVENTS.WEBSOCKET_RECONNECT, this.onReconnect);
     emitter.off(BUS_EVENTS.WEBSOCKET_DISCONNECT, this.onDisconnect);
   };
@@ -40,7 +48,17 @@ class ReconnectService {
   handleOnlineEvent = () => {
     if (this.getSecondsSinceDisconnect() >= MAX_DISCONNECT_SECONDS) {
       window.location.reload();
+    } else {
+      this.onReconnect();
     }
+  };
+
+  handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') this.onReconnect();
+  };
+
+  handlePageShow = event => {
+    if (event.persisted) this.onReconnect();
   };
 
   fetchConversations = async () => {
@@ -133,10 +151,19 @@ class ReconnectService {
     this.setConversationLastMessageId();
   };
 
-  onReconnect = async () => {
-    await this.handleRouteSpecificFetch();
-    await this.revalidateCaches();
-    emitter.emit(BUS_EVENTS.WEBSOCKET_RECONNECT_COMPLETED);
+  onReconnect = () => {
+    if (!this.refreshPromise) {
+      this.refreshPromise = this.handleRouteSpecificFetch()
+        .then(() => this.revalidateCaches())
+        .then(() => {
+          this.disconnectTime = null;
+          emitter.emit(BUS_EVENTS.WEBSOCKET_RECONNECT_COMPLETED);
+        })
+        .finally(() => {
+          this.refreshPromise = null;
+        });
+    }
+    return this.refreshPromise;
   };
 }
 

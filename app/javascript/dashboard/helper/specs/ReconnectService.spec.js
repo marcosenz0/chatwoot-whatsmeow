@@ -118,12 +118,14 @@ describe('ReconnectService', () => {
       expect(window.location.reload).toHaveBeenCalled();
     });
 
-    it('should not reload the page if disconnected for less than 3 hours', () => {
+    it('should refresh data without reloading if disconnected for less than 3 hours', () => {
       reconnectService.getSecondsSinceDisconnect = vi
         .fn()
         .mockReturnValue(10799);
+      reconnectService.onReconnect = vi.fn();
       reconnectService.handleOnlineEvent();
       expect(window.location.reload).not.toHaveBeenCalled();
+      expect(reconnectService.onReconnect).toHaveBeenCalled();
     });
   });
 
@@ -320,14 +322,62 @@ describe('ReconnectService', () => {
 
   describe('onReconnect', () => {
     it('should handle route-specific fetch, revalidate caches, and emit WEBSOCKET_RECONNECT_COMPLETED event', async () => {
-      reconnectService.handleRouteSpecificFetch = vi.fn();
-      reconnectService.revalidateCaches = vi.fn();
+      reconnectService.handleRouteSpecificFetch = vi.fn().mockResolvedValue();
+      reconnectService.revalidateCaches = vi.fn().mockResolvedValue();
       await reconnectService.onReconnect();
       expect(reconnectService.handleRouteSpecificFetch).toHaveBeenCalled();
       expect(reconnectService.revalidateCaches).toHaveBeenCalled();
       expect(emitter.emit).toHaveBeenCalledWith(
         BUS_EVENTS.WEBSOCKET_RECONNECT_COMPLETED
       );
+    });
+
+    it('should share a refresh across simultaneous resume and websocket events', async () => {
+      reconnectService.handleRouteSpecificFetch = vi.fn().mockResolvedValue();
+      reconnectService.revalidateCaches = vi.fn().mockResolvedValue();
+      reconnectService.disconnectTime = new Date();
+
+      await Promise.all([
+        reconnectService.onReconnect(),
+        reconnectService.onReconnect(),
+      ]);
+
+      expect(reconnectService.handleRouteSpecificFetch).toHaveBeenCalledTimes(
+        1
+      );
+      expect(reconnectService.disconnectTime).toBeNull();
+      await reconnectService.onReconnect();
+      expect(reconnectService.handleRouteSpecificFetch).toHaveBeenCalledTimes(
+        2
+      );
+    });
+  });
+
+  describe('browser resume', () => {
+    it('should refresh when the tab becomes visible without reloading the page', () => {
+      reconnectService.onReconnect = vi.fn();
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'hidden',
+      });
+      reconnectService.handleVisibilityChange();
+      expect(reconnectService.onReconnect).not.toHaveBeenCalled();
+
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'visible',
+      });
+      reconnectService.handleVisibilityChange();
+      expect(reconnectService.onReconnect).toHaveBeenCalledTimes(1);
+      expect(window.location.reload).not.toHaveBeenCalled();
+    });
+
+    it('should refresh a page restored from the browser history cache', () => {
+      reconnectService.onReconnect = vi.fn();
+      reconnectService.handlePageShow({ persisted: false });
+      expect(reconnectService.onReconnect).not.toHaveBeenCalled();
+      reconnectService.handlePageShow({ persisted: true });
+      expect(reconnectService.onReconnect).toHaveBeenCalledTimes(1);
     });
   });
 });
