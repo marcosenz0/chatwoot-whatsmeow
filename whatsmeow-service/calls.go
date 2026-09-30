@@ -20,14 +20,15 @@ import (
 	"github.com/polymorfa/hypermeow"
 	"github.com/polymorfa/hypermeow/types"
 	meowcaller "github.com/purpshell/meowcaller"
+	"github.com/purpshell/meowcaller/rtp"
 	"github.com/rs/zerolog"
 )
 
 const (
-	callAudioUp   = byte(1)
-	callVideoUp   = byte(2)
-	callAudioDown = byte(3)
-	callVideoDown = byte(4)
+	callAudioUp           = byte(1)
+	callVideoUp           = byte(2)
+	callAudioDown         = byte(3)
+	callOrientedVideoDown = byte(5)
 )
 
 type callClaims struct {
@@ -66,13 +67,15 @@ type callSocket struct {
 	mediaOnce sync.Once
 }
 
-func (s *callSocket) send(typ websocket.MessageType, data []byte) {
+func (s *callSocket) send(typ websocket.MessageType, data []byte) bool {
 	select {
 	case <-s.done:
-		return
+		return false
 	case s.out <- callPacket{typ: typ, data: data}:
+		return true
 	default:
 		// Media must not stall WhatsApp's receive loop when an agent's browser is slow.
+		return false
 	}
 }
 
@@ -106,6 +109,38 @@ func (s *callSocket) write(ctx context.Context) {
 		}
 	}
 }
+
+// Orientation travels with each frame, so queue loss cannot leave a stale rotation.
+type browserVideoSink struct {
+	socket        *callSocket
+	call          *meowcaller.Call
+	orientation   byte
+	needsKeyframe bool
+}
+
+func (v *browserVideoSink) SetOrientation(orientation int) {
+	v.orientation = byte(orientation & 3)
+	log.Printf("Whatsmeow browser call: remote video rotation %d degrees", int(v.orientation)*90)
+}
+
+func (v *browserVideoSink) WriteVideo(frame []byte) error {
+	if v.needsKeyframe && !rtp.AUHasIDR(frame) {
+		v.call.RequestVideoKeyframe()
+		return nil
+	}
+	packet := make([]byte, len(frame)+2)
+	packet[0], packet[1] = callOrientedVideoDown, v.orientation
+	copy(packet[2:], frame)
+	if v.socket.send(websocket.MessageBinary, packet) {
+		v.needsKeyframe = false
+	} else {
+		v.needsKeyframe = true
+		v.call.RequestVideoKeyframe()
+	}
+	return nil
+}
+
+func (v *browserVideoSink) Close() error { return nil }
 
 type browserAudioSource struct {
 	frames chan []float32
@@ -250,6 +285,7 @@ func (m *browserCallManager) onIncoming(call *meowcaller.Call) {
 	video := call.IsVideo()
 	m.mu.Lock()
 	if m.active != nil || m.pending != nil || m.starting {
+		log.Printf("Whatsmeow browser call: automatic rejection because service is busy (active=%t pending=%t starting=%t)", m.active != nil, m.pending != nil, m.starting)
 		m.mu.Unlock()
 		_ = call.Reject()
 		return
@@ -312,9 +348,7 @@ func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call, d
 		}
 		socket.media(callAudioDown, data)
 	}))
-	call.ReceiveVideo(meowcaller.VideoSinkFunc(func(frame []byte) {
-		socket.media(callVideoDown, frame)
-	}))
+	call.ReceiveVideo(&browserVideoSink{socket: socket, call: call})
 	call.OnVideoKeyframeRequest(func() { socket.event(callEvent{Event: "keyframe"}) })
 	call.OnVideoState(func(state meowcaller.VideoState) {
 		if state.Upgrade {
@@ -453,6 +487,9 @@ func (m *browserCallManager) command(ctx context.Context, socket *callSocket, co
 	switch action {
 	case "hangup":
 		return call.Hangup()
+	case "request_video_keyframe":
+		call.RequestVideoKeyframe()
+		return nil
 	case "start_video", "accept_video", "enable_video":
 		var err error
 		switch action {

@@ -208,8 +208,7 @@ const escapeCalendar = value =>
     .replaceAll(';', '\\;')
     .replaceAll('\n', '\\n');
 const calendarDate = date =>
-  date.toISOString().replaceAll('-', '').replaceAll(':', '').split('.')[0] +
-  'Z';
+  `${date.toISOString().replaceAll('-', '').replaceAll(':', '').split('.')[0]}Z`;
 const downloadEvent = async () => {
   if (!scheduledAt.value || Number(duration.value) < 1) return;
   if (!link.value) await createLink();
@@ -288,18 +287,19 @@ onBeforeUnmount(() => clearInterval(pollTimer));
               :aria-label="t('WHATSAPP_CALLS.NEW_CALL')"
               @click="selectMode('new')"
             >
-              <Icon icon="i-lucide-phone-plus" class="size-5" />
+              <Icon icon="i-lucide-phone-call" class="size-5" />
             </button>
           </div>
         </div>
         <label
-          class="mt-4 flex items-center gap-2 rounded-lg bg-n-alpha-2 px-3 py-2 text-n-slate-11"
+          class="mt-4 flex h-10 items-center gap-3 rounded-full bg-n-alpha-2 px-4 text-n-slate-11 ring-1 ring-transparent transition-shadow focus-within:ring-n-brand/60"
         >
-          <Icon icon="i-lucide-search" class="size-4" />
+          <Icon icon="i-lucide-search" class="size-4 shrink-0" />
           <input
             v-model="search"
             type="search"
-            class="w-full border-0 bg-transparent text-sm text-n-slate-12 outline-none"
+            class="reset-base m-0 min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-n-slate-12 outline-none placeholder:text-n-slate-10"
+            :aria-label="t('WHATSAPP_CALLS.SEARCH')"
             :placeholder="t('WHATSAPP_CALLS.SEARCH')"
           />
         </label>

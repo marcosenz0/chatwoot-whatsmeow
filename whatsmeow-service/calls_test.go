@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/websocket"
+	meowcaller "github.com/purpshell/meowcaller"
+
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -56,6 +59,32 @@ func TestCallToken(t *testing.T) {
 				t.Fatalf("callToken error = %v, wantError = %v", err, tc.wantError)
 			}
 		})
+	}
+}
+
+func TestBrowserVideoSinkKeepsOrientationAndRecoversAfterQueueLoss(t *testing.T) {
+	socket := &callSocket{out: make(chan callPacket, 1), done: make(chan struct{})}
+	sink := &browserVideoSink{socket: socket, call: &meowcaller.Call{}}
+	idr := []byte{0, 0, 0, 1, 0x65, 0x01}
+	delta := []byte{0, 0, 1, 0x41, 0x01}
+	for _, orientation := range []int{0, 1, 2, 3} {
+		sink.SetOrientation(orientation)
+		_ = sink.WriteVideo(idr)
+		packet := <-socket.out
+		if packet.typ != websocket.MessageBinary || packet.data[0] != callOrientedVideoDown || packet.data[1] != byte(orientation) {
+			t.Fatalf("wrong frame metadata: %v", packet)
+		}
+	}
+	_ = sink.WriteVideo(idr)
+	_ = sink.WriteVideo(delta) // Full queue loses a reference frame.
+	<-socket.out
+	_ = sink.WriteVideo(delta)
+	if len(socket.out) != 0 || !sink.needsKeyframe {
+		t.Fatal("dependent frames must wait for a new IDR after loss")
+	}
+	_ = sink.WriteVideo(idr)
+	if len(socket.out) != 1 || sink.needsKeyframe {
+		t.Fatal("a new IDR must resume delivery")
 	}
 }
 

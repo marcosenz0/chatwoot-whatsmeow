@@ -15,6 +15,10 @@ import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import { useAlert } from 'dashboard/composables';
 import whatsmeowCalls from 'dashboard/api/whatsmeowCalls';
+import {
+  drawCallVideoFrame,
+  isH264KeyFrame,
+} from 'dashboard/helper/whatsmeowCallVideo';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import WhatsmeowCallWindow from './WhatsmeowCallWindow.vue';
 
@@ -37,6 +41,7 @@ const busy = ref(false);
 const muted = ref(false);
 const cameraOn = ref(false);
 const remoteVideoOn = ref(false);
+const videoRecovering = ref(false);
 const remoteMediaReady = ref(false);
 const videoCall = ref(false);
 const inviteOpen = ref(false);
@@ -75,6 +80,10 @@ let videoFrameTimer;
 let videoEncoder;
 let videoDecoder;
 let videoDecodeStarted = false;
+let videoRecoveryTimer;
+let lastDecodedVideoAt = 0;
+let lastVideoRecoveryAt = 0;
+const frameOrientations = new Map();
 let forceKeyframe = false;
 let frameCount = 0;
 let callId;
@@ -228,12 +237,13 @@ const sendCommand = (action, target) => {
 
 const sendMedia = (kind, bytes) => {
   if (socket?.readyState !== WebSocket.OPEN || socket.bufferedAmount > 512000) {
-    return;
+    return false;
   }
   const packet = new Uint8Array(bytes.byteLength + 1);
   packet[0] = kind;
   packet.set(bytes, 1);
   socket.send(packet);
+  return true;
 };
 
 const stopMicrophone = async () => {
@@ -469,7 +479,7 @@ const startCamera = async () => {
     output: chunk => {
       const bytes = new Uint8Array(chunk.byteLength);
       chunk.copyTo(bytes);
-      sendMedia(2, bytes);
+      if (!sendMedia(2, bytes)) forceKeyframe = true;
     },
     error: reportMediaError,
   });
@@ -496,52 +506,89 @@ const selectCamera = async deviceId => {
   }
 };
 
-const isKeyFrame = bytes => {
-  for (let i = 0; i + 4 < bytes.length; i += 1) {
-    let offset = -1;
-    if (bytes[i] === 0 && bytes[i + 1] === 0 && bytes[i + 2] === 1) {
-      offset = i + 3;
-    } else if (
-      bytes[i] === 0 &&
-      bytes[i + 1] === 0 &&
-      bytes[i + 2] === 0 &&
-      bytes[i + 3] === 1
-    ) {
-      offset = i + 4;
-    }
-    if (offset >= 0 && [5, 7].includes(bytes[offset] % 32)) return true;
-  }
-  return false;
+const requestVideoRecovery = () => {
+  const now = performance.now();
+  if (now - lastVideoRecoveryAt < 1000) return;
+  lastVideoRecoveryAt = now;
+  videoRecovering.value = true;
+  sendCommand('request_video_keyframe');
 };
 
-const decodeVideo = bytes => {
+const resetVideoDecoder = () => {
+  if (videoDecoder && videoDecoder.state !== 'closed') videoDecoder.close();
+  videoDecoder = null;
+  videoDecodeStarted = false;
+  frameOrientations.clear();
+};
+
+const decodeVideo = (bytes, orientation = 0) => {
   if (typeof VideoDecoder === 'undefined') return;
-  const keyFrame = isKeyFrame(bytes);
-  if (!videoDecodeStarted && !keyFrame) return;
+  if (!videoRecoveryTimer) {
+    videoRecoveryTimer = setInterval(() => {
+      if (
+        remoteVideoOn.value &&
+        performance.now() - lastDecodedVideoAt > 2000
+      ) {
+        requestVideoRecovery();
+      }
+    }, 1000);
+  }
+  const keyFrame = isH264KeyFrame(bytes);
+  if (videoDecoder?.decodeQueueSize > 6) {
+    resetVideoDecoder();
+    requestVideoRecovery();
+  }
+  if (!videoDecodeStarted && !keyFrame) {
+    requestVideoRecovery();
+    return;
+  }
   if (!videoDecoder || videoDecoder.state === 'closed') {
+    videoDecodeStarted = false;
+    if (!keyFrame) {
+      requestVideoRecovery();
+      return;
+    }
     videoDecoder = new VideoDecoder({
       output: frame => {
-        const canvas = remoteCanvas.value;
-        if (canvas) {
-          canvas.width = frame.displayWidth;
-          canvas.height = frame.displayHeight;
-          canvas.getContext('2d').drawImage(frame, 0, 0);
-          remoteVideoOn.value = true;
+        try {
+          const canvas = remoteCanvas.value;
+          if (canvas) {
+            drawCallVideoFrame(
+              canvas,
+              frame,
+              frameOrientations.get(frame.timestamp) ?? 0
+            );
+            remoteVideoOn.value = true;
+            videoRecovering.value = false;
+            lastDecodedVideoAt = performance.now();
+          }
+        } finally {
+          frameOrientations.delete(frame.timestamp);
+          frame.close();
         }
-        frame.close();
       },
-      error: reportMediaError,
+      error: () => {
+        resetVideoDecoder();
+        requestVideoRecovery();
+      },
     });
     videoDecoder.configure({ codec: 'avc1.42E01F', optimizeForLatency: true });
   }
+  const timestamp = Math.round(performance.now() * 1000);
+  frameOrientations.set(timestamp, orientation);
   videoDecodeStarted = true;
-  videoDecoder.decode(
-    new EncodedVideoChunk({
-      type: keyFrame ? 'key' : 'delta',
-      timestamp: performance.now() * 1000,
-      data: bytes,
-    })
-  );
+  try {
+    videoDecoder.decode(
+      new EncodedVideoChunk({
+        type: keyFrame ? 'key' : 'delta',
+        timestamp,
+        data: bytes,
+      })
+    );
+  } catch {
+    resetVideoDecoder();
+    requestVideoRecovery();
+  }
 };
 
 const resetCall = async (nextState = 'idle') => {
@@ -558,9 +605,12 @@ const resetCall = async (nextState = 'idle') => {
   elapsedSeconds.value = 0;
   clearInterval(durationTimer);
   callId = null;
-  if (videoDecoder && videoDecoder.state !== 'closed') videoDecoder.close();
-  videoDecoder = null;
-  videoDecodeStarted = false;
+  clearInterval(videoRecoveryTimer);
+  videoRecoveryTimer = null;
+  lastDecodedVideoAt = 0;
+  lastVideoRecoveryAt = 0;
+  videoRecovering.value = false;
+  resetVideoDecoder();
   await stopCamera();
   await stopMicrophone();
   audioDevicesOpen.value = false;
@@ -585,9 +635,11 @@ const finishCall = async reason => {
 
 const onSocketMessage = event => {
   if (typeof event.data !== 'string') {
+    if (!isInCall.value) return;
     const bytes = new Uint8Array(event.data);
     if (bytes[0] === 3) playAudio(bytes.subarray(1));
     if (bytes[0] === 4) decodeVideo(bytes.subarray(1));
+    if (bytes[0] === 5) decodeVideo(bytes.subarray(2), bytes[1]);
     return;
   }
   const update = JSON.parse(event.data);
@@ -628,7 +680,11 @@ const onSocketMessage = event => {
     finishCall(update.message);
   } else if (update.event === 'video_state') {
     videoCall.value = update.video;
-    if ([0, 6].includes(update.video_state)) remoteVideoOn.value = false;
+    if ([0, 6].includes(update.video_state)) {
+      remoteVideoOn.value = false;
+      videoRecovering.value = false;
+      resetVideoDecoder();
+    }
     if ([5, 8].includes(update.video_state) && !videoCall.value) stopCamera();
   } else if (update.event === 'keyframe') {
     forceKeyframe = true;
@@ -930,6 +986,12 @@ onBeforeUnmount(() => {
           class="absolute inset-0 h-full w-full object-contain"
           :class="{ hidden: !remoteVideoOn }"
         />
+        <span
+          v-if="videoRecovering"
+          role="status"
+          class="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-xs text-white"
+          >{{ t('CONVERSATION.WHATSMEOW_CALL.RECOVERING_VIDEO') }}</span
+        >
         <svg
           class="pointer-events-none absolute inset-0 h-full w-full"
           role="presentation"
@@ -1040,7 +1102,7 @@ onBeforeUnmount(() => {
               </button>
               <button
                 type="button"
-                class="flex h-10 w-5 items-center justify-center rounded-r-full"
+                class="flex h-10 w-6 shrink-0 items-center justify-center rounded-r-full pr-1 text-n-slate-12 hover:bg-n-alpha-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-brand"
                 :aria-label="t('CONVERSATION.WHATSMEOW_CALL.AUDIO_DEVICES')"
                 :aria-expanded="audioDevicesOpen"
                 @click="
@@ -1048,7 +1110,19 @@ onBeforeUnmount(() => {
                   cameraDevicesOpen = false;
                 "
               >
-                <span class="i-lucide-chevron-down size-4" />
+                <svg
+                  class="size-3.5 shrink-0 transition-transform"
+                  :class="{ 'rotate-180': audioDevicesOpen }"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
               </button>
             </div>
             <div
@@ -1069,7 +1143,7 @@ onBeforeUnmount(() => {
               </button>
               <button
                 type="button"
-                class="flex h-10 w-5 items-center justify-center rounded-r-full"
+                class="flex h-10 w-6 shrink-0 items-center justify-center rounded-r-full pr-1 text-n-slate-12 hover:bg-n-alpha-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-brand"
                 :aria-label="t('CONVERSATION.WHATSMEOW_CALL.CAMERA_DEVICES')"
                 :aria-expanded="cameraDevicesOpen"
                 @click="
@@ -1077,7 +1151,19 @@ onBeforeUnmount(() => {
                   audioDevicesOpen = false;
                 "
               >
-                <span class="i-lucide-chevron-down size-4" />
+                <svg
+                  class="size-3.5 shrink-0 transition-transform"
+                  :class="{ 'rotate-180': cameraDevicesOpen }"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
               </button>
             </div>
             <button

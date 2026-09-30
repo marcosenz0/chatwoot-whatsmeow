@@ -33,7 +33,7 @@ jobs:
           module_dir="$(go list -m -f '{{.Dir}}' github.com/purpshell/meowcaller)"
           chmod -R u+w "$module_dir"
           patch -d "$module_dir" -p1 < patches/meowcaller-linked-device-reject.patch
-      - run: go test github.com/purpshell/meowcaller -count=1
+      - run: go test github.com/purpshell/meowcaller/... -count=1
       - run: go test ./...
       - run: go vet ./...
       - run: docker build -t whatsmeow-service:check .
