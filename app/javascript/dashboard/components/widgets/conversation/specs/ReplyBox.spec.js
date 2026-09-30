@@ -107,7 +107,7 @@ const mountWith = ({
   const wrapper = shallowMount(ReplyBox, {
     global: {
       plugins: [store],
-      mocks: { $t: key => key },
+      mocks: { $t: key => key, $route: { params: {} } },
       // The bottom panel sits inside a <Transition>, which shallowMount stubs
       // without rendering its children.
       stubs: { transition: false },

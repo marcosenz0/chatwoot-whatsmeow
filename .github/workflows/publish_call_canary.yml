@@ -68,6 +68,8 @@ jobs:
           spec/services/whatsapp/oneoff_campaign_service_spec.rb
           spec/services/whatsapp/incoming_message_whatsapp_cloud_service_spec.rb
           spec/services/whatsapp/template_processor_service_spec.rb
+          spec/services/whatsapp/cloud_template_service_spec.rb
+          spec/services/whatsapp/reauthorization_service_spec.rb
           spec/services/whatsapp/providers/whatsapp_cloud_service_spec.rb
           spec/services/whatsapp/health_service_spec.rb
           spec/models/inbox_spec.rb

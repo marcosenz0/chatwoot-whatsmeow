@@ -22,9 +22,9 @@ RSpec.describe Whatsapp::ReauthorizationService do
   let(:phone_info) { { phone_number: channel.phone_number, business_name: inbox.name } }
 
   before do
-    stub_request(:get, %r{\Ahttps://graph\.facebook\.com/v14\.0/.+/message_templates\?access_token=new-token\z})
+    stub_request(:get, %r{\Ahttps://graph\.facebook\.com/v22\.0/.+/message_templates\z})
       .to_return(status: 200, body: { data: [] }.to_json, headers: { 'Content-Type' => 'application/json' })
-    stub_request(:get, %r{\Ahttps://graph\.facebook\.com/v14\.0/.+/phone_numbers\?.*access_token=new-token})
+    stub_request(:get, %r{\Ahttps://graph\.facebook\.com/v22\.0/.+/phone_numbers\?fields=id&limit=100\z})
       .to_return(status: 200, body: { data: [{ id: 'new-phone-id' }] }.to_json, headers: { 'Content-Type' => 'application/json' })
   end
 
