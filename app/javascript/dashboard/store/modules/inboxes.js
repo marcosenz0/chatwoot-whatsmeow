@@ -1,15 +1,15 @@
 import * as MutationHelpers from 'shared/helpers/vuex/mutationHelpers';
-import * as types from '../mutation-types';
 import { INBOX_TYPES } from 'dashboard/helper/inbox';
+import { isSendableTemplate } from '@chatwoot/utils';
+import camelcaseKeys from 'camelcase-keys';
+import * as types from '../mutation-types';
 import InboxesAPI from '../../api/inboxes';
 import WebChannel from '../../api/channel/webChannel';
 import FBChannel from '../../api/channel/fbChannel';
 import TwilioChannel from '../../api/channel/twilioChannel';
 import WhatsappChannel from '../../api/channel/whatsappChannel';
 import { throwErrorMessage } from '../utils/api';
-import { isSendableTemplate } from '@chatwoot/utils';
 import AnalyticsHelper from '../../helper/AnalyticsHelper';
-import camelcaseKeys from 'camelcase-keys';
 import { ACCOUNT_EVENTS } from '../../helper/AnalyticsHelper/events';
 import { channelActions, buildInboxData } from './inboxes/channelActions';
 
@@ -127,27 +127,24 @@ export const getters = {
       item => item.channel_type !== INBOX_TYPES.EMAIL
     );
   },
-  getFacebookInboxByInstagramId: $state => instagramId => {
-    return $state.records.find(
+  getFacebookInboxByInstagramId: $state => instagramId =>
+    $state.records.find(
       item =>
         item.instagram_id === instagramId &&
         item.channel_type === INBOX_TYPES.FB
-    );
-  },
-  getInstagramInboxByInstagramId: $state => instagramId => {
-    return $state.records.find(
+    ),
+  getInstagramInboxByInstagramId: $state => instagramId =>
+    $state.records.find(
       item =>
         item.instagram_id === instagramId &&
         item.channel_type === INBOX_TYPES.INSTAGRAM
-    );
-  },
-  getTiktokInboxByBusinessId: $state => businessId => {
-    return $state.records.find(
+    ),
+  getTiktokInboxByBusinessId: $state => businessId =>
+    $state.records.find(
       item =>
         item.business_id === businessId &&
         item.channel_type === INBOX_TYPES.TIKTOK
-    );
-  },
+    ),
 };
 
 const sendAnalyticsEvent = channelType => {
@@ -203,8 +200,10 @@ export const actions = {
       const response = await InboxesAPI.get(true);
       commit(types.default.SET_INBOXES_UI_FLAG, { isFetching: false });
       commit(types.default.SET_INBOXES, response.data.payload);
+      return true;
     } catch (error) {
       commit(types.default.SET_INBOXES_UI_FLAG, { isFetching: false });
+      return false;
     }
   },
   createChannel: async ({ commit }, params) => {
@@ -257,7 +256,7 @@ export const actions = {
       return response.data;
     } catch (error) {
       commit(types.default.SET_INBOXES_UI_FLAG, { isCreating: false });
-      throw new Error(error);
+      throw error;
     }
   },
   createWhatsAppEmbeddedSignup: async ({ commit }, params) => {
@@ -430,6 +429,15 @@ export const actions = {
       );
     } finally {
       isSyncingWhatsmeowStatuses = false;
+    }
+  },
+  rotateHmacToken: async ({ commit }, inboxId) => {
+    try {
+      const response = await InboxesAPI.rotateHmacToken(inboxId);
+      commit(types.default.EDIT_INBOXES, response.data);
+      return response.data;
+    } catch (error) {
+      return throwErrorMessage(error);
     }
   },
 };

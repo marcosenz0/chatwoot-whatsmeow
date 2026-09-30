@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - codex/whatsmeow-voice-calls
+      - codex/chatwoot-v4.18-common
 
 permissions:
   contents: read
@@ -39,7 +40,28 @@ jobs:
         with:
           bundler-cache: true
       - run: bundle exec rake db:create db:schema:load
-      - run: bundle exec rspec spec/services/whatsmeow/call_event_service_spec.rb
+      - name: Validate preserved fork integrations
+        run: >-
+          bundle exec rspec
+          spec/services/whatsmeow
+          spec/listeners/whatsmeow_listener_spec.rb
+          spec/models/conversation_pipeline_spec.rb
+          spec/models/conversation_pipeline_stage_spec.rb
+          spec/models/conversation_pipeline_assignment_spec.rb
+          spec/services/pipelines
+          spec/controllers/api/v1/accounts/conversations/whatsmeow_pix_messages_controller_spec.rb
+          spec/models/whatsapp_automation_spec.rb
+          spec/listeners/whatsapp_automation_listener_spec.rb
+          spec/jobs/whatsapp/process_campaign_delivery_job_spec.rb
+          spec/services/whatsapp/oneoff_campaign_service_spec.rb
+          spec/services/whatsapp/incoming_message_whatsapp_cloud_service_spec.rb
+          spec/services/whatsapp/template_processor_service_spec.rb
+          spec/services/whatsapp/providers/whatsapp_cloud_service_spec.rb
+          spec/services/whatsapp/health_service_spec.rb
+          spec/models/inbox_spec.rb
+          spec/enterprise/services/messages/audio_transcription_service_spec.rb
+          spec/finders/conversation_finder_spec.rb
+          spec/finders/message_finder_spec.rb
 
   publish:
     needs: validate-call-history
@@ -58,6 +80,8 @@ jobs:
           file: Dockerfile
           platforms: linux/amd64
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/chatwoot-whatsmeow:calls-${{ github.sha }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/chatwoot-whatsmeow:calls-${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/chatwoot-whatsmeow:fork-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

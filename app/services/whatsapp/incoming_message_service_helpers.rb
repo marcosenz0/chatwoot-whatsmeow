@@ -25,6 +25,8 @@ module Whatsapp::IncomingMessageServiceHelpers
   end
 
   def message_content(message)
+    return I18n.t('conversations.messages.whatsapp.flow_response') if message.dig(:interactive, :nfm_reply).present?
+
     # TODO: map interactive messages back to button messages in chatwoot
     message.dig(:text, :body) ||
       message.dig(:button, :text) ||
@@ -65,6 +67,13 @@ module Whatsapp::IncomingMessageServiceHelpers
     []
   end
 
+  def parse_flow_response_json(response_json)
+    parsed_response = JSON.parse(response_json)
+    parsed_response.is_a?(Hash) ? parsed_response : response_json
+  rescue JSON::ParserError, TypeError
+    response_json
+  end
+
   def file_content_type(file_type)
     return :image if %w[image sticker].include?(file_type)
     return :audio if %w[audio voice].include?(file_type)
@@ -81,6 +90,10 @@ module Whatsapp::IncomingMessageServiceHelpers
 
   def processed_waid(waid)
     Whatsapp::PhoneNumberNormalizationService.new(inbox).normalize_and_find_contact_by_provider(waid, :cloud)
+  end
+
+  def phone_number_candidates(phone_number)
+    Whatsapp::PhoneNumberNormalizationService.new(inbox).phone_number_candidates(phone_number)
   end
 
   def whatsapp_phone_number(identifier)
@@ -101,6 +114,12 @@ module Whatsapp::IncomingMessageServiceHelpers
 
   def process_in_reply_to(message)
     @in_reply_to_external_id = message['context']&.[]('id')
+    return if @in_reply_to_external_id.blank?
+
+    @in_reply_to_message_id = Whatsapp::InReplyToMessageFinder.new(
+      conversation: @conversation,
+      source_id: @in_reply_to_external_id
+    ).perform&.id
   end
 
   def referral_attributes(message)

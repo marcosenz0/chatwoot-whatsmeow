@@ -41,6 +41,7 @@ Rails.application.routes.draw do
 
   get '/health', to: 'health#show'
   get '/marcosx_ai/google/callback', to: 'marcosx_ai/google_callbacks#show'
+  get '/robots.txt', to: 'robots#show', format: false
   get '/api', to: 'api#index'
   namespace :api, defaults: { format: 'json' } do
     namespace :v1 do
@@ -73,6 +74,12 @@ Rails.application.routes.draw do
                 get :summary
                 get :drilldown
               end
+              resource :stats, only: [], controller: :assistant_stats do
+                get :overview
+                get :overview_summary
+                get :resolution_flow
+                get :resolution_trend
+              end
               collection do
                 get :tools
               end
@@ -80,7 +87,9 @@ Rails.application.routes.draw do
               resources :scenarios
             end
             resources :agent_sessions, only: [:show]
-            resources :assistant_responses
+            resources :assistant_responses do
+              get :drilldown, on: :member
+            end
             resources :faq_suggestions, only: [:index, :show, :update] do
               post :approve, on: :member
               post :dismiss, on: :member
@@ -95,6 +104,7 @@ Rails.application.routes.draw do
             end
             resources :documents, only: [:index, :show, :create, :destroy] do
               post :sync, on: :member
+              get :drilldown, on: :member
             end
             resource :tasks, only: [], controller: 'tasks' do
               post :rewrite
@@ -186,7 +196,12 @@ Rails.application.routes.draw do
               resources :inbox_limits, only: [:create, :update, :destroy]
             end
           end
-          resources :campaigns, only: [:index, :create, :show, :update, :destroy]
+          resources :campaigns, only: [:index, :create, :show, :update, :destroy] do
+            if ChatwootApp.enterprise?
+              get 'analytics/metrics', to: 'campaigns/analytics#metrics'
+              get 'analytics/contacts', to: 'campaigns/analytics#contacts'
+            end
+          end
           resources :conversation_pipelines, path: 'pipelines', controller: 'conversation_pipelines',
                                              only: [:index, :show, :create, :update, :destroy] do
             member do
@@ -223,6 +238,7 @@ Rails.application.routes.draw do
               end
               post 'messages/pix', to: 'whatsmeow_pix_messages#create'
               post 'whatsmeow_call_session', to: 'whatsmeow_call_sessions#create'
+              resource :contact_info_request, only: [:create]
               resources :assignments, only: [:create]
               resources :labels, only: [:create, :index]
               resource :pipeline, only: [:create, :destroy]
@@ -240,6 +256,7 @@ Rails.application.routes.draw do
               post :update_last_seen
               post :unread
               post :custom_attributes
+              post :destroy_custom_attributes
               get :attachments
               get :inbox_assistant
               get :reporting_events if ChatwootApp.enterprise?
@@ -347,9 +364,11 @@ Rails.application.routes.draw do
             get :assignable_agents, on: :member
             get :campaigns, on: :member
             get :agent_bot, on: :member
+            get :message_templates, on: :member
             post :set_agent_bot, on: :member
             delete :avatar, on: :member
             post :sync_templates, on: :member
+            put :whatsapp_business_management_token, on: :member
             get :health, on: :member
             post :register_webhook, on: :member
             post :reset_secret, on: :member
@@ -366,6 +385,7 @@ Rails.application.routes.draw do
             post :whatsmeow_group_member, on: :member
             post :whatsmeow_group_conversation, on: :member
             post :whatsmeow_direct_conversation, on: :member
+            post :rotate_hmac_token, on: :member
             if ChatwootApp.enterprise?
               resource :conference, only: %i[create destroy], controller: 'conference' do
                 get :token, on: :member
@@ -373,6 +393,7 @@ Rails.application.routes.draw do
               post :enable_whatsapp_calling, on: :member
               post :disable_whatsapp_calling, on: :member
               post :set_inbound_calls, on: :member
+              post :set_call_recording, on: :member
             end
 
             resource :csat_template, only: [:show, :create], controller: 'inbox_csat_templates' do
@@ -445,6 +466,11 @@ Rails.application.routes.draw do
 
           namespace :whatsapp do
             resource :authorization, only: [:create]
+            resource :access_request, only: [:create] if ChatwootApp.enterprise?
+            post 'manual/preview', to: 'manual_setup#preview'
+            post 'manual/connect', to: 'manual_setup#connect'
+            get 'manual/:inbox_id/webhook_status', to: 'manual_setup#webhook_status'
+            post 'manual/:inbox_id/setup_webhook', to: 'manual_setup#setup_webhook'
           end
 
           resources :webhooks, only: [:index, :create, :update, :destroy]
@@ -630,6 +656,7 @@ Rails.application.routes.draw do
         namespace :v1 do
           resources :accounts do
             member do
+              get :billing_summary
               post :checkout
               post :subscription
               post :select_billing_currency
@@ -795,6 +822,7 @@ Rails.application.routes.draw do
       end
       resources :users, only: [:index, :new, :create, :show, :edit, :update, :destroy] do
         delete :avatar, on: :member, action: :destroy_avatar
+        post :resend_confirmation, on: :member
       end
 
       resources :access_tokens, only: [:index, :show]

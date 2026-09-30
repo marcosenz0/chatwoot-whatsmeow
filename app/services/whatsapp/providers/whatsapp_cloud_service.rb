@@ -41,27 +41,32 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
   end
 
   def sync_templates
-    templates = fetch_whatsapp_templates("#{business_account_path}/message_templates")
-    whatsapp_channel.update!(
-      message_templates: templates,
-      message_templates_last_updated: Time.current
-    )
+    templates = fetch_whatsapp_templates
+    whatsapp_channel.mark_message_templates_updated
+    return if templates.blank?
+
+    # update_columns skips touch, so bump the cache key ourselves; only if templates changed
+    whatsapp_channel.account.update_cache_key('inbox') if templates != whatsapp_channel.message_templates
+    # rubocop:disable Rails/SkipsModelValidations
+    whatsapp_channel.update_columns(message_templates: templates, message_templates_last_updated: Time.current)
+    # rubocop:enable Rails/SkipsModelValidations
   end
 
-  def fetch_whatsapp_templates(url)
-    response = HTTParty.get(url, headers: api_headers)
-    raise TemplateSyncError, template_sync_error(response) unless response.success?
+  def fetch_whatsapp_templates(after: nil)
+    options = { headers: { 'Authorization' => "Bearer #{whatsapp_channel.template_access_token}" } }
+    options[:query] = { after: after } if after.present?
+    response = HTTParty.get("#{business_account_path}/message_templates", options)
+    unless response.success?
+      Rails.logger.warn "[WHATSAPP] Template sync failed for account #{whatsapp_channel.account_id} " \
+                        "inbox #{whatsapp_channel.inbox&.id}: #{response.code} #{error_message(response)}"
+      raise TemplateSyncError, template_sync_error(response)
+    end
 
-    next_url = next_url(response)
-    templates = Array(response['data'])
+    next_cursor = response.dig('paging', 'cursors', 'after') if response.dig('paging', 'next').present?
 
-    return templates + fetch_whatsapp_templates(next_url) if next_url.present?
+    return response['data'] + fetch_whatsapp_templates(after: next_cursor) if next_cursor.present?
 
-    templates
-  end
-
-  def next_url(response)
-    response['paging'] ? response['paging']['next'] : ''
+    response['data']
   end
 
   def validate_provider_config?
@@ -189,7 +194,8 @@ class Whatsapp::Providers::WhatsappCloudService < Whatsapp::Providers::BaseServi
   end
 
   def build_attachment_content(type, attachment, message)
-    type_content = { 'link' => attachment.download_url }
+    # Referencing uploaded media by id avoids Meta's fwdproxy download, which is rate limited per ASN (error 131053).
+    type_content = Whatsapp::MediaUploadService.new(whatsapp_channel, attachment).perform || { 'link' => attachment.download_url }
     type_content['caption'] = message.outgoing_content unless %w[audio sticker].include?(type)
     type_content['filename'] = attachment.file.filename if type == 'document'
     type_content['voice'] = true if voice_message?(type, attachment)

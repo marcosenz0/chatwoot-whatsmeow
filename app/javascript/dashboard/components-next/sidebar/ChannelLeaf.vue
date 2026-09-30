@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import Icon from 'next/icon/Icon.vue';
 import ChannelIcon from 'next/icon/ChannelIcon.vue';
+import { getInboxIdentifier } from 'dashboard/helper/inbox';
 import SidebarUnreadBadge from './SidebarUnreadBadge.vue';
 
 const props = defineProps({
@@ -30,18 +31,39 @@ const historyState = computed(
 const historyActive = computed(() =>
   ['syncing', 'waiting'].includes(historyState.value.phase)
 );
+const IDENTIFIER_SEPARATOR = '·';
 
-const reauthorizationRequired = computed(() => {
-  return props.inbox.reauthorization_required;
-});
+const reauthorizationRequired = computed(
+  () => props.inbox.reauthorization_required
+);
+
+const channelIdentifier = computed(() => getInboxIdentifier(props.inbox));
+
+const rowTitle = computed(() =>
+  channelIdentifier.value
+    ? `${props.label} ${IDENTIFIER_SEPARATOR} ${channelIdentifier.value}`
+    : props.label
+);
 </script>
 
 <template>
   <span class="size-4 grid place-content-center rounded-full relative">
     <ChannelIcon :inbox="inbox" class="size-4" />
   </span>
-  <div class="flex-1 truncate min-w-0">
-    <span>{{ label }}</span>
+  <div
+    :title="rowTitle"
+    class="flex-1 truncate min-w-0"
+    data-test-id="channel-leaf-label"
+  >
+    {{ label }}
+    <template v-if="channelIdentifier">
+      <span aria-hidden="true" class="text-n-slate-9 mx-0.5">
+        {{ IDENTIFIER_SEPARATOR }}
+      </span>
+      <bdi dir="auto" class="text-n-slate-9" data-test-id="channel-identifier">
+        {{ channelIdentifier }}
+      </bdi>
+    </template>
     <span
       v-if="historyActive"
       class="flex items-center gap-1 text-xs text-n-blue-11"

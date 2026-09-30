@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, useAttrs } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useMapGetter } from 'dashboard/composables/store.js';
 import { getUnixTime } from 'date-fns';
 import { findSnoozeTime } from 'dashboard/helper/snoozeHelpers';
@@ -15,11 +16,11 @@ import {
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Checkbox from 'dashboard/components-next/checkbox/Checkbox.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
+import CustomSnoozeModal from 'dashboard/components/CustomSnoozeModal.vue';
 import BulkAgentActions from './BulkAgentActions.vue';
 import BulkUpdateActions from './BulkUpdateActions.vue';
 import BulkLabelActions from './BulkLabelActions.vue';
 import BulkTeamActions from './BulkTeamActions.vue';
-import CustomSnoozeModal from 'dashboard/components/CustomSnoozeModal.vue';
 
 const props = defineProps({
   conversations: {
@@ -55,6 +56,7 @@ defineOptions({
 });
 
 const attrs = useAttrs();
+const { t } = useI18n();
 
 const {
   selectedConversations,
@@ -76,6 +78,12 @@ const appliedLabelsForSelection = computed(() => {
   });
   return Array.from(applied);
 });
+
+const selectedLabel = computed(() =>
+  t('BULK_ACTION.CONVERSATIONS_SELECTED', {
+    conversationCount: props.conversations.length,
+  })
+);
 
 const showCustomTimeSnoozeModal = ref(false);
 const deleteConversationsDialogRef = ref(null);
@@ -183,16 +191,13 @@ onUnmounted(() => {
             <Checkbox
               v-model="allSelected"
               :indeterminate="!allConversationsSelected"
+              class="flex-shrink-0"
             />
-            <span class="cursor-pointer truncate text-sm">
-              {{
-                $t('BULK_ACTION.CONVERSATIONS_SELECTED', {
-                  conversationCount: conversations.length,
-                })
-              }}
+            <span :title="selectedLabel" class="cursor-pointer truncate">
+              {{ selectedLabel }}
             </span>
           </label>
-          <div class="w-px h-3 bg-n-weak rounded-lg ltr:ml-1 rtl:mr-1" />
+          <div class="w-px h-3 bg-n-weak rounded-lg ms-1 flex-shrink-0" />
           <NextButton
             :label="$t('BULK_ACTION.CLEAR_SELECTION')"
             ghost

@@ -1,6 +1,6 @@
 module.exports = {
   extends: [
-    'airbnb-base/legacy',
+    'airbnb-base',
     'prettier',
     'plugin:vue/vue3-recommended',
     'plugin:vitest-globals/recommended',
@@ -247,6 +247,7 @@ module.exports = {
   },
   env: {
     browser: true,
+    es2020: true,
     node: true,
   },
   globals: {

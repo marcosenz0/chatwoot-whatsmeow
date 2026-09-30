@@ -9,9 +9,6 @@ import {
   whatsmeowConversationPath,
   whatsmeowDirectConversationPayload,
 } from 'dashboard/helper/whatsmeowConversationHelper';
-import { useMessageContext } from '../provider.js';
-import BaseBubble from './Base.vue';
-import MessageMeta from '../MessageMeta.vue';
 import Avatar from 'next/avatar/Avatar.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Icon from 'next/icon/Icon.vue';
@@ -20,6 +17,9 @@ import {
   DuplicateContactException,
   ExceptionWithMessage,
 } from 'shared/helpers/CustomErrors';
+import MessageMeta from '../MessageMeta.vue';
+import BaseBubble from './Base.vue';
+import { useMessageContext } from '../provider.js';
 
 const { attachments, inboxId } = useMessageContext();
 const $store = useStore();
@@ -167,6 +167,9 @@ const contactJid = computed(
 
 const hasConversationTarget = computed(
   () => !!(phoneNumber.value || contactJid.value)
+);
+const isContactInfoResponse = computed(
+  () => attachment.value?.meta?.isContactInfoResponse
 );
 
 const avatarUrl = computed(() =>
@@ -518,7 +521,7 @@ async function openPrivateConversation() {
       <button
         type="button"
         class="flex items-center justify-center gap-2 border-t border-n-weak px-3 py-2 text-sm font-semibold text-n-teal-11 hover:bg-n-alpha-2"
-        :disabled="isContactSaved || isSavingContact"
+        :disabled="isContactInfoResponse || isContactSaved || isSavingContact"
         @click.stop="addContact"
       >
         <Icon
@@ -601,7 +604,9 @@ async function openPrivateConversation() {
             <button
               type="button"
               class="flex items-center justify-center gap-2 rounded-lg border border-n-weak px-3 py-3 text-sm font-semibold text-n-slate-12 hover:bg-n-alpha-2 disabled:opacity-60"
-              :disabled="isContactSaved || isSavingContact"
+              :disabled="
+                isContactInfoResponse || isContactSaved || isSavingContact
+              "
               @click.stop="addContact"
             >
               <Icon

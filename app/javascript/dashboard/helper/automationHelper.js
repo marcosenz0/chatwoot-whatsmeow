@@ -1,16 +1,16 @@
 import {
+  DEFAULT_ACTIONS,
+  DEFAULT_CONVERSATION_CONDITION,
+  DEFAULT_MESSAGE_CREATED_CONDITION,
+  DEFAULT_OTHER_CONDITION,
+} from 'dashboard/constants/automation';
+import {
   OPERATOR_TYPES_1,
   OPERATOR_TYPES_3,
   OPERATOR_TYPES_4,
 } from 'dashboard/routes/dashboard/settings/automation/operators';
-import {
-  DEFAULT_MESSAGE_CREATED_CONDITION,
-  DEFAULT_CONVERSATION_CONDITION,
-  DEFAULT_OTHER_CONDITION,
-  DEFAULT_ACTIONS,
-} from 'dashboard/constants/automation';
-import filterQueryGenerator from './filterQueryGenerator';
 import actionQueryGenerator from './actionQueryGenerator';
+import filterQueryGenerator from './filterQueryGenerator';
 
 export const getCustomAttributeInputType = key => {
   const customAttributeMap = {
@@ -23,41 +23,28 @@ export const getCustomAttributeInputType = key => {
   return customAttributeMap[key] || 'plain_text';
 };
 
-export const isACustomAttribute = (customAttributes, key) => {
-  return customAttributes.find(attr => {
-    return attr.attribute_key === key;
-  });
-};
+export const isACustomAttribute = (customAttributes, key) =>
+  customAttributes.find(attr => attr.attribute_key === key);
 
-export const getCustomAttributeListDropdownValues = (
-  customAttributes,
-  type
-) => {
-  return customAttributes
+export const getCustomAttributeListDropdownValues = (customAttributes, type) =>
+  customAttributes
     .find(attr => attr.attribute_key === type)
-    .attribute_values.map(item => {
-      return {
-        id: item,
-        name: item,
-      };
-    });
-};
+    .attribute_values.map(item => ({
+      id: item,
+      name: item,
+    }));
 
-export const isCustomAttributeCheckbox = (customAttributes, key) => {
-  return customAttributes.find(attr => {
-    return (
+export const isCustomAttributeCheckbox = (customAttributes, key) =>
+  customAttributes.find(
+    attr =>
       attr.attribute_key === key && attr.attribute_display_type === 'checkbox'
-    );
-  });
-};
+  );
 
-export const isCustomAttributeList = (customAttributes, type) => {
-  return customAttributes.find(attr => {
-    return (
+export const isCustomAttributeList = (customAttributes, type) =>
+  customAttributes.find(
+    attr =>
       attr.attribute_key === type && attr.attribute_display_type === 'list'
-    );
-  });
-};
+  );
 
 export const getOperatorTypes = key => {
   const operatorMap = {
@@ -72,27 +59,72 @@ export const getOperatorTypes = key => {
   return operatorMap[key] || OPERATOR_TYPES_1;
 };
 
-export const generateCustomAttributeTypes = (customAttributes, type) => {
-  return customAttributes.map(attr => {
-    return {
-      key: attr.attribute_key,
-      name: attr.attribute_display_name,
-      inputType: getCustomAttributeInputType(attr.attribute_display_type),
-      filterOperators: getOperatorTypes(attr.attribute_display_type),
-      customAttributeType: type,
-    };
-  });
+export const generateCustomAttributeTypes = (customAttributes, type) =>
+  customAttributes.map(attr => ({
+    key: attr.attribute_key,
+    name: attr.attribute_display_name,
+    inputType: getCustomAttributeInputType(attr.attribute_display_type),
+    attributeDisplayType: attr.attribute_display_type,
+    filterOperators: getOperatorTypes(attr.attribute_display_type),
+    customAttributeType: type,
+  }));
+
+// Leading icon per action key, shared by the automation and macro action pickers.
+const ACTION_ICONS = {
+  assign_agent: 'i-lucide-user-round',
+  assign_team: 'i-lucide-users-round',
+  remove_assigned_agent: 'i-lucide-user-round-x',
+  remove_assigned_team: 'i-lucide-users',
+  add_label: 'i-lucide-tag',
+  remove_label: 'i-woot-tag-remove',
+  send_email_to_team: 'i-lucide-send',
+  send_email_transcript: 'i-lucide-mail',
+  send_message: 'i-lucide-message-square',
+  add_private_note: 'i-lucide-sticky-note',
+  send_attachment: 'i-lucide-paperclip',
+  send_webhook_event: 'i-lucide-webhook',
+  mute_conversation: 'i-lucide-bell-off',
+  snooze_conversation: 'i-lucide-clock',
+  open_conversation: 'i-lucide-circle-dot',
+  pending_conversation: 'i-lucide-circle-dashed',
+  resolve_conversation: 'i-lucide-circle-check',
+  change_priority: 'i-lucide-signal-high',
+  add_sla: 'i-lucide-gauge',
 };
+
+const DEFAULT_ACTION_ICON = 'i-lucide-zap';
+
+/**
+ * Resolve the leading icon for an automation or macro action.
+ * @param {string} key - The action key.
+ * @returns {string} Icon class.
+ */
+export const getActionIcon = key => ACTION_ICONS[key] || DEFAULT_ACTION_ICON;
 
 export const generateConditionOptions = (options, key = 'id') => {
   if (!options || !Array.isArray(options)) return [];
-  return options.map(i => {
-    return {
-      id: i[key],
-      name: i.title,
-    };
-  });
+  return options.map(i => ({
+    id: i[key],
+    name: i.title,
+  }));
 };
+
+// Teams carry an emoji icon picker value in `icon`, which is not a CSS class and
+// cannot be handed to the generic Icon component the dropdowns render.
+export const generateTeamOptions = teams =>
+  (teams || []).map(team => ({
+    id: team.id,
+    name: team.name,
+    emoji: team.icon,
+    iconColor: team.icon_color,
+  }));
+
+export const generateLabelOptions = labels =>
+  (labels || []).map(label => ({
+    id: label.title,
+    name: label.title,
+    color: label.color,
+  }));
 
 export const getActionOptions = ({
   agents,
@@ -106,10 +138,12 @@ export const getActionOptions = ({
 }) => {
   const actionsMap = {
     assign_agent: addNoneToListFn ? addNoneToListFn(agents) : agents,
-    assign_team: addNoneToListFn ? addNoneToListFn(teams) : teams,
-    send_email_to_team: teams,
-    add_label: generateConditionOptions(labels, 'title'),
-    remove_label: generateConditionOptions(labels, 'title'),
+    assign_team: addNoneToListFn
+      ? addNoneToListFn(generateTeamOptions(teams))
+      : generateTeamOptions(teams),
+    send_email_to_team: generateTeamOptions(teams),
+    add_label: generateLabelOptions(labels),
+    remove_label: generateLabelOptions(labels),
     change_priority: priorityOptions,
     change_pipeline_stage: pipelineStageOptions,
     add_sla: slaPolicies,
@@ -148,7 +182,7 @@ export const getConditionOptions = ({
     assignee_id: agents,
     contact: contacts,
     inbox_id: inboxes,
-    team_id: teams,
+    team_id: generateTeamOptions(teams),
     campaigns: generateConditionOptions(campaigns),
     browser_language: languages,
     conversation_language: languages,
@@ -158,7 +192,7 @@ export const getConditionOptions = ({
     priority: priorityOptions,
     conversation_pipeline_id: pipelines,
     conversation_pipeline_stage_id: pipelineStageOptions,
-    labels: generateConditionOptions(labels, 'title'),
+    labels: generateLabelOptions(labels),
   };
 
   return conditionFilterMaps[type];
@@ -187,24 +221,17 @@ export const getDefaultConditions = eventName => {
   return structuredClone(DEFAULT_OTHER_CONDITION);
 };
 
-export const getDefaultActions = () => {
-  return structuredClone(DEFAULT_ACTIONS);
-};
+export const getDefaultActions = () => structuredClone(DEFAULT_ACTIONS);
 
-export const filterCustomAttributes = customAttributes => {
-  return customAttributes.map(attr => {
-    return {
-      key: attr.attribute_key,
-      name: attr.attribute_display_name,
-      type: attr.attribute_display_type,
-    };
-  });
-};
+export const filterCustomAttributes = customAttributes =>
+  customAttributes.map(attr => ({
+    key: attr.attribute_key,
+    name: attr.attribute_display_name,
+    type: attr.attribute_display_type,
+  }));
 
-export const getStandardAttributeInputType = (automationTypes, event, key) => {
-  return automationTypes[event].conditions.find(item => item.key === key)
-    .inputType;
-};
+export const getStandardAttributeInputType = (automationTypes, event, key) =>
+  automationTypes[event].conditions.find(item => item.key === key).inputType;
 
 export const generateAutomationPayload = payload => {
   const automation = JSON.parse(JSON.stringify(payload));
@@ -214,9 +241,14 @@ export const generateAutomationPayload = payload => {
   return automation;
 };
 
-export const isCustomAttribute = (attrs, key) => {
-  return attrs.find(attr => attr.key === key);
+export const formatDelay = minutes => {
+  if (minutes % 1440 === 0) return `${minutes / 1440}d`;
+  if (minutes % 60 === 0) return `${minutes / 60}h`;
+  return `${minutes}m`;
 };
+
+export const isCustomAttribute = (attrs, key) =>
+  attrs.find(attr => attr.key === key);
 
 export const generateCustomAttributes = (
   // eslint-disable-next-line default-param-last
@@ -256,9 +288,8 @@ export const generateCustomAttributes = (
  * @param {string} key - The key to get attributes for.
  * @returns {Array} Array of condition objects for the given key.
  */
-export const getAttributes = (automationTypes, key) => {
-  return automationTypes[key].conditions;
-};
+export const getAttributes = (automationTypes, key) =>
+  automationTypes[key].conditions;
 
 /**
  * Get the automation type for a given key.
@@ -267,11 +298,10 @@ export const getAttributes = (automationTypes, key) => {
  * @param {string} key - The key to get the automation type for.
  * @returns {Object} The automation type object.
  */
-export const getAutomationType = (automationTypes, automation, key) => {
-  return automationTypes[automation.event_name].conditions.find(
+export const getAutomationType = (automationTypes, automation, key) =>
+  automationTypes[automation.event_name].conditions.find(
     condition => condition.key === key
   );
-};
 
 /**
  * Get the input type for a given key.
@@ -328,11 +358,9 @@ export const getOperators = (
  * @param {string} key - The key to get the custom attribute type for.
  * @returns {string} The custom attribute type.
  */
-export const getCustomAttributeType = (automationTypes, automation, key) => {
-  return automationTypes[automation.event_name].conditions.find(
-    i => i.key === key
-  ).customAttributeType;
-};
+export const getCustomAttributeType = (automationTypes, automation, key) =>
+  automationTypes[automation.event_name].conditions.find(i => i.key === key)
+    .customAttributeType;
 
 /**
  * Determine if an action input should be shown.

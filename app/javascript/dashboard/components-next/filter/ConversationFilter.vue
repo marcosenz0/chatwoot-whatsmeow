@@ -6,12 +6,12 @@ import { useTrack } from 'dashboard/composables';
 import { useStore } from 'dashboard/composables/store';
 import { vOnClickOutside } from '@vueuse/components';
 import { CONVERSATION_EVENTS } from 'dashboard/helper/AnalyticsHelper/events';
-import { useConversationFilterContext } from './provider.js';
 import { useSnakeCase } from 'dashboard/composables/useTransformKeys';
 import { validateSingleFilter } from 'dashboard/helper/validations';
 
 import Button from 'next/button/Button.vue';
 import Input from 'dashboard/components-next/input/Input.vue';
+import { useConversationFilterContext } from './provider.js';
 import ConditionRow from './ConditionRow.vue';
 
 const props = defineProps({
@@ -41,7 +41,7 @@ const emit = defineEmits([
   'clearFilters',
   'close',
 ]);
-const { filterTypes } = useConversationFilterContext();
+const { attributeFilterTypes } = useConversationFilterContext();
 
 const filters = defineModel({
   type: Array,
@@ -79,9 +79,8 @@ const addFilter = () => {
 
 const conditionsRef = useTemplateRef('conditionsRef');
 
-const isConditionsValid = () => {
-  return conditionsRef.value.every(condition => condition.validate());
-};
+const isConditionsValid = () =>
+  conditionsRef.value.every(condition => condition.validate());
 
 const updateSavedCustomViews = () => {
   if (isConditionsValid()) {
@@ -121,11 +120,9 @@ const applyValidFilters = useDebounceFn(() => {
 
 watch(filters, applyValidFilters, { deep: true });
 
-const filterModalHeaderTitle = computed(() => {
-  return !props.isFolderView
-    ? t('FILTER.TITLE')
-    : t('FILTER.EDIT_CUSTOM_FILTER');
-});
+const filterModalHeaderTitle = computed(() =>
+  !props.isFolderView ? t('FILTER.TITLE') : t('FILTER.EDIT_CUSTOM_FILTER')
+);
 
 const groupTabOptions = computed(() =>
   SHOW_GROUP_TAB_KEYS.map(key => {
@@ -179,7 +176,7 @@ const outsideClickHandler = [
 <template>
   <div
     v-on-click-outside="outsideClickHandler"
-    class="z-40 max-w-3xl lg:w-[750px] overflow-visible w-full border border-n-weak bg-n-alpha-3 backdrop-blur-[100px] shadow-lg rounded-xl p-6 grid gap-6"
+    class="z-40 w-[min(34rem,calc(100vw-2rem))] lg:w-[750px] overflow-visible border border-n-weak bg-n-alpha-3 backdrop-blur-[100px] shadow-lg rounded-xl p-6 grid gap-6"
   >
     <h3 class="text-base font-medium leading-6 text-n-slate-12">
       {{ filterModalHeaderTitle }}
@@ -252,7 +249,7 @@ const outsideClickHandler = [
         />
       </div>
     </div>
-    <ul class="grid gap-4 list-none">
+    <ul class="grid gap-4 list-none min-w-0">
       <template v-for="(filter, index) in filters" :key="filter.id">
         <ConditionRow
           v-if="index === 0"
@@ -261,7 +258,7 @@ const outsideClickHandler = [
           v-model:attribute-key="filter.attributeKey"
           v-model:filter-operator="filter.filterOperator"
           v-model:values="filter.values"
-          :filter-types="filterTypes"
+          :filter-types="attributeFilterTypes"
           :show-query-operator="false"
           @remove="removeFilter(index)"
         />
@@ -274,7 +271,7 @@ const outsideClickHandler = [
           v-model:query-operator="filters[index - 1].queryOperator"
           v-model:values="filter.values"
           show-query-operator
-          :filter-types="filterTypes"
+          :filter-types="attributeFilterTypes"
           @remove="removeFilter(index)"
         />
       </template>
