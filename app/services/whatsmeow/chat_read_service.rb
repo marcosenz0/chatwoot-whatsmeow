@@ -76,7 +76,7 @@ class Whatsmeow::ChatReadService
   end
 
   def unread_cutoff(conversation, read_cursor)
-    latest_incoming = conversation.messages.incoming.where('created_at <= ?', read_cursor).order(created_at: :desc).first
+    latest_incoming = conversation.messages.incoming.where('created_at <= ?', read_cursor).reorder(created_at: :desc, id: :desc).first
     latest_incoming&.created_at&.-(1.second)
   end
 end

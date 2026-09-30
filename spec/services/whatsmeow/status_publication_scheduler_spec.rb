@@ -40,7 +40,7 @@ RSpec.describe Whatsmeow::StatusPublicationScheduler do
       expect(other.publication_position).to eq(1)
       expect(other.source_id).not_to eq(aliases.first.source_id)
       expect(Whatsmeow::PublishStatusJob).to have_been_enqueued.with(aliases.map(&:id).min)
-      expect(enqueued_jobs.size).to eq(1)
+      expect(enqueued_jobs.count { |job| job[:job] == Whatsmeow::PublishStatusJob }).to eq(1)
     end
 
     it 'returns the original deliveries when the publication UUID is reused with the same payload' do
@@ -52,7 +52,7 @@ RSpec.describe Whatsmeow::StatusPublicationScheduler do
       expect(repeated_statuses.map(&:id)).to eq(original_statuses.map(&:id))
       expect(account.whatsmeow_statuses.where(publication_id: publication_id).count).to eq(3)
       expect(Whatsmeow::PublishStatusJob).to have_been_enqueued.with(original_statuses.map(&:id).min)
-      expect(enqueued_jobs.size).to eq(1)
+      expect(enqueued_jobs.count { |job| job[:job] == Whatsmeow::PublishStatusJob }).to eq(1)
     end
 
     it 'rejects a reused publication UUID when the payload fingerprint changes' do

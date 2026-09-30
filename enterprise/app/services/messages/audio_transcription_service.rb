@@ -37,7 +37,7 @@ class Messages::AudioTranscriptionService
     return { error: 'Message not found' } if message.blank?
     return { error: 'Transcription disabled for this inbox' } if call_recording_transcription_disabled?
     return { error: transcription_unavailable_error } unless can_transcribe?
-    return { error: 'Audio too large for Whisper' } if audio_too_large?
+    return { error: 'Audio too large for transcription' } if audio_too_large?
 
     operation == :summarize ? summarize : transcribe
   rescue Faraday::Error, JSON::ParserError, KeyError, ActiveStorage::FileNotFoundError => e

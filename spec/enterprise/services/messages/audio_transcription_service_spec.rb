@@ -7,6 +7,7 @@ RSpec.describe Messages::AudioTranscriptionService, type: :service do
   let(:attachment) { message.attachments.create!(account: account, file_type: :audio) }
 
   before do
+    account.enable_features!('captain_integration')
     # Create required installation configs
     InstallationConfig.find_or_create_by!(name: 'CAPTAIN_OPEN_AI_API_KEY') { |config| config.value = 'test-api-key' }
     InstallationConfig.find_or_create_by!(name: 'CAPTAIN_OPEN_AI_MODEL') { |config| config.value = 'gpt-4o-mini' }

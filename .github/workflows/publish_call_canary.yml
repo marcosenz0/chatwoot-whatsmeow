@@ -39,7 +39,19 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           bundler-cache: true
-      - run: bundle exec rake db:create db:schema:load
+      - name: Validate migration from the previous fork schema
+        run: |
+          git fetch --no-tags --depth=1 origin 5bafe5cb77bba91902e6adcddd79d7aecca07b7d
+          git show 5bafe5cb77bba91902e6adcddd79d7aecca07b7d:db/schema.rb > /tmp/fork-before-upgrade-schema.rb
+          git ls-tree -r --name-only 5bafe5cb77bba91902e6adcddd79d7aecca07b7d -- db/migrate > /tmp/fork-before-upgrade-migrations.txt
+          bundle exec rake db:create
+          SCHEMA=/tmp/fork-before-upgrade-schema.rb bundle exec rake db:schema:load
+          bundle exec rails runner - <<'RUBY'
+          previous_versions = File.readlines('/tmp/fork-before-upgrade-migrations.txt').map { |path| File.basename(path).split('_').first }
+          schema_migration = ActiveRecord::Base.connection_pool.schema_migration
+          (schema_migration.versions - previous_versions).each { |version| schema_migration.delete_version(version) }
+          RUBY
+          bundle exec rake db:migrate
       - name: Validate preserved fork integrations
         run: >-
           bundle exec rspec

@@ -305,7 +305,7 @@ describe Whatsapp::Providers::WhatsappCloudService do
               end
             }
           ]
-        }.to_json
+        }
 
         stub_request(:post, 'https://graph.facebook.com/v22.0/123456789/messages')
           .with(
@@ -343,7 +343,7 @@ describe Whatsapp::Providers::WhatsappCloudService do
               end
             }
           ]
-        }.to_json
+        }
 
         stub_request(:post, 'https://graph.facebook.com/v22.0/123456789/messages')
           .with(

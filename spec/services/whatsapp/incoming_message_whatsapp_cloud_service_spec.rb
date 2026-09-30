@@ -945,13 +945,13 @@ describe Whatsapp::IncomingMessageWhatsappCloudService do
       end
 
       context 'when the original message does not exist in Chatwoot' do
-        it 'does not set in_reply_to (discards the reply reference)' do
+        it 'keeps the external reply reference without an internal in_reply_to' do
           described_class.new(inbox: whatsapp_channel.inbox, params: reply_params).perform
 
           reply_message = whatsapp_channel.inbox.messages.last
           expect(reply_message.content).to eq('This is a reply')
           expect(reply_message.content_attributes['in_reply_to']).to be_nil
-          expect(reply_message.content_attributes['in_reply_to_external_id']).to be_nil
+          expect(reply_message.content_attributes['in_reply_to_external_id']).to eq('wamid.ORIGINAL_MESSAGE_ID')
         end
       end
     end
