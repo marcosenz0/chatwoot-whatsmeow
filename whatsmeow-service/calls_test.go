@@ -71,7 +71,7 @@ func TestBrowserVideoSinkKeepsOrientationAndRecoversAfterQueueLoss(t *testing.T)
 		sink.SetOrientation(orientation)
 		_ = sink.WriteVideo(idr)
 		packet := <-socket.out
-		if packet.typ != websocket.MessageBinary || packet.data[0] != callOrientedVideoDown || packet.data[1] != byte(orientation) {
+		if packet.typ != websocket.MessageBinary || packet.data[0] != callOrientedVideoDown || packet.data[1] != byte(-orientation&3) {
 			t.Fatalf("wrong frame metadata: %v", packet)
 		}
 	}

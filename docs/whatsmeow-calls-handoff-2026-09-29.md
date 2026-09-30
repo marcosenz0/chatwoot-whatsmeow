@@ -2,6 +2,17 @@
 
 Este arquivo permite retomar a integracao em outro chat ou com outra IA. Nao registrar aqui segredos, numeros pessoais, conteudo de mensagens ou tokens de sessao. O painel e o historico estao publicados na principal. Chamadas recebidas e efetuadas, video nos dois sentidos, alternancia da camera e seletores de dispositivos foram confirmados com o WhatsApp Windows. A inteligibilidade do audio ainda nao foi ouvida independentemente; nao declarar a integracao inteira pronta apenas por haver sinalizacao, temporizador ou pacotes enviados.
 
+## Ajustes de video, pesquisa e seletores (29/09, em validacao)
+
+- Somente a principal recebeu `eeaf61d3149e465af71eac50f4805ce2acc6c6d9`: web e worker usam a imagem `calls-eeaf61d3149e465af71eac50f4805ce2acc6c6d9`; o Go terminou o deploy em 30/09 00:25:56 UTC e restaurou as sessoes. Web e Go responderam HTTP 200. MX/MD permanecem nas revisoes anteriores.
+- Pesquisa de ligacoes agora usa campo unico arredondado, `reset-base` e foco acessivel. As setas de microfone/camera usam SVG explicito e area de clique visivel. Ambos foram conferidos na interface publicada.
+- O quadro remoto passou a carregar orientacao em cada frame binario (tipo 5); o frontend continua aceitando tipo 4 legado. O canvas preserva proporcao e so muda suas dimensoes quando necessario. A classificacao de keyframe exige NAL IDR (5); SPS isolado nao serve para recuperar o decoder.
+- Recuperacao: decoder reinicia apos erro/fila atrasada, watchdog pede IDR quando a imagem para, fila perdida suprime deltas ate IDR, e PLI autenticado se repete enquanto a biblioteca espera recuperacao. Cinco testes JS, Go da biblioteca/servico, vet, lint direcionado e aplicacao limpa do patch passaram. Canario `36649398380`, Go `36649404457`, frontend `36649404438` e Docker `36649404466` passaram; CE `36649404451` falhou.
+- O teste real no Android revelou que esta primeira revisao ainda deixa o video invertido em pe e conserva retrato ao deitar o aparelho. A chamada foi encerrada pelo Chatwoot e registrou corretamente 2 min 17 s. Um segundo teste orientado repetiu ambos os problemas e durou 1 min 34 s. Nao declarar rotacao/travamentos resolvidos apenas com os testes unitarios.
+- Os logs mostraram pedidos frequentes de IDR mesmo sem pedido do navegador. A continuacao acrescenta reorganizacao limitada de RTP (75 ms / 64 pacotes), compensacao do sentido da rotacao no adaptador do navegador, uso de orientacao explicita das mensagens de estado e contadores tecnicos de saude do video. Essa revisao ainda precisa ser publicada e validada no celular em posicoes orientadas uma por vez.
+- O usuario informou que o audio funcionou bem em seu teste no celular. Isso e validacao relatada pelo usuario; o agente nao ouviu independentemente a inteligibilidade.
+- Foi reproduzido e corrigido na biblioteca o caso de oferta recebida duplicada sobrescrever a chamada e provocar recusa por ocupado. Isso comprova um bug possivel no gerenciador, mas nao identifica retrospectivamente a origem de todas as recusas dos dispositivos 25/26. A sessao pessoal do MX continua desconectada.
+
 ## Onde continuar
 
 - **Regra atual do usuario (29/09): desenvolver, testar e publicar somente na principal `chatwoot.marcoswt.com.br`. MX/MD so devem receber publicacao quando o usuario pedir explicitamente.** As implantacoes anteriores nas tres instancias sao historicas. O trabalho atual corrige desligamento imediato, registra chamadas na conversa e melhora previa de video, janela movel/redimensionavel e seletores de dispositivos.

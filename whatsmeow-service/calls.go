@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -114,13 +115,16 @@ func (s *callSocket) write(ctx context.Context) {
 type browserVideoSink struct {
 	socket        *callSocket
 	call          *meowcaller.Call
-	orientation   byte
+	orientation   atomic.Uint32
 	needsKeyframe bool
 }
 
 func (v *browserVideoSink) SetOrientation(orientation int) {
-	v.orientation = byte(orientation & 3)
-	log.Printf("Whatsmeow browser call: remote video rotation %d degrees", int(v.orientation)*90)
+	// WhatsApp's decoded camera pixels carry the sender's device rotation.
+	// Compensate it before displaying them in the browser canvas (live Android
+	// portrait/landscape test); the wire value remains clockwise quarter turns.
+	v.orientation.Store(uint32(-orientation & 3))
+	log.Printf("Whatsmeow browser call: remote video rotation %d degrees (device %d)", v.orientation.Load()*90, orientation)
 }
 
 func (v *browserVideoSink) WriteVideo(frame []byte) error {
@@ -129,7 +133,7 @@ func (v *browserVideoSink) WriteVideo(frame []byte) error {
 		return nil
 	}
 	packet := make([]byte, len(frame)+2)
-	packet[0], packet[1] = callOrientedVideoDown, v.orientation
+	packet[0], packet[1] = callOrientedVideoDown, byte(v.orientation.Load())
 	copy(packet[2:], frame)
 	if v.socket.send(websocket.MessageBinary, packet) {
 		v.needsKeyframe = false
@@ -348,9 +352,13 @@ func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call, d
 		}
 		socket.media(callAudioDown, data)
 	}))
-	call.ReceiveVideo(&browserVideoSink{socket: socket, call: call})
+	videoSink := &browserVideoSink{socket: socket, call: call}
+	call.ReceiveVideo(videoSink)
 	call.OnVideoKeyframeRequest(func() { socket.event(callEvent{Event: "keyframe"}) })
 	call.OnVideoState(func(state meowcaller.VideoState) {
+		if state.HasOrientation {
+			videoSink.SetOrientation(state.Orientation)
+		}
 		if state.Upgrade {
 			if err := call.AcceptVideo(); err != nil {
 				log.Printf("Whatsmeow call video upgrade failed: %v", err)
