@@ -1,5 +1,13 @@
 # Handoff: chamadas WhatsApp Direct no Chatwoot (29/09/2026)
 
+## Estado atual: fork comum 4.18.0 (30/09/2026)
+
+Principal, MX e MD executam a mesma imagem `ghcr.io/marcosenz0/chatwoot-whatsmeow:fork-fa9cf49af5cf588651175cd2058c94a10dd740d5` nos seis servicos web/Sidekiq. Os tres Go usam `develop`, caminho `/whatsmeow-service`, com binario identico e configuracoes/sessoes independentes. Versao/SHA dos containers, health 200, migracoes e sessoes foram conferidos por instancia. A sessao pessoal removida do MX permanece desconectada; o Chatwoot oficial esta fora do escopo.
+
+O pedido atual autoriza as tres instancias e substitui a restricao anterior a principal. `origin/develop` contem as chamadas, o merge oficial v4.18.0 (PR #22) e a correcao de cache/retomada do navegador (PR #23). Ao voltar a aba/restaurar pagina/recuperar rede, lista, conversa ativa e mensagens sincronizam; uma aba antiga nao deve bloquear o cache da nova. Abas que executam o codigo anterior precisam carregar esta versao uma vez.
+
+Leia primeiro [whatsmeow-upgrade-v4.18-2026-09-29.md](whatsmeow-upgrade-v4.18-2026-09-29.md): mapa, imagem/digests, backups, migracoes, gates (309 Rails e 46 cache/retomada), isolamento, deploy sequencial do Sidekiq MD e limites da verificacao. O navegador ficou indisponivel na etapa visual final; nao presumir novo teste real de chamadas/retomada apos o upgrade. As secoes seguintes registram checkpoints historicos.
+
 Este arquivo permite retomar a integracao em outro chat ou com outra IA. Nao registrar aqui segredos, numeros pessoais, conteudo de mensagens ou tokens de sessao. O painel e o historico estao publicados na principal. Chamadas recebidas e efetuadas, video nos dois sentidos, alternancia da camera e seletores de dispositivos foram confirmados com o WhatsApp Windows. A inteligibilidade do audio ainda nao foi ouvida independentemente; nao declarar a integracao inteira pronta apenas por haver sinalizacao, temporizador ou pacotes enviados.
 
 ## Ajustes de video, pesquisa e seletores (29/09, publicados e validados)
@@ -21,11 +29,12 @@ Este arquivo permite retomar a integracao em outro chat ou com outra IA. Nao reg
 
 ## Onde continuar
 
-- **Regra atual do usuario (29/09): desenvolver, testar e publicar somente na principal `chatwoot.marcoswt.com.br`. MX/MD so devem receber publicacao quando o usuario pedir explicitamente.** As implantacoes anteriores nas tres instancias sao historicas. O trabalho atual corrige desligamento imediato, registra chamadas na conversa e melhora previa de video, janela movel/redimensionavel e seletores de dispositivos.
-- Repositorio: `marcosenz0/chatwoot-whatsmeow`; PR [#21](https://github.com/marcosenz0/chatwoot-whatsmeow/pull/21), **em rascunho**; branch remota `codex/whatsmeow-voice-calls`.
-- Checkout isolado: `C:\Users\marco\.codex\worktrees\whatsmeow-voice-calls\Fork Chatwoot Marcos`. O web e o worker da principal usam `calls-eeaf61d3149e465af71eac50f4805ce2acc6c6d9`; o Go usa `bd474b7328d428b714faf3f20544f1df957d98e7`, validado e publicado. MX/MD nao receberam redeploy nesta continuacao. Conferir o HEAD da PR, GitHub Actions e EasyPanel antes de presumir que uma revisao posterior esta no ar.
-- A pasta principal `C:\Users\marco\OneDrive\Área de Trabalho\Projeto\Fork Chatwoot Marcos` esta em `develop` e contem outras alteracoes locais nao relacionadas. Nao usar `git reset`, `git clean`, `git pull` ou troca de branch que as descarte. O codigo de chamadas esta na branch/PR acima, nao no `develop` desse checkout.
-- Este handoff deve ser lido junto com [whatsmeow-progress.md](whatsmeow-progress.md) e [whatsmeow-installation.md](whatsmeow-installation.md). O Chatwoot oficial (`chatwootoficial.marcoswt.com.br`) fica fora deste escopo.
+- Regra atual: o usuario pediu atualizar o fork comum e publicar principal, MX e MD; manter bancos, Redis, sessoes, segredos e dominios separados. Nao reconectar a sessao pessoal do MX. Chatwoot oficial fora do escopo.
+- Codigo atual em `origin/develop`, incluindo chamadas e PRs #22/#23; imagem final comum fa9cf49 e verificacao em [whatsmeow-upgrade-v4.18-2026-09-29.md](whatsmeow-upgrade-v4.18-2026-09-29.md). PR #21 em rascunho e worktree de chamadas sao referencias historicas.
+- Worktree da atualizacao: `C:/Users/marco/.codex/worktrees/chatwoot-common-update/Fork Chatwoot Marcos`, branch `codex/chatwoot-v4.18-common`. O checkout principal ainda contem uma revisao anterior e alteracoes locais preexistentes; seus Markdown foram atualizados seletivamente. Preservar essas alteracoes antes de sincronizar codigo; nao usar reset/clean/pull cego.
+- O usuario confirmou audio inteligivel e video continuo no Android no teste anterior de 2 min 49 s, com rotacao automatica ligada e quatro posicoes corretas. Isso nao equivale a nova chamada real apos a atualizacao 4.18.0.
+- Confirmar retomada visual e UI MX/MD quando o navegador voltar a ficar disponivel. MD nao tem canais Whatsmeow pareados. Links/calendario e convite de participantes experimental continuam com a limitacao anterior de validacao real.
+- Ler tambem progresso e instalacao. As revisoes/implantacoes abaixo sao checkpoints historicos, nao o estado atual.
 
 ## Checkpoint anterior da principal (antes dos ajustes de video)
 

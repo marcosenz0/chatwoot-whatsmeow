@@ -1,16 +1,24 @@
 # Guia de instalacao do Chatwoot com Whatsmeow
 
+## Estado atual: fork comum 4.18.0 (30/09/2026)
+
+Principal, MX e MD executam a mesma imagem `ghcr.io/marcosenz0/chatwoot-whatsmeow:fork-fa9cf49af5cf588651175cd2058c94a10dd740d5` nos seis servicos web/Sidekiq. Os tres Go usam `develop`, caminho `/whatsmeow-service`, com binario identico e configuracoes/sessoes independentes. Versao/SHA dos containers, health 200, migracoes e sessoes foram conferidos por instancia. A sessao pessoal removida do MX permanece desconectada; o Chatwoot oficial esta fora do escopo.
+
+O pedido atual autoriza as tres instancias e substitui a restricao anterior a principal. `origin/develop` contem as chamadas, o merge oficial v4.18.0 (PR #22) e a correcao de cache/retomada do navegador (PR #23). Ao voltar a aba/restaurar pagina/recuperar rede, lista, conversa ativa e mensagens sincronizam; uma aba antiga nao deve bloquear o cache da nova. Abas que executam o codigo anterior precisam carregar esta versao uma vez.
+
+Leia primeiro [whatsmeow-upgrade-v4.18-2026-09-29.md](whatsmeow-upgrade-v4.18-2026-09-29.md): mapa, imagem/digests, backups, migracoes, gates (309 Rails e 46 cache/retomada), isolamento, deploy sequencial do Sidekiq MD e limites da verificacao. O navegador ficou indisponivel na etapa visual final; nao presumir novo teste real de chamadas/retomada apos o upgrade. As secoes seguintes registram checkpoints historicos.
+
 Este documento explica como instalar e manter este fork pessoal do Chatwoot com WhatsApp Direct via `whatsmeow-service`.
 
 O estado atual do canario de chamadas na principal e as pendencias para retomar a PR #21 estao em [whatsmeow-calls-handoff-2026-09-29.md](whatsmeow-calls-handoff-2026-09-29.md).
 
-Regra atual do usuario (29/09/2026): desenvolver, testar e publicar somente em `chatwoot.marcoswt.com.br`; MX/MD exigem novo pedido explicito. Preservar servicos, bancos, sessoes e rotas separados. As instrucoes de tres instancias abaixo sao o mapa de instalacao, nao autorizacao para redeploy agora.
+Regra atual: publicar a mesma imagem validada nos tres pares web/Sidekiq e os mesmos fontes Go nos tres servicos independentes, preservando bancos, Redis, dominios e sessoes. Nao reconectar a sessao pessoal removida do MX.
 
 Para diagnosticar recusa imediata, verificar todos os dispositivos vinculados ao numero de destino. Um cliente pode enviar preaccept e Reject sem motivo mesmo com o checkbox Reject Calls desligado; essa resposta e indistinguivel de uma recusa manual no Windows. Em 29/09, o numero pessoal no MX foi desconectado com autorizacao especifica e o usuario removeu as demais sessoes concorrentes; chamadas de saida de voz e video funcionaram depois. Nao reconectar esse cliente sem pedido. Investigar estados active/pending/starting no gerenciador de chamadas antes de atribuir a causa ao checkbox.
 
 Use este guia quando quiser subir o projeto no PC local, Docker, Easypanel ou Portainer. O fluxo principal continua sendo pelo GitHub, no branch `develop`.
 
-### Canario de chamadas atualmente publicado (29/09 local)
+### Canario anterior de chamadas (historico de 29/09 local)
 
 - Somente principal: web/worker `ghcr.io/marcosenz0/chatwoot-whatsmeow:calls-eeaf61d3149e465af71eac50f4805ce2acc6c6d9`; Go `bd474b7328d428b714faf3f20544f1df957d98e7`, implantacao concluida em 30/09 01:00:48 UTC. O codigo continua na PR #21 em rascunho, branch `codex/whatsmeow-voice-calls`; nao presumir que `develop` ja contenha essas chamadas.
 - O protocolo de quadros remotos tipo 5 carrega um byte de orientacao por quadro; o frontend aceita tambem tipo 4 legado. Validar retrato/deitado com a rotacao automatica do celular ligada e segurando cada posicao por alguns segundos. Tela travada pode manter a mesma orientacao informada durante toda a chamada.

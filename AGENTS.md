@@ -133,6 +133,8 @@ Practical checklist for any change impacting core logic or public APIs
 
 ## Active Memory / Resume Guidelines
 
+Current shipped state (September 30, 2026): all three custom web/Sidekiq pairs use the same validated fork image `fork-fa9cf49af5cf588651175cd2058c94a10dd740d5`, Chatwoot 4.18.0; all three Go services use matching sources on `develop` with independent sessions/configuration. Browser resume/cache correction is included. Keep the personal session disconnected from MX. Read `docs/whatsmeow-upgrade-v4.18-2026-09-29.md` first for actual runtime checks, backups and limitations. Earlier principal-only checkpoints are historical. The main checkout has pre-existing local changes and older code; use the update worktree or a new isolated worktree from current origin/develop without discarding those changes.
+
 Detailed Whatsmeow fork progress is tracked in `docs/whatsmeow-progress.md`. Installation/deployment instructions are tracked in `docs/whatsmeow-installation.md`. Keep this section short and move implementation notes there when they grow.
 
 After each shipped change to a custom Chatwoot instance, update the relevant Markdown handoff before closing the task: record the user-visible behavior, key implementation decisions, deployment targets, validation, and any remaining limitation. Keep transient secrets and personal message contents out of these files. The three custom targets are `chatwoot.marcoswt.com.br`, `chatwootmx.marcoswt.com.br`, and `chatwootmd.marcoswt.com.br`; `chatwootoficial.marcoswt.com.br` is out of scope unless explicitly requested.
