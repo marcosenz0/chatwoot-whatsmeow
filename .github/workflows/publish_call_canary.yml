@@ -5,6 +5,7 @@ on:
     branches:
       - codex/whatsmeow-voice-calls
       - codex/chatwoot-v4.18-common
+      - codex/whatsmeow-incoming-ring
 
 permissions:
   contents: read

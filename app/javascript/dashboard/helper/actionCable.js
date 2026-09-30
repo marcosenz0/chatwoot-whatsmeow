@@ -1,6 +1,3 @@
-import AuthAPI from '../api/auth';
-import BaseActionCableConnector from '../../shared/helpers/BaseActionCableConnector';
-import DashboardAudioNotificationHelper from './AudioAlerts/DashboardAudioNotificationHelper';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import { emitter } from 'shared/helpers/mitt';
 import { useImpersonation } from 'dashboard/composables/useImpersonation';
@@ -15,6 +12,9 @@ import { VOICE_CALL_PROVIDERS } from 'dashboard/helper/inbox';
 import { markCallDismissed, isLocalCall } from 'dashboard/helper/voice';
 import { VOICE_CALL_DIRECTION } from 'dashboard/components-next/message/constants';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
+import DashboardAudioNotificationHelper from './AudioAlerts/DashboardAudioNotificationHelper';
+import BaseActionCableConnector from '../../shared/helpers/BaseActionCableConnector';
+import AuthAPI from '../api/auth';
 
 const { isImpersonating } = useImpersonation();
 const UNREAD_COUNTS_REFETCH_THROTTLE_MS = 5000;
@@ -66,6 +66,7 @@ class ActionCableConnector extends BaseActionCableConnector {
       'voice_call.outbound_connected': this.onVoiceCallOutboundConnected,
       'voice_call.outbound_accepted': this.onVoiceCallOutboundAccepted,
       'voice_call.ended': this.onVoiceCallEnded,
+      'whatsmeow.call_updated': this.onWhatsmeowCallUpdated,
     };
   }
 
@@ -79,12 +80,16 @@ class ActionCableConnector extends BaseActionCableConnector {
     emitter.emit(BUS_EVENTS.WEBSOCKET_DISCONNECT);
   };
 
-  isAValidEvent = data => {
-    return this.app.$store.getters.getCurrentAccountId === data.account_id;
-  };
+  isAValidEvent = data =>
+    this.app.$store.getters.getCurrentAccountId === data.account_id;
 
   onMessageUpdated = data => {
     this.app.$store.dispatch('updateMessage', data);
+  };
+
+  // eslint-disable-next-line class-methods-use-this
+  onWhatsmeowCallUpdated = data => {
+    emitter.emit(BUS_EVENTS.WHATSMEOW_CALL_UPDATED, data);
   };
 
   onPresenceUpdate = data => {

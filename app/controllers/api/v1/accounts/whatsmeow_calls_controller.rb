@@ -50,6 +50,7 @@ class Api::V1::Accounts::WhatsmeowCallsController < Api::V1::Accounts::BaseContr
   def call_payload(call)
     {
       id: call.id,
+      source_id: call.source_id,
       inbox_id: call.inbox_id,
       inbox_name: call.inbox.name,
       conversation_id: call.conversation&.display_id,

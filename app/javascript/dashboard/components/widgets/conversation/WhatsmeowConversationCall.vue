@@ -15,6 +15,9 @@ import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import { useAlert } from 'dashboard/composables';
 import whatsmeowCalls from 'dashboard/api/whatsmeowCalls';
+import ConversationsAPI from 'dashboard/api/conversations';
+import InboxesAPI from 'dashboard/api/inboxes';
+import { useAccount } from 'dashboard/composables/useAccount';
 import {
   drawCallVideoFrame,
   isH264KeyFrame,
@@ -22,19 +25,20 @@ import {
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import WhatsmeowCallWindow from './WhatsmeowCallWindow.vue';
 
-const props = defineProps({
-  inbox: { type: Object, default: () => ({}) },
-  chat: { type: Object, default: () => ({}) },
-  contact: { type: Object, default: () => ({}) },
-});
-
+const callContext = ref({ chat: {}, inbox: {}, contact: {} });
+const { accountId } = useAccount();
+let contextVersion = 0;
+let loadingContext = false;
+let disposed = false;
+const ringtone = ref(null);
+const soundBlocked = ref(false);
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const isDirectWhatsmeow = computed(
   () =>
-    props.inbox?.channel_type === 'Channel::Whatsmeow' &&
-    props.chat?.whatsmeow_call_available === true
+    callContext.value.inbox?.channel_type === 'Channel::Whatsmeow' &&
+    callContext.value.chat?.whatsmeow_call_available === true
 );
 const state = ref('idle');
 const busy = ref(false);
@@ -178,17 +182,22 @@ const reportMediaError = error => {
 };
 const contactName = computed(
   () =>
-    props.contact?.name ||
-    props.chat?.meta?.sender?.name ||
-    props.contact?.phone_number ||
+    callContext.value.contact?.name ||
+    callContext.value.chat?.meta?.sender?.name ||
+    callContext.value.contact?.phone_number ||
     t('CONVERSATION.WHATSMEOW_CALL.TITLE')
 );
 const contactPhone = computed(
   () =>
-    props.contact?.phone_number || props.chat?.meta?.sender?.phone_number || ''
+    callContext.value.contact?.phone_number ||
+    callContext.value.chat?.meta?.sender?.phone_number ||
+    ''
 );
 const contactAvatar = computed(
-  () => props.contact?.thumbnail || props.chat?.meta?.sender?.thumbnail || ''
+  () =>
+    callContext.value.contact?.thumbnail ||
+    callContext.value.chat?.meta?.sender?.thumbnail ||
+    ''
 );
 const elapsedTime = computed(
   () =>
@@ -361,6 +370,9 @@ const selectSpeaker = async deviceId => {
         return;
       }
       await audioContext.setSinkId(deviceId === 'default' ? '' : deviceId);
+    }
+    if (ringtone.value?.setSinkId) {
+      await ringtone.value.setSinkId(deviceId === 'default' ? '' : deviceId);
     }
     selectedSpeakerId.value = deviceId;
   } catch (error) {
@@ -698,19 +710,24 @@ const onSocketMessage = event => {
 const ensureSocket = async () => {
   if (
     socket?.readyState === WebSocket.OPEN &&
-    socketConversationId === props.chat.id
+    socketConversationId === callContext.value.chat.id
   ) {
     return;
   }
-  if (openingSocket && socketConversationId === props.chat.id) {
+  if (openingSocket && socketConversationId === callContext.value.chat.id) {
     await openingSocket;
     return;
   }
-  const conversationId = props.chat.id;
+  const conversationId = callContext.value.chat.id;
+  const version = contextVersion;
   socketConversationId = conversationId;
   const promise = (async () => {
     const { data } = await whatsmeowCalls.createSession(conversationId);
-    if (props.chat.id === conversationId || isInCall.value) {
+    if (
+      !disposed &&
+      version === contextVersion &&
+      callContext.value.chat.id === conversationId
+    ) {
       const url = data.url.replace(/^http/, 'ws');
       socket?.close();
       const connection = new WebSocket(url, [
@@ -731,7 +748,7 @@ const ensureSocket = async () => {
           if (
             !hadCall &&
             isDirectWhatsmeow.value &&
-            props.chat.id === conversationId
+            callContext.value.chat.id === conversationId
           ) {
             reconnectTimer = setTimeout(() => {
               ensureSocket().catch(() => {});
@@ -777,10 +794,26 @@ const startCall = async video => {
   }
 };
 
+const stopRingtone = () => {
+  ringtone.value?.pause();
+  if (ringtone.value) ringtone.value.currentTime = 0;
+  soundBlocked.value = false;
+};
+const playRingtone = async () => {
+  if (state.value !== 'incoming') return;
+  try {
+    await ringtone.value.play();
+    soundBlocked.value = false;
+    if (state.value !== 'incoming') stopRingtone();
+  } catch {
+    soundBlocked.value = state.value === 'incoming';
+  }
+};
 const answer = async () => {
   if (busy.value) return;
   busy.value = true;
   const incomingCallId = callId;
+  stopRingtone();
   try {
     await startMicrophone();
     if (state.value !== 'incoming' || callId !== incomingCallId) return;
@@ -793,6 +826,7 @@ const answer = async () => {
     state.value = 'answering';
   } catch (error) {
     reportMediaError(error);
+    if (state.value === 'incoming') playRingtone();
   } finally {
     busy.value = false;
   }
@@ -832,57 +866,135 @@ const inviteParticipant = () => {
   sendCommand('add_participant', participantPhone.value);
 };
 
-const openChat = () => {
+const openChat = async () => {
   inviteOpen.value = false;
+  await router.push(
+    `/app/accounts/${accountId.value}/conversations/${callContext.value.chat.id}`
+  );
+  await nextTick();
   document.querySelector('.ProseMirror')?.focus();
 };
 
-watch(
-  [isDirectWhatsmeow, () => route.query.whatsmeowCall, () => props.chat.id],
-  ([available, requested]) => {
-    if (
-      !available ||
-      !['voice', 'video'].includes(requested) ||
-      !['idle', 'ended'].includes(state.value)
-    )
-      return;
-    router.replace({ query: { ...route.query, whatsmeowCall: undefined } });
-    startCall(requested === 'video');
-  },
-  { immediate: true }
-);
-
-watch(
-  [() => props.chat.id, isDirectWhatsmeow],
-  () => {
-    if (!isInCall.value) {
-      clearTimeout(reconnectTimer);
-      socket?.close();
-      socket = null;
-      socketConversationId = null;
-      resetCall();
-      if (isDirectWhatsmeow.value && props.chat.id) {
-        ensureSocket().catch(() => {});
-      }
-    }
-  },
-  { immediate: true }
-);
-
-const handleCallBack = ({ conversationId, video }) => {
-  if (conversationId === props.chat.id && isDirectWhatsmeow.value)
-    startCall(video);
-};
-
-onMounted(() => {
-  loadDevices().catch(() => {});
-  navigator.mediaDevices.addEventListener('devicechange', loadDevices);
-  emitter.on(BUS_EVENTS.WHATSMEOW_START_CALL, handleCallBack);
+watch(state, nextState => {
+  if (nextState === 'incoming') playRingtone();
+  else stopRingtone();
 });
 
+const loadContext = async (conversationId, version) => {
+  const { data } = await ConversationsAPI.show(conversationId);
+  const { data: inbox } = await InboxesAPI.show(data.inbox_id);
+  if (disposed || version !== contextVersion) return false;
+  callContext.value = { chat: data, inbox, contact: data.meta.sender };
+  return true;
+};
+
+const handleCallBack = async ({ conversationId, video }) => {
+  if (loadingContext || busy.value || !['idle', 'ended'].includes(state.value))
+    return;
+  contextVersion += 1;
+  const version = contextVersion;
+  loadingContext = true;
+  try {
+    await resetCall();
+    if (await loadContext(conversationId, version)) {
+      if (isDirectWhatsmeow.value) await startCall(video);
+    }
+  } catch (error) {
+    reportMediaError(error);
+  } finally {
+    loadingContext = false;
+  }
+};
+
+let notifiedCallId;
+const handleCallEvent = async call => {
+  if (
+    Number(call.account_id) !== accountId.value ||
+    call.direction !== 'incoming'
+  )
+    return;
+  if (call.status !== 'ringing') {
+    if (notifiedCallId === call.source_id) {
+      contextVersion += 1;
+      notifiedCallId = null;
+    }
+    if (callId === call.source_id && state.value === 'incoming') {
+      finishCall(
+        call.status === 'connected' ? 'answered_elsewhere' : call.status
+      );
+    }
+    return;
+  }
+  if (
+    callId === call.source_id ||
+    notifiedCallId === call.source_id ||
+    isInCall.value ||
+    busy.value
+  )
+    return;
+  contextVersion += 1;
+  const version = contextVersion;
+  notifiedCallId = call.source_id;
+  try {
+    await resetCall();
+    if (await loadContext(call.conversation_id, version)) await ensureSocket();
+  } catch (error) {
+    notifiedCallId = null;
+    reportMediaError(error);
+  }
+};
+
+// Recover a still-ringing call when the page opens or its cable reconnects.
+// The media socket confirms it is pending before displaying the panel.
+const recoverIncoming = async () => {
+  try {
+    const { data } = await whatsmeowCalls.getAll();
+    const pending = data.payload.find(
+      call => call.direction === 'incoming' && call.status === 'ringing'
+    );
+    if (pending && !disposed)
+      await handleCallEvent({ ...pending, account_id: accountId.value });
+  } catch (error) {
+    useAlert(t('CONVERSATION.WHATSMEOW_CALL.FAILED'));
+  }
+};
+const onVisible = () => {
+  if (document.visibilityState === 'visible') recoverIncoming();
+};
+watch(
+  [
+    () => route.query.whatsmeowCall,
+    () => route.params.conversation_id || route.params.conversationId,
+  ],
+  ([requested, conversationId]) => {
+    if (!conversationId || !['voice', 'video'].includes(requested)) return;
+    router.replace({ query: { ...route.query, whatsmeowCall: undefined } });
+    handleCallBack({
+      conversationId: Number(conversationId),
+      video: requested === 'video',
+    });
+  },
+  { immediate: true }
+);
+onMounted(() => {
+  navigator.mediaDevices?.addEventListener('devicechange', loadDevices);
+  emitter.on(BUS_EVENTS.WHATSMEOW_START_CALL, handleCallBack);
+  emitter.on(BUS_EVENTS.WHATSMEOW_CALL_UPDATED, handleCallEvent);
+  emitter.on(BUS_EVENTS.WEBSOCKET_RECONNECT, recoverIncoming);
+  document.addEventListener('visibilitychange', onVisible);
+  document.addEventListener('pointerdown', playRingtone);
+  recoverIncoming();
+});
 onBeforeUnmount(() => {
+  disposed = true;
+  contextVersion += 1;
+  stopRingtone();
   emitter.off(BUS_EVENTS.WHATSMEOW_START_CALL, handleCallBack);
-  navigator.mediaDevices.removeEventListener('devicechange', loadDevices);
+  emitter.off(BUS_EVENTS.WHATSMEOW_CALL_UPDATED, handleCallEvent);
+  emitter.off(BUS_EVENTS.WEBSOCKET_RECONNECT, recoverIncoming);
+  document.removeEventListener('visibilitychange', onVisible);
+  document.removeEventListener('pointerdown', playRingtone);
+  navigator.mediaDevices?.removeEventListener('devicechange', loadDevices);
   clearTimeout(reconnectTimer);
   if (isInCall.value) sendCommand('hangup');
   socket?.close();
@@ -891,28 +1003,12 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <template v-if="isDirectWhatsmeow">
-    <NextButton
-      v-tooltip.bottom="t('CONVERSATION.WHATSMEOW_CALL.VOICE')"
-      sm
-      ghost
-      slate
-      icon="i-lucide-phone"
-      :aria-label="t('CONVERSATION.WHATSMEOW_CALL.VOICE')"
-      :disabled="busy || !['idle', 'ended'].includes(state)"
-      @click="startCall(false)"
-    />
-    <NextButton
-      v-tooltip.bottom="t('CONVERSATION.WHATSMEOW_CALL.VIDEO')"
-      sm
-      ghost
-      slate
-      icon="i-lucide-video"
-      :aria-label="t('CONVERSATION.WHATSMEOW_CALL.VIDEO')"
-      :disabled="busy || !['idle', 'ended'].includes(state)"
-      @click="startCall(true)"
-    />
-  </template>
+  <audio
+    ref="ringtone"
+    src="/audio/dashboard/ringtone.mp3"
+    preload="auto"
+    loop
+  />
   <Teleport to="body">
     <WhatsmeowCallWindow
       v-if="showPanel"
@@ -935,6 +1031,9 @@ onBeforeUnmount(() => {
             <div class="truncate text-sm font-semibold text-n-slate-12">
               {{ contactName }}
             </div>
+            <div class="truncate text-xs text-n-slate-11">
+              {{ callContext.inbox.name }}
+            </div>
             <div v-if="contactPhone" class="truncate text-xs text-n-slate-11">
               {{ contactPhone }}
             </div>
@@ -951,6 +1050,12 @@ onBeforeUnmount(() => {
           </div>
         </div>
       </template>
+      <NextButton
+        v-if="soundBlocked && state === 'incoming'"
+        icon="i-lucide-volume-2"
+        :label="t('CONVERSATION.WHATSMEOW_CALL.ENABLE_RINGTONE')"
+        @click="playRingtone"
+      />
       <div
         v-if="mediaError"
         role="alert"

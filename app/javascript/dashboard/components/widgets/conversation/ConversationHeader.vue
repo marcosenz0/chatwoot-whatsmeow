@@ -3,13 +3,7 @@ import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useStore } from 'vuex';
 import { useElementSize } from '@vueuse/core';
-import BackButton from '../BackButton.vue';
-import InboxName from '../InboxName.vue';
-import MoreActions from './MoreActions.vue';
 import Avatar from 'next/avatar/Avatar.vue';
-import SLACardLabel from './components/SLACardLabel.vue';
-import ConversationCallButton from './ConversationCallButton.vue';
-import WhatsmeowConversationCall from './WhatsmeowConversationCall.vue';
 import wootConstants from 'dashboard/constants/globals';
 import { conversationListPageURL } from 'dashboard/helper/URLHelper';
 import { snoozedReopenTime } from 'dashboard/helper/snoozeHelpers';
@@ -17,6 +11,12 @@ import { useInbox } from 'dashboard/composables/useInbox';
 import { useAlert } from 'dashboard/composables';
 import { useI18n } from 'vue-i18n';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
+import WhatsmeowCallButtons from './WhatsmeowCallButtons.vue';
+import ConversationCallButton from './ConversationCallButton.vue';
+import SLACardLabel from './components/SLACardLabel.vue';
+import MoreActions from './MoreActions.vue';
+import InboxName from '../InboxName.vue';
+import BackButton from '../BackButton.vue';
 
 const props = defineProps({
   chat: {
@@ -174,11 +174,7 @@ const copyConversationId = async () => {
         class="hidden md:flex"
       />
       <ConversationCallButton :inbox="inbox" :chat="currentChat" />
-      <WhatsmeowConversationCall
-        :inbox="inbox"
-        :chat="currentChat"
-        :contact="currentContact"
-      />
+      <WhatsmeowCallButtons :inbox="inbox" :chat="currentChat" />
       <MoreActions :conversation-id="currentChat.id" />
     </div>
   </div>
