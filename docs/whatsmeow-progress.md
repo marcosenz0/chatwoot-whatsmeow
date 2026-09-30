@@ -10,7 +10,14 @@ Make the Chatwoot fork behave like official Chatwoot in the conversation UI whil
 
 Current deployment scope, explicitly changed by the owner on September 29: development, tests and deployments are limited to the principal `chatwoot.marcoswt.com.br`. MX/MD publication requires a later explicit request. Current work addresses call cards in the conversation, premature call termination, local/remote video layout, movable/resizable call panels and device selection. Earlier three-instance deployments below are historical evidence, not authorization to update those instances now.
 
-## September 29 calls continuation: principal only
+## September 29 video, search and selector corrections: principal only
+
+- Principal web/worker now use `calls-eeaf61d3149e465af71eac50f4805ce2acc6c6d9`; Go uses `bd474b7328d428b714faf3f20544f1df957d98e7`, deployed successfully at September 30 01:00:48 UTC. Both health endpoints returned HTTP 200. MX/MD remain unchanged.
+- Calls search is a single rounded input, and explicit microphone/camera chevrons are visible in the published UI. Remote video carries per-frame orientation; the decoder requests recovery on errors/stalls and suppresses undecodable delta frames. A bounded RTP reorder buffer prevents normal network reordering from constantly resetting H264.
+- With the phone screen locked, portrait was upright but landscape transition kept the same orientation. After the owner enabled automatic screen rotation, the final 2 min 49 s call correctly showed portrait, both landscape directions and return to portrait. Canvas dimensions followed 424 x 640 / 640 x 360. The owner confirmed continuous video with no perceived freezes. Final counters showed 2,478 complete frames, 644 reordered packets and one recovery, with no persistent IDR wait.
+- The owner reported intelligible phone audio. Old MX logs show paired preaccept events consistent with the reproduced duplicate-offer/busy-rejection bug now fixed in the principal. The precise cause of every former linked-client rejection remains uncertain; MX's personal session stays disconnected. See the handoff for exact evidence and limits.
+
+## September 29 calls continuation before video corrections (historical evidence)
 
 - Principal web/worker use `calls-bfd636ad8b58e788e1f90108cdabd1f0651ea45a`, with confirmed successful deployments. Go `f242823347` for manual desktop decline passed CI and was deployed at 23:34:24 UTC; web/Go health returned HTTP 200. See the handoff for exact revisions and deployment evidence.
 - Conversation call cards, Portuguese dates, device menus, window movement/resizing and local camera preview are visible. Incoming video lasted 5 min 46 s and 2 min 27 s. After competing linked sessions were removed, outgoing voice-to-video lasted 2 min 44 s and direct video lasted 1 min 50 s, answered by the agent in Windows without the phone. Distinct cameras rendered both ways; camera off/on, mute and device changes worked. Audio packets were decoded both ways; intelligibility was not independently heard.

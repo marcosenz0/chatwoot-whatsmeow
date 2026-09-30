@@ -10,6 +10,14 @@ Para diagnosticar recusa imediata, verificar todos os dispositivos vinculados ao
 
 Use este guia quando quiser subir o projeto no PC local, Docker, Easypanel ou Portainer. O fluxo principal continua sendo pelo GitHub, no branch `develop`.
 
+### Canario de chamadas atualmente publicado (29/09 local)
+
+- Somente principal: web/worker `ghcr.io/marcosenz0/chatwoot-whatsmeow:calls-eeaf61d3149e465af71eac50f4805ce2acc6c6d9`; Go `bd474b7328d428b714faf3f20544f1df957d98e7`, implantacao concluida em 30/09 01:00:48 UTC. O codigo continua na PR #21 em rascunho, branch `codex/whatsmeow-voice-calls`; nao presumir que `develop` ja contenha essas chamadas.
+- O protocolo de quadros remotos tipo 5 carrega um byte de orientacao por quadro; o frontend aceita tambem tipo 4 legado. Validar retrato/deitado com a rotacao automatica do celular ligada e segurando cada posicao por alguns segundos. Tela travada pode manter a mesma orientacao informada durante toda a chamada.
+- Esse fluxo foi validado no Android real: retrato, ambos os sentidos deitado e retorno a retrato, em chamada de 2 min 49 s. O usuario confirmou video continuo. As setas de dispositivos e a pesquisa arredondada tambem foram conferidas na interface publicada. Reconhecimento facial nao foi adicionado; a orientacao do aparelho resolveu o caso.
+- A reorganizacao RTP e limitada a 75 ms / 64 pacotes; perdas reais pedem IDR autenticado e deltas sao descartados ate recuperar. Os logs `received video health` registram apenas contadores tecnicos; comparar progresso de quadros, pacotes reorganizados/faltantes e recuperacoes antes de atribuir travamentos a internet ou a biblioteca. Nao guardar midia, segredos ou dados pessoais nos handoffs.
+- Ofertas recebidas duplicadas nao devem sobrescrever uma chamada existente e provocar recusa por ocupado. Esta correcao foi validada por reproducao local; nao mascarar uma recusa humana de um dispositivo que preaceitou. A investigacao MX e uma excecao autorizada de leitura/desconexao, sem redeploy nas outras instancias.
+
 ## O que este fork tem
 
 Este projeto e um fork do Chatwoot com um canal extra chamado WhatsApp Direct, implementado com `whatsmeow`. A ideia e conectar um WhatsApp real por QR Code diretamente no Chatwoot, sem Evolution API, sem provedor externo e sem ponte intermediaria.
