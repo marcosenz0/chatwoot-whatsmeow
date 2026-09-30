@@ -13,20 +13,24 @@ class ConversationApi extends ApiClient {
     super('conversations', { accountScoped: true });
   }
 
-  get({
-    inboxId,
-    status,
-    assigneeType,
-    page,
-    labels,
-    teamId,
-    conversationType,
-    sortBy,
-    updatedWithin,
-    hideGroupTabs,
-    contactQuery,
-  }) {
+  get(
+    {
+      inboxId,
+      status,
+      assigneeType,
+      page,
+      labels,
+      teamId,
+      conversationType,
+      sortBy,
+      updatedWithin,
+      hideGroupTabs,
+      contactQuery,
+    },
+    options = {}
+  ) {
     return axios.get(this.url, {
+      signal: options.signal,
       timeout: CONVERSATION_LIST_REQUEST_TIMEOUT,
       params: compactParams({
         inbox_id: inboxId,
@@ -44,10 +48,12 @@ class ConversationApi extends ApiClient {
     });
   }
 
-  filter(payload) {
+  filter(payload, options = {}) {
     return axios.post(`${this.url}/filter`, payload.queryData, {
+      signal: options.signal,
       params: {
         page: payload.page,
+        sort_by: payload.sortBy,
       },
     });
   }
@@ -134,6 +140,10 @@ class ConversationApi extends ApiClient {
 
   sendEmailTranscript({ conversationId, email }) {
     return axios.post(`${this.url}/${conversationId}/transcript`, { email });
+  }
+
+  requestContactInfo(conversationId) {
+    return axios.post(`${this.url}/${conversationId}/contact_info_request`);
   }
 
   updateCustomAttributes({ conversationId, customAttributes }) {

@@ -10,6 +10,8 @@
 #  enabled                            :boolean          default(TRUE)
 #  message                            :text             not null
 #  scheduled_at                       :datetime
+#  started_at                         :datetime
+#  completed_at                       :datetime
 #  template_params                    :jsonb
 #  title                              :string           not null
 #  trigger_only_during_business_hours :boolean          default(FALSE)
@@ -53,6 +55,7 @@ class Campaign < ApplicationRecord
   has_many :whatsapp_campaign_deliveries, dependent: :destroy_async
 
   before_validation :ensure_correct_campaign_attributes
+  before_update :set_completed_at, if: :marking_completed?
   after_commit :set_display_id, unless: :display_id?
   after_destroy_commit :invalidate_filtered_unread_count_filters
 
@@ -102,8 +105,16 @@ class Campaign < ApplicationRecord
     with_lock do
       next if completed? || processing?
 
-      processing!
+      update!(campaign_status: :processing, started_at: Time.current)
     end
+  end
+
+  def marking_completed?
+    will_save_change_to_campaign_status? && completed?
+  end
+
+  def set_completed_at
+    self.completed_at ||= Time.current
   end
 
   def execute_campaign
@@ -183,3 +194,4 @@ class Campaign < ApplicationRecord
     "NEW.display_id := nextval('camp_dpid_seq_' || NEW.account_id);"
   end
 end
+Campaign.include_mod_with('Campaign')

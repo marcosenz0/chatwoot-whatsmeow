@@ -1,91 +1,138 @@
 require 'rails_helper'
 
 describe Whatsapp::TemplateProcessorService do
-  subject(:components) do
-    described_class.new(channel: channel, template_params: template_params, message: nil).call.last
+  subject(:processed_components) do
+    described_class.new(channel: channel, template_params: template_params).call.last
   end
 
   let(:channel) { instance_double(Channel::Whatsapp, message_templates: [template]) }
-  let(:template) do
-    {
-      'name' => 'interactive_template',
-      'language' => 'pt_BR',
-      'status' => 'APPROVED'
-    }
-  end
   let(:template_params) do
     {
-      'name' => 'interactive_template',
-      'language' => 'pt_BR',
-      'processed_params' => {
-        'buttons' => [
-          { 'type' => 'url', 'index' => 0, 'parameter' => 'order-123' },
-          { 'type' => 'quick_reply', 'index' => 2, 'payload' => 'confirm_order' },
-          { 'type' => 'copy_code', 'index' => 1, 'parameter' => 'SAVE20' }
-        ]
-      }
+      'name' => template['name'],
+      'language' => template['language'],
+      'processed_params' => { 'header' => header_params }
     }
   end
 
-  it 'builds quick reply payloads with explicit indexes while preserving URL and copy-code buttons' do
-    expect(components).to eq(
-      [
-        {
-          type: 'button',
-          sub_type: 'url',
-          index: 0,
-          parameters: [{ type: 'text', text: 'order-123' }]
-        },
-        {
-          type: 'button',
-          sub_type: 'quick_reply',
-          index: 2,
-          parameters: [{ type: 'payload', payload: 'confirm_order' }]
-        },
-        {
-          type: 'button',
-          sub_type: 'copy_code',
-          index: 1,
-          parameters: [{ type: 'coupon_code', coupon_code: 'SAVE20' }]
-        }
-      ]
-    )
-  end
-
-  context 'with named text-header parameters' do
+  context 'with a positional text header' do
     let(:template) do
       {
-        'name' => 'interactive_template',
-        'language' => 'pt_BR',
+        'name' => 'positional_header',
+        'language' => 'en_US',
         'status' => 'APPROVED',
-        'parameter_format' => 'NAMED'
+        'parameter_format' => 'POSITIONAL',
+        'components' => [{ 'type' => 'HEADER', 'format' => 'TEXT', 'text' => 'Welcome {{1}}' }]
+      }
+    end
+    let(:header_params) { { '1' => 'Jane' } }
+
+    it 'builds a positional text parameter' do
+      expect(processed_components).to eq([
+                                           {
+                                             type: 'header',
+                                             parameters: [{ type: 'text', text: 'Jane' }]
+                                           }
+                                         ])
+    end
+  end
+
+  context 'with a named text header' do
+    let(:template) do
+      {
+        'name' => 'named_header',
+        'language' => 'en_US',
+        'status' => 'APPROVED',
+        'parameter_format' => 'NAMED',
+        'components' => [{ 'type' => 'HEADER', 'format' => 'TEXT', 'text' => "Welcome {{#{parameter_name}}}" }]
+      }
+    end
+    let(:header_params) { { parameter_name => 'Jane' } }
+
+    %w[customer_name media_type media_name].each do |name|
+      context "when the parameter is #{name}" do
+        let(:parameter_name) { name }
+
+        it 'preserves the parameter name' do
+          expect(processed_components).to eq([
+                                               {
+                                                 type: 'header',
+                                                 parameters: [{ type: 'text', parameter_name: parameter_name, text: 'Jane' }]
+                                               }
+                                             ])
+        end
+      end
+    end
+  end
+
+  context 'with positional body parameters' do
+    let(:template) do
+      {
+        'name' => 'positional_body',
+        'language' => 'en_US',
+        'status' => 'APPROVED',
+        'parameter_format' => 'POSITIONAL',
+        'components' => [{ 'type' => 'BODY', 'text' => '{{1}} / {{2}}' }]
       }
     end
     let(:template_params) do
       {
-        'name' => 'interactive_template',
-        'language' => 'pt_BR',
+        'name' => template['name'],
+        'language' => template['language'],
         'processed_params' => {
-          'header' => { 'customer_name' => 'Marcos' }
+          'body' => {
+            '2' => 'Bob',
+            '1' => 'Alice'
+          }
         }
       }
     end
 
-    it 'preserves the parameter name in the provider payload' do
-      expect(components).to eq(
-        [
-          {
-            type: 'header',
-            parameters: [
-              {
-                type: 'text',
-                parameter_name: 'customer_name',
-                text: 'Marcos'
-              }
-            ]
-          }
-        ]
-      )
+    it 'orders parameters by their positional key' do
+      expect(processed_components).to eq([
+                                           {
+                                             type: 'body',
+                                             parameters: [
+                                               { type: 'text', text: 'Alice' },
+                                               { type: 'text', text: 'Bob' }
+                                             ]
+                                           }
+                                         ])
+    end
+  end
+
+  context 'with a media header' do
+    let(:template) do
+      {
+        'name' => 'document_header',
+        'language' => 'en_US',
+        'status' => 'APPROVED',
+        'parameter_format' => 'POSITIONAL',
+        'components' => [{ 'type' => 'HEADER', 'format' => 'DOCUMENT' }]
+      }
+    end
+    let(:header_params) do
+      {
+        'media_url' => 'https://example.com/report.pdf',
+        'media_type' => 'document',
+        'media_name' => 'report.pdf'
+      }
+    end
+
+    it 'uses media metadata to build the attachment parameter' do
+      expect(processed_components).to eq([
+                                           {
+                                             type: 'header',
+                                             parameters: [
+                                               {
+                                                 type: 'document',
+                                                 document: {
+                                                   link: 'https://example.com/report.pdf',
+                                                   filename: 'report.pdf'
+                                                 }
+                                               }
+                                             ]
+                                           }
+                                         ])
     end
   end
 end

@@ -87,7 +87,7 @@ const templateOptions = computed(() => {
     return {
       value: template.id,
       label: `${friendlyName} (${template.language || 'en'})`,
-      template: template,
+      template,
     };
   });
 });
@@ -111,11 +111,10 @@ const formErrors = computed(() => ({
   audience: getErrorMessage('selectedAudience', 'AUDIENCE'),
 }));
 
-const hasRequiredTemplateParams = computed(() => {
-  return (
-    !selectedTemplate.value || templateParserRef.value?.v$?.$invalid === false
-  );
-});
+const hasRequiredTemplateParams = computed(
+  () =>
+    !selectedTemplate.value || templateParserRef.value?.isFormInvalid === false
+);
 
 const isSubmitDisabled = computed(
   () =>
@@ -169,7 +168,7 @@ const prepareCampaignDetails = () => {
 
 const handleSubmit = async () => {
   const isFormValid = await v$.value.$validate();
-  if (!isFormValid) return;
+  if (!isFormValid || !hasRequiredTemplateParams.value) return;
 
   emit('submit', prepareCampaignDetails());
   resetState();

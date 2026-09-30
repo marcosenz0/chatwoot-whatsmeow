@@ -45,6 +45,9 @@
 
 - Prefer the smallest production-ready change that solves the current problem.
 - Build for the expected production path first. Do not add speculative guards, fallbacks, retries, or edge-case handling unless the caller can actually hit that case or production has proven it necessary.
+- Enforce eligibility and exclusivity rules at the earliest shared entry point. Do not repeat backup guards across downstream jobs, callbacks, services, or writes unless a proven independent path bypasses that point.
+- Validate request parameters at the controller or request boundary, reusing existing errors so invalid input returns `422 Unprocessable Entity` instead of reaching models or Sentry.
+- Accept only the documented type, shape, and value. Do not add compatibility coercions for malformed client values; fix official clients instead.
 - When an impossible or misconfigured state would indicate a setup/deployment bug, let it fail loudly instead of silently skipping behavior.
 - For locked/internal configs that must exist in production, prefer direct reads (`find`, `find_by!`, required hash keys) over silent fallbacks.
 - Do not add validation or response checks unless the code uses the result or the check changes behavior meaningfully.
@@ -87,6 +90,8 @@
 - **Translations**:
   - For product and source-string changes, only update `en.yml` and `en.json`; other languages are handled through Crowdin and the community
   - Crowdin-generated translation sync PRs may update non-English locale files; do not flag those changes solely for modifying translated locale files
+  - Preserve product and brand names, OAuth scopes, API values, and other machine-readable identifiers unless an official localized form exists
+  - When reviewing Crowdin syncs, verify protected terms remain unchanged. Add newly introduced product names, brand names, and machine-readable identifiers to the Crowdin glossary as non-translatable, and keep the glossary current
   - Backend i18n → `en.yml`, Frontend i18n → `en.json`
 - **Frontend**:
   - Use `components-next/` for message bubbles (the rest is being deprecated)
@@ -94,6 +99,15 @@
 ## Ruby Best Practices
 
 - Use compact `module/class` definitions; avoid nested styles
+
+## Frontend Conventions
+
+- Prefer existing design-system utilities and shared composables.
+- Use typography utilities instead of manually recreating font styles.
+- Use logical Tailwind utilities (`ms`, `me`, `start`, `end`) for direction-aware layouts.
+- Use `rem` for arbitrary CSS dimensions; preserve native numeric values required by chart/SVG APIs.
+- Extract repeated or domain-specific strings, thresholds, colors, and durations into named constants.
+- Use shared request-cancellation utilities instead of local `AbortController` logic.
 
 ## Enterprise Edition Notes
 
@@ -123,7 +137,7 @@ Detailed Whatsmeow fork progress is tracked in `docs/whatsmeow-progress.md`. Ins
 
 After each shipped change to a custom Chatwoot instance, update the relevant Markdown handoff before closing the task: record the user-visible behavior, key implementation decisions, deployment targets, validation, and any remaining limitation. Keep transient secrets and personal message contents out of these files. The three custom targets are `chatwoot.marcoswt.com.br`, `chatwootmx.marcoswt.com.br`, and `chatwootmd.marcoswt.com.br`; `chatwootoficial.marcoswt.com.br` is out of scope unless explicitly requested.
 
-This fork serves `chatwoot.marcoswt.com.br`, `chatwootmx.marcoswt.com.br`, and `chatwootmd.marcoswt.com.br`. For requested fork changes, deploy the same validated Chatwoot image to all three web/Sidekiq pairs and the matching Go changes to all three Whatsmeow services; verify each instance independently. Keep their databases, sessions, and domains separate.
+Current user instruction (September 29, 2026, latest request): update the common fork from the latest official stable Chatwoot release, preserve all fork integrations, and publish the same validated image to principal, MX, and MD with their matching Whatsmeow services. Keep databases, sessions, domains, and secrets separate. The personal WhatsApp session disconnected from MX must remain disconnected. Track this upgrade in `docs/whatsmeow-upgrade-v4.18-2026-09-29.md`.
 
 ### 🌟 Project Status
 All primary core integrations between Chatwoot Staging and the Go-based `whatsmeow-service` are implemented, deployed, and healthy.

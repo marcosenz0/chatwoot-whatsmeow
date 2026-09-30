@@ -42,6 +42,10 @@ class Whatsmeow::SessionClient
     request(:get, "/sessions/#{@inbox.id}/check_number?phone=#{CGI.escape(phone)}")
   end
 
+  def create_call_link(video: false)
+    request(:post, "/sessions/#{@inbox.id}/call-links", body: { video: video })
+  end
+
   def disconnect
     request(:delete, "/sessions/#{@inbox.id}")
   end

@@ -26,6 +26,9 @@ RSpec.describe Whatsapp::HealthService do
   end
 
   before do
+    channel.update!(provider_config: channel.provider_config.merge(
+      'api_key' => 'test-token', 'phone_number_id' => 'phone-number-id', 'business_account_id' => 'waba-id'
+    ))
     allow(HTTParty).to receive(:get).and_return(
       instance_double(HTTParty::Response, success?: true, parsed_response: phone_health_response)
     )

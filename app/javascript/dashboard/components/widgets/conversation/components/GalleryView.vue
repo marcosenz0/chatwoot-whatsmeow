@@ -257,7 +257,7 @@ onMounted(() => {
               rounded-full
               class="flex-shrink-0"
             />
-            <div class="flex flex-col ml-2 rtl:ml-0 rtl:mr-2 overflow-hidden">
+            <div class="flex flex-col ms-2 overflow-hidden">
               <h3 class="text-base leading-5 m-0 font-medium">
                 <span
                   class="overflow-hidden text-n-slate-12 whitespace-nowrap text-ellipsis"

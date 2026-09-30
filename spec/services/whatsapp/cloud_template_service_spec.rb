@@ -32,6 +32,7 @@ describe Whatsapp::CloudTemplateService do
   end
 
   before do
+    channel.singleton_class.remove_method(:sync_templates)
     stub_request(
       :get,
       'https://graph.facebook.com/v22.0/123456789/message_templates'

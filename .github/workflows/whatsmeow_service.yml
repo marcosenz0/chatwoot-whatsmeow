@@ -1,0 +1,39 @@
+name: Whatsmeow Service
+
+on:
+  pull_request:
+    paths:
+      - 'whatsmeow-service/**'
+      - '.github/workflows/whatsmeow_service.yml'
+  push:
+    branches:
+      - develop
+    paths:
+      - 'whatsmeow-service/**'
+      - '.github/workflows/whatsmeow_service.yml'
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: whatsmeow-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-file: whatsmeow-service/go.mod
+          cache: false
+      - name: Apply pinned dependency patches
+        run: |
+          go mod download
+          module_dir="$(go list -m -f '{{.Dir}}' github.com/polymorfa/hypermeow)"
+          chmod -R u+w "$module_dir"
+          patch -d "$module_dir" -p1 < patches/hypermeow-status-receipt-participant.patch
+          module_dir="$(go list -m -f '{{.Dir}}' github.com/purpshell/meowcaller)"
+          chmod -R u+w "$module_dir"
+          patch -d "$module_dir" -p1 < patches/meowcaller-linked-device-reject.patch
+      - run: go test github.com/purpshell/meowcaller/... -count=1
+      - run: go test ./...
+      - run: go vet ./...
+      - run: docker build -t whatsmeow-service:check .

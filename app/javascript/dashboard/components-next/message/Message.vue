@@ -2,7 +2,6 @@
 import { onMounted, onBeforeUnmount, computed, ref, toRefs } from 'vue';
 import { useStore } from 'vuex';
 import { useTimeoutFn } from '@vueuse/core';
-import { provideMessageContext } from './provider.js';
 import { useAlert, useTrack } from 'dashboard/composables';
 import { useMapGetter } from 'dashboard/composables/store';
 import { emitter } from 'shared/helpers/mitt';
@@ -13,6 +12,11 @@ import { ACCOUNT_EVENTS } from 'dashboard/helper/AnalyticsHelper/events';
 import { LOCAL_STORAGE_KEYS } from 'dashboard/constants/localStorage';
 import { getInboxIconByType } from 'dashboard/helper/inbox';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
+import Avatar from 'next/avatar/Avatar.vue';
+import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
+import { useBranding } from 'shared/composables/useBranding';
+import { isWhatsmeowSticker } from 'dashboard/helper/whatsmeowStickerHelper';
+import { provideMessageContext } from './provider.js';
 import {
   MESSAGE_TYPES,
   ATTACHMENT_TYPES,
@@ -22,8 +26,6 @@ import {
   MESSAGE_STATUS,
   CONTENT_TYPES,
 } from './constants';
-
-import Avatar from 'next/avatar/Avatar.vue';
 
 import TextBubble from './bubbles/Text/Index.vue';
 import ActivityBubble from './bubbles/Activity.vue';
@@ -43,15 +45,15 @@ import LocationBubble from './bubbles/Location.vue';
 import CSATBubble from './bubbles/CSAT.vue';
 import FormBubble from './bubbles/Form.vue';
 import VoiceCallBubble from './bubbles/VoiceCall.vue';
+import WhatsmeowCallBubble from './bubbles/WhatsmeowCall.vue';
 import WhatsmeowPixBubble from './bubbles/WhatsmeowPix.vue';
 import WhatsmeowParticipantActions from './WhatsmeowParticipantActions.vue';
 import MessageReactionButton from './MessageReactionButton.vue';
 import MessageReactionPopover from './MessageReactionPopover.vue';
+import WhatsappFlowResponseBubble from './bubbles/WhatsappFlowResponse.vue';
+import WhatsappReferral from './bubbles/Text/WhatsappReferral.vue';
 
 import MessageError from './MessageError.vue';
-import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
-import { useBranding } from 'shared/composables/useBranding';
-import { isWhatsmeowSticker } from 'dashboard/helper/whatsmeowStickerHelper';
 
 /**
  * @typedef {Object} Attachment
@@ -319,6 +321,10 @@ const componentToRender = computed(() => {
     if (emailInboxTypes.includes(props.messageType)) return EmailBubble;
   }
 
+  if (props.contentAttributes?.whatsappFlowResponse) {
+    return WhatsappFlowResponseBubble;
+  }
+
   if (props.contentType === CONTENT_TYPES.INPUT_CSAT) {
     return CSATBubble;
   }
@@ -330,6 +336,11 @@ const componentToRender = computed(() => {
   }
 
   if (props.contentType === CONTENT_TYPES.VOICE_CALL) {
+    if (
+      props.contentAttributes.whatsmeowCall ||
+      props.contentAttributes.whatsmeow_call
+    )
+      return WhatsmeowCallBubble;
     return VoiceCallBubble;
   }
 
@@ -364,7 +375,7 @@ const componentToRender = computed(() => {
 
   if (Array.isArray(props.attachments) && props.attachments.length === 1) {
     const attachment = props.attachments[0];
-    const fileType = attachment.fileType;
+    const { fileType } = attachment;
 
     if (fileType === ATTACHMENT_TYPES.FALLBACK) return FallbackBubble;
 
@@ -386,17 +397,18 @@ const componentToRender = computed(() => {
   return TextBubble;
 });
 
-const shouldShowContextMenu = computed(() => {
-  return !props.contentAttributes?.isUnsupported;
-});
+const shouldShowContextMenu = computed(
+  () => !props.contentAttributes?.isUnsupported
+);
 
-const isBubble = computed(() => {
-  return props.messageType !== MESSAGE_TYPES.ACTIVITY;
-});
+const isBubble = computed(
+  () =>
+    props.messageType !== MESSAGE_TYPES.ACTIVITY &&
+    !props.contentAttributes.whatsmeowCall &&
+    !props.contentAttributes.whatsmeow_call
+);
 
-const isMessageDeleted = computed(() => {
-  return props.contentAttributes?.deleted;
-});
+const isMessageDeleted = computed(() => props.contentAttributes?.deleted);
 
 const isLocallyDeleted = computed(() => {
   const deletedBy =
@@ -404,48 +416,46 @@ const isLocallyDeleted = computed(() => {
 
   return !!isMessageDeleted.value && !!deletedBy;
 });
+const shouldShowWhatsappReferral = computed(
+  () =>
+    variant.value === MESSAGE_VARIANTS.USER &&
+    !!props.contentAttributes?.referral
+);
 
-const payloadForContextMenu = computed(() => {
-  return {
-    id: props.id,
-    attachments: props.attachments,
-    content_attributes: props.contentAttributes,
-    content: props.content,
-    conversation_id: props.conversationId,
-    source_id: props.sourceId,
-  };
-});
+const payloadForContextMenu = computed(() => ({
+  id: props.id,
+  attachments: props.attachments,
+  content_attributes: props.contentAttributes,
+  content: props.content,
+  conversation_id: props.conversationId,
+  source_id: props.sourceId,
+}));
 
-const isWhatsmeowInbox = computed(() => {
-  return (
+const isWhatsmeowInbox = computed(
+  () =>
     inbox.value.channel_type === 'Channel::Whatsmeow' ||
     inbox.value.channelType === 'Channel::Whatsmeow'
-  );
-});
+);
 
-const isFailedOrProcessing = computed(() => {
-  return (
+const isFailedOrProcessing = computed(
+  () =>
     props.status === MESSAGE_STATUS.FAILED ||
     props.status === MESSAGE_STATUS.PROGRESS
-  );
-});
+);
 
-const isSelectableMessage = computed(() => {
-  return (
-    isBubble.value && !isMessageDeleted.value && !isFailedOrProcessing.value
-  );
-});
+const isSelectableMessage = computed(
+  () => isBubble.value && !isMessageDeleted.value && !isFailedOrProcessing.value
+);
 
-const canReactToMessage = computed(() => {
-  return (
+const canReactToMessage = computed(
+  () =>
     isWhatsmeowInbox.value &&
     isBubble.value &&
     !props.private &&
     !isMessageDeleted.value &&
     !isFailedOrProcessing.value &&
     !!props.sourceId
-  );
-});
+);
 
 const whatsmeowReactions = computed(() => {
   const reactions =
@@ -489,16 +499,15 @@ const displayedReactionEmojis = computed(() => {
   return [...new Set(emojis)].slice(-3).join(' ');
 });
 
-const canDeleteForEveryone = computed(() => {
-  return (
+const canDeleteForEveryone = computed(
+  () =>
     isWhatsmeowInbox.value &&
     props.messageType === MESSAGE_TYPES.OUTGOING &&
     !props.private &&
     !isMessageDeleted.value &&
     !isFailedOrProcessing.value &&
     !!props.sourceId
-  );
-});
+);
 
 const canEditMessage = computed(() => {
   const hasAttachments = !!(props.attachments && props.attachments.length > 0);
@@ -592,6 +601,8 @@ const shouldRenderMessage = computed(() => {
   const isUnsupported = props.contentAttributes?.isUnsupported;
   const isAnIntegrationMessage =
     props.contentType === CONTENT_TYPES.INTEGRATIONS;
+  const hasWhatsappFlowResponse =
+    !!props.contentAttributes?.whatsappFlowResponse;
   const isFailedMessage = props.status === MESSAGE_STATUS.FAILED;
   const hasExternalError = !!props.contentAttributes?.externalError;
 
@@ -602,13 +613,15 @@ const shouldRenderMessage = computed(() => {
     isEmailContentType ||
     isUnsupported ||
     isAnIntegrationMessage ||
+    hasWhatsappFlowResponse ||
+    shouldShowWhatsappReferral.value ||
     isFailedMessage ||
     hasExternalError
   );
 });
 
 function openContextMenu(e) {
-  const target = e.target;
+  const { target } = e;
   const isWhatsmeowStickerContextTarget = target?.closest?.(
     '[data-whatsmeow-sticker-context]'
   );
@@ -819,14 +832,13 @@ const whatsmeowGroupJid = computed(
   () => props.contentAttributes?.groupJid || ''
 );
 
-const shouldShowGroupParticipant = computed(() => {
-  return (
+const shouldShowGroupParticipant = computed(
+  () =>
     props.contentAttributes?.whatsmeowGroup &&
     orientation.value === ORIENTATION.LEFT &&
     variant.value === MESSAGE_VARIANTS.USER &&
     !!groupParticipantName.value
-  );
-});
+);
 
 const setupHighlightTimer = () => {
   if (Number(route.query.messageId) !== Number(props.id)) {
@@ -952,9 +964,14 @@ provideMessageContext({
         :class="{
           'ltr:ml-8 rtl:mr-8 justify-end': orientation === ORIENTATION.RIGHT,
           'ltr:mr-8 rtl:ml-8': orientation === ORIENTATION.LEFT,
+          'flex-col items-start gap-2': shouldShowWhatsappReferral,
         }"
         @contextmenu="openContextMenu($event)"
       >
+        <WhatsappReferral
+          v-if="shouldShowWhatsappReferral"
+          :referral="contentAttributes.referral"
+        />
         <div
           class="flex min-w-0 flex-col"
           :class="{

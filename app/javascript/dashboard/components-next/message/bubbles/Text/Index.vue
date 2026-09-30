@@ -2,15 +2,16 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import BaseBubble from 'next/message/bubbles/Base.vue';
-import FormattedContent from './FormattedContent.vue';
 import AttachmentChips from 'next/message/chips/AttachmentChips.vue';
 import TranslationToggle from 'dashboard/components-next/message/TranslationToggle.vue';
 import Icon from 'next/icon/Icon.vue';
+import { MESSAGE_STATUS } from 'shared/constants/messages';
+import { useTranslations } from 'dashboard/composables/useTranslations';
 import { MESSAGE_TYPES } from '../../constants';
 import { useMessageContext } from '../../provider.js';
-import { useTranslations } from 'dashboard/composables/useTranslations';
+import FormattedContent from './FormattedContent.vue';
 
-const { content, attachments, contentAttributes, messageType } =
+const { content, attachments, contentAttributes, messageType, status } =
   useMessageContext();
 const { t } = useI18n();
 
@@ -87,13 +88,15 @@ const renderContent = computed(() => {
   return content.value;
 });
 
-const isTemplate = computed(() => {
-  return messageType.value === MESSAGE_TYPES.TEMPLATE;
+const isTemplate = computed(() => messageType.value === MESSAGE_TYPES.TEMPLATE);
+
+const contactInfoRequestState = computed(() => {
+  if (status.value === MESSAGE_STATUS.FAILED) return null;
+
+  return contentAttributes.value?.whatsappContactInfo?.state;
 });
 
-const isEmpty = computed(() => {
-  return !content.value && !attachments.value?.length;
-});
+const isEmpty = computed(() => !content.value && !attachments.value?.length);
 
 const handleSeeOriginal = () => {
   renderOriginal.value = !renderOriginal.value;
@@ -160,6 +163,24 @@ const toggleEditedContent = () => {
         </button>
       </template>
       <FormattedContent v-else-if="renderContent" :content="renderContent" />
+      <span
+        v-if="contactInfoRequestState === 'pending'"
+        class="text-xs font-medium text-n-slate-11"
+      >
+        {{ $t('CONVERSATION.REQUEST_CONTACT_INFO.STATES.PENDING') }}
+      </span>
+      <span
+        v-else-if="contactInfoRequestState === 'shared'"
+        class="text-xs font-medium text-n-slate-11"
+      >
+        {{ $t('CONVERSATION.REQUEST_CONTACT_INFO.STATES.SHARED') }}
+      </span>
+      <span
+        v-else-if="contactInfoRequestState === 'identity_conflict'"
+        class="text-xs font-medium text-n-slate-11"
+      >
+        {{ $t('CONVERSATION.REQUEST_CONTACT_INFO.STATES.IDENTITY_CONFLICT') }}
+      </span>
       <TranslationToggle
         v-if="hasTranslations && !isWhatsmeowEdited"
         class="-mt-3"

@@ -2,7 +2,21 @@
 
 Este documento explica como instalar e manter este fork pessoal do Chatwoot com WhatsApp Direct via `whatsmeow-service`.
 
+O estado atual do canario de chamadas na principal e as pendencias para retomar a PR #21 estao em [whatsmeow-calls-handoff-2026-09-29.md](whatsmeow-calls-handoff-2026-09-29.md).
+
+Regra atual do usuario (29/09/2026): desenvolver, testar e publicar somente em `chatwoot.marcoswt.com.br`; MX/MD exigem novo pedido explicito. Preservar servicos, bancos, sessoes e rotas separados. As instrucoes de tres instancias abaixo sao o mapa de instalacao, nao autorizacao para redeploy agora.
+
+Para diagnosticar recusa imediata, verificar todos os dispositivos vinculados ao numero de destino. Um cliente pode enviar preaccept e Reject sem motivo mesmo com o checkbox Reject Calls desligado; essa resposta e indistinguivel de uma recusa manual no Windows. Em 29/09, o numero pessoal no MX foi desconectado com autorizacao especifica e o usuario removeu as demais sessoes concorrentes; chamadas de saida de voz e video funcionaram depois. Nao reconectar esse cliente sem pedido. Investigar estados active/pending/starting no gerenciador de chamadas antes de atribuir a causa ao checkbox.
+
 Use este guia quando quiser subir o projeto no PC local, Docker, Easypanel ou Portainer. O fluxo principal continua sendo pelo GitHub, no branch `develop`.
+
+### Canario de chamadas atualmente publicado (29/09 local)
+
+- Somente principal: web/worker `ghcr.io/marcosenz0/chatwoot-whatsmeow:calls-eeaf61d3149e465af71eac50f4805ce2acc6c6d9`; Go `bd474b7328d428b714faf3f20544f1df957d98e7`, implantacao concluida em 30/09 01:00:48 UTC. O codigo continua na PR #21 em rascunho, branch `codex/whatsmeow-voice-calls`; nao presumir que `develop` ja contenha essas chamadas.
+- O protocolo de quadros remotos tipo 5 carrega um byte de orientacao por quadro; o frontend aceita tambem tipo 4 legado. Validar retrato/deitado com a rotacao automatica do celular ligada e segurando cada posicao por alguns segundos. Tela travada pode manter a mesma orientacao informada durante toda a chamada.
+- Esse fluxo foi validado no Android real: retrato, ambos os sentidos deitado e retorno a retrato, em chamada de 2 min 49 s. O usuario confirmou video continuo. As setas de dispositivos e a pesquisa arredondada tambem foram conferidas na interface publicada. Reconhecimento facial nao foi adicionado; a orientacao do aparelho resolveu o caso.
+- A reorganizacao RTP e limitada a 75 ms / 64 pacotes; perdas reais pedem IDR autenticado e deltas sao descartados ate recuperar. Os logs `received video health` registram apenas contadores tecnicos; comparar progresso de quadros, pacotes reorganizados/faltantes e recuperacoes antes de atribuir travamentos a internet ou a biblioteca. Nao guardar midia, segredos ou dados pessoais nos handoffs.
+- Ofertas recebidas duplicadas nao devem sobrescrever uma chamada existente e provocar recusa por ocupado. Esta correcao foi validada por reproducao local; nao mascarar uma recusa humana de um dispositivo que preaceitou. A investigacao MX e uma excecao autorizada de leitura/desconexao, sem redeploy nas outras instancias.
 
 ## O que este fork tem
 
@@ -316,7 +330,7 @@ Crie ou mantenha os servicos abaixo no mesmo projeto/rede:
 
 Cada instancia usa banco, Redis, chaves de aplicacao, sessoes WhatsApp e dominio proprios. O Chatwoot oficial em `chatwootoficial.marcoswt.com.br` nao faz parte dos deploys deste fork. Para uma mudanca do fork destinada a todos os ambientes, valide e implante a mesma imagem Chatwoot nos tres pares web/Sidekiq e o Go correspondente nos tres servicos Whatsmeow.
 
-Na instancia MD, o web e o Sidekiq usam a mesma imagem do fork fixada por digest. O Go usa a branch `develop` do repositorio `marcosenz0/chatwoot-whatsmeow`, com contexto `/whatsmeow-service`. O dominio HTTPS aponta apenas para `chatwoot-md:3000`; Sidekiq e Go permanecem internos. O webhook interno do Go usa `http://chatwoot-md:3000/webhooks/whatsmeow/%s/%s`.
+Em 29 de setembro de 2026, os tres pares web/Sidekiq receberam a imagem de chamadas `ghcr.io/marcosenz0/chatwoot-whatsmeow:calls-2da34374b58ffcabce53c2914b44cd410b152fc2`. Os seis deploys concluiram com sucesso e os tres dominios voltaram a responder HTTP 200; confirme a tag efetivamente ativa antes de novos testes. Os tres servicos Go usam a branch `codex/whatsmeow-voice-calls`, com contexto `/whatsmeow-service`. Esta implantacao e um canario da PR #21; depois da validacao de midia, publique a versao aprovada em `develop` e fixe a mesma imagem nos tres pares. O webhook interno do MD usa `http://chatwoot-md:3000/webhooks/whatsmeow/%s/%s`.
 
 ### Chatwoot web
 
@@ -362,6 +376,26 @@ WEBHOOK_URL=http://nome-interno-do-chatwoot:3000/webhooks/whatsmeow/%s/%s
 ```
 
 Exponha a API do Go publicamente somente se precisar consultar health/status fora da rede interna. Para funcionamento normal, rede interna basta.
+
+### Chamadas de voz e vídeo pelo WhatsApp Direct
+
+O navegador precisa alcançar o WebSocket de chamadas por HTTPS. Em cada serviço Whatsmeow, adicione no EasyPanel uma rota de domínio usando o mesmo host do Chatwoot correspondente, caminho público `/calls`, porta de destino `8081` e caminho de destino `/calls`. A rota existente do Chatwoot continua recebendo os outros caminhos. Mantenha a API normal do Go na porta `8080`.
+
+No Chatwoot web de cada instância:
+
+```env
+WHATSMEOW_CALLS_URL=https://dominio-do-chatwoot-da-instancia
+```
+
+No serviço Whatsmeow correspondente:
+
+```env
+WHATSMEOW_CALLS_ENABLED=true
+WHATSMEOW_CALLS_PORT=8081
+WHATSMEOW_CALLS_ORIGIN=https://dominio-do-chatwoot-da-instancia
+```
+
+O web e o Go devem usar o mesmo `WHATSMEOW_SHARED_SECRET` já empregado pelas rotas internas. O proxy precisa permitir upgrade de WebSocket. Para receber chamadas no painel, mantenha `Reject Calls` desligado na configuração do inbox. As chamadas recebidas aparecem enquanto a conversa direta correspondente está aberta no navegador. A mídia de vídeo depende de WebCodecs no navegador. Os seletores de microfone, saída de áudio e câmera ficam nas setas ao lado dos botões correspondentes; a troca de saída usa `AudioContext.setSinkId`, que exige suporte e permissão do navegador. Os logs de uma chamada de voz atendida comprovaram fluxo de pacotes em ambos os sentidos, mas a inteligibilidade do áudio não foi aferida. Este PC **tem câmera**, inclusive uma C922; a afirmação anterior de ausência de câmera estava errada. O teste de vídeo ficou em `Conectando` enquanto aguardava a captura; a biblioteca de chamadas marca vídeo como experimental. Mantenha a PR em rascunho até concluir os testes de áudio e vídeo.
 
 ### Sequencia de deploy
 

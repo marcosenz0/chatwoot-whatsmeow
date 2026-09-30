@@ -7,15 +7,14 @@ global.axios = axios;
 vi.mock('axios');
 
 vi.mock('@chatwoot/utils', () => ({
-  debounce: vi.fn(fn => {
-    return fn;
-  }),
+  debounce: vi.fn(fn => fn),
 }));
 
 describe('#actions', () => {
   beforeEach(() => {
     vi.useFakeTimers(); // Set up fake timers
     commit.mockClear();
+    actions.onListRequestStarted({}, { inboxId: 1, status: 'open' });
   });
 
   afterEach(() => {
@@ -49,9 +48,18 @@ describe('#actions', () => {
 
   describe('#set', () => {
     it('sends correct mutations', async () => {
+      const request = actions.onListRequestStarted({}, { status: 'open' });
       actions.set(
         { commit },
-        { mine_count: 1, unassigned_count: 1, all_count: 2, group_count: 1 }
+        {
+          meta: {
+            mine_count: 1,
+            unassigned_count: 1,
+            all_count: 2,
+            group_count: 1,
+          },
+          request,
+        }
       );
       expect(commit.mock.calls).toEqual([
         [

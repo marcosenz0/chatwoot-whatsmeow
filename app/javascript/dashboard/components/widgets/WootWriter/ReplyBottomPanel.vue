@@ -8,15 +8,22 @@ import inboxMixin from 'shared/mixins/inboxMixin';
 import { FEATURE_FLAGS } from 'dashboard/featureFlags';
 import { getAllowedFileTypesByChannel } from '@chatwoot/utils';
 import { appendWhatsAppCloudMimeAliases } from 'shared/helpers/FileHelper';
-import VideoCallButton from '../VideoCallButton.vue';
 import { INBOX_TYPES } from 'dashboard/helper/inbox';
 import { mapGetters } from 'vuex';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import PixIcon from 'next/icon/PixIcon.vue';
+import RequestContactInfoButton from '../RequestContactInfoButton.vue';
+import VideoCallButton from '../VideoCallButton.vue';
 
 export default {
   name: 'ReplyBottomPanel',
-  components: { NextButton, FileUpload, PixIcon, VideoCallButton },
+  components: {
+    NextButton,
+    FileUpload,
+    PixIcon,
+    VideoCallButton,
+    RequestContactInfoButton,
+  },
   mixins: [inboxMixin],
   props: {
     isNote: {
@@ -157,6 +164,7 @@ export default {
     'selectWhatsappTemplate',
     'selectContentTemplate',
     'toggleQuotedReply',
+    'requestContactInfoTemplate',
   ],
   setup(props) {
     const { setSignatureFlagForInbox, fetchSignatureFlagFromUISettings } =
@@ -428,6 +436,10 @@ export default {
         faded
         sm
         @click="$emit('selectWhatsappTemplate')"
+      />
+      <RequestContactInfoButton
+        v-if="!isOnPrivateNote"
+        @request-template="$emit('requestContactInfoTemplate')"
       />
       <NextButton
         v-if="enableContentTemplates"

@@ -134,6 +134,7 @@ describe('useInbox', () => {
       });
 
       expect(wrapper.vm.isATwilioChannel).toBe(true);
+      expect(wrapper.vm.isATwilioSMSChannel).toBe(true);
       expect(wrapper.vm.isASmsInbox).toBe(true);
       expect(wrapper.vm.isAWhatsAppChannel).toBe(false);
     });
@@ -279,6 +280,7 @@ describe('useInbox', () => {
         'isASmsInbox',
         'isATelegramChannel',
         'isATwilioChannel',
+        'isATwilioSMSChannel',
         'isAWebWidgetInbox',
         'isAWhatsAppChannel',
         'isAMicrosoftInbox',

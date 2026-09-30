@@ -1,8 +1,16 @@
+import { MESSAGE_STATUS, MESSAGE_TYPE } from 'shared/constants/messages';
+import { createPendingMessage } from 'dashboard/helper/commons';
+import filterQueryGenerator from 'dashboard/helper/filterQueryGenerator';
+import * as Sentry from '@sentry/vue';
+import { useAbortableRequest } from 'dashboard/composables/useAbortableRequest';
+import {
+  handleVoiceCallCreated,
+  handleVoiceCallUpdated,
+  syncConversationCallVisibility,
+} from 'dashboard/helper/voice';
 import types from '../../mutation-types';
 import ConversationApi from '../../../api/inbox/conversation';
 import MessageApi from '../../../api/inbox/message';
-import { MESSAGE_STATUS, MESSAGE_TYPE } from 'shared/constants/messages';
-import { createPendingMessage } from 'dashboard/helper/commons';
 import {
   buildConversationList,
   isOnMentionsView,
@@ -12,12 +20,35 @@ import {
 } from './helpers/actionHelpers';
 import messageReadActions from './actions/messageReadActions';
 import messageTranslateActions from './actions/messageTranslateActions';
-import * as Sentry from '@sentry/vue';
-import {
-  handleVoiceCallCreated,
-  handleVoiceCallUpdated,
-  syncConversationCallVisibility,
-} from 'dashboard/helper/voice';
+
+// Page size MessageFinder uses when walking backwards through a conversation.
+const MESSAGES_PER_PAGE = 20;
+
+const pendingHistoryRequests = new Map();
+
+const TERMINAL_CONTACT_INFO_REQUEST_STATES = ['shared', 'identity_conflict'];
+
+const contactInfoSourceId = message =>
+  message.conversation?.contact_inbox?.source_id;
+
+const hasContactInfoSource = (conversation, sourceId) =>
+  (conversation.messages || []).some(
+    message => contactInfoSourceId(message) === sourceId
+  );
+
+const contactInfoRefreshConversationIds = (state, message) => {
+  const conversationIds = new Set([message.conversation_id].filter(Boolean));
+  const sourceId = contactInfoSourceId(message);
+  if (!sourceId) return [...conversationIds];
+
+  (state.allConversations || []).forEach(conversation => {
+    if (hasContactInfoSource(conversation, sourceId)) {
+      conversationIds.add(conversation.id);
+    }
+  });
+
+  return [...conversationIds];
+};
 
 export const hasMessageFailedWithExternalError = pendingMessage => {
   // This helper is used to check if the message has failed with an external error.
@@ -31,13 +62,22 @@ export const hasMessageFailedWithExternalError = pendingMessage => {
   return status === MESSAGE_STATUS.FAILED && externalError !== '';
 };
 
+const conversationListRequest = useAbortableRequest();
+
 // actions
 const actions = {
-  getConversation: async ({ commit }, conversationId) => {
+  getConversation: async ({ commit, dispatch }, conversationId) => {
     try {
       const response = await ConversationApi.show(conversationId);
-      commit(types.UPDATE_CONVERSATION, response.data);
+      // API refreshes can run in the background after reconnecting. Use the
+      // list merge to preserve local message state without moving the agent's
+      // scroll position or marking messages as read.
+      commit(types.SET_ALL_CONVERSATION, [response.data]);
       commit(`contacts/${types.SET_CONTACT_ITEM}`, response.data.meta.sender);
+      dispatch('conversationLabels/setConversationLabel', {
+        id: response.data.id,
+        data: response.data.labels,
+      });
     } catch (error) {
       // Ignore error
     }
@@ -45,45 +85,80 @@ const actions = {
 
   fetchAllConversations: async (
     { commit, state, dispatch },
-    requestParams = state.conversationFilters
-  ) => {
-    commit(types.SET_LIST_LOADING_STATUS);
-    try {
-      const params = requestParams;
-      const {
-        data: { data },
-      } = await ConversationApi.get(params);
-      buildConversationList(
-        { commit, dispatch },
-        params,
-        data,
-        params.assigneeType
+    { replaceExisting = false, ...requestParams } = {}
+  ) =>
+    conversationListRequest.run(async signal => {
+      const params = Object.keys(requestParams).length
+        ? requestParams
+        : state.conversationFilters;
+      const countRequest = await dispatch(
+        'conversationStats/onListRequestStarted',
+        params
       );
-      return true;
-    } catch (error) {
-      if (dispatch) {
-        commit(types.CLEAR_LIST_LOADING_STATUS);
-      }
-      return false;
-    }
-  },
+      if (signal.aborted) return false;
+      commit(types.SET_LIST_LOADING_STATUS);
+      try {
+        const {
+          data: { data },
+        } = await ConversationApi.get(params, { signal });
 
-  fetchFilteredConversations: async ({ commit, dispatch }, params) => {
-    commit(types.SET_LIST_LOADING_STATUS);
-    try {
-      const { data } = await ConversationApi.filter(params);
-      buildConversationList(
-        { commit, dispatch },
-        params,
-        data,
-        'appliedFilters'
-      );
-    } catch (error) {
-      if (dispatch) {
-        commit(types.CLEAR_LIST_LOADING_STATUS);
+        if (signal.aborted) return false;
+
+        buildConversationList(
+          { commit, dispatch },
+          params,
+          data,
+          params.assigneeType,
+          { replaceExisting, countRequest }
+        );
+        return true;
+      } catch (error) {
+        if (!signal.aborted) {
+          commit(types.CLEAR_LIST_LOADING_STATUS);
+        }
+        return false;
       }
-    }
-  },
+    }),
+
+  fetchFilteredConversations: async ({ commit, dispatch, state }, params) =>
+    conversationListRequest.run(async signal => {
+      const {
+        replaceExisting = false,
+        sortBy = state.chatSortFilter,
+        ...requestParams
+      } = params;
+      // The contact scope pins its own order to match the in-thread navigation.
+      const filterRequestParams = {
+        ...requestParams,
+        sortBy: state.appliedFiltersSortBy || sortBy,
+      };
+      const countRequest = await dispatch(
+        'conversationStats/onListRequestStarted',
+        filterRequestParams
+      );
+      if (signal.aborted) return;
+      commit(types.SET_LIST_LOADING_STATUS);
+      try {
+        const { data } = await ConversationApi.filter(filterRequestParams, {
+          signal,
+        });
+
+        if (signal.aborted) return;
+
+        buildConversationList(
+          { commit, dispatch },
+          filterRequestParams,
+          data,
+          'appliedFilters',
+          { replaceExisting, countRequest }
+        );
+      } catch (error) {
+        if (signal.aborted) return;
+
+        commit(types.CLEAR_LIST_LOADING_STATUS);
+        throw error;
+      }
+    }),
 
   emptyAllConversations({ commit }) {
     commit(types.EMPTY_ALL_CONVERSATION);
@@ -93,25 +168,39 @@ const actions = {
     commit(types.CLEAR_CURRENT_CHAT_WINDOW);
   },
 
-  fetchPreviousMessages: async ({ commit }, data) => {
-    try {
-      const {
-        data: { meta, payload },
-      } = await MessageApi.getPreviousMessages(data);
-      commit(`conversationMetadata/${types.SET_CONVERSATION_METADATA}`, {
-        id: data.conversationId,
-        data: meta,
-      });
-      commit(types.SET_PREVIOUS_CONVERSATIONS, {
-        id: data.conversationId,
-        data: payload,
-      });
-      if (!payload.length) {
-        commit(types.SET_ALL_MESSAGES_LOADED, data.conversationId);
-      }
-    } catch (error) {
-      // Handle error
+  fetchPreviousMessages: ({ commit }, data) => {
+    const requestKey = JSON.stringify([
+      MessageApi.url,
+      data.conversationId,
+      data.before,
+      data.after,
+    ]);
+    if (pendingHistoryRequests.has(requestKey)) {
+      return pendingHistoryRequests.get(requestKey);
     }
+
+    const request = MessageApi.getPreviousMessages(data)
+      .then(({ data: { meta, payload } }) => {
+        commit(`conversationMetadata/${types.SET_CONVERSATION_METADATA}`, {
+          id: data.conversationId,
+          data: meta,
+        });
+        commit(types.SET_PREVIOUS_CONVERSATIONS, {
+          id: data.conversationId,
+          data: payload,
+        });
+        // A short backward page means the start is reached; `after` requests only prove it when empty.
+        const hasReachedFirstMessage = data.after
+          ? !payload.length
+          : payload.length < MESSAGES_PER_PAGE;
+        if (hasReachedFirstMessage) {
+          commit(types.SET_ALL_MESSAGES_LOADED, data.conversationId);
+        }
+      })
+      .finally(() => pendingHistoryRequests.delete(requestKey));
+
+    pendingHistoryRequests.set(requestKey, request);
+    return request;
   },
 
   fetchAllAttachments: async ({ commit }, conversationId) => {
@@ -165,9 +254,9 @@ const actions = {
       );
       selectedChat.messages.push(...missingMessages);
       // Sort the messages by created_at
-      const sortedMessages = selectedChat.messages.sort((a, b) => {
-        return new Date(a.created_at) - new Date(b.created_at);
-      });
+      const sortedMessages = selectedChat.messages.sort(
+        (a, b) => new Date(a.created_at) - new Date(b.created_at)
+      );
       commit(types.SET_MISSING_MESSAGES, {
         id: conversationId,
         data: sortedMessages,
@@ -202,12 +291,14 @@ const actions = {
 
   async setActiveChat({ commit, dispatch }, { data, after }) {
     commit(types.SET_CURRENT_CHAT_WINDOW, data);
-    commit(types.CLEAR_ALL_MESSAGES_LOADED, data.id);
     if (data.dataFetched === undefined) {
+      // Reset only when refetching — a re-activated short conversation has no scroll to earn it back.
+      commit(types.CLEAR_ALL_MESSAGES_LOADED, data.id);
       try {
         await dispatch('fetchPreviousMessages', {
           after,
-          before: data.messages[0].id,
+          // A conversation created without an initial message has nothing to anchor on.
+          before: data.messages[0]?.id,
           conversationId: data.id,
         });
         commit(types.SET_CHAT_DATA_FETCHED, data.id);
@@ -337,6 +428,12 @@ const actions = {
     }
   },
 
+  requestContactInfo: async ({ commit }, conversationId) => {
+    const { data } = await ConversationApi.requestContactInfo(conversationId);
+    commit(types.ADD_MESSAGE, data);
+    return data;
+  },
+
   addMessage({ commit, rootGetters }, message) {
     commit(types.ADD_MESSAGE, message);
     if (message.message_type === MESSAGE_TYPE.INCOMING) {
@@ -353,8 +450,25 @@ const actions = {
     );
   },
 
-  updateMessage({ commit, rootGetters }, message) {
+  updateMessage({ commit, dispatch, rootGetters, state }, message) {
     commit(types.ADD_MESSAGE, message);
+
+    const contactInfoRequest =
+      message.content_attributes?.whatsapp_contact_info;
+    const isTerminalContactInfoRequest =
+      contactInfoRequest?.type === 'request' &&
+      (message.status === MESSAGE_STATUS.FAILED ||
+        TERMINAL_CONTACT_INFO_REQUEST_STATES.includes(
+          contactInfoRequest.state
+        ));
+    if (isTerminalContactInfoRequest) {
+      contactInfoRefreshConversationIds(state, message).forEach(
+        conversationId => {
+          dispatch('getConversation', conversationId);
+        }
+      );
+    }
+
     handleVoiceCallUpdated(
       commit,
       message,
@@ -435,7 +549,7 @@ const actions = {
     try {
       await ConversationApi.delete(conversationId);
       commit(types.DELETE_CONVERSATION, conversationId);
-      dispatch('conversationStats/get', {}, { root: true });
+      dispatch('conversationStats/get');
     } catch (error) {
       throw new Error(error);
     }
@@ -559,12 +673,28 @@ const actions = {
         customAttributes: custom_attributes,
       });
     } catch (error) {
-      // Handle error
+      throw new Error(error);
     }
   },
 
   setConversationFilters({ commit }, data) {
     commit(types.SET_CONVERSATION_FILTERS, data);
+  },
+
+  // Replaces the list with page 1 of the snake_case filters; sortBy overrides the activity order.
+  applyConversationFilters: (
+    { commit, dispatch },
+    { filters, sortBy = null }
+  ) => {
+    commit(types.SET_CONVERSATION_FILTERS, filters);
+    commit(types.SET_CONVERSATION_FILTERS_SORT, sortBy);
+    commit(types.EMPTY_ALL_CONVERSATION);
+    dispatch('conversationPage/reset', {}, { root: true });
+
+    return dispatch('fetchFilteredConversations', {
+      queryData: filterQueryGenerator(filters),
+      page: 1,
+    });
   },
 
   clearConversationFilters({ commit }) {
@@ -577,6 +707,11 @@ const actions = {
 
   updateChatListFilters({ commit }, data) {
     commit(types.UPDATE_CHAT_LIST_FILTERS, data);
+  },
+
+  invalidateConversationListRequests({ commit }) {
+    conversationListRequest.abort();
+    commit(types.CLEAR_LIST_LOADING_STATUS);
   },
 
   assignPriority: async ({ dispatch }, { conversationId, priority }) => {

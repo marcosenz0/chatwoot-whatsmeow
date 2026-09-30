@@ -4,6 +4,7 @@ import { useStore, useMapGetter } from 'dashboard/composables/store';
 import { useI18n } from 'vue-i18n';
 import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useAlert } from 'dashboard/composables';
+import { parseAPIErrorResponse } from 'dashboard/store/utils/api';
 import { ExceptionWithMessage } from 'shared/helpers/CustomErrors';
 import { debounce } from '@chatwoot/utils';
 import { emitter } from 'shared/helpers/mitt';
@@ -137,6 +138,12 @@ const handleSelectedContact = async ({ value, action, ...rest }) => {
       isCreatingContact.value = false;
     } catch (error) {
       isCreatingContact.value = false;
+      const message = parseAPIErrorResponse(error);
+      useAlert(
+        typeof message === 'string'
+          ? message
+          : t('COMPOSE_NEW_CONVERSATION.CONTACT_CREATE.ERROR_MESSAGE')
+      );
       return;
     }
   } else {
@@ -221,6 +228,9 @@ const onPopoverShow = () => {
   if (props.contactId && activeContact.value?.id) {
     loadContactableInboxesForContact(activeContact.value);
   }
+  // Cache-aware refetch, so newly synced WhatsApp templates show up here
+  // even if the account-cache-invalidated websocket event was missed.
+  store.dispatch('inboxes/get');
 };
 
 const onPopoverHide = () => {

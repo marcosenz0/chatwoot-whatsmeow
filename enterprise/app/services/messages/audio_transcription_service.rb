@@ -35,8 +35,9 @@ class Messages::AudioTranscriptionService
   def perform
     return { error: 'Audio attachment not found' } if attachment.blank?
     return { error: 'Message not found' } if message.blank?
+    return { error: 'Transcription disabled for this inbox' } if call_recording_transcription_disabled?
     return { error: transcription_unavailable_error } unless can_transcribe?
-    return { error: 'Audio too large for Whisper' } if audio_too_large?
+    return { error: 'Audio too large for transcription' } if audio_too_large?
 
     operation == :summarize ? summarize : transcribe
   rescue Faraday::Error, JSON::ParserError, KeyError, ActiveStorage::FileNotFoundError => e
@@ -169,6 +170,18 @@ class Messages::AudioTranscriptionService
     end
 
     temp_file_path
+  end
+
+  # Call recordings honour the inbox's "Transcribe recordings" setting; ordinary voice notes don't.
+  def call_recording_transcription_disabled?
+    message.voice_call? && message.inbox.channel.respond_to?(:transcription_enabled?) && !message.inbox.channel.transcription_enabled?
+  end
+
+  def extension_from_content_type(content_type)
+    subtype = content_type.to_s.downcase.split(';').first.to_s.split('/').last.to_s
+    return if subtype.blank?
+
+    { 'x-m4a' => 'm4a', 'x-wav' => 'wav', 'x-mp3' => 'mp3' }.fetch(subtype, subtype)
   end
 
   def transcribe_audio
@@ -374,17 +387,6 @@ class Messages::AudioTranscriptionService
     return unless ChatwootApp.advanced_search_allowed?
 
     message.reindex
-  end
-
-  def extension_from_content_type(content_type)
-    subtype = content_type.to_s.downcase.split(';').first.to_s.split('/').last.to_s
-    return if subtype.blank?
-
-    {
-      'x-m4a' => 'm4a',
-      'x-wav' => 'wav',
-      'x-mp3' => 'mp3'
-    }.fetch(subtype, subtype)
   end
 end
 # rubocop:enable Metrics/ClassLength

@@ -38,6 +38,7 @@ import sla from './sla.json';
 import snooze from './snooze.json';
 import teamsSettings from './teamsSettings.json';
 import whatsappTemplates from './whatsappTemplates.json';
+import whatsappTemplateMgmt from './whatsappTemplateMgmt.json';
 import contentTemplates from './contentTemplates.json';
 import mfa from './mfa.json';
 import onboarding from './onboarding.json';
@@ -45,6 +46,7 @@ import pipelines from './pipelines.json';
 import sessionLimit from './sessionLimit.json';
 import yearInReview from './yearInReview.json';
 import whatsappStatus from './whatsappStatus.json';
+import whatsappCalls from './whatsappCalls.json';
 import whatsappCloudStudio from './whatsappCloudStudio.json';
 
 export default {
@@ -88,6 +90,7 @@ export default {
   ...snooze,
   ...teamsSettings,
   ...whatsappTemplates,
+  ...whatsappTemplateMgmt,
   ...contentTemplates,
   ...mfa,
   ...onboarding,
@@ -95,5 +98,6 @@ export default {
   ...sessionLimit,
   ...yearInReview,
   ...whatsappStatus,
+  ...whatsappCalls,
   ...whatsappCloudStudio,
 };

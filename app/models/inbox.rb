@@ -46,6 +46,7 @@ class Inbox < ApplicationRecord
   include AccountCacheRevalidator
   include InboxAgentAvailability
   include InboxBrandedEmailLayoutable
+  include InboxBotStatus
 
   # Not allowing characters:
   validates :name, presence: true
@@ -178,9 +179,8 @@ class Inbox < ApplicationRecord
     (account.users.where(id: members.select(:user_id)) + account.administrators).uniq
   end
 
-  def active_bot?
-    agent_bot_inbox&.active? || marcosx_ai_active? || hooks.where(app_id: %w[dialogflow],
-                                                                  status: 'enabled').count.positive?
+  def external_bot_active?
+    super || marcosx_ai_active?
   end
 
   def marcosx_ai_active?
