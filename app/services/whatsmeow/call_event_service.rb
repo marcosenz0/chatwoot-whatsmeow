@@ -7,6 +7,11 @@ class Whatsmeow::CallEventService
     apply_event(call)
     call.save!
     Whatsmeow::CallMessageService.new(call: call).perform if call.ended_at
+    ActionCableBroadcastJob.perform_later(
+      inbox.assignable_agents.map(&:pubsub_token), 'whatsmeow.call_updated',
+      { account_id: inbox.account_id, source_id: call.source_id, conversation_id: call.conversation.display_id,
+        direction: call.direction, status: call.status, video: call.video, agent_id: call.agent_id }
+    )
   end
 
   private

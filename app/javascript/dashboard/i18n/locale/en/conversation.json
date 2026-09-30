@@ -54,7 +54,8 @@
       "MEDIA_DENIED": "Allow the microphone and camera for this site in your browser.",
       "MEDIA_MISSING": "The selected device is unavailable. Choose another microphone or camera.",
       "MEDIA_BUSY": "The microphone or camera could not start. Check whether another app is using it.",
-      "CONNECTION_LOST": "Connection lost. Try calling again."
+      "CONNECTION_LOST": "Connection lost. Try calling again.",
+      "ENABLE_RINGTONE": "Enable incoming call sound"
     },
     "404": "Sorry, we cannot find the conversation. Please try again",
     "REFERRAL": {

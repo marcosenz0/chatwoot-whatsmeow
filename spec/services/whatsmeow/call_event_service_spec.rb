@@ -29,6 +29,32 @@ RSpec.describe Whatsmeow::CallEventService do
     expect(message.historical?).to be(true)
   end
 
+  it 'notifies inbox agents and administrators while a call is ringing without broadcasting to unrelated agents' do
+    conversation
+    member = create(:user, account: account, role: :agent)
+    administrator = create(:user, account: account, role: :administrator)
+    create(:user, account: account, role: :agent)
+    inbox.add_members([member.id])
+
+    expect do
+      described_class.new(inbox: inbox, params: base_params.merge('event' => 'call_started')).perform
+    end.to have_enqueued_job(ActionCableBroadcastJob).with(
+      contain_exactly(member.pubsub_token, administrator.pubsub_token), 'whatsmeow.call_updated',
+      hash_including(account_id: account.id, conversation_id: conversation.display_id,
+                     source_id: 'test-call-1', direction: 'incoming', status: 'ringing', video: false)
+    )
+  end
+
+  it 'broadcasts terminal state instead of ringing when a start arrives after an end' do
+    conversation
+    described_class.new(inbox: inbox, params: base_params.merge('event' => 'call_ended')).perform
+    expect do
+      described_class.new(inbox: inbox, params: base_params.merge('event' => 'call_started')).perform
+    end.to have_enqueued_job(ActionCableBroadcastJob).with(
+      anything, 'whatsmeow.call_updated', hash_including(status: 'missed')
+    )
+  end
+
   it 'keeps one completed call when webhook events arrive out of order or repeat' do
     conversation
     outgoing = base_params.merge('direction' => 'outgoing', 'video' => true)

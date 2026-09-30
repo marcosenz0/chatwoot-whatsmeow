@@ -14,6 +14,7 @@ import StatusBanner from './components/app/StatusBanner.vue';
 import PaymentPendingBanner from './components/app/PaymentPendingBanner.vue';
 import PendingEmailVerificationBanner from './components/app/PendingEmailVerificationBanner.vue';
 import LowBackupCodesBanner from './components/app/LowBackupCodesBanner.vue';
+import WhatsmeowConversationCall from './components/widgets/conversation/WhatsmeowConversationCall.vue';
 import vueActionCable from './helper/actionCable';
 import WootSnackbarBox from './components/SnackbarContainer.vue';
 import { setColorTheme } from './helper/themeHelper';
@@ -34,6 +35,7 @@ export default {
     WootSnackbarBox,
     PendingEmailVerificationBanner,
     LowBackupCodesBanner,
+    WhatsmeowConversationCall,
   },
   setup() {
     const router = useRouter();
@@ -154,6 +156,10 @@ export default {
       </transition>
     </router-view>
     <WootSnackbarBox />
+    <WhatsmeowConversationCall
+      v-if="currentAccountId"
+      :key="currentAccountId"
+    />
     <NetworkNotification />
   </div>
   <LoadingState v-else />
