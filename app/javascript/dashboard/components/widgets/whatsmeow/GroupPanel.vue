@@ -439,7 +439,8 @@ onMounted(load);
           <Button
             type="button"
             icon="i-lucide-user-plus"
-            :label="$t('WHATSMEOW_UI.ADD')"
+            :label="$t('WHATSMEOW_UI.ADD_SHORT')"
+            :aria-label="$t('WHATSMEOW_UI.ADD')"
             faded
             slate
             sm

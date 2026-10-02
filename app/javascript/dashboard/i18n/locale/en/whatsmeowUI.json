@@ -58,6 +58,7 @@
     "YOU": "You",
     "ADMIN": "Group admin",
     "ADD": "Add members",
+    "ADD_SHORT": "Add",
     "INVITE": "Invite via link",
     "COPY_LINK": "Copy link",
     "RESET_INVITE": "Reset invitation link",
