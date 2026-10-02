@@ -43,10 +43,15 @@ jobs:
       - run: go test ./...
       - run: go vet ./...
       - run: docker build -t whatsmeow-service:check .
+      - uses: docker/login-action@v3
+        if: github.event_name == 'push'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish the validated service image
         if: github.event_name == 'push'
         run: |
-          printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
-          image=ghcr.io/${{ github.repository_owner }}/whatsmeow-service:fork-${{ github.sha }}
+          image=ghcr.io/${{ github.repository_owner }}/chatwoot-whatsmeow:whatsmeow-${{ github.sha }}
           docker tag whatsmeow-service:check "$image"
           docker push "$image"

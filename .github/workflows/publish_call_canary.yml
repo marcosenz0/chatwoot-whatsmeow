@@ -28,6 +28,7 @@ jobs:
           app/javascript/dashboard/store/modules/specs/conversations/actions.spec.js
           app/javascript/dashboard/helper/specs/whatsmeowAppLock.spec.js
           app/javascript/dashboard/helper/specs/whatsmeowCallVideo.spec.js
+          app/javascript/dashboard/components/widgets/whatsmeow/specs
           app/javascript/dashboard/components-next/message
 
   validate-call-history:
