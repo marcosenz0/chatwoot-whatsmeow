@@ -23,7 +23,9 @@ import Input from 'next/input/Input.vue';
 import Dialog from 'next/dialog/Dialog.vue';
 import Spinner from 'next/spinner/Spinner.vue';
 import SharedFiles from 'dashboard/routes/dashboard/conversation/SharedFiles.vue';
+import FormattedContent from 'dashboard/components-next/message/bubbles/Text/FormattedContent.vue';
 import GroupSettings from './GroupSettings.vue';
+import GroupMember from './GroupMember.vue';
 import GroupContactPicker from './GroupContactPicker.vue';
 import CreateGroupDialog from './CreateGroupDialog.vue';
 import StarredMessagesPanel from './StarredMessagesPanel.vue';
@@ -63,25 +65,53 @@ const {
   toggleExpanded: toggleDescription,
   checkOverflow: checkDescriptionOverflow,
 } = useExpandableContent({ maxLines: 3, useResizeObserverForCheck: true });
-const members = computed(() =>
-  (group.value?.members || []).filter(m =>
-    `${m.name} ${m.phone_number}`
-      .toLowerCase()
-      .includes(memberQuery.value.toLowerCase())
+const memberRank = member => {
+  if (member.is_super_admin) return 0;
+  if (member.is_admin) return 1;
+  if (member.is_self) return 2;
+  return 3;
+};
+const sortedMembers = computed(() =>
+  [...(group.value?.members || [])].sort(
+    (left, right) =>
+      memberRank(left) - memberRank(right) ||
+      (left.name || left.phone_number).localeCompare(
+        right.name || right.phone_number
+      )
   )
 );
+const previewMembers = computed(() => sortedMembers.value.slice(0, 9));
+const remainingMembers = computed(() =>
+  Math.max(sortedMembers.value.length - 9, 0)
+);
+const members = computed(() => {
+  const queryText = memberQuery.value.trim().toLowerCase();
+  return sortedMembers.value.filter(member =>
+    [
+      member.is_self ? t('WHATSMEOW_UI.YOU') : '',
+      member.name,
+      member.phone_number,
+    ].some(value => value?.toLowerCase().includes(queryText))
+  );
+});
 const excluded = computed(
   () => group.value?.members.flatMap(m => [m.jid, m.lid_jid]) || []
 );
 const dialogTitle = computed(() =>
-  t(`WHATSMEOW_UI.${mode.value.toUpperCase() || 'GROUP_INFO'}`)
+  t(
+    mode.value === 'members'
+      ? 'WHATSMEOW_UI.MEMBERS_TITLE'
+      : `WHATSMEOW_UI.${mode.value.toUpperCase() || 'GROUP_INFO'}`
+  )
 );
 const canCall = computed(
   () => group.value && group.value.count >= 3 && group.value.count <= 32
 );
 const showConfirm = computed(
   () =>
+    (mode.value !== 'settings' || group.value?.can_edit) &&
     ![
+      'members',
       'invite',
       'requests',
       'search',
@@ -129,6 +159,7 @@ async function open(value, member = null) {
   selected.value = [];
   settings.value = { ...group.value, name: group.value.group_name };
   query.value = '';
+  memberQuery.value = '';
   searchResults.value = [];
   dialog.value.open();
   try {
@@ -361,6 +392,7 @@ watch(
     pendingOperation.value = '';
     showStars.value = false;
     showMedia.value = false;
+    memberQuery.value = '';
     dialog.value?.close();
     load();
   }
@@ -479,7 +511,12 @@ onMounted(load);
               class="m-0 whitespace-pre-wrap break-words text-sm leading-6 text-n-slate-12 [overflow-wrap:anywhere]"
               :class="{ 'line-clamp-3': !descriptionExpanded }"
             >
-              {{ group.topic }}
+              <FormattedContent
+                :content="group.topic"
+                :inbox-id="chat.inbox_id"
+                plain-text
+                @navigate="dialog?.close()"
+              />
             </p>
             <button
               v-if="canExpandDescription"
@@ -610,11 +647,20 @@ onMounted(load);
         />
       </div>
       <div class="p-3 border-b border-n-weak flex flex-col gap-2">
-        <Input
-          v-model="memberQuery"
-          size="sm"
-          :placeholder="$t('WHATSMEOW_UI.SEARCH_MEMBERS')"
-        />
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-sm font-medium">
+            {{ $t('WHATSMEOW_UI.MEMBER_COUNT', { count: group.count }) }}
+          </span>
+          <Button
+            type="button"
+            icon="i-lucide-search"
+            ghost
+            slate
+            sm
+            :aria-label="$t('WHATSMEOW_UI.SEARCH_MEMBERS')"
+            @click="open('members')"
+          />
+        </div>
         <Button
           v-if="group.can_add_members"
           type="button"
@@ -632,75 +678,23 @@ onMounted(load);
           class="justify-start"
           @click="open('invite')"
         />
-        <div
-          v-for="member in members"
+        <GroupMember
+          v-for="member in previewMembers"
           :key="member.jid"
-          class="flex items-center gap-2 py-2"
-        >
-          <Avatar
-            :name="member.name || member.phone_number"
-            :src="member.profile_picture_url"
-            :size="36"
-            hide-offline-status
-          />
-          <div class="flex-1 min-w-0">
-            <p class="m-0 truncate text-sm">
-              {{
-                member.is_self
-                  ? $t('WHATSMEOW_UI.YOU')
-                  : member.name || member.phone_number
-              }}
-            </p>
-            <p
-              v-if="member.name !== member.phone_number"
-              class="m-0 text-xs text-n-slate-10 truncate"
-            >
-              {{ member.phone_number }}
-            </p>
-          </div>
-          <span
-            v-if="member.is_admin || member.is_super_admin"
-            class="text-xxs rounded px-1.5 py-1 bg-n-teal-3 text-n-teal-11"
-          >
-            {{ $t('WHATSMEOW_UI.ADMIN') }}
-          </span>
-          <details
-            v-if="
-              group.self_is_admin && !member.is_self && !member.is_super_admin
-            "
-            class="relative"
-          >
-            <summary class="cursor-pointer list-none p-2">
-              <span class="i-lucide-more-vertical size-4" />
-            </summary>
-            <div
-              class="absolute right-0 z-20 w-44 bg-n-solid-2 rounded-lg border border-n-weak p-1 shadow-lg"
-            >
-              <Button
-                type="button"
-                :label="
-                  $t(
-                    member.is_admin
-                      ? 'WHATSMEOW_UI.DEMOTE'
-                      : 'WHATSMEOW_UI.PROMOTE'
-                  )
-                "
-                ghost
-                slate
-                class="w-full justify-start"
-                @click="open(member.is_admin ? 'demote' : 'promote', member)"
-              />
-              <Button
-                type="button"
-                :label="$t('WHATSMEOW_UI.REMOVE')"
-                ghost
-                ruby
-                class="w-full justify-start"
-                @click="open('remove', member)"
-              />
-            </div>
-          </details>
-        </div>
+          :member="member"
+          :can-manage="group.self_is_admin"
+          @action="open"
+        />
+        <Button
+          v-if="remainingMembers"
+          type="button"
+          ghost
+          :label="
+            $t('WHATSMEOW_UI.VIEW_ALL_MEMBERS', { count: remainingMembers })
+          "
+          class="justify-start"
+          @click="open('members')"
+        />
       </div>
       <div class="flex flex-col gap-1 p-3">
         <Button
@@ -795,13 +789,37 @@ onMounted(load);
         error = '';
       "
     >
-      <div class="max-h-[65vh] overflow-auto flex flex-col gap-3">
+      <div
+        class="max-h-[65vh] flex flex-col gap-3"
+        :class="mode === 'members' ? 'overflow-hidden' : 'overflow-auto'"
+      >
         <GroupSettings
           v-if="mode === 'settings'"
           v-model="settings"
           :can-edit="group.can_edit"
           :can-manage="group.self_is_admin"
+          :inbox-id="chat.inbox_id"
+          @navigate="dialog.close()"
         />
+        <template v-if="mode === 'members'">
+          <Input
+            v-model="memberQuery"
+            type="search"
+            :placeholder="$t('WHATSMEOW_UI.SEARCH_MEMBERS')"
+          />
+          <p v-if="!members.length" class="m-0 text-sm text-n-slate-11">
+            {{ $t('WHATSMEOW_UI.NO_MEMBERS') }}
+          </p>
+          <div class="min-h-0 overflow-y-auto" data-group-members-list>
+            <GroupMember
+              v-for="member in members"
+              :key="member.jid"
+              :member="member"
+              :can-manage="group.self_is_admin"
+              @action="open"
+            />
+          </div>
+        </template>
         <GroupContactPicker
           v-if="mode === 'add'"
           v-model="selected"

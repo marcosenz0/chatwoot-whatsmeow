@@ -40,8 +40,8 @@ const imgResizeManager = md => {
   });
 };
 
-const createMarkdownInstance = (linkify = true) => {
-  return MarkdownIt({
+const createMarkdownInstance = (linkify = true) =>
+  MarkdownIt({
     html: false,
     xhtmlOut: true,
     breaks: true,
@@ -61,7 +61,6 @@ const createMarkdownInstance = (linkify = true) => {
         target: '_blank',
       },
     });
-};
 
 // Help center article tables persist column widths as an internal
 // `<!--cw-colwidths:...-->` comment before the table. It exists only for the
@@ -114,6 +113,18 @@ class MessageFormatter {
 
   get formattedMessage() {
     return this.formatMessage();
+  }
+
+  get linkifiedText() {
+    const escape = this.md.utils.escapeHtml;
+    const matches = this.md.linkify.match(this.message) || [];
+    let lastIndex = 0;
+    const parts = matches.map(match => {
+      const text = escape(this.message.slice(lastIndex, match.index));
+      lastIndex = match.lastIndex;
+      return `${text}<a href="${escape(match.url)}" target="_blank" rel="noreferrer noopener nofollow">${escape(match.text)}</a>`;
+    });
+    return parts.join('') + escape(this.message.slice(lastIndex));
   }
 
   get plainText() {

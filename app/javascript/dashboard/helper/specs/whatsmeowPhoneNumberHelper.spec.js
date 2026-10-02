@@ -56,3 +56,23 @@ describe('#linkifyWhatsmeowPhoneNumbers', () => {
     expect(html).not.toContain('data-whatsmeow-phone-number');
   });
 });
+
+describe('WhatsApp conversation links', () => {
+  it('handles direct chat URLs without changing external links', () => {
+    const html = linkifyWhatsmeowPhoneNumbers(
+      '<a href="https://wa.me/14155552671">Chat</a><a href="https://api.whatsapp.com/send?phone=556392977347">WhatsApp</a><a href="https://drive.google.com/file/d/123456">Drive</a>'
+    );
+    const document = new DOMParser().parseFromString(html, 'text/html');
+    const anchors = document.querySelectorAll('a');
+    expect(anchors[0].dataset.whatsmeowPhoneNormalized).toBe('+14155552671');
+    expect(anchors[1].dataset.whatsmeowPhoneNormalized).toBe('+556392977347');
+    expect(anchors[2].dataset.whatsmeowPhoneNumber).toBeUndefined();
+  });
+
+  it('does not treat lookalike hosts or non-phone WhatsApp links as chats', () => {
+    const html = linkifyWhatsmeowPhoneNumbers(
+      '<a href="https://wa.me.example.com/556392977347">External</a><a href="https://wa.me/channel/123456">Channel</a>'
+    );
+    expect(html).not.toContain('data-whatsmeow-phone-number');
+  });
+});

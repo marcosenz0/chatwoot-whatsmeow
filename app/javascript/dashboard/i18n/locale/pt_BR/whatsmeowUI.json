@@ -115,6 +115,11 @@
     "UNLOCK": "Desbloquear",
     "UNLOCK_HELP": "Informe seu PIN para visualizar as conversas neste navegador.",
     "WRONG_PIN": "PIN incorreto.",
-    "DISABLE_LOCK": "Desbloquear e desativar bloqueio"
+    "DISABLE_LOCK": "Desbloquear e desativar bloqueio",
+    "MEMBER_COUNT": "{count} membros",
+    "VIEW_ALL_MEMBERS": "Ver tudo (mais {count})",
+    "NO_MEMBERS": "Nenhum membro encontrado",
+    "OWNER": "Dono do grupo",
+    "MEMBERS_TITLE": "Membros do grupo"
   }
 }

@@ -220,3 +220,16 @@ After`;
     });
   });
 });
+
+describe('plain descriptions with links', () => {
+  it('preserves text, newlines and escapes markup while linkifying URLs', () => {
+    const text =
+      '*Group rules*\nhttps://drive.google.com/file/d/123456\n<script>alert(1)</script>';
+    const html = new MessageFormatter(text).linkifiedText;
+    expect(html).toContain('*Group rules*\n');
+    expect(html).toContain('href="https://drive.google.com/file/d/123456"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(html).not.toContain('<script>');
+  });
+});

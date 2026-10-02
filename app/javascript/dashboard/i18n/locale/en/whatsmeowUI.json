@@ -115,6 +115,11 @@
     "UNLOCK": "Unlock",
     "UNLOCK_HELP": "Enter your PIN to view conversations in this browser.",
     "WRONG_PIN": "Incorrect PIN.",
-    "DISABLE_LOCK": "Unlock and disable app lock"
+    "DISABLE_LOCK": "Unlock and disable app lock",
+    "MEMBER_COUNT": "{count} members",
+    "VIEW_ALL_MEMBERS": "View all ({count} more)",
+    "NO_MEMBERS": "No members found",
+    "OWNER": "Group owner",
+    "MEMBERS_TITLE": "Group members"
   }
 }

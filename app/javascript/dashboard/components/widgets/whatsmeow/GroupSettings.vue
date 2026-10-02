@@ -6,13 +6,15 @@ import Avatar from 'next/avatar/Avatar.vue';
 import { groupPhoto } from 'dashboard/helper/whatsmeowGroup';
 import { useAlert } from 'dashboard/composables';
 import { useI18n } from 'vue-i18n';
+import FormattedContent from 'dashboard/components-next/message/bubbles/Text/FormattedContent.vue';
 
 const props = defineProps({
   modelValue: { type: Object, required: true },
+  inboxId: { type: Number, default: null },
   canEdit: { type: Boolean, default: true },
   canManage: { type: Boolean, default: true },
 });
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits(['update:modelValue', 'navigate']);
 const { t } = useI18n();
 const update = (key, value) =>
   emit('update:modelValue', { ...props.modelValue, [key]: value });
@@ -69,9 +71,14 @@ async function upload(event) {
       :maxlength="100"
       @update:model-value="update('name', $event)"
     />
-    <label class="flex flex-col gap-1 text-sm">
-      {{ $t('WHATSMEOW_UI.DESCRIPTION') }}
+    <div class="flex flex-col gap-1 text-sm">
+      <label v-if="canEdit" for="group-topic">{{
+        $t('WHATSMEOW_UI.DESCRIPTION')
+      }}</label>
+      <span v-else>{{ $t('WHATSMEOW_UI.DESCRIPTION') }}</span>
       <textarea
+        v-if="canEdit"
+        id="group-topic"
         :value="modelValue.topic"
         :disabled="!canEdit"
         maxlength="2048"
@@ -79,7 +86,19 @@ async function upload(event) {
         class="reset-base rounded-lg bg-n-surface-1 border border-n-weak p-3"
         @input="update('topic', $event.target.value)"
       />
-    </label>
+      <div
+        v-else
+        class="rounded-lg border border-n-weak bg-n-surface-1 p-3 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+      >
+        <FormattedContent
+          v-if="modelValue.topic"
+          :content="modelValue.topic"
+          :inbox-id="inboxId"
+          plain-text
+          @navigate="emit('navigate')"
+        />
+      </div>
+    </div>
     <label class="flex flex-col gap-1 text-sm">
       {{ $t('WHATSMEOW_UI.DISAPPEARING_MESSAGES') }}
       <select
