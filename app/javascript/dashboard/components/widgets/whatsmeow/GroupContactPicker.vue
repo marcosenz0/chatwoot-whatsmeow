@@ -23,18 +23,30 @@ const contacts = ref([]);
 const more = ref(false);
 const error = ref('');
 const checking = ref(false);
+const identities = contact => {
+  const phone = contact.phone_number?.replace(/\D/g, '');
+  return [
+    contact.jid,
+    contact.lid_jid,
+    phone && `${phone}@s.whatsapp.net`,
+  ].filter(Boolean);
+};
+const sameContact = (first, second) =>
+  identities(first).some(id => identities(second).includes(id));
+const excluded = contact =>
+  identities(contact).some(id => props.excluded.includes(id));
 const visible = computed(() =>
-  contacts.value.filter(c => !c.is_self && !props.excluded.includes(c.jid))
+  contacts.value.filter(c => !c.is_self && !excluded(c))
 );
 const canLookup = computed(() =>
   /^\+?[1-9]\d{9,14}$/.test(query.value.replace(/[\s()-]/g, ''))
 );
-const selected = jid => props.modelValue.some(c => c.jid === jid);
+const selected = contact => props.modelValue.some(c => sameContact(c, contact));
 function toggle(contact) {
   emit(
     'update:modelValue',
-    selected(contact.jid)
-      ? props.modelValue.filter(c => c.jid !== contact.jid)
+    selected(contact)
+      ? props.modelValue.filter(c => !sameContact(c, contact))
       : [...props.modelValue, contact]
   );
 }
@@ -58,25 +70,28 @@ async function load(append = false) {
   }
 }
 async function lookup() {
+  if (checking.value) return;
+  const phone = query.value;
+  const inbox = props.inboxId;
   checking.value = true;
   try {
-    const { data } = await InboxesAPI.checkWhatsmeowNumber(
-      props.inboxId,
-      query.value
-    );
+    const { data } = await InboxesAPI.checkWhatsmeowNumber(inbox, phone);
+    if (inbox !== props.inboxId) return;
     if (!data.is_on_whatsapp)
       throw new Error(t('WHATSMEOW_UI.NUMBER_UNAVAILABLE'));
-    const contact = {
+    const verified = {
       jid: data.jid,
-      name: query.value,
-      phone_number: query.value,
+      name: phone,
+      phone_number: data.phone || phone,
     };
-    if (!props.excluded.includes(contact.jid) && !selected(contact.jid))
-      toggle(contact);
+    const contact =
+      contacts.value.find(c => sameContact(c, verified)) || verified;
+    if (!excluded(contact) && !selected(contact)) toggle(contact);
   } catch (e) {
     error.value = e.response?.data?.message || e.message;
+  } finally {
+    checking.value = false;
   }
-  checking.value = false;
 }
 watchDebounced(query, () => load(), { debounce: 300 });
 watch(
@@ -131,12 +146,12 @@ onMounted(load);
         :key="contact.jid"
         type="button"
         class="flex w-full items-center gap-3 rounded-lg px-2 py-3 text-start hover:bg-n-alpha-2"
-        :aria-pressed="selected(contact.jid)"
+        :aria-pressed="selected(contact)"
         @click="toggle(contact)"
       >
         <span
           :class="
-            selected(contact.jid)
+            selected(contact)
               ? 'i-lucide-square-check text-n-brand'
               : 'i-lucide-square text-n-slate-10'
           "

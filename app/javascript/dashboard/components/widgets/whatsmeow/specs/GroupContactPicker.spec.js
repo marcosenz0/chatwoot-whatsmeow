@@ -49,9 +49,7 @@ describe('GroupContactPicker', () => {
       wrapper
         .getComponent(GroupContactPicker)
         .emitted('update:modelValue')[0][0]
-    ).toEqual([
-      { jid: other.jid, name: '556391174954', phone_number: '556391174954' },
-    ]);
+    ).toEqual([other]);
     wrapper.unmount();
   });
 
@@ -100,6 +98,25 @@ describe('GroupContactPicker', () => {
       { q: '', offset: 0 },
       { signal: expect.any(AbortSignal) }
     );
+    wrapper.unmount();
+  });
+
+  it('treats a verified LID and its saved phone contact as the same selected member', async () => {
+    const saved = { ...other, phone_number: '+556391174954' };
+    const verified = {
+      jid: '166486421323919@lid',
+      name: '556391174954',
+      phone_number: '556391174954',
+    };
+    GroupsAPI.contacts.mockResolvedValue({
+      data: { contacts: [saved], has_more: false },
+    });
+    const wrapper = shallowMount(GroupContactPicker, {
+      props: { inboxId: 28, modelValue: [verified] },
+    });
+    await flushPromises();
+    await wrapper.get('button[aria-pressed="true"]').trigger('click');
+    expect(wrapper.emitted('update:modelValue')).toEqual([[[]]]);
     wrapper.unmount();
   });
 });
