@@ -20,7 +20,7 @@ RSpec.describe 'Whatsmeow conversation actions API', type: :request do
   it 'leaves an inaccessible inbox unread' do
     other_inbox = create(:channel_whatsmeow, account: account).inbox
     other_conversation = create(:conversation, account: account, inbox: other_inbox, agent_last_seen_at: 3.days.ago)
-    seen_at = other_conversation.agent_last_seen_at
+    seen_at = other_conversation.reload.agent_last_seen_at
     post "#{endpoint}/read_all", headers: agent.create_new_auth_token
     expect(response).to have_http_status(:ok)
     expect(other_conversation.reload.agent_last_seen_at).to eq(seen_at)

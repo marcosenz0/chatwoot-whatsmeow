@@ -3,13 +3,7 @@ class Api::V1::Accounts::WhatsmeowStarredMessagesController < Api::V1::Accounts:
     stars = WhatsmeowMessageStar.where(inbox_id: accessible_inboxes.select(:id), starred: true)
     stars = stars.where(inbox_id: params[:inbox_id]) if params[:inbox_id].present?
     @pending_count = stars.where(message_id: nil).count
-    stars = visible_stars(stars)
-    if params[:before].present?
-      anchor = stars.find(params[:before])
-      stars = stars.where('(messages.created_at, whatsmeow_message_stars.id) < (?, ?)', anchor.message.created_at, anchor.id)
-    end
-    records = stars.includes(message: [:sender, :attachments, { conversation: [:inbox, :contact] }])
-                   .order('messages.created_at DESC, whatsmeow_message_stars.id DESC').limit(51).to_a
+    records = paginated_stars(visible_stars(stars))
     more = records.length > 50
     records = records.first(50)
     render json: { payload: records.map { |star| star_payload(star) }, next_cursor: more ? records.last.id : nil, pending_count: @pending_count }
@@ -28,6 +22,15 @@ class Api::V1::Accounts::WhatsmeowStarredMessagesController < Api::V1::Accounts:
 
   def accessible_inboxes
     policy_scope(Current.account.inboxes).where(account_id: Current.account.id, channel_type: 'Channel::Whatsmeow')
+  end
+
+  def paginated_stars(stars)
+    if params[:before].present?
+      anchor = stars.find(params[:before])
+      stars = stars.where('(messages.created_at, whatsmeow_message_stars.id) < (?, ?)', anchor.message.created_at, anchor.id)
+    end
+    stars.includes(message: [:sender, :attachments, { conversation: [:inbox, :contact] }])
+         .order('messages.created_at DESC, whatsmeow_message_stars.id DESC').limit(51).to_a
   end
 
   def visible_stars(stars)

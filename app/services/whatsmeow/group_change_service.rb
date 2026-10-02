@@ -2,7 +2,6 @@ class Whatsmeow::GroupChangeService
   pattr_initialize [:inbox!, :params!]
 
   def perform
-    conversation = Whatsmeow::GroupConversationBuilder.new(inbox: inbox, params: params.with_indifferent_access).perform
     conversation.contact.update!(name: params['group_name']) if params['name_changed']
     return if inbox.messages.exists?(source_id: source_id)
 
@@ -12,6 +11,10 @@ class Whatsmeow::GroupChangeService
   end
 
   private
+
+  def conversation
+    @conversation ||= Whatsmeow::GroupConversationBuilder.new(inbox: inbox, params: params.with_indifferent_access).perform
+  end
 
   def source_id
     @source_id ||= "whatsmeow-group-change:#{Digest::SHA256.hexdigest(params.slice('group_jid', 'timestamp', 'version', 'changes').to_json)}"

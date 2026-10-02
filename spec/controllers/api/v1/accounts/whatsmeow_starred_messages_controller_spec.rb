@@ -8,8 +8,10 @@ RSpec.describe 'Whatsmeow starred messages API', type: :request do
   let(:message) { create(:message, account: account, inbox: inbox, conversation: conversation, source_id: 'favorite') }
   let(:endpoint) { "/api/v1/accounts/#{account.id}/whatsmeow_starred_messages" }
   let!(:star) do
-    WhatsmeowMessageStar.create!(inbox: inbox, message: message, chat_jid: '120363000000001@g.us',
-                               source_id: message.source_id, occurred_at: Time.current)
+    WhatsmeowMessageStar.create!(
+      inbox: inbox, message: message, chat_jid: '120363000000001@g.us',
+      source_id: message.source_id, occurred_at: Time.current
+    )
   end
 
   before { create(:inbox_member, inbox: inbox, user: agent) }
@@ -25,8 +27,10 @@ RSpec.describe 'Whatsmeow starred messages API', type: :request do
     other_inbox = create(:channel_whatsmeow, account: account).inbox
     other_conversation = create(:conversation, account: account, inbox: other_inbox)
     other_message = create(:message, account: account, inbox: other_inbox, conversation: other_conversation)
-    WhatsmeowMessageStar.create!(inbox: other_inbox, message: other_message, chat_jid: '120363000000002@g.us',
-                               source_id: 'other-favorite', occurred_at: Time.current)
+    WhatsmeowMessageStar.create!(
+      inbox: other_inbox, message: other_message, chat_jid: '120363000000002@g.us',
+      source_id: 'other-favorite', occurred_at: Time.current
+    )
     get endpoint, headers: agent.create_new_auth_token
     expect(response.parsed_body['payload'].pluck('id')).to eq([star.id])
   end
