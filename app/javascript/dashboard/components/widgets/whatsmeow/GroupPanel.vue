@@ -514,7 +514,7 @@ onMounted(load);
             slate
             xs
             class="shrink-0"
-            :aria-label="$t('WHATSMEOW_UI.GROUP_DESCRIPTION')"
+            :aria-label="$t('WHATSMEOW_UI.DESCRIPTION')"
             @click="open('settings')"
           />
         </div>
