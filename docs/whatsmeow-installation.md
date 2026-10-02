@@ -330,6 +330,8 @@ Crie ou mantenha os servicos abaixo no mesmo projeto/rede:
 - Chatwoot Sidekiq, usando a mesma imagem do web.
 - Whatsmeow service, usando o Dockerfile em `whatsmeow-service/`.
 
+Se o Active Storage usa disco local, web e Sidekiq da mesma instancia precisam compartilhar `/app/storage`. No Easypanel, volumes chamados `storage` em servicos diferentes sao volumes distintos. Mantenha o volume do web e monte seu diretorio persistente tambem no worker, sem compartilhar arquivos entre instancias. No MD, o bind mount do worker usa `/etc/easypanel/projects/marcos-apps/chatwoot-md/volumes/storage` em `/app/storage`. Antes de corrigir uma montagem ausente, recupere os arquivos do worker atual antes do redeploy. Veja [o incidente de audio no MD](instagram-audio-md-2026-10-02.md).
+
 ### Instancias do fork em `marcos-apps`
 
 | Instancia | Dominio | Web | Sidekiq | Postgres | Redis | Whatsmeow |
