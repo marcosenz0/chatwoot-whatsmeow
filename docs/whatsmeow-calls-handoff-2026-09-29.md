@@ -1,12 +1,12 @@
 # Handoff: chamadas WhatsApp Direct no Chatwoot (29/09/2026)
 
-## Estado atual: favoritas e grupos no fork 4.18.0 (01/10/2026)
+## Estado atual: correções de favoritas e grupos (02/10/2026)
 
-Principal, MX e MD executam a imagem comum `fork-9afed3964f01e14fb4997a1d9d3e021d51b5eb16` nos seis serviços web/Sidekiq. Os três Go usam `whatsmeow-54aae63ad477bc6d5bf0077a091a1a9ac7c0efa2`, com configurações e sessões independentes. Imagens, migrações e saúde foram conferidas por destino. O Chatwoot oficial está fora do escopo.
+Principal, MX e MD executam a imagem comum `fork-10280d21bc22b3f2be29d9de6135e1b92c5fdcf0` nos seis serviços web/Sidekiq, Chatwoot 4.18.0. Os três Go mantêm `whatsmeow-54aae63ad477bc6d5bf0077a091a1a9ac7c0efa2`, com configurações e sessões independentes. Imagens, migrações e saúde foram conferidas por destino. O Chatwoot oficial está fora do escopo.
 
-Favoritas sincronizadas, busca e salto para a mensagem original, criação e gerenciamento de grupos e chamadas de grupo foram publicados em inglês/português brasileiro. A sessão pessoal que o usuário reconectou ao MX permanece conectada; a antiga orientação para desconectá-la está substituída. As três instâncias estão autorizadas, com publicação inicial e testes reais na principal antes de atualizar MX/MD.
+O seletor extra de listas/favoritos de conversas e os temas foram removidos. Mensagens favoritas continuam sincronizadas; o salto destaca a mensagem com contorno suave. Dados do grupo têm ações compactas e descrição com Ler mais/Ler menos, inclusive sem permissão de edição. Português brasileiro incluído. A sessão pessoal MX permanece conectada. As três instâncias estão autorizadas, com implementação e validação inicial na principal.
 
-Leia primeiro [whatsmeow-stars-groups-2026-10-01.md](whatsmeow-stars-groups-2026-10-01.md): imagens/digests, backups, 82 testes JS e 330 Rails, testes reais, favoritas pendentes e limitações de chamadas/exportação/recursos nativos. O [upgrade 4.18](whatsmeow-upgrade-v4.18-2026-09-29.md) e as seções seguintes são referências históricas; instruções antigas sobre escopo, imagens e desconexão pessoal não descrevem o estado atual.
+Leia primeiro [whatsmeow-ui-corrections-2026-10-02.md](whatsmeow-ui-corrections-2026-10-02.md): imagens/digests, limpeza das preferências antigas, 104 testes JS e 330 Rails e validação visual. O [handoff de favoritas e grupos](whatsmeow-stars-groups-2026-10-01.md) preserva os backups e limites dos recursos; suas descrições anteriores de listas, temas e destaque verde foram substituídas. Checkpoints de setembro sobre escopo, imagens e desconexão pessoal são históricos.
 
 Este arquivo permite retomar a integracao em outro chat ou com outra IA. Nao registrar aqui segredos, numeros pessoais, conteudo de mensagens ou tokens de sessao. O painel e o historico estao publicados na principal. Chamadas recebidas e efetuadas, video nos dois sentidos, alternancia da camera e seletores de dispositivos foram confirmados com o WhatsApp Windows. A inteligibilidade do audio ainda nao foi ouvida independentemente; nao declarar a integracao inteira pronta apenas por haver sinalizacao, temporizador ou pacotes enviados.
 

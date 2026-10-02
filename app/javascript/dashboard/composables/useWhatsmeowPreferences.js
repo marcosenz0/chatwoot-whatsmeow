@@ -14,14 +14,5 @@ export function useWhatsmeowPreferences() {
     updateUISettings({
       [key.value]: { ...preferences.value, [id]: { ...get(id), ...changes } },
     });
-  const lists = computed(() =>
-    [
-      ...new Set(
-        Object.values(preferences.value)
-          .map(p => p.list)
-          .filter(Boolean)
-      ),
-    ].sort()
-  );
-  return { preferences, get, set, lists };
+  return { get, set };
 }

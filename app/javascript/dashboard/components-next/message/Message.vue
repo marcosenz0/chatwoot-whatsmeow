@@ -900,7 +900,6 @@ provideMessageContext({
       flexOrientationClass,
       {
         'group-with-next': shouldGroupWithNext,
-        'bg-n-teal-3 ring-1 ring-n-teal-7': showBackgroundHighlight,
         'cursor-pointer rounded-lg px-10 py-1 transition-colors hover:bg-n-alpha-2':
           isSelectionMode && isSelectableMessage,
         'bg-n-alpha-2 ring-1 ring-n-weak': isSelectionMode && isSelected,
@@ -997,10 +996,12 @@ provideMessageContext({
           :referral="contentAttributes.referral"
         />
         <div
-          class="flex min-w-0 flex-col"
+          class="flex min-w-0 flex-col rounded-xl transition-shadow duration-500 motion-reduce:transition-none"
           :class="{
             'items-end': orientation === ORIENTATION.RIGHT,
             'items-start': orientation === ORIENTATION.LEFT,
+            'ring-2 ring-n-brand/60 ring-offset-4 ring-offset-n-background shadow-lg shadow-n-brand/10':
+              showBackgroundHighlight,
           }"
         >
           <div v-if="shouldShowGroupParticipant" class="mb-1 max-w-lg px-1">

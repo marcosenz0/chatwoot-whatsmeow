@@ -1,5 +1,7 @@
 # Favoritas e gerenciamento de grupos WhatsApp Direct
 
+> Revisão de 02/10/2026: as listas/favoritos de conversas e os temas foram removidos; o destaque e os dados do grupo foram reformulados. Leia primeiro [whatsmeow-ui-corrections-2026-10-02.md](whatsmeow-ui-corrections-2026-10-02.md) para as imagens atuais e validação. Este relatório mantém o histórico da entrega anterior, backups e limites dos recursos.
+
 Entrega solicitada em 01/10/2026 para principal, MX e MD. A publicação usa uma imagem comum por componente, mantendo bancos, Redis, credenciais, domínios e sessões independentes. O Chatwoot oficial está fora do escopo. A autorização atual inclui português brasileiro e substitui a antiga restrição a publicar somente na principal.
 
 ## Código e publicação
