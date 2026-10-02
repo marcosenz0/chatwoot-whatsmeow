@@ -421,6 +421,7 @@ onMounted(load);
             faded
             slate
             sm
+            class="!h-auto flex-col !gap-2 !px-1 py-3"
             :disabled="!canCall"
             @click="call(false)"
           />
@@ -431,6 +432,7 @@ onMounted(load);
             faded
             slate
             sm
+            class="!h-auto flex-col !gap-2 !px-1 py-3"
             :disabled="!canCall"
             @click="call(true)"
           />
@@ -441,6 +443,7 @@ onMounted(load);
             faded
             slate
             sm
+            class="!h-auto flex-col !gap-2 !px-1 py-3"
             :disabled="!group.can_add_members"
             @click="open('add')"
           />
@@ -451,6 +454,7 @@ onMounted(load);
             faded
             slate
             sm
+            class="!h-auto flex-col !gap-2 !px-1 py-3"
             @click="open('search')"
           />
         </div>
