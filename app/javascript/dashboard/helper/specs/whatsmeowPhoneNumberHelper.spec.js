@@ -71,7 +71,7 @@ describe('WhatsApp conversation links', () => {
 
   it('does not treat lookalike hosts or non-phone WhatsApp links as chats', () => {
     const html = linkifyWhatsmeowPhoneNumbers(
-      '<a href="https://wa.me.example.com/556392977347">External</a><a href="https://wa.me/channel/123456">Channel</a>'
+      '<a href="http://">Broken</a><a href="https://wa.me.example.com/556392977347">External</a><a href="https://wa.me/channel/123456">Channel</a>'
     );
     expect(html).not.toContain('data-whatsmeow-phone-number');
   });

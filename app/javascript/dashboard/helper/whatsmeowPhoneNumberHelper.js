@@ -111,7 +111,9 @@ const walkTextNodes = node => {
 };
 
 const annotateWhatsAppConversationLink = anchor => {
-  const url = new URL(anchor.getAttribute('href'), window.location.origin);
+  const href = anchor.getAttribute('href');
+  if (!URL.canParse(href, window.location.origin)) return;
+  const url = new URL(href, window.location.origin);
   let phone = '';
   if (url.hostname === 'wa.me' && /^\/\+?\d{6,15}\/?$/.test(url.pathname)) {
     phone = `+${url.pathname.replace(/\D/g, '')}`;
