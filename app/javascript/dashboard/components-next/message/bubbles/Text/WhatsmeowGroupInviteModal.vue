@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import Dialog from 'next/dialog/Dialog.vue';
 import { useI18n } from 'vue-i18n';
 
@@ -29,6 +29,9 @@ const props = defineProps({
 const emit = defineEmits(['close', 'join']);
 const { t } = useI18n();
 const dialog = ref(null);
+onMounted(() => {
+  if (props.isOpen) dialog.value.open();
+});
 watch(
   () => props.isOpen,
   value => {

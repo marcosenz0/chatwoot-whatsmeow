@@ -470,6 +470,7 @@ const joinGroupInvite = async () => {
       </button>
     </Dialog>
     <WhatsmeowGroupInviteModal
+      v-if="isGroupInviteModalOpen"
       :is-open="isGroupInviteModalOpen"
       :invite="groupInviteModal || {}"
       :is-loading="isLoadingGroupInvite"
