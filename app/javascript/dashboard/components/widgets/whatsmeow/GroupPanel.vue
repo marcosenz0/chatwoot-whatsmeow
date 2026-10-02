@@ -410,6 +410,7 @@ onMounted(load);
       <div class="flex flex-col items-center gap-2 px-5 py-5">
         <button
           type="button"
+          class="p-0"
           :disabled="!group.can_edit"
           :aria-label="$t('WHATSMEOW_UI.GROUP_PHOTO')"
           @click="open('settings')"
@@ -450,7 +451,7 @@ onMounted(load);
             v-for="item in quickActions"
             :key="item.label"
             type="button"
-            class="group/action flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-lg text-xs text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-brand disabled:opacity-40"
+            class="group/action flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-lg p-0 text-xs text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-brand disabled:opacity-40"
             :aria-label="$t(`WHATSMEOW_UI.${item.ariaLabel || item.label}`)"
             :disabled="item.disabled"
             @click="item.action"
@@ -460,7 +461,9 @@ onMounted(load);
             >
               <span :class="item.icon" class="size-5 shrink-0" />
             </span>
-            <span class="w-full break-words text-center leading-4">
+            <span
+              class="w-full whitespace-nowrap text-center leading-4 tracking-tight"
+            >
               {{ $t(`WHATSMEOW_UI.${item.label}`) }}
             </span>
           </button>
@@ -481,7 +484,7 @@ onMounted(load);
             <button
               v-if="canExpandDescription"
               type="button"
-              class="mt-1 rounded text-sm font-medium text-n-blue-11 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-brand"
+              class="mt-1 rounded p-0 text-sm font-medium text-n-blue-11 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-brand"
               :aria-expanded="descriptionExpanded"
               :aria-controls="`group-description-${chat.id}`"
               @click="toggleDescription()"
@@ -497,7 +500,7 @@ onMounted(load);
             <button
               v-else-if="!group.topic && group.can_edit"
               type="button"
-              class="rounded text-sm text-n-blue-11 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-brand"
+              class="rounded p-0 text-sm text-n-blue-11 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-brand"
               @click="open('settings')"
             >
               {{ $t('WHATSMEOW_UI.ADD_DESCRIPTION') }}
