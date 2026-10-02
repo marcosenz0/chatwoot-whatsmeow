@@ -4,6 +4,10 @@ class Api::V1::Accounts::WhatsmeowStarredMessagesController < Api::V1::Accounts:
     stars = stars.where(inbox_id: params[:inbox_id]) if params[:inbox_id].present?
     @pending_count = stars.where(message_id: nil).count
     stars = visible_stars(stars)
+    if params[:before].present?
+      anchor = stars.find(params[:before])
+      stars = stars.where('(messages.created_at, whatsmeow_message_stars.id) < (?, ?)', anchor.message.created_at, anchor.id)
+    end
     records = stars.includes(message: [:sender, :attachments, { conversation: [:inbox, :contact] }])
                    .order('messages.created_at DESC, whatsmeow_message_stars.id DESC').limit(51).to_a
     more = records.length > 50
@@ -31,16 +35,13 @@ class Api::V1::Accounts::WhatsmeowStarredMessagesController < Api::V1::Accounts:
     stars = stars.joins(message: :conversation).where(messages: { private: false, conversation_id: conversations.select(:id) })
     stars = stars.where(conversations: { display_id: params[:conversation_id] }) if params[:conversation_id].present?
     stars = search_stars(stars) if params[:q].present?
-    return stars if params[:before].blank?
-
-    anchor = stars.find(params[:before])
-    stars.where('(messages.created_at, whatsmeow_message_stars.id) < (?, ?)', anchor.message.created_at, anchor.id)
+    stars
   end
 
   def search_stars(stars)
     term = "%#{ActiveRecord::Base.sanitize_sql_like(params[:q])}%"
     stars.joins(message: { conversation: :contact }).where(
-      "messages.content ILIKE ? OR contacts.name ILIKE ? OR " \
+      'messages.content ILIKE ? OR contacts.name ILIKE ? OR ' \
       "(messages.content_attributes #>> '{}')::jsonb ->> 'participant_name' ILIKE ?", term, term, term
     )
   end

@@ -39,8 +39,8 @@ RSpec.describe 'Whatsmeow groups API', type: :request do
   it 'denies access to an inbox outside the account' do
     expect(client).not_to receive(:group_action)
     other = create(:channel_whatsmeow).inbox
-    get "/api/v1/accounts/#{account.id}/inboxes/#{other.id}/whatsmeow_group", params: { group_jid: group['group_jid'] },
-                                                                                       headers: agent.create_new_auth_token
+    get "/api/v1/accounts/#{account.id}/inboxes/#{other.id}/whatsmeow_group",
+        params: { group_jid: group['group_jid'] }, headers: agent.create_new_auth_token
     expect(response).to have_http_status(:not_found)
   end
 end

@@ -51,9 +51,7 @@ class Whatsmeow::MessageStarService
       message ||= @inbox.messages.joins(conversation: :contact_inbox)
                         .find_by(source_id: @source_id, contact_inboxes: { source_id: @chat_jid })
       record.update!(starred: starred, occurred_at: occurred_at, message: message)
-      if message
-        message.with_lock { message.update!(content_attributes: message.content_attributes.merge('whatsmeow_starred' => starred)) }
-      end
+      message&.with_lock { message.update!(content_attributes: message.content_attributes.merge('whatsmeow_starred' => starred)) }
     end
     record
   end

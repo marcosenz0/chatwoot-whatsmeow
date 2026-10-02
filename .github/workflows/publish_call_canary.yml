@@ -95,6 +95,7 @@ jobs:
           spec/enterprise/services/messages/audio_transcription_service_spec.rb
           spec/finders/conversation_finder_spec.rb
           spec/finders/message_finder_spec.rb
+          spec/controllers/api/v1/accounts/whatsmeow_conversations_controller_spec.rb
           spec/controllers/api/v1/accounts/whatsmeow_starred_messages_controller_spec.rb
           spec/controllers/api/v1/accounts/inboxes/whatsmeow_groups_controller_spec.rb
       - uses: actions/upload-artifact@v4
@@ -115,6 +116,7 @@ jobs:
           db/migrate/20261001090000_create_whatsmeow_message_stars.rb
           spec/services/whatsmeow/message_star_service_spec.rb
           spec/services/whatsmeow/group_change_service_spec.rb
+          spec/controllers/api/v1/accounts/whatsmeow_conversations_controller_spec.rb
           spec/controllers/api/v1/accounts/whatsmeow_starred_messages_controller_spec.rb
           spec/controllers/api/v1/accounts/inboxes/whatsmeow_groups_controller_spec.rb
 
