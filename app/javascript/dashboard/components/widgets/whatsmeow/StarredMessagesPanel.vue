@@ -129,6 +129,7 @@ onMounted(async () => {
   >
     <header class="flex items-center gap-2 px-3 py-3 border-b border-n-weak">
       <Button
+        type="button"
         icon="i-lucide-arrow-left"
         ghost
         slate
@@ -141,6 +142,7 @@ onMounted(async () => {
       </h2>
       <Button
         v-tooltip="$t('WHATSMEOW_UI.SYNC_STARS')"
+        type="button"
         icon="i-lucide-refresh-cw"
         ghost
         slate
@@ -191,6 +193,7 @@ onMounted(async () => {
         <span class="i-lucide-star size-8" />
         <p>{{ $t('WHATSMEOW_UI.NO_STARS') }}</p>
         <Button
+          type="button"
           :label="$t('WHATSMEOW_UI.SYNC_STARS')"
           :is-loading="syncing"
           @click="sync"
@@ -245,6 +248,7 @@ onMounted(async () => {
         >
           <span class="truncate">{{ record.inbox_name }}</span>
           <Button
+            type="button"
             icon="i-lucide-star-off"
             :label="$t('WHATSMEOW_UI.UNSTAR')"
             ghost
@@ -256,6 +260,7 @@ onMounted(async () => {
       </article>
       <div v-if="cursor" class="flex justify-center p-3">
         <Button
+          type="button"
           :label="$t('WHATSMEOW_UI.LOAD_MORE')"
           faded
           slate

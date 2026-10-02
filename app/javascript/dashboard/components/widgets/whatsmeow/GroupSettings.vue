@@ -54,6 +54,7 @@ async function upload(event) {
       </label>
       <Button
         v-if="canEdit && photoUrl"
+        type="button"
         ghost
         slate
         xs

@@ -46,6 +46,7 @@ const confirmDisabled = computed(
     (step.value === 1 && !settings.value.name.trim())
 );
 async function confirm() {
+  if (confirmDisabled.value || saving.value) return;
   if (!step.value) {
     step.value = 1;
     return;
@@ -115,6 +116,7 @@ onMounted(() => dialog.value.open());
       />
       <template v-if="step">
         <Button
+          type="button"
           ghost
           slate
           xs

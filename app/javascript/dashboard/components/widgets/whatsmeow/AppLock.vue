@@ -44,6 +44,7 @@ async function lock() {
   lockDialog.value.showModal();
 }
 async function setLock() {
+  if (!canSet.value || busy.value) return;
   busy.value = true;
   try {
     config.value = await createAppLock(pin.value);
@@ -57,6 +58,7 @@ async function setLock() {
   }
 }
 async function unlock(remove = false) {
+  if (busy.value) return;
   busy.value = true;
   try {
     if (!(await verifyAppLock(pin.value, config.value))) {
@@ -159,6 +161,7 @@ useEmitter(BUS_EVENTS.WHATSMEOW_APP_LOCK, lock);
           class="w-full"
         />
         <Button
+          type="button"
           :label="$t('WHATSMEOW_UI.DISABLE_LOCK')"
           ghost
           slate

@@ -98,6 +98,7 @@ async function confirm() {
     class="relative"
   >
     <Button
+      type="button"
       icon="i-lucide-more-vertical"
       ghost
       slate

@@ -165,6 +165,7 @@ onMounted(load);
       </p>
       <Button
         v-if="more"
+        type="button"
         :label="$t('WHATSMEOW_UI.LOAD_MORE')"
         faded
         slate
@@ -174,6 +175,7 @@ onMounted(load);
     </div>
     <Button
       v-if="canLookup"
+      type="button"
       :label="$t('WHATSMEOW_UI.ADD_NUMBER')"
       icon="i-lucide-user-plus"
       faded

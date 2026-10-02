@@ -353,6 +353,7 @@ onMounted(load);
       class="flex items-center gap-2 p-3 border-b border-n-weak sticky top-0 z-10 bg-n-surface-2"
     >
       <Button
+        type="button"
         icon="i-lucide-x"
         ghost
         slate
@@ -364,6 +365,7 @@ onMounted(load);
         {{ $t('WHATSMEOW_UI.GROUP_INFO') }}
       </h2>
       <Button
+        type="button"
         icon="i-lucide-refresh-cw"
         ghost
         slate
@@ -413,6 +415,7 @@ onMounted(load);
         </p>
         <div class="grid grid-cols-4 gap-1 w-full mt-3">
           <Button
+            type="button"
             icon="i-lucide-phone"
             :label="$t('WHATSMEOW_UI.VOICE')"
             faded
@@ -422,6 +425,7 @@ onMounted(load);
             @click="call(false)"
           />
           <Button
+            type="button"
             icon="i-lucide-video"
             :label="$t('WHATSMEOW_UI.VIDEO')"
             faded
@@ -431,6 +435,7 @@ onMounted(load);
             @click="call(true)"
           />
           <Button
+            type="button"
             icon="i-lucide-user-plus"
             :label="$t('WHATSMEOW_UI.ADD')"
             faded
@@ -440,6 +445,7 @@ onMounted(load);
             @click="open('add')"
           />
           <Button
+            type="button"
             icon="i-lucide-search"
             :label="$t('WHATSMEOW_UI.SEARCH')"
             faded
@@ -454,6 +460,7 @@ onMounted(load);
       </div>
       <div class="px-4 pb-4 border-b border-n-weak">
         <button
+          type="button"
           class="w-full text-start text-sm whitespace-pre-wrap hover:text-n-blue-11"
           :disabled="!group.can_edit"
           @click="open('settings')"
@@ -463,6 +470,7 @@ onMounted(load);
       </div>
       <div class="flex flex-col gap-1 p-3 border-b border-n-weak">
         <Button
+          type="button"
           icon="i-lucide-images"
           :label="$t('WHATSMEOW_UI.MEDIA_LINKS_DOCS')"
           ghost
@@ -475,6 +483,7 @@ onMounted(load);
         />
         <SharedFiles v-if="showMedia" />
         <Button
+          type="button"
           icon="i-lucide-star"
           :label="$t('WHATSMEOW_UI.STARRED_MESSAGES')"
           ghost
@@ -483,6 +492,7 @@ onMounted(load);
           @click="showStars = true"
         />
         <Button
+          type="button"
           :icon="chat.muted ? 'i-lucide-volume-2' : 'i-lucide-bell-off'"
           :label="$t(chat.muted ? 'WHATSMEOW_UI.UNMUTE' : 'WHATSMEOW_UI.MUTE')"
           ghost
@@ -491,6 +501,7 @@ onMounted(load);
           @click="mute"
         />
         <Button
+          type="button"
           icon="i-lucide-palette"
           :label="$t('WHATSMEOW_UI.THEME')"
           ghost
@@ -499,6 +510,7 @@ onMounted(load);
           @click="open('theme')"
         />
         <Button
+          type="button"
           icon="i-lucide-lock-keyhole"
           :label="$t('WHATSMEOW_UI.ENCRYPTION')"
           ghost
@@ -507,6 +519,7 @@ onMounted(load);
           @click="open('encryption')"
         />
         <Button
+          type="button"
           icon="i-lucide-timer"
           :label="`${$t('WHATSMEOW_UI.DISAPPEARING_MESSAGES')} · ${$t(`WHATSMEOW_UI.DURATION_${group.disappearing_timer}`)}`"
           ghost
@@ -516,6 +529,7 @@ onMounted(load);
           @click="open('settings')"
         />
         <Button
+          type="button"
           icon="i-lucide-settings"
           :label="$t('WHATSMEOW_UI.GROUP_PERMISSIONS')"
           ghost
@@ -525,6 +539,7 @@ onMounted(load);
         />
         <Button
           v-if="group.self_is_admin"
+          type="button"
           icon="i-lucide-user-check"
           :label="$t('WHATSMEOW_UI.REQUESTS')"
           ghost
@@ -534,6 +549,7 @@ onMounted(load);
         />
         <Button
           v-if="group.self_is_admin && !group.is_community"
+          type="button"
           icon="i-lucide-users"
           :label="$t('WHATSMEOW_UI.COMMUNITY')"
           ghost
@@ -542,6 +558,7 @@ onMounted(load);
           @click="open('community')"
         />
         <Button
+          type="button"
           icon="i-lucide-copy-plus"
           :label="$t('WHATSMEOW_UI.SIMILAR_GROUP')"
           ghost
@@ -558,6 +575,7 @@ onMounted(load);
         />
         <Button
           v-if="group.can_add_members"
+          type="button"
           icon="i-lucide-user-plus"
           :label="$t('WHATSMEOW_UI.ADD')"
           ghost
@@ -565,6 +583,7 @@ onMounted(load);
           @click="open('add')"
         />
         <Button
+          type="button"
           icon="i-lucide-link"
           :label="$t('WHATSMEOW_UI.INVITE')"
           ghost
@@ -616,6 +635,7 @@ onMounted(load);
               class="absolute right-0 z-20 w-44 bg-n-solid-2 rounded-lg border border-n-weak p-1 shadow-lg"
             >
               <Button
+                type="button"
                 :label="
                   $t(
                     member.is_admin
@@ -629,6 +649,7 @@ onMounted(load);
                 @click="open(member.is_admin ? 'demote' : 'promote', member)"
               />
               <Button
+                type="button"
                 :label="$t('WHATSMEOW_UI.REMOVE')"
                 ghost
                 ruby
@@ -641,6 +662,7 @@ onMounted(load);
       </div>
       <div class="flex flex-col gap-1 p-3">
         <Button
+          type="button"
           icon="i-lucide-list"
           :label="$t('WHATSMEOW_UI.CHANGES')"
           ghost
@@ -649,6 +671,7 @@ onMounted(load);
           @click="open('changes')"
         />
         <Button
+          type="button"
           :icon="preferences.favorite ? 'i-lucide-heart-off' : 'i-lucide-heart'"
           :label="
             $t(
@@ -663,6 +686,7 @@ onMounted(load);
           @click="favorite"
         />
         <Button
+          type="button"
           icon="i-lucide-list-plus"
           :label="$t('WHATSMEOW_UI.LIST')"
           ghost
@@ -671,6 +695,7 @@ onMounted(load);
           @click="open('list')"
         />
         <Button
+          type="button"
           icon="i-lucide-download"
           :label="$t('WHATSMEOW_UI.EXPORT')"
           ghost
@@ -679,6 +704,7 @@ onMounted(load);
           @click="exportChat"
         />
         <Button
+          type="button"
           icon="i-lucide-square-check"
           :label="$t('WHATSMEOW_UI.SELECT_MESSAGES')"
           ghost
@@ -687,6 +713,7 @@ onMounted(load);
           @click="selectMessages"
         />
         <Button
+          type="button"
           icon="i-lucide-eraser"
           :label="$t('WHATSMEOW_UI.CLEAR')"
           ghost
@@ -695,6 +722,7 @@ onMounted(load);
           @click="open('clear')"
         />
         <Button
+          type="button"
           icon="i-lucide-log-out"
           :label="$t('WHATSMEOW_UI.LEAVE')"
           ghost
@@ -703,6 +731,7 @@ onMounted(load);
           @click="open('leave')"
         />
         <Button
+          type="button"
           icon="i-lucide-shield"
           :label="$t('WHATSMEOW_UI.PROVIDER_LIMITS')"
           ghost
@@ -787,12 +816,14 @@ onMounted(load);
         <template v-if="mode === 'invite'">
           <Input :model-value="invite" readonly />
           <Button
+            type="button"
             :label="$t('WHATSMEOW_UI.COPY_LINK')"
             icon="i-lucide-copy"
             @click="copyInvite"
           />
           <Button
             v-if="group.self_is_admin"
+            type="button"
             :label="$t('WHATSMEOW_UI.RESET_INVITE')"
             faded
             ruby
@@ -812,12 +843,14 @@ onMounted(load);
               {{ entry.member.name || entry.member.phone_number }}
             </span>
             <Button
+              type="button"
               icon="i-lucide-check"
               :aria-label="$t('WHATSMEOW_UI.APPROVE')"
               :disabled="busy"
               @click="moderate(entry.member, 'approve')"
             />
             <Button
+              type="button"
               icon="i-lucide-x"
               :aria-label="$t('WHATSMEOW_UI.REJECT')"
               ruby
@@ -833,6 +866,7 @@ onMounted(load);
             @keydown.enter.prevent="search"
           />
           <Button
+            type="button"
             :label="$t('WHATSMEOW_UI.SEARCH')"
             :is-loading="busy"
             :disabled="!query.trim()"
@@ -841,6 +875,7 @@ onMounted(load);
           <button
             v-for="message in searchResults"
             :key="message.id"
+            type="button"
             class="text-start p-3 rounded-lg bg-n-alpha-1 hover:bg-n-alpha-2 text-sm"
             @click="jump(message)"
           >
