@@ -300,8 +300,10 @@ async function exportChat() {
     const link = document.createElement('a');
     link.href = url;
     link.download = `${group.value.group_name.replace(/[^\p{L}\p{N} -]/gu, '') || 'WhatsApp'}.txt`;
+    document.body.append(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   } catch (e) {
     useAlert(e.response?.data?.message || t('WHATSMEOW_UI.LOAD_ERROR'));
   }

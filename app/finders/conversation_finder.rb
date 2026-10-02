@@ -81,8 +81,10 @@ class ConversationFinder
     return if collection.blank?
 
     preferences = current_user.ui_settings.fetch("whatsmeow_chats_#{current_account.id}", {})
-    display_ids = preferences.select { |_, pref| collection == 'favorites' ? pref['favorite'] == true : pref['list'] == collection.delete_prefix('list:') }.keys
-    @conversations = @conversations.where(display_id: display_ids)
+    selected_preferences = preferences.select do |_, preference|
+      collection == 'favorites' ? preference['favorite'] == true : preference['list'] == collection.delete_prefix('list:')
+    end
+    @conversations = @conversations.where(display_id: selected_preferences.keys)
   end
 
   def set_inboxes

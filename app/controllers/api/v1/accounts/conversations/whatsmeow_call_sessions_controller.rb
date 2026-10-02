@@ -4,7 +4,9 @@ class Api::V1::Accounts::Conversations::WhatsmeowCallSessionsController < Api::V
     raise ActionController::BadRequest, 'WhatsApp Direct conversation required' unless @conversation.inbox.channel_type == 'Channel::Whatsmeow'
 
     target = Whatsmeow::ConversationTargetResolver.new(conversation: @conversation).perform
-    raise ActionController::BadRequest, 'A WhatsApp contact or group is required' unless target.match?(/\A[1-9]\d+(?:-\d+)?@(s\.whatsapp\.net|lid|g\.us)\z/)
+    unless target.match?(/\A[1-9]\d+(?:-\d+)?@(s\.whatsapp\.net|lid|g\.us)\z/)
+      raise ActionController::BadRequest, 'A WhatsApp contact or group is required'
+    end
 
     expires_at = 90.seconds.from_now
     render json: {

@@ -17,9 +17,8 @@ class MessageFinder
   end
 
   def messages
-    if @params[:q].present?
-      return conversation_messages.where('content ILIKE ?', "%#{ActiveRecord::Base.sanitize_sql_like(@params[:q])}%")
-    end
+    return conversation_messages.where('content ILIKE ?', "%#{ActiveRecord::Base.sanitize_sql_like(@params[:q])}%") if @params[:q].present?
+
     if @params[:group_changes].present?
       return conversation_messages.where("(content_attributes #>> '{}')::jsonb ->> 'whatsmeow_group_change' = 'true'")
     end
@@ -29,16 +28,16 @@ class MessageFinder
   end
 
   def current_messages
-    return messages.none if oversized_message_id?(@params[:after])
+    after_id, before_id, around_id = @params.values_at(:after, :before, :around)
+    return messages.none if oversized_message_id?(after_id)
+    return messages_around(normalized_message_id(around_id)) if around_id.present?
 
-    if @params[:around].present?
-      messages_around(normalized_message_id(@params[:around]))
-    elsif @params[:after].present? && @params[:before].present?
-      messages_between(normalized_message_id(@params[:after]), @params[:before].to_i)
-    elsif @params[:before].present?
-      messages_before(@params[:before].to_i)
-    elsif @params[:after].present?
-      messages_after(normalized_message_id(@params[:after]))
+    if after_id.present? && before_id.present?
+      messages_between(normalized_message_id(after_id), before_id.to_i)
+    elsif before_id.present?
+      messages_before(before_id.to_i)
+    elsif after_id.present?
+      messages_after(normalized_message_id(after_id))
     else
       messages_latest
     end

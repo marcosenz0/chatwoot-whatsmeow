@@ -114,6 +114,8 @@ jobs:
           app/services/whatsmeow/message_star_service.rb
           app/services/whatsmeow/group_change_service.rb
           app/models/whatsmeow_message_star.rb
+          app/finders/message_finder.rb
+          app/controllers/api/v1/accounts/conversations/whatsmeow_call_sessions_controller.rb
           db/migrate/20261001090000_create_whatsmeow_message_stars.rb
           spec/services/whatsmeow/message_star_service_spec.rb
           spec/services/whatsmeow/group_change_service_spec.rb
