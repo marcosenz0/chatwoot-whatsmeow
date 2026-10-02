@@ -2,14 +2,14 @@
 import { mapGetters } from 'vuex';
 import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useAccount } from 'dashboard/composables/useAccount';
-import ChatList from '../../../components/ChatList.vue';
-import ConversationBox from '../../../components/widgets/conversation/ConversationBox.vue';
 import wootConstants from 'dashboard/constants/globals';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import CmdBarConversationSnooze from 'dashboard/routes/dashboard/commands/CmdBarConversationSnooze.vue';
 import { emitter } from 'shared/helpers/mitt';
 import SidepanelSwitch from 'dashboard/components-next/Conversation/SidepanelSwitch.vue';
 import ConversationSidebar from 'dashboard/components/widgets/conversation/ConversationSidebar.vue';
+import ConversationBox from '../../../components/widgets/conversation/ConversationBox.vue';
+import ChatList from '../../../components/ChatList.vue';
 
 export default {
   components: {
@@ -68,6 +68,7 @@ export default {
   data() {
     return {
       showSearchModal: false,
+      lastMessageAnchor: '',
     };
   },
   computed: {
@@ -158,20 +159,30 @@ export default {
         const selectedConversation = this.findConversation();
         // If conversation doesn't exist or selected conversation is same as the active
         // conversation, don't set active conversation.
+        const { messageId } = this.$route.query;
+        const anchorKey = messageId
+          ? `${this.conversationId}:${messageId}`
+          : '';
         if (
           !selectedConversation ||
-          selectedConversation.id === this.currentChat.id
+          (selectedConversation.id === this.currentChat.id &&
+            (!messageId || anchorKey === this.lastMessageAnchor))
         ) {
           return;
         }
-        const { messageId } = this.$route.query;
+        this.lastMessageAnchor = anchorKey;
         this.$store
           .dispatch('setActiveChat', {
             data: selectedConversation,
             after: messageId,
           })
           .then(() => {
-            emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE, { messageId });
+            if (selectedConversation.id === this.currentChat.id) {
+              emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE, {
+                messageId,
+                conversationId: selectedConversation.id,
+              });
+            }
           });
       } else {
         this.$store.dispatch('clearSelectedState');

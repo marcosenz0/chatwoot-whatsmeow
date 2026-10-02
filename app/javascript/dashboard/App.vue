@@ -8,6 +8,7 @@ import { useFontSize } from 'dashboard/composables/useFontSize';
 import ReconnectService from 'dashboard/helper/ReconnectService';
 import { useUISettings } from 'dashboard/composables/useUISettings';
 import LoadingState from './components/widgets/LoadingState.vue';
+import AppLock from './components/widgets/whatsmeow/AppLock.vue';
 import NetworkNotification from './components/NetworkNotification.vue';
 import UpdateBanner from './components/app/UpdateBanner.vue';
 import StatusBanner from './components/app/StatusBanner.vue';
@@ -27,6 +28,7 @@ export default {
 
   components: {
     LoadingState,
+    AppLock,
     NetworkNotification,
     UpdateBanner,
     StatusBanner,
@@ -55,6 +57,7 @@ export default {
     return {
       latestChatwootVersion: null,
       reconnectService: null,
+      appLocked: false,
     };
   },
   computed: {
@@ -148,9 +151,14 @@ export default {
       <PaymentPendingBanner v-if="hideOnOnboardingView" />
       <LowBackupCodesBanner v-if="hideOnOnboardingView" />
     </template>
+    <AppLock v-if="currentUser.id" v-model:locked="appLocked" />
     <router-view v-slot="{ Component }">
       <transition name="fade" mode="out-in">
-        <component :is="Component" />
+        <component
+          :is="Component"
+          :inert="appLocked || undefined"
+          :class="{ invisible: appLocked }"
+        />
       </transition>
     </router-view>
     <WootSnackbarBox />

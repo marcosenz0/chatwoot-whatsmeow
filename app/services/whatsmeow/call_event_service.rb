@@ -68,6 +68,11 @@ class Whatsmeow::CallEventService
     source_ids = [call.peer_jid, params['phone_jid']].compact_blank.uniq
     contact_inbox = inbox.contact_inboxes.where(source_id: source_ids).includes(:contact).first
     call.conversation = contact_inbox&.conversations&.order(id: :desc)&.first
+    if call.peer_jid.end_with?('@g.us')
+      call.conversation ||= Whatsmeow::GroupConversationBuilder.new(inbox: inbox, params: { group_jid: call.peer_jid }).perform
+      call.contact = call.conversation.contact
+      return
+    end
     call.conversation ||= Whatsmeow::DirectConversationBuilder.new(
       inbox: inbox,
       params: { participant_jid: params['phone_jid'].presence || call.peer_jid, participant_lid_jid: call.peer_jid }

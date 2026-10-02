@@ -30,6 +30,16 @@
 # available at https://guides.rubyonrails.org/i18n.html.
 
 en:
+  whatsmeow:
+    group_changes:
+      join: '%{names} joined the group.'
+      leave: '%{names} left the group.'
+      promote: '%{names} became group administrators.'
+      demote: '%{names} are no longer group administrators.'
+      name: 'Group name changed to %{name}.'
+      topic: 'Group description changed.'
+      permissions: 'Group permissions changed.'
+      ephemeral: 'Disappearing message settings changed.'
   hello: 'Hello world'
   inbox:
     reauthorization:

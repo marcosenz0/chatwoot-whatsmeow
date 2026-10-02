@@ -3,9 +3,9 @@ import { computed } from 'vue';
 import { messageTimestamp } from 'shared/helpers/timeHelper';
 import { useExactTimestamp } from 'shared/composables/useExactTimestamp';
 
-import MessageStatus from './MessageStatus.vue';
 import Icon from 'next/icon/Icon.vue';
 import { useInbox } from 'dashboard/composables/useInbox';
+import MessageStatus from './MessageStatus.vue';
 import { useMessageContext } from './provider.js';
 
 import { MESSAGE_STATUS, MESSAGE_TYPES } from './constants';
@@ -155,6 +155,14 @@ const statusToShow = computed(() => {
       </time>
     </div>
     <Icon v-if="isPrivate" icon="i-lucide-lock-keyhole" class="size-3" />
+    <Icon
+      v-if="
+        contentAttributes?.whatsmeowStarred ||
+        contentAttributes?.whatsmeow_starred
+      "
+      icon="i-lucide-star"
+      class="size-3 text-n-amber-10"
+    />
     <MessageStatus v-if="showStatusIndicator" :status="statusToShow" />
   </div>
 </template>

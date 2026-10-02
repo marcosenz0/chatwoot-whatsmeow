@@ -48,6 +48,8 @@ import {
   filterItemsByPermission,
 } from 'dashboard/helper/permissionsHelper.js';
 import { ASSIGNEE_TYPE_TAB_PERMISSIONS } from 'dashboard/constants/permissions.js';
+import { BUS_EVENTS } from 'shared/constants/busEvents';
+import { useWhatsmeowPreferences } from 'dashboard/composables/useWhatsmeowPreferences';
 import { matchesFilters } from '../store/modules/conversations/helpers/filterHelpers';
 import {
   filterByHiddenGroups,
@@ -61,6 +63,7 @@ import ConversationBulkActions from './widgets/conversation/conversationBulkActi
 import ChatTypeTabs from './widgets/ChatTypeTabs.vue';
 import ConversationList from './ConversationList.vue';
 import ChatListHeader from './ChatListHeader.vue';
+import StarredMessagesPanel from './widgets/whatsmeow/StarredMessagesPanel.vue';
 
 const props = defineProps({
   conversationInbox: { type: [String, Number], default: 0 },
@@ -79,6 +82,14 @@ const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
 const store = useStore();
+const showStarredMessages = ref(false);
+const starredConversation = ref(null);
+const chatCollection = ref('');
+const whatsmeowPrefs = useWhatsmeowPreferences();
+useEmitter(BUS_EVENTS.WHATSMEOW_STARRED_MESSAGES, ({ conversationId } = {}) => {
+  starredConversation.value = conversationId || null;
+  showStarredMessages.value = true;
+});
 const { buildConversationListPath } = useConversationRoutePath();
 
 const MIN_LIST_WIDTH = 280;
@@ -354,10 +365,11 @@ const conversationFilters = computed(() => ({
   status: activeStatus.value,
   sortBy: activeSortBy.value,
   page: conversationListPagination.value,
-  hideGroupTabs: hiddenGroupTabs.value,
+  hideGroupTabs: chatCollection.value ? [] : hiddenGroupTabs.value,
   labels: props.label ? [props.label] : undefined,
   teamId: props.teamId || undefined,
   conversationType: props.conversationType || undefined,
+  whatsmeowCollection: chatCollection.value || undefined,
 }));
 
 const activeTeam = computed(() => {
@@ -499,6 +511,14 @@ const displayedConversationList = computed(() => {
     return conversationSearchResults.value;
   }
 
+  if (chatCollection.value === 'favorites')
+    return conversationList.value.filter(
+      chat => whatsmeowPrefs.get(chat.id).favorite
+    );
+  if (chatCollection.value.startsWith('list:'))
+    return conversationList.value.filter(
+      chat => whatsmeowPrefs.get(chat.id).list === chatCollection.value.slice(5)
+    );
   return conversationList.value;
 });
 
@@ -1044,6 +1064,19 @@ useEmitter('fetch_conversation_stats', () => {
   if (hasAppliedFiltersOrActiveFolders.value) return;
   store.dispatch('conversationStats/get', conversationFilters.value);
 });
+useEmitter('fetch_conversations', resetAndFetchData);
+useEmitter(BUS_EVENTS.WHATSMEOW_SELECT_CONVERSATIONS, () => {
+  if (conversationList.value[0])
+    selectConversation(
+      conversationList.value[0].id,
+      conversationList.value[0].inbox_id
+    );
+});
+watch(chatCollection, () => {
+  activeAssigneeTab.value = 'all';
+  activeStatus.value = 'all';
+  resetAndFetchData();
+});
 
 onMounted(() => {
   store.dispatch('setChatListFilters', conversationFilters.value);
@@ -1201,6 +1234,11 @@ watch(appliedFilters, () => resetBulkActions());
       />
     </div>
     <slot />
+    <StarredMessagesPanel
+      v-if="showStarredMessages"
+      :conversation-id="starredConversation"
+      @close="showStarredMessages = false"
+    />
     <ChatListHeader
       v-model:search-query="conversationSearchQuery"
       :page-title="pageTitle"
@@ -1220,6 +1258,32 @@ watch(appliedFilters, () => resetBulkActions());
       @basic-filter-change="onBasicFilterChange"
       @toggle-search="toggleConversationSearch"
     />
+
+    <div
+      v-if="
+        whatsmeowPrefs.lists.value.length ||
+        Object.values(whatsmeowPrefs.preferences.value).some(p => p.favorite)
+      "
+      class="px-3 pb-2"
+    >
+      <select
+        v-model="chatCollection"
+        class="reset-base w-full text-xs rounded-lg border border-n-weak p-2 bg-n-surface-1"
+        :aria-label="$t('WHATSMEOW_UI.CHAT_COLLECTION')"
+      >
+        <option value="">{{ $t('WHATSMEOW_UI.ALL_CHATS') }}</option>
+        <option value="favorites">
+          {{ $t('WHATSMEOW_UI.FAVORITE_CHATS') }}
+        </option>
+        <option
+          v-for="list in whatsmeowPrefs.lists.value"
+          :key="list"
+          :value="`list:${list}`"
+        >
+          {{ list }}
+        </option>
+      </select>
+    </div>
 
     <TeleportWithDirection
       v-if="showAddFoldersModal"

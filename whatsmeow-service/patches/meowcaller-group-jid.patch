@@ -1,0 +1,36 @@
+--- a/livecall.go
++++ b/livecall.go
+@@ -56,6 +56,7 @@
+ // GroupCallState is a sanitized group-call roster. Transaction zero may contain
+ // selected outgoing targets before the first authoritative server transaction.
+ type GroupCallState struct {
++	GroupJID types.JID
+ 	TransactionID  uint32
+ 	RekeyRequested bool
+ 	Participants   []GroupCallParticipant
+@@ -177,6 +178,7 @@
+ 	// Source of truth: https://github.com/purpshell/meowcaller/blob/a95ab63017f996313ca7e4cfbbfb96fead1717a7/datasheets/api-group-call-state.md#L58-L72
+ 	stored := cloneGroupCallState(state)
+ 	c.mu.Lock()
++	if stored.GroupJID.IsEmpty() && c.groupState != nil { stored.GroupJID = c.groupState.GroupJID }
+ 	if c.groupState != nil &&
+ 		c.groupState.TransactionID != 0 &&
+ 		state.TransactionID <= c.groupState.TransactionID {
+@@ -209,6 +211,7 @@
+ func groupCallStateFromUpdate(update groupCallUpdate) GroupCallState {
+ 	// Source of truth: https://github.com/purpshell/meowcaller/blob/a95ab63017f996313ca7e4cfbbfb96fead1717a7/datasheets/api-group-call-state.md#L58-L68
+ 	state := GroupCallState{
++		GroupJID: update.GroupJID,
+ 		TransactionID:  update.TransactionID,
+ 		RekeyRequested: update.RekeyRequested,
+ 		Participants:   make([]GroupCallParticipant, len(update.Participants)),
+--- a/engine_group_api.go
++++ b/engine_group_api.go
+@@ -50,6 +50,7 @@
+ 		eng: e, id: callID, peer: selected[0], phase: CallPhaseCalling,
+ 		groupState: selectedGroupCallState(selected),
+ 	}
++	call.groupState.GroupJID = groupJID
+ 	e.mu.Lock()
+ 	m := e.entry(callID)
+ 	m.call = call

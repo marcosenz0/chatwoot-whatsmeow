@@ -6,6 +6,7 @@ import {
   onBeforeUnmount,
   onMounted,
   ref,
+  shallowRef,
   watch,
 } from 'vue';
 import { useI18n } from 'vue-i18n';
@@ -20,6 +21,8 @@ import {
   isH264KeyFrame,
 } from 'dashboard/helper/whatsmeowCallVideo';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import { whatsmeowGroupJid } from 'dashboard/helper/whatsmeowGroup';
+import GroupCallVideo from '../whatsmeow/GroupCallVideo.vue';
 import WhatsmeowCallWindow from './WhatsmeowCallWindow.vue';
 
 const props = defineProps({
@@ -46,6 +49,13 @@ const remoteMediaReady = ref(false);
 const videoCall = ref(false);
 const inviteOpen = ref(false);
 const participantPhone = ref('');
+const participants = ref([]);
+const groupVideoFrames = shallowRef({});
+const isGroupCall = computed(
+  () => Boolean(whatsmeowGroupJid(props.chat)) || participants.value.length > 0
+);
+const participantName = jid =>
+  participants.value.find(p => p.jid === jid)?.name || jid.split('@')[0];
 const connectedAt = ref(null);
 const elapsedSeconds = ref(0);
 const localVideo = ref(null);
@@ -601,6 +611,8 @@ const resetCall = async (nextState = 'idle') => {
   videoCall.value = false;
   inviteOpen.value = false;
   participantPhone.value = '';
+  participants.value = [];
+  groupVideoFrames.value = {};
   connectedAt.value = null;
   elapsedSeconds.value = 0;
   clearInterval(durationTimer);
@@ -640,9 +652,26 @@ const onSocketMessage = event => {
     if (bytes[0] === 3) playAudio(bytes.subarray(1));
     if (bytes[0] === 4) decodeVideo(bytes.subarray(1));
     if (bytes[0] === 5) decodeVideo(bytes.subarray(2), bytes[1]);
+    if (bytes[0] === 6) {
+      const length = bytes[2] * 256 + bytes[3];
+      const participant = new TextDecoder().decode(
+        bytes.subarray(4, 4 + length)
+      );
+      groupVideoFrames.value = {
+        ...groupVideoFrames.value,
+        [participant]: {
+          bytes: bytes.subarray(4 + length),
+          orientation: bytes[1],
+        },
+      };
+    }
     return;
   }
   const update = JSON.parse(event.data);
+  if (update.event === 'participants') {
+    participants.value = update.participants || [];
+    return;
+  }
   if (update.event === 'error') {
     mediaError.value = t('CONVERSATION.WHATSMEOW_CALL.FAILED');
     useAlert(mediaError.value);
@@ -971,6 +1000,9 @@ onBeforeUnmount(() => {
         v-show="state !== 'ended' && (videoCall || cameraOn || remoteVideoOn)"
         ref="videoStage"
         class="relative min-h-0 flex-1 overflow-hidden rounded-xl bg-black"
+        :class="{
+          'max-h-32': isGroupCall && Object.keys(groupVideoFrames).length,
+        }"
       >
         <div
           v-if="!cameraOn && !remoteVideoOn"
@@ -1046,6 +1078,43 @@ onBeforeUnmount(() => {
           class="flex size-14 items-center justify-center rounded-full bg-n-alpha-2 text-n-slate-11"
           ><span class="i-lucide-phone size-6"
         /></span>
+      </div>
+      <div
+        v-if="participants.length"
+        class="flex flex-wrap gap-2 max-h-24 overflow-y-auto text-xs"
+        :aria-label="$t('WHATSMEOW_UI.CALL_MEMBERS')"
+      >
+        <span
+          v-for="participant in participants"
+          :key="participant.jid"
+          class="flex items-center gap-1 rounded-full bg-n-alpha-2 px-2 py-1"
+        >
+          <span
+            class="size-3"
+            :class="
+              participant.state === 'connected'
+                ? 'i-lucide-phone text-n-teal-11'
+                : 'i-lucide-loader-circle text-n-slate-10'
+            "
+          />
+          {{ participant.name }}
+        </span>
+      </div>
+      <div
+        v-if="
+          isGroupCall &&
+          state !== 'ended' &&
+          Object.keys(groupVideoFrames).length
+        "
+        class="grid grid-cols-2 gap-2 min-h-0 flex-1 overflow-auto rounded-lg"
+      >
+        <GroupCallVideo
+          v-for="(frame, participant) in groupVideoFrames"
+          :key="participant"
+          :frame="frame"
+          :name="participantName(participant)"
+          @request-keyframe="requestVideoRecovery"
+        />
       </div>
       <form
         v-if="inviteOpen && state === 'connected'"

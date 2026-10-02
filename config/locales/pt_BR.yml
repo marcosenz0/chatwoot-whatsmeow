@@ -17,6 +17,16 @@
 #To learn more, please read the Rails Internationalization guide
 #available at https://guides.rubyonrails.org/i18n.html.
 pt_BR:
+  whatsmeow:
+    group_changes:
+      join: '%{names} entrou no grupo.'
+      leave: '%{names} saiu do grupo.'
+      promote: '%{names} recebeu permissão de administrador.'
+      demote: '%{names} deixou de ser administrador.'
+      name: 'Nome do grupo alterado para %{name}.'
+      topic: 'Descrição do grupo alterada.'
+      permissions: 'Permissões do grupo alteradas.'
+      ephemeral: 'Configuração das mensagens temporárias alterada.'
   hello: 'Olá, mundo'
   inbox:
     reauthorization:

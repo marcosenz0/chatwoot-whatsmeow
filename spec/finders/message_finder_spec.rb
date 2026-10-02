@@ -20,6 +20,25 @@ describe MessageFinder do
   end
 
   describe '#perform' do
+    context 'with a historical WhatsApp anchor imported after newer messages' do
+      let(:params) { { around: historical.id } }
+      let!(:historical) do
+        create(:message, account: account, inbox: inbox, conversation: conversation, created_at: 2.days.ago)
+      end
+
+      it 'includes the original message and chronological context instead of using import IDs' do
+        result = message_finder.perform
+        expect(result.first).to eq(historical)
+        expect(result.map(&:created_at)).to eq(result.map(&:created_at).sort)
+        expect(result.length).to eq(7)
+      end
+
+      it 'does not use an anchor from another conversation' do
+        other = create(:message)
+        expect { described_class.new(conversation, around: other.id).perform }.to raise_error(ActiveRecord::RecordNotFound)
+      end
+    end
+
     context 'with filter_internal_messages false' do
       let(:params) { { filter_internal_messages: false } }
 

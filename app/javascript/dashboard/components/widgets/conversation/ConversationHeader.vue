@@ -3,13 +3,7 @@ import { computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useStore } from 'vuex';
 import { useElementSize } from '@vueuse/core';
-import BackButton from '../BackButton.vue';
-import InboxName from '../InboxName.vue';
-import MoreActions from './MoreActions.vue';
 import Avatar from 'next/avatar/Avatar.vue';
-import SLACardLabel from './components/SLACardLabel.vue';
-import ConversationCallButton from './ConversationCallButton.vue';
-import WhatsmeowConversationCall from './WhatsmeowConversationCall.vue';
 import wootConstants from 'dashboard/constants/globals';
 import { conversationListPageURL } from 'dashboard/helper/URLHelper';
 import { snoozedReopenTime } from 'dashboard/helper/snoozeHelpers';
@@ -17,6 +11,14 @@ import { useInbox } from 'dashboard/composables/useInbox';
 import { useAlert } from 'dashboard/composables';
 import { useI18n } from 'vue-i18n';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
+import { useUISettings } from 'dashboard/composables/useUISettings';
+import { whatsmeowGroupJid } from 'dashboard/helper/whatsmeowGroup';
+import WhatsmeowConversationCall from './WhatsmeowConversationCall.vue';
+import ConversationCallButton from './ConversationCallButton.vue';
+import SLACardLabel from './components/SLACardLabel.vue';
+import MoreActions from './MoreActions.vue';
+import InboxName from '../InboxName.vue';
+import BackButton from '../BackButton.vue';
 
 const props = defineProps({
   chat: {
@@ -30,6 +32,11 @@ const props = defineProps({
 });
 
 const { t } = useI18n();
+const { updateUISettings } = useUISettings();
+const openGroup = () => {
+  if (whatsmeowGroupJid(props.chat))
+    updateUISettings({ is_contact_sidebar_open: true });
+};
 const store = useStore();
 const route = useRoute();
 const conversationHeader = ref(null);
@@ -127,11 +134,20 @@ const copyConversationId = async () => {
         :size="32"
         :status="currentContact.availability_status"
         hide-offline-status
+        :class="{ 'cursor-pointer': whatsmeowGroupJid(chat) }"
+        @click="openGroup"
       />
       <div class="flex flex-col items-start min-w-0 ms-2 overflow-hidden">
         <div class="flex flex-row items-center max-w-full gap-1 p-0 m-0">
           <span
             class="text-sm font-medium truncate leading-tight text-n-slate-12"
+            :class="{
+              'cursor-pointer hover:underline': whatsmeowGroupJid(chat),
+            }"
+            :role="whatsmeowGroupJid(chat) ? 'button' : undefined"
+            :tabindex="whatsmeowGroupJid(chat) ? 0 : undefined"
+            @click="openGroup"
+            @keydown.enter="openGroup"
           >
             {{ currentContact.name }}
           </span>

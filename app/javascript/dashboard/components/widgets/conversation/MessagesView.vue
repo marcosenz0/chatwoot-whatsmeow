@@ -26,6 +26,7 @@ import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { zip } from 'fflate';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import { useAlert } from 'dashboard/composables';
+import { useWhatsmeowPreferences } from 'dashboard/composables/useWhatsmeowPreferences';
 import {
   filterDuplicateSourceMessages,
   getReadMessages,
@@ -71,6 +72,7 @@ export default {
     const { height: containerHeight } = useElementSize(messagesViewRef);
     const { height: topBannerHeight } = useElementSize(topBannerRef);
     const { getPlainText } = useMessageFormatter();
+    const whatsmeowPreferences = useWhatsmeowPreferences();
 
     const {
       captainTasksEnabled,
@@ -97,6 +99,7 @@ export default {
       containerHeight,
       topBannerHeight,
       getPlainText,
+      whatsmeowPreferences,
     };
   },
   data() {
@@ -169,11 +172,28 @@ export default {
       return '';
     },
     getMessages() {
-      const messages = this.currentChat.messages || [];
+      const clearedBefore = this.whatsmeowPreferences.get(
+        this.currentChat.id
+      ).cleared_before;
+      const messages = (this.currentChat.messages || []).filter(
+        m =>
+          !clearedBefore ||
+          this.$route.query.messageId ||
+          m.created_at > clearedBefore
+      );
       if (this.isAWhatsAppChannel) {
         return filterDuplicateSourceMessages(messages);
       }
       return messages;
+    },
+    conversationTheme() {
+      const { theme } = this.whatsmeowPreferences.get(this.currentChat.id);
+      return {
+        green: 'bg-n-teal-2',
+        blue: 'bg-n-blue-2',
+        amber: 'bg-n-amber-2',
+        rose: 'bg-n-ruby-2',
+      }[theme];
     },
     referralData() {
       return this.currentChat?.additional_attributes?.referral || null;
@@ -334,6 +354,7 @@ export default {
 
   created() {
     emitter.on(BUS_EVENTS.SCROLL_TO_MESSAGE, this.onScrollToMessage);
+    emitter.on(BUS_EVENTS.WHATSMEOW_SELECT_MESSAGES, this.enterSelectionMode);
     // when a message is sent we set the flag to true this hides the label suggestions,
     // until the chat is changed and the flag is reset in the watch for currentChat
     emitter.on(BUS_EVENTS.MESSAGE_SENT, () => {
@@ -399,14 +420,24 @@ export default {
     },
     removeBusListeners() {
       emitter.off(BUS_EVENTS.SCROLL_TO_MESSAGE, this.onScrollToMessage);
+      emitter.off(
+        BUS_EVENTS.WHATSMEOW_SELECT_MESSAGES,
+        this.enterSelectionMode
+      );
+    },
+    enterSelectionMode({ conversationId }) {
+      if (conversationId === this.currentChat.id)
+        this.isMessageSelectionMode = true;
     },
     onScrollToMessage({ messageId = '' } = {}) {
       this.$nextTick(() => {
         const messageElement = document.getElementById(`message${messageId}`);
         if (messageElement) {
           this.isProgrammaticScroll = true;
-          messageElement.scrollIntoView({ behavior: 'smooth' });
-          this.fetchPreviousMessages();
+          messageElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
         } else {
           this.scrollToBottom();
         }
@@ -943,6 +974,7 @@ export default {
     <MessageList
       ref="conversationPanelRef"
       class="conversation-panel flex-shrink flex-grow basis-px flex flex-col overflow-y-auto relative h-full m-0 pb-4"
+      :class="conversationTheme"
       :current-user-id="currentUserId"
       :first-unread-id="unReadMessages[0]?.id"
       :is-an-email-channel="isAnEmailChannel"

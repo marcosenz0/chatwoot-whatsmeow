@@ -19,6 +19,7 @@ class Whatsmeow::IncomingMessageService
   pattr_initialize [:inbox!, :params!]
 
   def perform
+    sync_message_star if params.key?(:starred)
     return if status_message? || handle_already_imported_message
     return if ignored_newsletter?
 
@@ -29,10 +30,18 @@ class Whatsmeow::IncomingMessageService
     attach_files
     attach_contacts
     @message.save!
+    Whatsmeow::MessageStarService.attach(@message)
     Whatsmeow::AttachmentRetentionScheduler.maybe_enqueue
   end
 
   private
+
+  def sync_message_star
+    Whatsmeow::MessageStarService.apply_incoming(
+      inbox: @inbox,
+      params: { chat: params[:chat], message_id: params[:message_id], starred: boolean_param(:starred), timestamp: params[:timestamp] }
+    )
+  end
 
   def build_message
     @message = @conversation.messages.build(

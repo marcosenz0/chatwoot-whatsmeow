@@ -37,7 +37,8 @@ func TestCallToken(t *testing.T) {
 		{name: "authorized direct call", secret: "test-call-secret", inbox: "27", target: claims.ContactJID},
 		{name: "wrong signature", secret: "wrong-secret", inbox: "27", target: claims.ContactJID, wantError: true},
 		{name: "different inbox", secret: "test-call-secret", inbox: "28", target: claims.ContactJID, wantError: true},
-		{name: "group destination", secret: "test-call-secret", inbox: "27", target: "12345@g.us", wantError: true},
+		{name: "authorized group destination", secret: "test-call-secret", inbox: "27", target: "12036312345@g.us"},
+		{name: "broadcast destination", secret: "test-call-secret", inbox: "27", target: "status@broadcast", wantError: true},
 		{name: "expired token", secret: "test-call-secret", inbox: "27", target: claims.ContactJID, expired: true, wantError: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

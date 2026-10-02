@@ -17,6 +17,12 @@ class MessageFinder
   end
 
   def messages
+    if @params[:q].present?
+      return conversation_messages.where('content ILIKE ?', "%#{ActiveRecord::Base.sanitize_sql_like(@params[:q])}%")
+    end
+    if @params[:group_changes].present?
+      return conversation_messages.where("content_attributes ->> 'whatsmeow_group_change' = 'true'")
+    end
     return conversation_messages if @params[:filter_internal_messages].blank?
 
     conversation_messages.where.not('private = ? OR message_type = ?', true, 2)
@@ -25,7 +31,9 @@ class MessageFinder
   def current_messages
     return messages.none if oversized_message_id?(@params[:after])
 
-    if @params[:after].present? && @params[:before].present?
+    if @params[:around].present?
+      messages_around(normalized_message_id(@params[:around]))
+    elsif @params[:after].present? && @params[:before].present?
       messages_between(normalized_message_id(@params[:after]), @params[:before].to_i)
     elsif @params[:before].present?
       messages_before(@params[:before].to_i)
@@ -34,6 +42,15 @@ class MessageFinder
     else
       messages_latest
     end
+  end
+
+  def messages_around(message_id)
+    anchor = messages.find(message_id)
+    earlier = messages.reorder(created_at: :desc, id: :desc)
+                      .where('(messages.created_at, messages.id) < (?, ?)', anchor.created_at, anchor.id).limit(20).reverse
+    later = messages.reorder(created_at: :asc, id: :asc)
+                    .where('(messages.created_at, messages.id) >= (?, ?)', anchor.created_at, anchor.id).limit(21).to_a
+    earlier + later
   end
 
   def messages_after(after_id)
