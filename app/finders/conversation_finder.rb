@@ -73,18 +73,6 @@ class ConversationFinder
     filter_by_query
     filter_by_contact_query
     filter_by_source_id
-    filter_by_whatsmeow_collection
-  end
-
-  def filter_by_whatsmeow_collection
-    collection = params[:whatsmeow_collection].to_s
-    return if collection.blank?
-
-    preferences = current_user.ui_settings.fetch("whatsmeow_chats_#{current_account.id}", {})
-    selected_preferences = preferences.select do |_, preference|
-      collection == 'favorites' ? preference['favorite'] == true : preference['list'] == collection.delete_prefix('list:')
-    end
-    @conversations = @conversations.where(display_id: selected_preferences.keys)
   end
 
   def set_inboxes

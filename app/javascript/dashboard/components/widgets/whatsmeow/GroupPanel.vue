@@ -11,6 +11,7 @@ import { useWhatsmeowPreferences } from 'dashboard/composables/useWhatsmeowPrefe
 import { whatsmeowGroupJid } from 'dashboard/helper/whatsmeowGroup';
 import { conversationUrl, frontendURL } from 'dashboard/helper/URLHelper';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
+import { useExpandableContent } from 'shared/composables/useExpandableContent';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 import GroupsAPI from 'dashboard/api/whatsmeowGroups';
@@ -49,15 +50,19 @@ const invite = ref('');
 const joinRequests = ref([]);
 const changes = ref([]);
 const selectedMember = ref(null);
-const listName = ref('');
-const theme = ref('default');
 const communityJid = ref('');
 const communities = ref([]);
 const showStars = ref(false);
 const showSimilar = ref(false);
 const showMedia = ref(false);
 const jid = computed(() => whatsmeowGroupJid(props.chat));
-const preferences = computed(() => prefs.get(props.chat.id));
+const {
+  contentElement: descriptionElement,
+  isExpanded: descriptionExpanded,
+  needsToggle: canExpandDescription,
+  toggleExpanded: toggleDescription,
+  checkOverflow: checkDescriptionOverflow,
+} = useExpandableContent({ maxLines: 3, useResizeObserverForCheck: true });
 const members = computed(() =>
   (group.value?.members || []).filter(m =>
     `${m.name} ${m.phone_number}`
@@ -123,8 +128,6 @@ async function open(value, member = null) {
   selectedMember.value = member;
   selected.value = [];
   settings.value = { ...group.value, name: group.value.group_name };
-  listName.value = preferences.value.list || '';
-  theme.value = preferences.value.theme || 'default';
   query.value = '';
   searchResults.value = [];
   dialog.value.open();
@@ -199,10 +202,6 @@ async function confirm() {
       await updateUISettings({ is_contact_sidebar_open: false });
     } else if (mode.value === 'clear') {
       await prefs.set(props.chat.id, { cleared_before: Date.now() / 1000 });
-    } else if (mode.value === 'list') {
-      await prefs.set(props.chat.id, { list: listName.value.trim() });
-    } else if (mode.value === 'theme') {
-      await prefs.set(props.chat.id, { theme: theme.value });
     } else if (mode.value === 'community') {
       await action('link_community', [], { community_jid: communityJid.value });
       await load();
@@ -282,9 +281,6 @@ async function copyInvite() {
   await copyTextToClipboard(invite.value);
   useAlert(t('WHATSMEOW_UI.COPIED'));
 }
-async function favorite() {
-  await prefs.set(props.chat.id, { favorite: !preferences.value.favorite });
-}
 async function mute() {
   await store.dispatch(
     props.chat.muted ? 'unmuteConversation' : 'muteConversation',
@@ -319,12 +315,37 @@ function selectMessages() {
     conversationId: props.chat.id,
   });
 }
+const quickActions = computed(() => [
+  ...(canCall.value
+    ? [
+        { icon: 'i-lucide-phone', label: 'VOICE', action: () => call(false) },
+        { icon: 'i-lucide-video', label: 'VIDEO', action: () => call(true) },
+      ]
+    : []),
+  {
+    icon: 'i-lucide-user-plus',
+    label: 'ADD_SHORT',
+    ariaLabel: 'ADD',
+    disabled: !group.value?.can_add_members,
+    action: () => open('add'),
+  },
+  { icon: 'i-lucide-search', label: 'SEARCH', action: () => open('search') },
+]);
 watch(group, value => {
   if (!value || !pendingOperation.value) return;
   const operation = pendingOperation.value;
   pendingOperation.value = '';
   open(operation);
 });
+watch(
+  () => group.value?.topic,
+  async () => {
+    descriptionExpanded.value = false;
+    canExpandDescription.value = false;
+    await nextTick();
+    checkDescriptionOverflow();
+  }
+);
 useEmitter(
   BUS_EVENTS.WHATSMEOW_GROUP_ACTION,
   ({ conversationId, operation }) => {
@@ -386,7 +407,7 @@ onMounted(load);
       <Spinner />
     </div>
     <div v-if="group" class="min-h-0 flex-1 overflow-y-auto">
-      <div class="flex flex-col items-center gap-2 px-4 py-6">
+      <div class="flex flex-col items-center gap-2 px-5 py-5">
         <button
           type="button"
           :disabled="!group.can_edit"
@@ -400,80 +421,100 @@ onMounted(load);
             hide-offline-status
           />
         </button>
-        <button
-          type="button"
-          :disabled="!group.can_edit"
-          class="text-xl font-medium flex items-center gap-2"
-          @click="open('settings')"
-        >
-          {{ group.group_name
-          }}<span
+        <div class="flex w-full min-w-0 items-start justify-center gap-2 mt-2">
+          <h3
+            class="m-0 min-w-0 text-center text-xl font-medium leading-tight break-words [overflow-wrap:anywhere]"
+          >
+            {{ group.group_name }}
+          </h3>
+          <Button
             v-if="group.can_edit"
-            class="i-lucide-pencil size-4 text-n-slate-10"
+            type="button"
+            icon="i-lucide-pencil"
+            ghost
+            slate
+            xs
+            class="shrink-0"
+            :aria-label="$t('WHATSMEOW_UI.GROUP_NAME')"
+            @click="open('settings')"
           />
-        </button>
+        </div>
         <p class="m-0 text-sm text-n-slate-11">
           {{ $t('WHATSMEOW_UI.MEMBERS', { count: group.count }) }}
         </p>
-        <div class="grid grid-cols-4 gap-1 w-full mt-3">
-          <Button
+        <div
+          class="flex w-full max-w-xs items-start justify-center gap-1 mt-2"
+          data-group-quick-actions
+        >
+          <button
+            v-for="item in quickActions"
+            :key="item.label"
             type="button"
-            icon="i-lucide-phone"
-            :label="$t('WHATSMEOW_UI.VOICE')"
-            faded
-            slate
-            sm
-            class="!h-auto flex-col !gap-2 !px-1 py-3"
-            :disabled="!canCall"
-            @click="call(false)"
-          />
+            class="group/action flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-lg text-xs text-n-slate-12 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-brand disabled:opacity-40"
+            :aria-label="$t(`WHATSMEOW_UI.${item.ariaLabel || item.label}`)"
+            :disabled="item.disabled"
+            @click="item.action"
+          >
+            <span
+              class="flex h-11 w-14 max-w-full items-center justify-center rounded-full bg-n-alpha-2 transition-colors group-hover/action:bg-n-alpha-3"
+            >
+              <span :class="item.icon" class="size-5 shrink-0" />
+            </span>
+            <span class="w-full break-words text-center leading-4">
+              {{ $t(`WHATSMEOW_UI.${item.label}`) }}
+            </span>
+          </button>
+        </div>
+      </div>
+      <div class="px-5 pb-5 border-b border-n-weak">
+        <div class="flex items-start gap-2">
+          <div class="min-w-0 flex-1">
+            <p
+              v-if="group.topic"
+              :id="`group-description-${chat.id}`"
+              ref="descriptionElement"
+              class="m-0 whitespace-pre-wrap break-words text-sm leading-6 text-n-slate-12 [overflow-wrap:anywhere]"
+              :class="{ 'line-clamp-3': !descriptionExpanded }"
+            >
+              {{ group.topic }}
+            </p>
+            <button
+              v-if="canExpandDescription"
+              type="button"
+              class="mt-1 rounded text-sm font-medium text-n-blue-11 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-brand"
+              :aria-expanded="descriptionExpanded"
+              :aria-controls="`group-description-${chat.id}`"
+              @click="toggleDescription()"
+            >
+              {{
+                $t(
+                  descriptionExpanded
+                    ? 'WHATSMEOW_UI.READ_LESS'
+                    : 'WHATSMEOW_UI.READ_MORE'
+                )
+              }}
+            </button>
+            <button
+              v-else-if="!group.topic && group.can_edit"
+              type="button"
+              class="rounded text-sm text-n-blue-11 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-brand"
+              @click="open('settings')"
+            >
+              {{ $t('WHATSMEOW_UI.ADD_DESCRIPTION') }}
+            </button>
+          </div>
           <Button
+            v-if="group.topic && group.can_edit"
             type="button"
-            icon="i-lucide-video"
-            :label="$t('WHATSMEOW_UI.VIDEO')"
-            faded
+            icon="i-lucide-pencil"
+            ghost
             slate
-            sm
-            class="!h-auto flex-col !gap-2 !px-1 py-3"
-            :disabled="!canCall"
-            @click="call(true)"
-          />
-          <Button
-            type="button"
-            icon="i-lucide-user-plus"
-            :label="$t('WHATSMEOW_UI.ADD_SHORT')"
-            :aria-label="$t('WHATSMEOW_UI.ADD')"
-            faded
-            slate
-            sm
-            class="!h-auto flex-col !gap-2 !px-1 py-3"
-            :disabled="!group.can_add_members"
-            @click="open('add')"
-          />
-          <Button
-            type="button"
-            icon="i-lucide-search"
-            :label="$t('WHATSMEOW_UI.SEARCH')"
-            faded
-            slate
-            sm
-            class="!h-auto flex-col !gap-2 !px-1 py-3"
-            @click="open('search')"
+            xs
+            class="shrink-0"
+            :aria-label="$t('WHATSMEOW_UI.GROUP_DESCRIPTION')"
+            @click="open('settings')"
           />
         </div>
-        <p v-if="!canCall" class="m-0 text-xs text-n-slate-11">
-          {{ $t('WHATSMEOW_UI.GROUP_CALL_LIMIT') }}
-        </p>
-      </div>
-      <div class="px-4 pb-4 border-b border-n-weak">
-        <button
-          type="button"
-          class="w-full text-start text-sm whitespace-pre-wrap hover:text-n-blue-11"
-          :disabled="!group.can_edit"
-          @click="open('settings')"
-        >
-          {{ group.topic || $t('WHATSMEOW_UI.ADD_DESCRIPTION') }}
-        </button>
       </div>
       <div class="flex flex-col gap-1 p-3 border-b border-n-weak">
         <Button
@@ -506,15 +547,6 @@ onMounted(load);
           slate
           class="justify-start"
           @click="mute"
-        />
-        <Button
-          type="button"
-          icon="i-lucide-palette"
-          :label="$t('WHATSMEOW_UI.THEME')"
-          ghost
-          slate
-          class="justify-start"
-          @click="open('theme')"
         />
         <Button
           type="button"
@@ -676,30 +708,6 @@ onMounted(load);
           slate
           class="justify-start"
           @click="open('changes')"
-        />
-        <Button
-          type="button"
-          :icon="preferences.favorite ? 'i-lucide-heart-off' : 'i-lucide-heart'"
-          :label="
-            $t(
-              preferences.favorite
-                ? 'WHATSMEOW_UI.REMOVE_FAVORITE'
-                : 'WHATSMEOW_UI.FAVORITE'
-            )
-          "
-          ghost
-          slate
-          class="justify-start"
-          @click="favorite"
-        />
-        <Button
-          type="button"
-          icon="i-lucide-list-plus"
-          :label="$t('WHATSMEOW_UI.LIST')"
-          ghost
-          slate
-          class="justify-start"
-          @click="open('list')"
         />
         <Button
           type="button"
@@ -900,34 +908,6 @@ onMounted(load);
               {{ new Date(message.created_at * 1000).toLocaleString() }}
             </time>
           </p>
-        </template>
-        <template v-if="mode === 'list'">
-          <Input
-            v-model="listName"
-            :label="$t('WHATSMEOW_UI.LIST_NAME')"
-            :list="`whatsmeow-lists-${chat.id}`"
-          />
-          <datalist :id="`whatsmeow-lists-${chat.id}`">
-            <option
-              v-for="list in prefs.lists.value"
-              :key="list"
-              :value="list"
-            />
-          </datalist>
-        </template>
-        <template v-if="mode === 'theme'">
-          <select
-            v-model="theme"
-            class="reset-base rounded-lg border border-n-weak p-2 bg-n-surface-1"
-          >
-            <option
-              v-for="value in ['default', 'green', 'blue', 'amber', 'rose']"
-              :key="value"
-              :value="value"
-            >
-              {{ $t(`WHATSMEOW_UI.THEME_${value.toUpperCase()}`) }}
-            </option>
-          </select>
         </template>
         <label v-if="mode === 'community'" class="flex flex-col gap-2 text-sm">
           {{ $t('WHATSMEOW_UI.COMMUNITY_HELP') }}

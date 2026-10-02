@@ -26,7 +26,6 @@ class ConversationApi extends ApiClient {
       updatedWithin,
       hideGroupTabs,
       contactQuery,
-      whatsmeowCollection,
     },
     options = {}
   ) {
@@ -45,7 +44,6 @@ class ConversationApi extends ApiClient {
         updated_within: updatedWithin,
         hide_group_tabs: hideGroupTabs,
         contact_query: contactQuery,
-        whatsmeow_collection: whatsmeowCollection,
       }),
     });
   }

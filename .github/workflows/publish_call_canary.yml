@@ -6,6 +6,7 @@ on:
       - codex/whatsmeow-voice-calls
       - codex/chatwoot-v4.18-common
       - codex/whatsmeow-stars-groups
+      - codex/whatsmeow-ui-corrections
 
 permissions:
   contents: read
@@ -30,6 +31,8 @@ jobs:
           app/javascript/dashboard/helper/specs/whatsmeowCallVideo.spec.js
           app/javascript/dashboard/components/widgets/whatsmeow/specs
           app/javascript/dashboard/components-next/message
+          app/javascript/shared/composables/specs/useExpandableContent.spec.js
+          app/javascript/dashboard/api/specs/inbox/conversation.spec.js
 
   validate-call-history:
     runs-on: ubuntu-latest
