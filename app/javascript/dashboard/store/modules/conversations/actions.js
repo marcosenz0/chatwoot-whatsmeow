@@ -174,6 +174,7 @@ const actions = {
       data.conversationId,
       data.before,
       data.after,
+      data.around,
     ]);
     if (pendingHistoryRequests.has(requestKey)) {
       return pendingHistoryRequests.get(requestKey);
@@ -193,7 +194,7 @@ const actions = {
         const hasReachedFirstMessage = data.after
           ? !payload.length
           : payload.length < MESSAGES_PER_PAGE;
-        if (hasReachedFirstMessage) {
+        if (!data.around && hasReachedFirstMessage) {
           commit(types.SET_ALL_MESSAGES_LOADED, data.conversationId);
         }
       })
@@ -291,6 +292,15 @@ const actions = {
 
   async setActiveChat({ commit, dispatch }, { data, after }) {
     commit(types.SET_CURRENT_CHAT_WINDOW, data);
+    if (after) {
+      commit(types.CLEAR_ALL_MESSAGES_LOADED, data.id);
+      await dispatch('fetchPreviousMessages', {
+        conversationId: data.id,
+        around: after,
+      });
+      commit(types.SET_CHAT_DATA_FETCHED, data.id);
+      return;
+    }
     if (data.dataFetched === undefined) {
       // Reset only when refetching — a re-activated short conversation has no scroll to earn it back.
       commit(types.CLEAR_ALL_MESSAGES_LOADED, data.id);

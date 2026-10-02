@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, onBeforeUnmount, computed, ref, toRefs } from 'vue';
+import { onMounted, onBeforeUnmount, computed, ref, toRefs, watch } from 'vue';
 import { useStore } from 'vuex';
 import { useTimeoutFn } from '@vueuse/core';
 import { useAlert, useTrack } from 'dashboard/composables';
@@ -149,6 +149,7 @@ const props = defineProps({
   sourceId: { type: String, default: '' }, // eslint-disable-line vue/no-unused-properties
   isSelectionMode: { type: Boolean, default: false },
   isSelected: { type: Boolean, default: false },
+  isPreview: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['retry', 'select', 'forward']);
@@ -398,7 +399,7 @@ const componentToRender = computed(() => {
 });
 
 const shouldShowContextMenu = computed(
-  () => !props.contentAttributes?.isUnsupported
+  () => !props.isPreview && !props.contentAttributes?.isUnsupported
 );
 
 const isBubble = computed(
@@ -429,6 +430,9 @@ const payloadForContextMenu = computed(() => ({
   content: props.content,
   conversation_id: props.conversationId,
   source_id: props.sourceId,
+  inbox_id: props.inboxId,
+  private: props.private,
+  message_type: props.messageType,
 }));
 
 const isWhatsmeowInbox = computed(
@@ -444,11 +448,16 @@ const isFailedOrProcessing = computed(
 );
 
 const isSelectableMessage = computed(
-  () => isBubble.value && !isMessageDeleted.value && !isFailedOrProcessing.value
+  () =>
+    !props.isPreview &&
+    isBubble.value &&
+    !isMessageDeleted.value &&
+    !isFailedOrProcessing.value
 );
 
 const canReactToMessage = computed(
   () =>
+    !props.isPreview &&
     isWhatsmeowInbox.value &&
     isBubble.value &&
     !props.private &&
@@ -840,19 +849,34 @@ const shouldShowGroupParticipant = computed(
     !!groupParticipantName.value
 );
 
-const setupHighlightTimer = () => {
-  if (Number(route.query.messageId) !== Number(props.id)) {
-    return;
-  }
-
-  showBackgroundHighlight.value = true;
-  const HIGHLIGHT_TIMER = 1000;
-  useTimeoutFn(() => {
+const { start: restartHighlight } = useTimeoutFn(
+  () => {
     showBackgroundHighlight.value = false;
-  }, HIGHLIGHT_TIMER);
+  },
+  2000,
+  { immediate: false }
+);
+const highlightMessage = ({ messageId, conversationId } = {}) => {
+  if (
+    props.isPreview ||
+    Number(messageId) !== props.id ||
+    (conversationId && conversationId !== props.conversationId)
+  )
+    return;
+  showBackgroundHighlight.value = true;
+  restartHighlight();
 };
-
-onMounted(setupHighlightTimer);
+watch(
+  () => route.query.messageId,
+  messageId => highlightMessage({ messageId })
+);
+onMounted(() => {
+  highlightMessage({ messageId: route.query.messageId });
+  emitter.on(BUS_EVENTS.SCROLL_TO_MESSAGE, highlightMessage);
+});
+onBeforeUnmount(() =>
+  emitter.off(BUS_EVENTS.SCROLL_TO_MESSAGE, highlightMessage)
+);
 
 provideMessageContext({
   ...toRefs(props),
@@ -869,14 +893,14 @@ provideMessageContext({
 <template>
   <div
     v-if="shouldRenderMessage"
-    :id="`message${props.id}`"
+    :id="isPreview ? undefined : `message${props.id}`"
     class="group/message relative flex w-full mb-2 message-bubble-container transition-all duration-200 ease-out motion-reduce:transition-none"
     :data-message-id="props.id"
     :class="[
       flexOrientationClass,
       {
         'group-with-next': shouldGroupWithNext,
-        'bg-n-alpha-1': showBackgroundHighlight,
+        'bg-n-teal-3 ring-1 ring-n-teal-7': showBackgroundHighlight,
         'cursor-pointer rounded-lg px-10 py-1 transition-colors hover:bg-n-alpha-2':
           isSelectionMode && isSelectableMessage,
         'bg-n-alpha-2 ring-1 ring-n-weak': isSelectionMode && isSelected,

@@ -1,25 +1,29 @@
 <script setup>
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { useToggle } from '@vueuse/core';
 import { useStore } from 'vuex';
 import { useAlert } from 'dashboard/composables';
 import { useI18n } from 'vue-i18n';
 import { emitter } from 'shared/helpers/mitt';
-import EmailTranscriptModal from './EmailTranscriptModal.vue';
-import ResolveAction from '../../buttons/ResolveAction.vue';
 import ButtonV4 from 'dashboard/components-next/button/Button.vue';
 import DropdownMenu from 'dashboard/components-next/dropdown-menu/DropdownMenu.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
+import { useUISettings } from 'dashboard/composables/useUISettings';
+import { whatsmeowGroupJid } from 'dashboard/helper/whatsmeowGroup';
+import { BUS_EVENTS } from 'shared/constants/busEvents';
 
 import {
   CMD_MUTE_CONVERSATION,
   CMD_SEND_TRANSCRIPT,
   CMD_UNMUTE_CONVERSATION,
 } from 'dashboard/helper/commandbar/events';
+import ResolveAction from '../../buttons/ResolveAction.vue';
+import EmailTranscriptModal from './EmailTranscriptModal.vue';
 
 // No props needed as we're getting currentChat from the store directly
 const store = useStore();
 const { t } = useI18n();
+const { updateUISettings } = useUISettings();
 
 const [showEmailActionsModal, toggleEmailModal] = useToggle(false);
 const [showActionsDropdown, toggleDropdown] = useToggle(false);
@@ -37,6 +41,25 @@ const shouldShowResumeAi = computed(() =>
 
 const actionMenuItems = computed(() => {
   const items = [];
+  if (whatsmeowGroupJid(currentChat.value)) {
+    [
+      'group_info',
+      'add',
+      'settings',
+      'search',
+      'select_messages',
+      'starred_messages',
+      'invite',
+      'leave',
+    ].forEach(action => {
+      items.push({
+        icon: 'i-lucide-users',
+        label: t(`WHATSMEOW_UI.${action.toUpperCase()}`),
+        action: `group:${action}`,
+        value: `group:${action}`,
+      });
+    });
+  }
 
   if (isMarcosxAiLinked.value) {
     if (shouldShowResumeAi.value) {
@@ -133,8 +156,31 @@ const updateMarcosxAiState = async action => {
   }
 };
 
-const handleActionClick = ({ action }) => {
+const handleActionClick = async ({ action }) => {
   toggleDropdown(false);
+  if (action.startsWith('group:')) {
+    const operation = action.slice(6);
+    if (operation === 'starred_messages') {
+      emitter.emit(BUS_EVENTS.WHATSMEOW_STARRED_MESSAGES, {
+        conversationId: currentChat.value.id,
+      });
+      return;
+    }
+    if (operation === 'select_messages') {
+      emitter.emit(BUS_EVENTS.WHATSMEOW_SELECT_MESSAGES, {
+        conversationId: currentChat.value.id,
+      });
+      return;
+    }
+    await updateUISettings({ is_contact_sidebar_open: true });
+    await nextTick();
+    if (operation !== 'group_info')
+      emitter.emit(BUS_EVENTS.WHATSMEOW_GROUP_ACTION, {
+        conversationId: currentChat.value.id,
+        operation,
+      });
+    return;
+  }
 
   if (action === 'marcosx_ai_pause') {
     updateMarcosxAiState('pause');

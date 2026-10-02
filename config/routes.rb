@@ -232,6 +232,7 @@ Rails.application.routes.draw do
                   post :summarize_audio
                   post :retry
                   post :reaction
+                  post :star
                   post :edit
                   post :delete_for_everyone
                 end
@@ -270,6 +271,14 @@ Rails.application.routes.draw do
               get :contacts
               get :articles
             end
+          end
+          resources :whatsmeow_conversations, only: [] do
+            collection { post :read_all }
+            member { get :export }
+          end
+
+          resources :whatsmeow_starred_messages, only: [:index] do
+            post :sync, on: :collection
           end
 
           resources :companies, only: [:index, :show, :create, :update, :destroy] do
@@ -360,6 +369,13 @@ Rails.application.routes.draw do
           resources :custom_filters, only: [:index, :show, :create, :update, :destroy]
           resource :branded_email_layout, only: [:show, :update]
           resources :inboxes, only: [:index, :show, :create, :update, :destroy] do
+            scope module: :inboxes do
+              resource :whatsmeow_group, only: [:show, :create, :update], controller: 'whatsmeow_groups' do
+                post :action
+                get :contacts
+                get :requests
+              end
+            end
             resource :whatsmeow_pix, only: [:show, :update, :destroy], controller: 'inboxes/whatsmeow_pix'
             get :assignable_agents, on: :member
             get :campaigns, on: :member

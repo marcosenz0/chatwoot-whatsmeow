@@ -1,5 +1,5 @@
 <script>
-import { useAlert } from 'dashboard/composables';
+import { useAlert, useTrack } from 'dashboard/composables';
 import { mapGetters } from 'vuex';
 import { useMessageFormatter } from 'shared/composables/useMessageFormatter';
 import ContextMenu from 'dashboard/components/ui/ContextMenu.vue';
@@ -7,14 +7,15 @@ import AddCannedModal from 'dashboard/routes/dashboard/settings/canned/AddCanned
 import { useSnakeCase } from 'dashboard/composables/useTransformKeys';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { parseAPIErrorResponse } from 'dashboard/store/utils/api';
+import NextButton from 'dashboard/components-next/button/Button.vue';
+import MessageAPI from 'dashboard/api/inbox/message';
 import { conversationUrl, frontendURL } from '../../../helper/URLHelper';
 import {
   ACCOUNT_EVENTS,
   CONVERSATION_EVENTS,
 } from '../../../helper/AnalyticsHelper/events';
 import MenuItem from '../../../components/widgets/conversation/contextMenu/menuItem.vue';
-import { useTrack } from 'dashboard/composables';
-import NextButton from 'dashboard/components-next/button/Button.vue';
+
 import ReportCaptainMessageDialog from './ReportCaptainMessageDialog.vue';
 
 const AUDIO_FILE_EXTENSIONS = [
@@ -157,8 +158,37 @@ export default {
     canSubmitEdit() {
       return this.editableContent.trim().length > 0 && !this.isEditingMessage;
     },
+    canStar() {
+      const inboxId = this.message.inbox_id;
+      const inbox = this.$store.getters['inboxes/getInbox'](inboxId);
+      return (
+        inbox?.channel_type === 'Channel::Whatsmeow' &&
+        !!this.message.source_id &&
+        !this.message.private &&
+        [0, 1].includes(this.message.message_type) &&
+        !this.contentAttributes?.deleted
+      );
+    },
+    isStarred() {
+      return !!this.contentAttributes?.whatsmeow_starred;
+    },
   },
   methods: {
+    async toggleStar() {
+      this.handleClose();
+      try {
+        const { data } = await MessageAPI.star(
+          this.conversationId,
+          this.messageId,
+          !this.isStarred
+        );
+        await this.$store.dispatch('updateMessage', data);
+      } catch (error) {
+        useAlert(
+          error.response?.data?.message || this.$t('WHATSMEOW_UI.SAVE_ERROR')
+        );
+      }
+    },
     async copyLinkToMessage() {
       const fullConversationURL =
         window.chatwootConfig.hostURL +
@@ -530,6 +560,15 @@ export default {
           }"
           variant="icon"
           @click.stop="downloadAudio"
+        />
+        <MenuItem
+          v-if="canStar"
+          variant="icon"
+          :option="{
+            label: $t(isStarred ? 'WHATSMEOW_UI.UNSTAR' : 'WHATSMEOW_UI.STAR'),
+            icon: 'i-lucide-star',
+          }"
+          @click="toggleStar"
         />
         <MenuItem
           v-if="enabledOptions['copy']"

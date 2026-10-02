@@ -1,10 +1,12 @@
 <script setup>
 import { computed, ref } from 'vue';
 import ContactPanel from 'dashboard/routes/dashboard/conversation/ContactPanel.vue';
+import { whatsmeowGroupJid } from 'dashboard/helper/whatsmeowGroup';
 import { useUISettings } from 'dashboard/composables/useUISettings';
 import { useEventListener, useWindowSize } from '@vueuse/core';
 import { vOnClickOutside } from '@vueuse/components';
 import wootConstants from 'dashboard/constants/globals';
+import GroupPanel from '../whatsmeow/GroupPanel.vue';
 
 defineProps({
   currentChat: {
@@ -109,8 +111,14 @@ const closeContactPanel = () => {
         :class="{ 'bg-n-brand': isResizing }"
       />
     </div>
-    <div class="flex flex-1 overflow-auto">
+    <div class="flex flex-1 min-h-0 overflow-auto">
+      <GroupPanel
+        v-if="whatsmeowGroupJid(currentChat) && activeTab === 0"
+        :key="currentChat.id"
+        :chat="currentChat"
+      />
       <ContactPanel
+        v-else
         v-show="activeTab === 0"
         :conversation-id="currentChat.id"
         :inbox-id="currentChat.inbox_id"

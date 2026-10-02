@@ -67,6 +67,15 @@ class Api::V1::Accounts::Conversations::MessagesController < Api::V1::Accounts::
     render_could_not_create_error(e.message)
   end
 
+  def star
+    target = Whatsmeow::ConversationTargetResolver.new(conversation: @conversation).perform
+    star_service = Whatsmeow::MessageStarService.new(inbox: @conversation.inbox, chat_jid: target, source_id: message.source_id)
+    @message = star_service.perform(message: message, starred: params.require(:starred))
+    render :update
+  rescue ArgumentError, Whatsmeow::SessionClient::Error => e
+    render_could_not_create_error(e.message)
+  end
+
   def translate
     return head :ok if already_translated_content_available?
 

@@ -26,10 +26,11 @@ import (
 )
 
 const (
-	callAudioUp           = byte(1)
-	callVideoUp           = byte(2)
-	callAudioDown         = byte(3)
-	callOrientedVideoDown = byte(5)
+	callAudioUp              = byte(1)
+	callVideoUp              = byte(2)
+	callAudioDown            = byte(3)
+	callOrientedVideoDown    = byte(5)
+	callParticipantVideoDown = byte(6)
 )
 
 type callClaims struct {
@@ -46,12 +47,26 @@ type callCommand struct {
 }
 
 type callEvent struct {
-	Event      string `json:"event"`
-	CallID     string `json:"call_id,omitempty"`
-	Video      bool   `json:"video,omitempty"`
-	VideoState int    `json:"video_state"`
-	Phase      int    `json:"phase,omitempty"`
-	Message    string `json:"message,omitempty"`
+	Event        string            `json:"event"`
+	CallID       string            `json:"call_id,omitempty"`
+	Video        bool              `json:"video,omitempty"`
+	VideoState   int               `json:"video_state"`
+	Phase        int               `json:"phase,omitempty"`
+	Message      string            `json:"message,omitempty"`
+	Participants []callParticipant `json:"participants,omitempty"`
+}
+
+type callParticipant struct {
+	JID   string `json:"jid"`
+	Name  string `json:"name"`
+	State string `json:"state"`
+}
+
+func callTarget(call *meowcaller.Call) types.JID {
+	if group, ok := call.GroupState(); ok && !group.GroupJID.IsEmpty() {
+		return group.GroupJID
+	}
+	return call.Peer()
 }
 
 type callPacket struct {
@@ -128,6 +143,9 @@ func (v *browserVideoSink) SetOrientation(orientation int) {
 }
 
 func (v *browserVideoSink) WriteVideo(frame []byte) error {
+	if _, group := v.call.GroupState(); group {
+		return nil
+	}
 	if v.needsKeyframe && !rtp.AUHasIDR(frame) {
 		v.call.RequestVideoKeyframe()
 		return nil
@@ -267,10 +285,10 @@ func (m *browserCallManager) notifyCall(call *meowcaller.Call, event, direction,
 		log.Printf("Whatsmeow call history lookup failed: %v", err)
 		return
 	}
-	phoneJID := resolvePhoneJID(m.wa, call.Peer())
+	phoneJID := resolvePhoneJID(m.wa, callTarget(call))
 	for index, inboxID := range inboxIDs {
 		payload := map[string]interface{}{
-			"event": event, "call_id": call.ID(), "peer_jid": jidString(call.Peer()),
+			"event": event, "call_id": call.ID(), "peer_jid": jidString(callTarget(call)),
 			"phone_jid": jidString(phoneJID), "direction": direction,
 			"video": video, "timestamp": time.Now().Unix(), "reason": reason,
 		}
@@ -299,7 +317,7 @@ func (m *browserCallManager) onIncoming(call *meowcaller.Call) {
 	m.video = video
 	sockets := make([]*callSocket, 0, len(m.sockets))
 	for socket := range m.sockets {
-		if callPeerMatches(m.wa, call.Peer(), socket.claims.ContactJID) {
+		if callPeerMatches(m.wa, callTarget(call), socket.claims.ContactJID) {
 			sockets = append(sockets, socket)
 		}
 	}
@@ -310,7 +328,7 @@ func (m *browserCallManager) onIncoming(call *meowcaller.Call) {
 		matching := make([]*callSocket, 0, len(m.sockets))
 		if pending {
 			for socket := range m.sockets {
-				if callPeerMatches(m.wa, call.Peer(), socket.claims.ContactJID) {
+				if callPeerMatches(m.wa, callTarget(call), socket.claims.ContactJID) {
 					matching = append(matching, socket)
 				}
 			}
@@ -337,7 +355,35 @@ func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call, d
 	m.audio = audio
 	m.mu.Unlock()
 
+	markConnected := func() {
+		m.mu.Lock()
+		// Acceptance and media readiness are separate. An answered call has a
+		// duration even if the relay fails to deliver the remote audio.
+		if m.active != call || !m.connectedAt.IsZero() {
+			m.mu.Unlock()
+			return
+		}
+		m.connectedAt = time.Now()
+		connectedAt := m.connectedAt
+		video := m.video
+		m.mu.Unlock()
+		m.notifyCall(call, "call_connected", direction, "", socket, connectedAt, video)
+		socket.event(callEvent{Event: "connected", CallID: call.ID(), Video: video})
+	}
+
 	call.Play(audio)
+	call.OnGroupState(func(state meowcaller.GroupCallState) {
+		participants := make([]callParticipant, 0, len(state.Participants))
+		for _, participant := range state.Participants {
+			member := buildGroupMemberResponse(m.wa, types.GroupParticipant{JID: participant.JID, PhoneNumber: participant.PN}, false)
+			participants = append(participants, callParticipant{JID: participant.JID.String(), Name: firstNonBlank(member.Name, member.PhoneNumber), State: participant.State})
+			// Group joins arrive in the authoritative roster without a direct-call accept.
+			if direction == "outgoing" && state.TransactionID != 0 && participant.State == "connected" && !isCurrentClientJID(m.wa, participant.JID) {
+				markConnected()
+			}
+		}
+		socket.event(callEvent{Event: "participants", CallID: call.ID(), Participants: participants})
+	})
 	call.Receive(meowcaller.SinkFunc(func(frame []float32) {
 		firstReceived.Do(func() { log.Print("Whatsmeow browser call: first decoded remote audio frame") })
 		data := make([]byte, len(frame)*2)
@@ -354,6 +400,20 @@ func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call, d
 	}))
 	videoSink := &browserVideoSink{socket: socket, call: call}
 	call.ReceiveVideo(videoSink)
+	call.OnParticipantVideoFrame(func(frame meowcaller.ParticipantVideoFrame) {
+		if _, group := call.GroupState(); !group {
+			return
+		}
+		participant := frame.Sender.ToNonAD().String()
+		packet := make([]byte, len(frame.AccessUnit)+len(participant)+4)
+		packet[0], packet[1] = callParticipantVideoDown, byte(-frame.Orientation&3)
+		binary.BigEndian.PutUint16(packet[2:4], uint16(len(participant)))
+		copy(packet[4:], participant)
+		copy(packet[4+len(participant):], frame.AccessUnit)
+		if !socket.send(websocket.MessageBinary, packet) {
+			call.RequestVideoKeyframe()
+		}
+	})
 	call.OnVideoKeyframeRequest(func() { socket.event(callEvent{Event: "keyframe"}) })
 	call.OnVideoState(func(state meowcaller.VideoState) {
 		if state.HasOrientation {
@@ -375,21 +435,7 @@ func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call, d
 		log.Printf("Whatsmeow browser call: phase %d", phase)
 		socket.event(callEvent{Event: "phase", CallID: call.ID(), Phase: int(phase), Video: call.IsVideo()})
 	})
-	markConnected := func() {
-		m.mu.Lock()
-		// Acceptance and media readiness are separate. An answered call has a
-		// duration even if the relay fails to deliver the remote audio.
-		if m.active != call || !m.connectedAt.IsZero() {
-			m.mu.Unlock()
-			return
-		}
-		m.connectedAt = time.Now()
-		connectedAt := m.connectedAt
-		video := m.video
-		m.mu.Unlock()
-		m.notifyCall(call, "call_connected", direction, "", socket, connectedAt, video)
-		socket.event(callEvent{Event: "connected", CallID: call.ID(), Video: video})
-	}
+
 	markMediaReady := func() { socket.event(callEvent{Event: "media_ready", CallID: call.ID()}) }
 	call.OnReady(markMediaReady)
 	call.OnPeerAccept(markConnected)
@@ -436,7 +482,14 @@ func (m *browserCallManager) dial(ctx context.Context, socket *callSocket, video
 	m.starting = true
 	m.mu.Unlock()
 
-	call, err := m.caller.CallWithOptions(ctx, socket.claims.ContactJID, meowcaller.CallOptions{Video: video})
+	var call *meowcaller.Call
+	var err error
+	target, _ := parseJID(socket.claims.ContactJID)
+	if isGroupJID(target) {
+		call, err = m.caller.GroupCallByIDWithOptions(ctx, target.String(), meowcaller.GroupCallOptions{Video: video})
+	} else {
+		call, err = m.caller.CallWithOptions(ctx, socket.claims.ContactJID, meowcaller.CallOptions{Video: video})
+	}
 	m.mu.Lock()
 	m.starting = false
 	if err == nil {
@@ -457,7 +510,7 @@ func (m *browserCallManager) dial(ctx context.Context, socket *callSocket, video
 func (m *browserCallManager) answer(socket *callSocket) error {
 	m.mu.Lock()
 	call := m.pending
-	if call == nil || m.active != nil || !callPeerMatches(m.wa, call.Peer(), socket.claims.ContactJID) {
+	if call == nil || m.active != nil || !callPeerMatches(m.wa, callTarget(call), socket.claims.ContactJID) {
 		m.mu.Unlock()
 		return errors.New("there is no incoming call for this contact")
 	}
@@ -484,7 +537,7 @@ func (m *browserCallManager) command(ctx context.Context, socket *callSocket, co
 	call, pending, owner := m.active, m.pending, m.owner
 	m.mu.Unlock()
 	if action == "reject" {
-		if pending == nil || !callPeerMatches(m.wa, pending.Peer(), socket.claims.ContactJID) {
+		if pending == nil || !callPeerMatches(m.wa, callTarget(pending), socket.claims.ContactJID) {
 			return errors.New("there is no incoming call for this contact")
 		}
 		return pending.Reject()
@@ -580,7 +633,7 @@ func (m *browserCallManager) initial(socket *callSocket) {
 	m.sockets[socket] = struct{}{}
 	pending, active, owner := m.pending, m.active, m.owner
 	m.mu.Unlock()
-	if pending != nil && callPeerMatches(m.wa, pending.Peer(), socket.claims.ContactJID) {
+	if pending != nil && callPeerMatches(m.wa, callTarget(pending), socket.claims.ContactJID) {
 		socket.event(callEvent{Event: "incoming", CallID: pending.ID(), Video: pending.IsVideo()})
 	} else if active != nil && owner == socket {
 		socket.event(callEvent{Event: "active", CallID: active.ID(), Video: active.IsVideo()})
@@ -617,7 +670,7 @@ func callToken(c *gin.Context) (*callClaims, error) {
 		return nil, errors.New("invalid call token")
 	}
 	jid, ok := parseJID(claims.ContactJID)
-	if !ok || jid.IsEmpty() || (jid.Server != types.DefaultUserServer && jid.Server != types.HiddenUserServer) {
+	if !ok || jid.IsEmpty() || (jid.Server != types.DefaultUserServer && jid.Server != types.HiddenUserServer && jid.Server != types.GroupServer) {
 		return nil, errors.New("invalid call destination")
 	}
 	return claims, nil

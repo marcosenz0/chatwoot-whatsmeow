@@ -6,6 +6,8 @@ import actions, {
   hasMessageFailedWithExternalError,
 } from '../../conversations/actions';
 import types from '../../../mutation-types';
+import { dataReceived } from './testConversationResponse';
+
 const dataToSend = {
   page: 1,
   queryData: {
@@ -19,7 +21,6 @@ const dataToSend = {
     ],
   },
 };
-import { dataReceived } from './testConversationResponse';
 
 const commit = vi.fn();
 const dispatch = vi.fn();
@@ -1053,8 +1054,7 @@ describe('#addMentions', () => {
         [types.SET_CHAT_DATA_FETCHED, 42],
       ]);
       expect(localDispatch).toHaveBeenCalledWith('fetchPreviousMessages', {
-        after: 99,
-        before: 100,
+        around: 99,
         conversationId: 42,
       });
     });

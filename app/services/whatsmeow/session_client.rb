@@ -78,6 +78,21 @@ class Whatsmeow::SessionClient
     request(:get, "/sessions/#{@inbox.id}/groups")
   end
 
+  def group_details(jid) = request(:get, "/sessions/#{@inbox.id}/group?group_jid=#{CGI.escape(jid)}")
+  def create_group(payload) = request(:post, "/sessions/#{@inbox.id}/group", body: payload)
+  def update_group(payload) = request(:patch, "/sessions/#{@inbox.id}/group", body: payload)
+  def group_action(payload) = request(:post, "/sessions/#{@inbox.id}/group/action", body: payload)
+  def group_requests(jid) = request(:get, "/sessions/#{@inbox.id}/group/requests?group_jid=#{CGI.escape(jid)}")
+  def group_contacts(query) = request(:get, "/sessions/#{@inbox.id}/contacts?#{query.to_query}")
+
+  def star_message(payload)
+    request(:post, "/sessions/#{@inbox.id}/stars", body: payload)
+  end
+
+  def sync_starred_messages
+    request(:post, "/sessions/#{@inbox.id}/stars/sync", timeout: 150)
+  end
+
   def profile_picture(jid, force: false)
     path = "/sessions/#{@inbox.id}/profile_picture?jid=#{CGI.escape(jid)}"
     path = "#{path}&force=true" if force

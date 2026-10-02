@@ -6,6 +6,8 @@ class Webhooks::WhatsmeowController < ActionController::API
     'status_view' => :process_status_view,
     'receipt' => :process_receipt,
     'chat_read' => :process_chat_read,
+    'star' => :process_star,
+    'group_change' => :process_group_change,
     'reaction' => :process_reaction,
     'edit' => :process_edit,
     'delete' => :process_delete,
@@ -82,6 +84,14 @@ class Webhooks::WhatsmeowController < ActionController::API
 
   def process_chat_read
     Whatsmeow::ChatReadService.new(inbox: inbox, params: params.to_unsafe_hash).perform
+  end
+
+  def process_star
+    Whatsmeow::MessageStarService.apply_incoming(inbox: inbox, params: params.to_unsafe_hash)
+  end
+
+  def process_group_change
+    inbox.with_lock { Whatsmeow::GroupChangeService.new(inbox: inbox, params: params.to_unsafe_hash).perform }
   end
 
   def process_reaction

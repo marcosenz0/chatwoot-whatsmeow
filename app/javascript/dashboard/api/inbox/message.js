@@ -118,8 +118,33 @@ class MessageApi extends ApiClient {
     );
   }
 
-  getPreviousMessages({ conversationId, after, before }) {
-    const params = { before };
+  star(conversationId, messageId, starred) {
+    return axios.post(
+      `${this.url}/${conversationId}/messages/${messageId}/star`,
+      { starred }
+    );
+  }
+
+  search(conversationId, q) {
+    return axios.get(`${this.url}/${conversationId}/messages`, {
+      params: { q },
+    });
+  }
+
+  groupChanges(conversationId) {
+    return axios.get(`${this.url}/${conversationId}/messages`, {
+      params: { group_changes: true },
+    });
+  }
+
+  exportConversation(conversationId) {
+    return axios.get(
+      `${this.baseUrl()}/whatsmeow_conversations/${conversationId}/export`
+    );
+  }
+
+  getPreviousMessages({ conversationId, after, before, around }) {
+    const params = { before, around };
     if (after && Number(after) !== Number(before)) {
       params.after = after;
     }

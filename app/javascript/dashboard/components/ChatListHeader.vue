@@ -8,6 +8,7 @@ import SwitchLayout from 'dashboard/routes/dashboard/conversation/search/SwitchL
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import NextInput from 'dashboard/components-next/input/Input.vue';
 import ConversationBasicFilter from './widgets/conversation/ConversationBasicFilter.vue';
+import ChatsMenu from './widgets/whatsmeow/ChatsMenu.vue';
 
 const props = defineProps({
   pageTitle: { type: String, required: true },
@@ -121,6 +122,7 @@ const toggleConversationLayout = () => {
       </span>
     </div>
     <div class="flex items-center gap-1">
+      <ChatsMenu />
       <NextButton
         v-tooltip.top-end="$t('CHAT_LIST.SEARCH.INPUT')"
         icon="i-lucide-search"

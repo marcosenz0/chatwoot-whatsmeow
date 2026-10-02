@@ -322,6 +322,8 @@ type GroupResponse struct {
 	ParticipantCount  int    `json:"participant_count"`
 	IsAnnounce        bool   `json:"is_announce"`
 	IsLocked          bool   `json:"is_locked"`
+	IsCommunity       bool   `json:"is_community"`
+	SelfIsAdmin       bool   `json:"self_is_admin"`
 }
 
 type GroupInviteRequest struct {
@@ -445,6 +447,14 @@ func main() {
 	r.POST("/sessions/:channel_id/group_invite", internalTokenMiddleware(), handleJoinGroupInvite)
 	r.GET("/sessions/:channel_id/group_members", internalTokenMiddleware(), handleGetGroupMembers)
 	r.POST("/sessions/:channel_id/group_members", internalTokenMiddleware(), handleAddGroupMember)
+	r.POST("/sessions/:channel_id/stars", internalTokenMiddleware(), handleStarMessage)
+	r.POST("/sessions/:channel_id/stars/sync", internalTokenMiddleware(), handleSyncStars)
+	r.GET("/sessions/:channel_id/group", internalTokenMiddleware(), handleGroupDetails)
+	r.POST("/sessions/:channel_id/group", internalTokenMiddleware(), handleCreateGroup)
+	r.PATCH("/sessions/:channel_id/group", internalTokenMiddleware(), handleUpdateGroup)
+	r.POST("/sessions/:channel_id/group/action", internalTokenMiddleware(), handleGroupAction)
+	r.GET("/sessions/:channel_id/group/requests", internalTokenMiddleware(), handleGroupRequests)
+	r.GET("/sessions/:channel_id/contacts", internalTokenMiddleware(), handleGroupContacts)
 	r.GET("/sessions/:channel_id/profile_picture", handleGetProfilePicture)
 	r.GET("/sessions/:channel_id/check_number", handleCheckNumber)
 	r.POST("/sessions/:channel_id/identities/resolve", internalTokenMiddleware(), handleResolveIdentities)
@@ -3646,6 +3656,12 @@ func processEventForInbox(channelID string, accountID string, client *whatsmeow.
 	case *events.MarkChatAsRead:
 		processChatReadForInbox(channelID, accountID, client, v)
 
+	case *events.Star:
+		processStarForInbox(channelID, accountID, client, v)
+
+	case *events.GroupInfo:
+		processGroupChangeForInbox(channelID, accountID, client, v)
+
 	case *events.ChatPresence:
 		processChatPresenceForInbox(channelID, accountID, client, v)
 
@@ -4270,6 +4286,9 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 	}
 	if historical {
 		payload["historical"] = true
+		if web := messageEvent.SourceWebMsg; web != nil && web.Starred != nil {
+			payload["starred"] = web.GetStarred()
+		}
 		return sendHistoryWebhook(accountID, channelID, payload)
 	}
 	sendWebhookNotification(accountID, channelID, payload)
@@ -6087,6 +6106,12 @@ func waitForGroupParticipant(client *whatsmeow.Client, groupJID types.JID, parti
 func buildGroupMemberResponse(client *whatsmeow.Client, participant types.GroupParticipant, fetchProfilePicture bool) GroupMemberResponse {
 	memberJID := firstUsableJID(participant.PhoneNumber, participant.JID, participant.LID)
 	phoneJID := firstUsableJID(participant.PhoneNumber, participant.JID)
+	if phoneJID.Server == types.HiddenUserServer {
+		phoneJID = resolvePhoneJID(client, phoneJID)
+		if isPhoneJID(phoneJID) {
+			memberJID = phoneJID
+		}
+	}
 	lidJID := firstLIDJID(participant.LID, participant.JID)
 	phone := phoneNumberFromJID(phoneJID)
 	savedName, isSaved := getSavedContactDisplayName(client, memberJID)
@@ -6138,6 +6163,13 @@ func buildGroupResponse(client *whatsmeow.Client, group *types.GroupInfo, fetchP
 	if participantCount == 0 {
 		participantCount = len(group.Participants)
 	}
+	selfIsAdmin := false
+	for _, participant := range group.Participants {
+		if groupParticipantMatches(participant, client.Store.GetJID(), client.Store.GetLID()) {
+			selfIsAdmin = participant.IsAdmin || participant.IsSuperAdmin
+			break
+		}
+	}
 
 	return GroupResponse{
 		JID:               groupJID.String(),
@@ -6146,6 +6178,8 @@ func buildGroupResponse(client *whatsmeow.Client, group *types.GroupInfo, fetchP
 		ParticipantCount:  participantCount,
 		IsAnnounce:        group.IsAnnounce,
 		IsLocked:          group.IsLocked,
+		IsCommunity:       group.IsParent,
+		SelfIsAdmin:       selfIsAdmin,
 	}
 }
 

@@ -5,12 +5,32 @@ on:
     branches:
       - codex/whatsmeow-voice-calls
       - codex/chatwoot-v4.18-common
+      - codex/whatsmeow-stars-groups
 
 permissions:
   contents: read
   packages: write
 
 jobs:
+  validate-whatsmeow-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Validate message anchors and media previews
+        run: >-
+          pnpm exec vitest run
+          app/javascript/dashboard/store/modules/specs/conversations/actions.spec.js
+          app/javascript/dashboard/helper/specs/whatsmeowAppLock.spec.js
+          app/javascript/dashboard/helper/specs/whatsmeowCallVideo.spec.js
+          app/javascript/dashboard/components/widgets/whatsmeow/specs
+          app/javascript/dashboard/components-next/message
+
   validate-call-history:
     runs-on: ubuntu-latest
     env:
@@ -76,9 +96,35 @@ jobs:
           spec/enterprise/services/messages/audio_transcription_service_spec.rb
           spec/finders/conversation_finder_spec.rb
           spec/finders/message_finder_spec.rb
+          spec/controllers/api/v1/accounts/whatsmeow_conversations_controller_spec.rb
+          spec/controllers/api/v1/accounts/whatsmeow_starred_messages_controller_spec.rb
+          spec/controllers/api/v1/accounts/inboxes/whatsmeow_groups_controller_spec.rb
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stars-groups-schema
+          path: db/schema.rb
+      - name: Inspect Ruby style for new endpoints
+        if: always()
+        run: >-
+          bundle exec rubocop
+          app/controllers/api/v1/accounts/whatsmeow_starred_messages_controller.rb
+          app/controllers/api/v1/accounts/whatsmeow_conversations_controller.rb
+          app/controllers/api/v1/accounts/inboxes/whatsmeow_groups_controller.rb
+          app/services/whatsmeow/message_star_service.rb
+          app/services/whatsmeow/group_change_service.rb
+          app/models/whatsmeow_message_star.rb
+          app/finders/message_finder.rb
+          app/controllers/api/v1/accounts/conversations/whatsmeow_call_sessions_controller.rb
+          db/migrate/20261001090000_create_whatsmeow_message_stars.rb
+          spec/services/whatsmeow/message_star_service_spec.rb
+          spec/services/whatsmeow/group_change_service_spec.rb
+          spec/controllers/api/v1/accounts/whatsmeow_conversations_controller_spec.rb
+          spec/controllers/api/v1/accounts/whatsmeow_starred_messages_controller_spec.rb
+          spec/controllers/api/v1/accounts/inboxes/whatsmeow_groups_controller_spec.rb
 
   publish:
-    needs: validate-call-history
+    needs: [validate-call-history, validate-whatsmeow-ui]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

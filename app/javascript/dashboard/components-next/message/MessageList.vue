@@ -1,10 +1,11 @@
 <script setup>
 import { computed, reactive } from 'vue';
-import Message from './Message.vue';
-import { MESSAGE_TYPES } from './constants.js';
 import { useCamelCase } from 'dashboard/composables/useTransformKeys';
 import { useMapGetter } from 'dashboard/composables/store.js';
 import MessageApi from 'dashboard/api/inbox/message.js';
+import { useRoute } from 'vue-router';
+import { MESSAGE_TYPES } from './constants.js';
+import Message from './Message.vue';
 
 /**
  * Props definition for the component
@@ -48,21 +49,23 @@ const props = defineProps({
 });
 
 const emit = defineEmits(['retry', 'select', 'forward']);
+const route = useRoute();
 
-const allMessages = computed(() => {
-  return useCamelCase(props.messages, {
+const allMessages = computed(() =>
+  useCamelCase(props.messages, {
     deep: true,
     stopPaths: [
       'content_attributes.translations',
       'content_attributes.whatsapp_flow_response.response_json',
     ],
-  });
-});
+  })
+);
 
 const imageGroups = computed(() => {
   const leaders = new Map();
   const followers = new Set();
   const isImage = message =>
+    Number(route.query.messageId) !== message.id &&
     !message.private &&
     !message.content &&
     message.attachments?.length === 1 &&
