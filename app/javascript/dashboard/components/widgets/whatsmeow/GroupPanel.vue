@@ -26,6 +26,7 @@ import SharedFiles from 'dashboard/routes/dashboard/conversation/SharedFiles.vue
 import FormattedContent from 'dashboard/components-next/message/bubbles/Text/FormattedContent.vue';
 import GroupSettings from './GroupSettings.vue';
 import GroupMember from './GroupMember.vue';
+import GroupMemberActions from './GroupMemberActions.vue';
 import GroupContactPicker from './GroupContactPicker.vue';
 import CreateGroupDialog from './CreateGroupDialog.vue';
 import StarredMessagesPanel from './StarredMessagesPanel.vue';
@@ -52,6 +53,13 @@ const invite = ref('');
 const joinRequests = ref([]);
 const changes = ref([]);
 const selectedMember = ref(null);
+const menuMember = ref(null);
+const memberMenuInDialog = ref(false);
+const memberList = ref(null);
+function selectMember(member, inDialog = false) {
+  memberMenuInDialog.value = inDialog;
+  menuMember.value = member;
+}
 const communityJid = ref('');
 const communities = ref([]);
 const showStars = ref(false);
@@ -393,6 +401,7 @@ watch(
     showStars.value = false;
     showMedia.value = false;
     memberQuery.value = '';
+    menuMember.value = null;
     dialog.value?.close();
     load();
   }
@@ -683,6 +692,8 @@ onMounted(load);
           :key="member.jid"
           :member="member"
           :can-manage="group.self_is_admin"
+          :selected="!memberMenuInDialog && menuMember?.jid === member.jid"
+          @select="selectMember($event)"
           @action="open"
         />
         <Button
@@ -810,12 +821,18 @@ onMounted(load);
           <p v-if="!members.length" class="m-0 text-sm text-n-slate-11">
             {{ $t('WHATSMEOW_UI.NO_MEMBERS') }}
           </p>
-          <div class="min-h-0 overflow-y-auto" data-group-members-list>
+          <div
+            ref="memberList"
+            class="min-h-0 overflow-y-auto"
+            data-group-members-list
+          >
             <GroupMember
               v-for="member in members"
               :key="member.jid"
               :member="member"
               :can-manage="group.self_is_admin"
+              :selected="memberMenuInDialog && menuMember?.jid === member.jid"
+              @select="selectMember($event, true)"
               @action="open"
             />
           </div>
@@ -959,5 +976,13 @@ onMounted(load);
         </p>
       </div>
     </Dialog>
+    <GroupMemberActions
+      :key="chat.id"
+      :member="menuMember"
+      :inbox-id="chat.inbox_id"
+      :menu-target="memberMenuInDialog ? memberList : null"
+      @close="menuMember = null"
+      @navigate="dialog.close()"
+    />
   </section>
 </template>
