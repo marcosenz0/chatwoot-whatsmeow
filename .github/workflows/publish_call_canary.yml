@@ -7,6 +7,7 @@ on:
       - codex/chatwoot-v4.18-common
       - codex/whatsmeow-stars-groups
       - codex/whatsmeow-ui-corrections
+      - codex/whatsmeow-group-links-members
 
 permissions:
   contents: read
@@ -27,6 +28,9 @@ jobs:
         run: >-
           pnpm exec vitest run
           app/javascript/dashboard/store/modules/specs/conversations/actions.spec.js
+          app/javascript/dashboard/helper/specs/whatsmeowGroupInviteHelper.spec.js
+          app/javascript/dashboard/helper/specs/whatsmeowPhoneNumberHelper.spec.js
+          app/javascript/shared/helpers/specs/MessageFormatter.spec.js
           app/javascript/dashboard/helper/specs/whatsmeowAppLock.spec.js
           app/javascript/dashboard/helper/specs/whatsmeowCallVideo.spec.js
           app/javascript/dashboard/components/widgets/whatsmeow/specs

@@ -115,6 +115,15 @@
     "UNLOCK": "Desbloquear",
     "UNLOCK_HELP": "Informe seu PIN para visualizar as conversas neste navegador.",
     "WRONG_PIN": "PIN incorreto.",
-    "DISABLE_LOCK": "Desbloquear e desativar bloqueio"
+    "DISABLE_LOCK": "Desbloquear e desativar bloqueio",
+    "MEMBER_COUNT": "{count} membros",
+    "VIEW_ALL_MEMBERS": "Ver tudo (mais {count})",
+    "NO_MEMBERS": "Nenhum membro encontrado",
+    "OWNER": "Dono do grupo",
+    "MEMBERS_TITLE": "Membros do grupo",
+    "CONTACT_DETAILS": "Dados do contato",
+    "SECURITY_CODE": "Código de segurança",
+    "CHAT_WITH_MEMBER": "Conversar com {member}",
+    "SECURITY_CODE_HELP": "Esta integração não disponibiliza o código de segurança do WhatsApp. Para verificar este contato, abra a conversa no aplicativo WhatsApp e acesse Dados do contato → Criptografia."
   }
 }

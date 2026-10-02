@@ -581,10 +581,10 @@
     },
     "WHATSMEOW_PHONE": {
       "CHAT_WITH": "Conversar com {phone}",
-      "COPY_PHONE": "Copiar numero de telefone",
-      "COPIED": "Numero de telefone copiado para a area de transferencia",
-      "CHECKING": "Verificando numero...",
-      "OPEN_FAILED": "Nao foi possivel abrir a conversa do WhatsApp."
+      "COPY_PHONE": "Copiar número de telefone",
+      "COPIED": "Número de telefone copiado",
+      "CHECKING": "Verificando número...",
+      "OPEN_FAILED": "Não foi possível abrir a conversa do WhatsApp."
     },
     "WHATSMEOW_CONTACT": {
       "SEND_CONTACT": "Enviar contato",
@@ -685,6 +685,21 @@
       "SEND_FAILED": "Nao foi possivel enviar a figurinha.",
       "CONVERSATION_CHANGED": "A conversa mudou. Reabra o painel de figurinhas e tente novamente.",
       "UNAVAILABLE": "Esta figurinha salva esta indisponivel. Remova dos favoritos e salve novamente."
+    },
+    "WHATSMEOW_GROUP_INVITE": {
+      "UNKNOWN_GROUP": "Grupo do WhatsApp",
+      "GROUP_INVITE": "Convite para grupo",
+      "ONE_PARTICIPANT": "1 membro",
+      "PARTICIPANTS": "{count} membros",
+      "LOADING": "Carregando convite...",
+      "LOADING_HINT": "Buscando os dados do grupo no WhatsApp.",
+      "JOIN": "Entrar no grupo",
+      "JOINED": "Você entrou no grupo.",
+      "REQUEST_SENT": "Solicitação de entrada enviada aos administradores do grupo.",
+      "JOIN_FAILED": "Não foi possível entrar no grupo do WhatsApp.",
+      "LOAD_FAILED": "Não foi possível carregar este convite de grupo do WhatsApp.",
+      "CANCEL": "Cancelar",
+      "CLOSE": "Fechar"
     }
   },
   "EMAIL_TRANSCRIPT": {

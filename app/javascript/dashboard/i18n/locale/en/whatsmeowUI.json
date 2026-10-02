@@ -115,6 +115,15 @@
     "UNLOCK": "Unlock",
     "UNLOCK_HELP": "Enter your PIN to view conversations in this browser.",
     "WRONG_PIN": "Incorrect PIN.",
-    "DISABLE_LOCK": "Unlock and disable app lock"
+    "DISABLE_LOCK": "Unlock and disable app lock",
+    "MEMBER_COUNT": "{count} members",
+    "VIEW_ALL_MEMBERS": "View all ({count} more)",
+    "NO_MEMBERS": "No members found",
+    "OWNER": "Group owner",
+    "MEMBERS_TITLE": "Group members",
+    "CONTACT_DETAILS": "Contact details",
+    "SECURITY_CODE": "Security code",
+    "CHAT_WITH_MEMBER": "Message {member}",
+    "SECURITY_CODE_HELP": "This integration does not provide the WhatsApp security code. To verify this contact, open their conversation in the WhatsApp app, then Contact details → Encryption."
   }
 }

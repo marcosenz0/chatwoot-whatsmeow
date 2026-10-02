@@ -110,10 +110,36 @@ const walkTextNodes = node => {
   });
 };
 
+const annotateWhatsAppConversationLink = anchor => {
+  const href = anchor.getAttribute('href');
+  if (!URL.canParse(href, window.location.origin)) return;
+  const url = new URL(href, window.location.origin);
+  let phone = '';
+  if (url.hostname === 'wa.me' && /^\/\+?\d{6,15}\/?$/.test(url.pathname)) {
+    phone = `+${url.pathname.replace(/\D/g, '')}`;
+  } else if (
+    ['api.whatsapp.com', 'web.whatsapp.com'].includes(url.hostname) &&
+    url.pathname === '/send'
+  ) {
+    const number = url.searchParams.get('phone') || '';
+    if (/^\+?\d{6,15}$/.test(number)) phone = `+${number.replace(/\D/g, '')}`;
+  }
+  if (!phone) return;
+  anchor.setAttribute('role', 'button');
+  anchor.setAttribute('data-whatsmeow-phone-number', phone);
+  anchor.setAttribute(
+    'data-whatsmeow-phone-normalized',
+    normalizeWhatsmeowPhoneNumber(phone)
+  );
+};
+
 export const linkifyWhatsmeowPhoneNumbers = html => {
   if (!html || typeof DOMParser === 'undefined') return html;
 
   const document = new DOMParser().parseFromString(html, 'text/html');
+  Array.from(document.body.querySelectorAll('a[href]')).forEach(
+    annotateWhatsAppConversationLink
+  );
   walkTextNodes(document.body);
   return document.body.innerHTML;
 };

@@ -2,13 +2,11 @@
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
-import { useMessageContext } from '../../provider.js';
 import { useMapGetter } from 'dashboard/composables/store';
 import { useAlert } from 'dashboard/composables';
-import WhatsmeowGroupInviteModal from './WhatsmeowGroupInviteModal.vue';
+import Dialog from 'next/dialog/Dialog.vue';
 
 import MessageFormatter from 'shared/helpers/MessageFormatter.js';
-import { MESSAGE_VARIANTS } from '../../constants';
 import InboxesAPI from 'dashboard/api/inboxes';
 import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import {
@@ -24,19 +22,29 @@ import {
   whatsmeowConversationPath,
   whatsmeowDirectConversationPayload,
 } from 'dashboard/helper/whatsmeowConversationHelper';
+import { MESSAGE_VARIANTS } from '../../constants';
+import WhatsmeowGroupInviteModal from './WhatsmeowGroupInviteModal.vue';
+import { useMessageContext } from '../../provider.js';
 
 const props = defineProps({
+  inboxId: { type: Number, default: null },
+  plainText: { type: Boolean, default: false },
   content: {
     type: String,
     required: true,
   },
 });
 
+const emit = defineEmits(['navigate']);
+const phoneDialog = ref(null);
+
 const PHONE_MENU_WIDTH = 272;
 const phoneCheckCache = new Map();
 const groupInvitePreviewCache = new Map();
 
-const { variant, inboxId } = useMessageContext();
+const context = props.inboxId === null ? useMessageContext() : null;
+const variant = computed(() => context?.variant.value);
+const inboxId = computed(() => props.inboxId ?? context.inboxId.value);
 const inboxGetter = useMapGetter('inboxes/getInbox');
 const inbox = computed(() => inboxGetter.value(inboxId.value) || {});
 const route = useRoute();
@@ -62,7 +70,8 @@ const renderedContent = computed(() => {
     return props.content;
   }
 
-  return new MessageFormatter(props.content).formattedMessage;
+  const formatter = new MessageFormatter(props.content);
+  return props.plainText ? formatter.linkifiedText : formatter.formattedMessage;
 });
 
 const formattedContent = computed(() => {
@@ -95,7 +104,12 @@ const canOpenConversation = computed(
 
 const closePhoneMenu = () => {
   phoneMenu.value = null;
+  phoneDialog.value?.close();
   isOpeningConversation.value = false;
+};
+
+const closePhoneMenuOnClickaway = () => {
+  if (!props.plainText) closePhoneMenu();
 };
 
 const closeGroupInviteModal = () => {
@@ -138,7 +152,7 @@ const checkPhoneNumber = async rawNumber => {
   const normalizedNumber =
     phoneMenu.value?.normalizedNumber ||
     normalizeWhatsmeowPhoneNumber(rawNumber);
-  const cacheKey = normalizedNumber || rawNumber;
+  const cacheKey = `${inboxId.value}:${normalizedNumber || rawNumber}`;
 
   if (phoneCheckCache.has(cacheKey)) {
     applyPhoneCheckResult(rawNumber, phoneCheckCache.get(cacheKey));
@@ -168,7 +182,7 @@ const openPhoneMenu = element => {
 
   if (!rawNumber) return;
 
-  positionPhoneMenu(element);
+  if (!props.plainText) positionPhoneMenu(element);
   phoneMenu.value = {
     rawNumber,
     normalizedNumber,
@@ -177,6 +191,7 @@ const openPhoneMenu = element => {
     isChecking: true,
     isOnWhatsApp: false,
   };
+  if (props.plainText) phoneDialog.value.open();
   checkPhoneNumber(rawNumber);
 };
 
@@ -212,8 +227,11 @@ const applyGroupInvitePreview = (code, data) => {
 };
 
 const loadGroupInvitePreview = async ({ code, url }) => {
-  if (groupInvitePreviewCache.has(code)) {
-    applyGroupInvitePreview(code, groupInvitePreviewCache.get(code));
+  if (groupInvitePreviewCache.has(`${inboxId.value}:${code}`)) {
+    applyGroupInvitePreview(
+      code,
+      groupInvitePreviewCache.get(`${inboxId.value}:${code}`)
+    );
     return;
   }
 
@@ -224,7 +242,7 @@ const loadGroupInvitePreview = async ({ code, url }) => {
       code,
       url,
     });
-    groupInvitePreviewCache.set(code, data);
+    groupInvitePreviewCache.set(`${inboxId.value}:${code}`, data);
     applyGroupInvitePreview(code, data);
   } catch (error) {
     if (!groupInviteModal.value || groupInviteModal.value.code !== code) return;
@@ -302,6 +320,7 @@ const openPhoneConversation = async () => {
       })
     );
     const conversationId = data.conversation_id || data.id;
+    emit('navigate');
     await router.push({
       path: whatsmeowConversationPath({
         route,
@@ -329,7 +348,7 @@ const joinGroupInvite = async () => {
     const { data } = await InboxesAPI.joinWhatsmeowGroupInvite(inboxId.value, {
       code,
     });
-    groupInvitePreviewCache.set(code, data);
+    groupInvitePreviewCache.set(`${inboxId.value}:${code}`, data);
     const conversationId = data.conversation_id || data.id;
     useAlert(
       data.pending_approval
@@ -338,6 +357,7 @@ const joinGroupInvite = async () => {
     );
     closeGroupInviteModal();
     if (conversationId) {
+      emit('navigate');
       await router.push({
         path: whatsmeowConversationPath({
           route,
@@ -358,15 +378,19 @@ const joinGroupInvite = async () => {
 </script>
 
 <template>
-  <span v-on-clickaway="closePhoneMenu" class="relative inline">
+  <span v-on-clickaway="closePhoneMenuOnClickaway" class="relative inline">
     <span
       v-dompurify-html="formattedContent"
-      class="prose prose-bubble"
+      :class="
+        plainText
+          ? 'whitespace-pre-wrap [&_a]:text-n-blue-11 [&_a]:underline [&_a]:underline-offset-2'
+          : 'prose prose-bubble'
+      "
       @click="handleContentClick"
       @keydown="handleContentKeydown"
     />
     <div
-      v-if="isPhoneMenuOpen"
+      v-if="isPhoneMenuOpen && !plainText"
       class="fixed z-[70] w-[17rem] rounded-lg border border-n-weak bg-n-alpha-3 p-2 shadow-lg backdrop-blur-[100px]"
       :style="phoneMenuStyle"
       @click.stop
@@ -415,7 +439,38 @@ const joinGroupInvite = async () => {
         </button>
       </div>
     </div>
+    <Dialog
+      v-if="plainText"
+      ref="phoneDialog"
+      :title="phoneLabel"
+      :show-confirm-button="false"
+      :cancel-button-label="$t('WHATSMEOW_UI.CLOSE')"
+      @close="closePhoneMenu"
+    >
+      <p v-if="phoneMenu?.isChecking" class="m-0 text-sm text-n-slate-11">
+        {{ $t('CONVERSATION.WHATSMEOW_PHONE.CHECKING') }}
+      </p>
+      <button
+        v-if="canOpenConversation"
+        type="button"
+        class="rounded-lg bg-n-blue-9 p-3 text-sm font-medium text-white disabled:opacity-50"
+        :disabled="isOpeningConversation"
+        @click="openPhoneConversation"
+      >
+        {{
+          $t('CONVERSATION.WHATSMEOW_PHONE.CHAT_WITH', { phone: phoneLabel })
+        }}
+      </button>
+      <button
+        type="button"
+        class="rounded-lg border border-n-weak p-3 text-sm text-n-slate-12"
+        @click="copyPhoneNumber"
+      >
+        {{ $t('CONVERSATION.WHATSMEOW_PHONE.COPY_PHONE') }}
+      </button>
+    </Dialog>
     <WhatsmeowGroupInviteModal
+      v-if="isGroupInviteModalOpen"
       :is-open="isGroupInviteModalOpen"
       :invite="groupInviteModal || {}"
       :is-loading="isLoadingGroupInvite"
