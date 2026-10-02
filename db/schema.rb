@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_09_29_173000) do
+ActiveRecord::Schema[7.1].define(version: 2026_10_01_090000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1835,6 +1835,21 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_29_173000) do
     t.index ["inbox_id"], name: "index_whatsmeow_history_messages_on_inbox_id"
   end
 
+  create_table "whatsmeow_message_stars", force: :cascade do |t|
+    t.bigint "inbox_id", null: false
+    t.bigint "message_id"
+    t.string "chat_jid", null: false
+    t.string "source_id", null: false
+    t.boolean "starred", default: true, null: false
+    t.datetime "occurred_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["inbox_id", "chat_jid", "source_id"], name: "index_whatsmeow_stars_on_target", unique: true
+    t.index ["inbox_id", "starred", "occurred_at"], name: "index_whatsmeow_stars_on_feed"
+    t.index ["inbox_id"], name: "index_whatsmeow_message_stars_on_inbox_id"
+    t.index ["message_id"], name: "index_whatsmeow_message_stars_on_message_id"
+  end
+
   create_table "whatsmeow_stickers", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "user_id", null: false
@@ -1992,6 +2007,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_09_29_173000) do
   add_foreign_key "whatsapp_campaign_deliveries", "messages"
   add_foreign_key "whatsmeow_history_chats", "inboxes", on_delete: :cascade
   add_foreign_key "whatsmeow_history_messages", "inboxes", on_delete: :cascade
+  add_foreign_key "whatsmeow_message_stars", "inboxes", on_delete: :cascade
+  add_foreign_key "whatsmeow_message_stars", "messages", on_delete: :nullify
   add_foreign_key "whatsmeow_stickers", "accounts"
   add_foreign_key "whatsmeow_stickers", "attachments"
   add_foreign_key "whatsmeow_stickers", "users"

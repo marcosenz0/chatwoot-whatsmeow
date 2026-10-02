@@ -7,7 +7,10 @@ RSpec.describe 'Whatsmeow starred messages API', type: :request do
   let(:conversation) { create(:conversation, account: account, inbox: inbox) }
   let(:message) { create(:message, account: account, inbox: inbox, conversation: conversation, source_id: 'favorite') }
   let(:endpoint) { "/api/v1/accounts/#{account.id}/whatsmeow_starred_messages" }
-  let!(:star) { WhatsmeowMessageStar.create!(inbox: inbox, message: message, chat_jid: '120363000000001@g.us', source_id: message.source_id, occurred_at: Time.current) }
+  let!(:star) do
+    WhatsmeowMessageStar.create!(inbox: inbox, message: message, chat_jid: '120363000000001@g.us',
+                                source_id: message.source_id, occurred_at: Time.current)
+  end
 
   before { create(:inbox_member, inbox: inbox, user: agent) }
 
@@ -37,6 +40,12 @@ RSpec.describe 'Whatsmeow starred messages API', type: :request do
   it 'searches message contents and limits favorites to one conversation' do
     message.update!(content: 'Remember the deployment')
     get endpoint, params: { q: 'deployment', conversation_id: conversation.display_id }, headers: agent.create_new_auth_token
+    expect(response.parsed_body['payload'].pluck('id')).to eq([star.id])
+  end
+
+  it 'searches the group sender stored in message attributes' do
+    message.update!(content_attributes: { participant_name: 'Favorite participant' })
+    get endpoint, params: { q: 'Favorite participant' }, headers: agent.create_new_auth_token
     expect(response.parsed_body['payload'].pluck('id')).to eq([star.id])
   end
 

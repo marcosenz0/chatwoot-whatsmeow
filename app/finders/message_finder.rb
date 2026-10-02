@@ -21,7 +21,7 @@ class MessageFinder
       return conversation_messages.where('content ILIKE ?', "%#{ActiveRecord::Base.sanitize_sql_like(@params[:q])}%")
     end
     if @params[:group_changes].present?
-      return conversation_messages.where("content_attributes ->> 'whatsmeow_group_change' = 'true'")
+      return conversation_messages.where("(content_attributes #>> '{}')::jsonb ->> 'whatsmeow_group_change' = 'true'")
     end
     return conversation_messages if @params[:filter_internal_messages].blank?
 

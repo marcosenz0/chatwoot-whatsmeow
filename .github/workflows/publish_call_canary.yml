@@ -103,6 +103,7 @@ jobs:
           name: stars-groups-schema
           path: db/schema.rb
       - name: Inspect Ruby style for new endpoints
+        if: always()
         run: >-
           bundle exec rubocop
           app/controllers/api/v1/accounts/whatsmeow_starred_messages_controller.rb

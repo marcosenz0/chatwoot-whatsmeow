@@ -18,7 +18,9 @@ class Api::V1::Accounts::Inboxes::WhatsmeowGroupsController < Api::V1::Accounts:
     payload = client.update_group(group_params)
     contact = @inbox.contact_inboxes.find_by(source_id: payload.fetch('group_jid'))&.contact
     contact&.update!(name: payload.fetch('group_name'))
-    Whatsmeow::ProfilePictureSyncJob.perform_later(contact.id, @inbox.id, payload.fetch('group_jid'), force: true) if contact && group_params.key?('photo')
+    if contact && group_params.key?('photo')
+      Whatsmeow::ProfilePictureSyncJob.perform_later(contact.id, @inbox.id, payload.fetch('group_jid'), force: true)
+    end
     render json: payload
   end
 

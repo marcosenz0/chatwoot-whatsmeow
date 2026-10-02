@@ -9,7 +9,7 @@ RSpec.describe Whatsmeow::GroupChangeService do
 
   it 'records the member change once when a webhook is repeated' do
     2.times { described_class.new(inbox: inbox, params: params).perform }
-    messages = inbox.messages.where("content_attributes ->> 'whatsmeow_group_change' = 'true'")
+    messages = inbox.messages.where("(content_attributes #>> '{}')::jsonb ->> 'whatsmeow_group_change' = 'true'")
     expect(messages.count).to eq(1)
     expect(messages.first.content).to include('Test participant')
     expect(messages.first).to be_activity

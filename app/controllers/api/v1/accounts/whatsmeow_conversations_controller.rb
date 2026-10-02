@@ -23,7 +23,7 @@ class Api::V1::Accounts::WhatsmeowConversationsController < Api::V1::Accounts::B
     lines = conversation.messages.where(private: false).includes(:sender, :attachments).reorder(:created_at, :id).map do |message|
       sender = message.content_attributes['participant_name'].presence || message.sender&.name || conversation.contact.name
       attachments = message.attachments.map { |attachment| attachment.push_event_data[:data_url] }.compact
-      "[#{message.created_at.iso8601}] #{sender}: #{[message.content, *attachments].compact.join("\n") }"
+      "[#{message.created_at.iso8601}] #{sender}: #{[message.content, *attachments].compact.join("\n")}"
     end
     send_data lines.join("\n\n"), type: 'text/plain; charset=utf-8', filename: "conversation-#{conversation.display_id}.txt"
   end
