@@ -355,12 +355,32 @@ func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call, d
 	m.audio = audio
 	m.mu.Unlock()
 
+	markConnected := func() {
+		m.mu.Lock()
+		// Acceptance and media readiness are separate. An answered call has a
+		// duration even if the relay fails to deliver the remote audio.
+		if m.active != call || !m.connectedAt.IsZero() {
+			m.mu.Unlock()
+			return
+		}
+		m.connectedAt = time.Now()
+		connectedAt := m.connectedAt
+		video := m.video
+		m.mu.Unlock()
+		m.notifyCall(call, "call_connected", direction, "", socket, connectedAt, video)
+		socket.event(callEvent{Event: "connected", CallID: call.ID(), Video: video})
+	}
+
 	call.Play(audio)
 	call.OnGroupState(func(state meowcaller.GroupCallState) {
 		participants := make([]callParticipant, 0, len(state.Participants))
 		for _, participant := range state.Participants {
 			member := buildGroupMemberResponse(m.wa, types.GroupParticipant{JID: participant.JID, PhoneNumber: participant.PN}, false)
 			participants = append(participants, callParticipant{JID: participant.JID.String(), Name: firstNonBlank(member.Name, member.PhoneNumber), State: participant.State})
+			// Group joins arrive in the authoritative roster without a direct-call accept.
+			if direction == "outgoing" && state.TransactionID != 0 && participant.State == "connected" && !isCurrentClientJID(m.wa, participant.JID) {
+				markConnected()
+			}
 		}
 		socket.event(callEvent{Event: "participants", CallID: call.ID(), Participants: participants})
 	})
@@ -415,21 +435,7 @@ func (m *browserCallManager) attach(socket *callSocket, call *meowcaller.Call, d
 		log.Printf("Whatsmeow browser call: phase %d", phase)
 		socket.event(callEvent{Event: "phase", CallID: call.ID(), Phase: int(phase), Video: call.IsVideo()})
 	})
-	markConnected := func() {
-		m.mu.Lock()
-		// Acceptance and media readiness are separate. An answered call has a
-		// duration even if the relay fails to deliver the remote audio.
-		if m.active != call || !m.connectedAt.IsZero() {
-			m.mu.Unlock()
-			return
-		}
-		m.connectedAt = time.Now()
-		connectedAt := m.connectedAt
-		video := m.video
-		m.mu.Unlock()
-		m.notifyCall(call, "call_connected", direction, "", socket, connectedAt, video)
-		socket.event(callEvent{Event: "connected", CallID: call.ID(), Video: video})
-	}
+
 	markMediaReady := func() { socket.event(callEvent{Event: "media_ready", CallID: call.ID()}) }
 	call.OnReady(markMediaReady)
 	call.OnPeerAccept(markConnected)

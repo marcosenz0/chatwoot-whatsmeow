@@ -34,3 +34,31 @@
  	e.mu.Lock()
  	m := e.entry(callID)
  	m.call = call
+--- a/engine.go
++++ b/engine.go
+@@ -762,3 +762,4 @@
+-		c.setPhase(CallPhaseConnecting)
+-		e.maybeStartMedia(c.id)
+-		return nil
++		c.markLocalAccepted()
++		c.setPhase(CallPhaseConnecting)
++		e.maybeStartMedia(c.id)
++		return nil
+--- a/engine_group_control_test.go
++++ b/engine_group_control_test.go
+@@ -37,3 +37,12 @@
+-	if call.State() != CallPhaseConnecting {
+-		t.Fatalf("phase = %d, want connecting", call.State())
+-	}
++	accepted := 0
++	call.OnLocalAccept(func() { accepted++ })
++	if accepted != 1 {
++		t.Fatalf("group answer notifications = %d, want 1", accepted)
++	}
++	call.markLocalAccepted()
++	if accepted != 1 {
++		t.Fatal("group answer was notified twice")
++	}
++	if call.State() != CallPhaseConnecting {
++		t.Fatalf("phase = %d, want connecting", call.State())
++	}
