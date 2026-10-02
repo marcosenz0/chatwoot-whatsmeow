@@ -1,18 +1,18 @@
 # Guia de instalacao do Chatwoot com Whatsmeow
 
-## Estado atual: fork comum 4.18.0 (30/09/2026)
+## Estado atual: favoritas e grupos no fork 4.18.0 (01/10/2026)
 
-Principal, MX e MD executam a mesma imagem `ghcr.io/marcosenz0/chatwoot-whatsmeow:fork-fa9cf49af5cf588651175cd2058c94a10dd740d5` nos seis servicos web/Sidekiq. Os tres Go usam `develop`, caminho `/whatsmeow-service`, com binario identico e configuracoes/sessoes independentes. Versao/SHA dos containers, health 200, migracoes e sessoes foram conferidos por instancia. A sessao pessoal removida do MX permanece desconectada; o Chatwoot oficial esta fora do escopo.
+Principal, MX e MD executam a imagem comum `fork-9afed3964f01e14fb4997a1d9d3e021d51b5eb16` nos seis serviços web/Sidekiq. Os três Go usam `whatsmeow-54aae63ad477bc6d5bf0077a091a1a9ac7c0efa2`, com configurações e sessões independentes. Imagens, migrações e saúde foram conferidas por destino. O Chatwoot oficial está fora do escopo.
 
-O pedido atual autoriza as tres instancias e substitui a restricao anterior a principal. `origin/develop` contem as chamadas, o merge oficial v4.18.0 (PR #22) e a correcao de cache/retomada do navegador (PR #23). Ao voltar a aba/restaurar pagina/recuperar rede, lista, conversa ativa e mensagens sincronizam; uma aba antiga nao deve bloquear o cache da nova. Abas que executam o codigo anterior precisam carregar esta versao uma vez.
+Favoritas sincronizadas, busca e salto para a mensagem original, criação e gerenciamento de grupos e chamadas de grupo foram publicados em inglês/português brasileiro. A sessão pessoal que o usuário reconectou ao MX permanece conectada; a antiga orientação para desconectá-la está substituída. As três instâncias estão autorizadas, com publicação inicial e testes reais na principal antes de atualizar MX/MD.
 
-Leia primeiro [whatsmeow-upgrade-v4.18-2026-09-29.md](whatsmeow-upgrade-v4.18-2026-09-29.md): mapa, imagem/digests, backups, migracoes, gates (309 Rails e 46 cache/retomada), isolamento, deploy sequencial do Sidekiq MD e limites da verificacao. O navegador ficou indisponivel na etapa visual final; nao presumir novo teste real de chamadas/retomada apos o upgrade. As secoes seguintes registram checkpoints historicos.
+Leia primeiro [whatsmeow-stars-groups-2026-10-01.md](whatsmeow-stars-groups-2026-10-01.md): imagens/digests, backups, 82 testes JS e 330 Rails, testes reais, favoritas pendentes e limitações de chamadas/exportação/recursos nativos. O [upgrade 4.18](whatsmeow-upgrade-v4.18-2026-09-29.md) e as seções seguintes são referências históricas; instruções antigas sobre escopo, imagens e desconexão pessoal não descrevem o estado atual.
 
 Este documento explica como instalar e manter este fork pessoal do Chatwoot com WhatsApp Direct via `whatsmeow-service`.
 
 O estado atual do canario de chamadas na principal e as pendencias para retomar a PR #21 estao em [whatsmeow-calls-handoff-2026-09-29.md](whatsmeow-calls-handoff-2026-09-29.md).
 
-Regra atual: publicar a mesma imagem validada nos tres pares web/Sidekiq e os mesmos fontes Go nos tres servicos independentes, preservando bancos, Redis, dominios e sessoes. Nao reconectar a sessao pessoal removida do MX.
+Regra atual: usar as imagens fixadas acima nos três destinos, preservando bancos, Redis, domínios e sessões. Manter a sessão pessoal MX que o usuário reconectou. Os relatos de desconexão de setembro abaixo são históricos.
 
 Para diagnosticar recusa imediata, verificar todos os dispositivos vinculados ao numero de destino. Um cliente pode enviar preaccept e Reject sem motivo mesmo com o checkbox Reject Calls desligado; essa resposta e indistinguivel de uma recusa manual no Windows. Em 29/09, o numero pessoal no MX foi desconectado com autorizacao especifica e o usuario removeu as demais sessoes concorrentes; chamadas de saida de voz e video funcionaram depois. Nao reconectar esse cliente sem pedido. Investigar estados active/pending/starting no gerenciador de chamadas antes de atribuir a causa ao checkbox.
 
