@@ -100,6 +100,8 @@ async function converse() {
     >
       <template v-if="member">
         <Button
+          type="button"
+          justify="start"
           role="menuitem"
           icon="i-lucide-info"
           :label="$t('WHATSMEOW_UI.CONTACT_DETAILS')"
@@ -109,6 +111,8 @@ async function converse() {
           @click="showDetails('contact')"
         />
         <Button
+          type="button"
+          justify="start"
           role="menuitem"
           icon="i-lucide-shield-check"
           :label="$t('WHATSMEOW_UI.SECURITY_CODE')"
@@ -118,6 +122,8 @@ async function converse() {
           @click="showDetails('security')"
         />
         <Button
+          type="button"
+          justify="start"
           role="menuitem"
           icon="i-lucide-message-square"
           :label="$t('WHATSMEOW_UI.CHAT_WITH_MEMBER', { member: memberLabel })"

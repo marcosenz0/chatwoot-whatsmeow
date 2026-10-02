@@ -70,6 +70,10 @@ it('opens contact details and explains the unavailable security code', async () 
   await wrapper.setProps({ member });
   await flushPromises();
   expect(menu.showPopover).toHaveBeenCalledOnce();
+  wrapper.findAllComponents(Button).forEach(button => {
+    expect(button.attributes('type')).toBe('button');
+    expect(button.props('justify')).toBe('start');
+  });
   await wrapper.findAllComponents(Button)[0].trigger('click');
   expect(wrapper.text()).toContain('Saved contact');
   expect(wrapper.text()).toContain('+15551111111');
