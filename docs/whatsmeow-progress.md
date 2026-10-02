@@ -1,5 +1,7 @@
 # Whatsmeow Fork Progress
 
+Atualização posterior em 02/10/2026: principal, MX e MD usam `fork-9fe40d2c82c7499696b42f945ca4afa6fcbb4704` nos seis serviços web/Sidekiq. Links nas descrições, nove membros na lateral e janela pesquisável com menu de contato/conversa foram publicados. Go e sessões preservados. Leia [whatsmeow-group-links-members-2026-10-02.md](whatsmeow-group-links-members-2026-10-02.md) para a validação atual e a limitação do código de segurança. As imagens abaixo registram a entrega anterior.
+
 ## Estado atual: correções de favoritas e grupos (02/10/2026)
 
 Principal, MX e MD executam a imagem comum `fork-10280d21bc22b3f2be29d9de6135e1b92c5fdcf0` nos seis serviços web/Sidekiq, Chatwoot 4.18.0. Os três Go mantêm `whatsmeow-54aae63ad477bc6d5bf0077a091a1a9ac7c0efa2`, com configurações e sessões independentes. Imagens, migrações e saúde foram conferidas por destino. O Chatwoot oficial está fora do escopo.

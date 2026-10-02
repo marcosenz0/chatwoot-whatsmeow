@@ -1,5 +1,7 @@
 # Correções da interface de favoritas e grupos — 02/10/2026
 
+Atualização posterior em 02/10/2026: principal, MX e MD usam `fork-9fe40d2c82c7499696b42f945ca4afa6fcbb4704` nos seis serviços web/Sidekiq. Links nas descrições, nove membros na lateral e janela pesquisável com menu de contato/conversa foram publicados. Go e sessões preservados. Leia [whatsmeow-group-links-members-2026-10-02.md](whatsmeow-group-links-members-2026-10-02.md) para a validação atual e a limitação do código de segurança. As imagens abaixo registram a entrega anterior.
+
 Correção solicitada a partir dos prints da principal e do MX. A principal recebeu a implementação e a validação visual antes da publicação da mesma imagem no MX e no MD. O Chatwoot oficial permanece fora do escopo.
 
 ## Comportamento publicado
