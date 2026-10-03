@@ -530,6 +530,9 @@ class Whatsmeow::IncomingMessageService
     attributes = { external_created_at: message_timestamp.to_i, whatsmeow_pix: pix_payload }.compact_blank
     attributes[:historical] = true if historical?
     attributes[:external_echo] = true if outgoing_echo?
+    attributes[:whatsmeow_view_once] = true if boolean_param(:view_once)
+    attributes[:whatsmeow_view_once_unavailable] = true if boolean_param(:view_once_unavailable)
+    attributes[:whatsmeow_ephemeral] = true if boolean_param(:ephemeral)
     attributes.merge!(group_content_attributes) if group_message?
     attributes.merge!(quoted_content_attributes) if quoted_message?
     attributes[:whatsmeow_contacts] = contact_params if contact_message?
@@ -569,6 +572,10 @@ class Whatsmeow::IncomingMessageService
   end
 
   def message_content
+    if boolean_param(:view_once_unavailable)
+      return I18n.t('messages.whatsmeow_view_once_unavailable', locale: @inbox.account.locale)
+    end
+
     params[:content].presence || pix_payload&.fetch(:merchant_name) || contact_message_content
   end
 

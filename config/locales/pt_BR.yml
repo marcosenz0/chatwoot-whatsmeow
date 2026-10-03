@@ -38,6 +38,7 @@ pt_BR:
       invalid_email: 'Por favor, insira um endereço de e-mail válido'
       authentication_failed: 'Falha na autenticação. Por favor, verifique suas credenciais e tente novamente.'
   messages:
+    whatsmeow_view_once_unavailable: "Uma mensagem de visualização única foi recebida. O WhatsApp não disponibilizou a mídia para este dispositivo vinculado. Abra no celular."
     whatsmeow_call:
       voice: Ligação de voz
       video: Ligação de vídeo

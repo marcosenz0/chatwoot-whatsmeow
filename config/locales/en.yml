@@ -51,6 +51,7 @@ en:
       invalid_email: 'Please enter a valid email address'
       authentication_failed: 'Authentication failed. Please check your credentials and try again.'
   messages:
+    whatsmeow_view_once_unavailable: "A view once message was received. WhatsApp did not provide the media to this linked device. Open it on your phone."
     whatsmeow_call:
       voice: Voice call
       video: Video call

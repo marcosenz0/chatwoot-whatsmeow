@@ -3650,6 +3650,11 @@ func processEventForInbox(channelID string, accountID string, client *whatsmeow.
 	case *events.Message:
 		processMessageForInbox(channelID, accountID, client, v)
 
+	case *events.UndecryptableMessage:
+		if message := unavailableViewOnceEvent(v); message != nil {
+			processMessageForInbox(channelID, accountID, client, message)
+		}
+
 	case *events.Receipt:
 		processReceiptForInbox(channelID, accountID, client, v)
 
@@ -4177,10 +4182,11 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		messageText = pix.MerchantName
 	}
 	if messageText == "" && len(attachments) == 0 && len(contacts) == 0 && pix == nil {
-		if adContext == nil && !hasMediaMessage(messageEvent.Message) {
+		if isViewOnceMessage(messageEvent) {
+			messageText = "View once message."
+		} else if adContext == nil && !hasMediaMessage(messageEvent.Message) {
 			return nil
-		}
-		if adContext == nil {
+		} else if adContext == nil {
 			log.Printf("Incoming media message had no downloadable attachments; media_type=%s message_id=%s", detectedMediaType(messageEvent.Message), messageEvent.Info.ID)
 			messageText = "Media attachment could not be downloaded."
 		}
@@ -4262,6 +4268,7 @@ func processMessageForInbox(channelID string, accountID string, client *whatsmeo
 		"contacts":            contacts,
 		"timestamp":           messageEvent.Info.Timestamp.Unix(),
 	}
+	addDisappearingMessageMetadata(payload, messageEvent, len(attachments) > 0)
 	if isGroup {
 		payload["is_group"] = true
 		payload["group_jid"] = jidString(contactJID)

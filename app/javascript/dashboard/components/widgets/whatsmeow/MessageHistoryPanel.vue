@@ -8,6 +8,7 @@ import { useAbortableRequest } from 'dashboard/composables/useAbortableRequest';
 import { useAlert } from 'dashboard/composables';
 import { useCamelCase } from 'dashboard/composables/useTransformKeys';
 import StarredAPI from 'dashboard/api/whatsmeowStarredMessages';
+import DeletedAPI from 'dashboard/api/whatsmeowDeletedMessages';
 import MessageAPI from 'dashboard/api/inbox/message';
 import { conversationUrl, frontendURL } from 'dashboard/helper/URLHelper';
 import Avatar from 'next/avatar/Avatar.vue';
@@ -18,7 +19,10 @@ import Spinner from 'next/spinner/Spinner.vue';
 import { emitter } from 'shared/helpers/mitt';
 import { BUS_EVENTS } from 'shared/constants/busEvents';
 
-const props = defineProps({ conversationId: { type: Number, default: null } });
+const props = defineProps({
+  conversationId: { type: Number, default: null },
+  deleted: { type: Boolean, default: false },
+});
 const emit = defineEmits(['close']);
 const store = useStore();
 const route = useRoute();
@@ -39,12 +43,19 @@ const inboxes = computed(() =>
 );
 const currentUserId = computed(() => store.getters.getCurrentUserID);
 const preview = message => useCamelCase(message, { deep: true });
+const title = computed(() =>
+  t(
+    props.deleted
+      ? 'WHATSMEOW_UI.DELETED_MESSAGES'
+      : 'WHATSMEOW_UI.STARRED_MESSAGES'
+  )
+);
 
 async function load(more = false) {
   error.value = '';
   try {
     const response = await request.run(signal =>
-      StarredAPI.get(
+      (props.deleted ? DeletedAPI : StarredAPI).get(
         {
           q: query.value,
           inbox_id: inboxId.value || undefined,
@@ -59,7 +70,7 @@ async function load(more = false) {
       ? [...records.value, ...response.data.payload]
       : response.data.payload;
     cursor.value = response.data.next_cursor;
-    pending.value = response.data.pending_count;
+    pending.value = response.data.pending_count || 0;
   } catch (e) {
     error.value = e.response?.data?.message || t('WHATSMEOW_UI.LOAD_ERROR');
   }
@@ -119,7 +130,7 @@ useIntervalFn(() => {
 }, 5000);
 onMounted(async () => {
   await load();
-  await sync();
+  if (!props.deleted) await sync();
 });
 </script>
 
@@ -138,18 +149,22 @@ onMounted(async () => {
         @click="emit('close')"
       />
       <h2 class="m-0 flex-1 text-base font-semibold">
-        {{ $t('WHATSMEOW_UI.STARRED_MESSAGES') }}
+        {{ title }}
       </h2>
       <Button
-        v-tooltip="$t('WHATSMEOW_UI.SYNC_STARS')"
+        v-tooltip="
+          $t(props.deleted ? 'WHATSMEOW_UI.REFRESH' : 'WHATSMEOW_UI.SYNC_STARS')
+        "
         type="button"
         icon="i-lucide-refresh-cw"
         ghost
         slate
         sm
-        :is-loading="syncing"
-        :aria-label="$t('WHATSMEOW_UI.SYNC_STARS')"
-        @click="sync"
+        :is-loading="syncing || request.isPending.value"
+        :aria-label="
+          $t(props.deleted ? 'WHATSMEOW_UI.REFRESH' : 'WHATSMEOW_UI.SYNC_STARS')
+        "
+        @click="props.deleted ? load() : sync()"
       />
     </header>
     <div class="flex flex-col gap-2 p-3 border-b border-n-weak">
@@ -190,13 +205,28 @@ onMounted(async () => {
         v-else-if="!records.length"
         class="flex flex-col items-center gap-3 p-6 text-center text-n-slate-11"
       >
-        <span class="i-lucide-star size-8" />
-        <p>{{ $t('WHATSMEOW_UI.NO_STARS') }}</p>
+        <span
+          class="size-8"
+          :class="props.deleted ? 'i-lucide-trash-2' : 'i-lucide-star'"
+        />
+        <p>
+          {{
+            $t(
+              props.deleted
+                ? 'WHATSMEOW_UI.NO_DELETED_MESSAGES'
+                : 'WHATSMEOW_UI.NO_STARS'
+            )
+          }}
+        </p>
         <Button
           type="button"
-          :label="$t('WHATSMEOW_UI.SYNC_STARS')"
-          :is-loading="syncing"
-          @click="sync"
+          :label="
+            $t(
+              props.deleted ? 'WHATSMEOW_UI.REFRESH' : 'WHATSMEOW_UI.SYNC_STARS'
+            )
+          "
+          :is-loading="syncing || request.isPending.value"
+          @click="props.deleted ? load() : sync()"
         />
       </div>
       <article
@@ -248,6 +278,7 @@ onMounted(async () => {
         >
           <span class="truncate">{{ record.inbox_name }}</span>
           <Button
+            v-if="!props.deleted"
             type="button"
             icon="i-lucide-star-off"
             :label="$t('WHATSMEOW_UI.UNSTAR')"

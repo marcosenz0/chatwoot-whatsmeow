@@ -9,6 +9,7 @@ on:
     branches:
       - develop
       - codex/whatsmeow-stars-groups
+      - codex/whatsmeow-deleted-messages
     paths:
       - 'whatsmeow-service/**'
       - '.github/workflows/whatsmeow_service.yml'

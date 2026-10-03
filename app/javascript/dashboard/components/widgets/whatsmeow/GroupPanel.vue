@@ -29,7 +29,7 @@ import GroupMember from './GroupMember.vue';
 import GroupMemberActions from './GroupMemberActions.vue';
 import GroupContactPicker from './GroupContactPicker.vue';
 import CreateGroupDialog from './CreateGroupDialog.vue';
-import StarredMessagesPanel from './StarredMessagesPanel.vue';
+import MessageHistoryPanel from './MessageHistoryPanel.vue';
 
 const props = defineProps({ chat: { type: Object, required: true } });
 const store = useStore();
@@ -590,6 +590,19 @@ onMounted(load);
         />
         <Button
           type="button"
+          icon="i-lucide-trash-2"
+          :label="$t('WHATSMEOW_UI.DELETED_MESSAGES')"
+          ghost
+          slate
+          class="justify-start"
+          @click="
+            emitter.emit(BUS_EVENTS.WHATSMEOW_DELETED_MESSAGES, {
+              conversationId: chat.id,
+            })
+          "
+        />
+        <Button
+          type="button"
           :icon="chat.muted ? 'i-lucide-volume-2' : 'i-lucide-bell-off'"
           :label="$t(chat.muted ? 'WHATSMEOW_UI.UNMUTE' : 'WHATSMEOW_UI.MUTE')"
           ghost
@@ -771,7 +784,7 @@ onMounted(load);
         </p>
       </div>
     </div>
-    <StarredMessagesPanel
+    <MessageHistoryPanel
       v-if="showStars"
       :conversation-id="chat.id"
       @close="showStars = false"

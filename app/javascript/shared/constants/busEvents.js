@@ -6,6 +6,7 @@ export const BUS_EVENTS = {
   MESSAGE_SENT: 'MESSAGE_SENT',
   WHATSMEOW_START_CALL: 'whatsmeowStartCall',
   WHATSMEOW_STARRED_MESSAGES: 'whatsmeowStarredMessages',
+  WHATSMEOW_DELETED_MESSAGES: 'whatsmeowDeletedMessages',
   WHATSMEOW_GROUP_ACTION: 'whatsmeowGroupAction',
   WHATSMEOW_SELECT_MESSAGES: 'whatsmeowSelectMessages',
   WHATSMEOW_SELECT_CONVERSATIONS: 'whatsmeowSelectConversations',

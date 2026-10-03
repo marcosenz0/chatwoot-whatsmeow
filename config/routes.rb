@@ -278,6 +278,7 @@ Rails.application.routes.draw do
             member { get :export }
           end
 
+          resources :whatsmeow_deleted_messages, only: [:index]
           resources :whatsmeow_starred_messages, only: [:index] do
             post :sync, on: :collection
           end
