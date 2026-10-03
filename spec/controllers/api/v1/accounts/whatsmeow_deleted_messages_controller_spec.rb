@@ -45,7 +45,7 @@ RSpec.describe 'Whatsmeow deleted messages API', type: :request do
 
   it 'paginates identical timestamps without duplicating or skipping messages' do
     create_list(:message, 50, account: account, inbox: inbox, conversation: conversation,
-                            created_at: message.created_at, content_attributes: { whatsmeow_deleted: true })
+                             created_at: message.created_at, content_attributes: { whatsmeow_deleted: true })
     get endpoint, headers: agent.create_new_auth_token
     first_page = response.parsed_body
     expect(first_page['payload'].length).to eq(50)

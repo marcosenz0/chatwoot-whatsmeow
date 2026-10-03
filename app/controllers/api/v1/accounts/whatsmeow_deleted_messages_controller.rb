@@ -1,16 +1,19 @@
 class Api::V1::Accounts::WhatsmeowDeletedMessagesController < Api::V1::Accounts::BaseController
   def index
-    messages = visible_messages
-    messages = messages.where(inbox_id: params[:inbox_id]) if params[:inbox_id].present?
-    messages = messages.where(conversations: { display_id: params[:conversation_id] }) if params[:conversation_id].present?
-    messages = search_messages(messages) if params[:q].present?
-    records = paginated_messages(messages)
+    records = paginated_messages(filtered_messages)
     more = records.length > 50
     records = records.first(50)
     render json: { payload: records.map { |message| message_payload(message) }, next_cursor: more ? records.last.id : nil }
   end
 
   private
+
+  def filtered_messages
+    messages = visible_messages
+    messages = messages.where(inbox_id: params[:inbox_id]) if params[:inbox_id].present?
+    messages = messages.where(conversations: { display_id: params[:conversation_id] }) if params[:conversation_id].present?
+    params[:q].present? ? search_messages(messages) : messages
+  end
 
   def visible_messages
     inboxes = policy_scope(Current.account.inboxes).where(channel_type: 'Channel::Whatsmeow')
