@@ -226,6 +226,7 @@ Rails.application.routes.draw do
             end
             scope module: :conversations do
               resources :messages, only: [:index, :create, :destroy, :update] do
+                get :instagram_preview, to: 'instagram_previews#show'
                 member do
                   post :translate
                   post :transcribe_audio

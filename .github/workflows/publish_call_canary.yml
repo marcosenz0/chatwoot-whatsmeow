@@ -10,6 +10,7 @@ on:
       - codex/whatsmeow-group-links-members
       - codex/instagram-audio-md
       - codex/instagram-media-preview
+      - codex/instagram-native-preview
 
 permissions:
   contents: read
@@ -36,6 +37,7 @@ jobs:
           app/javascript/dashboard/helper/specs/whatsmeowAppLock.spec.js
           app/javascript/dashboard/helper/specs/whatsmeowCallVideo.spec.js
           app/javascript/dashboard/helper/specs/instagramMediaHelper.spec.js
+          app/javascript/dashboard/helper/specs/instagramPreviewUrl.spec.js
           app/javascript/dashboard/components/widgets/whatsmeow/specs
           app/javascript/dashboard/components-next/message
           app/javascript/shared/composables/specs/useExpandableContent.spec.js
@@ -113,6 +115,9 @@ jobs:
           spec/builders/messages/instagram
           spec/models/attachment_spec.rb
           spec/lib/instagram/media_url_spec.rb
+          spec/lib/instagram/preview_url_spec.rb
+          spec/services/instagram/preview_service_spec.rb
+          spec/controllers/api/v1/accounts/conversations/instagram_previews_controller_spec.rb
           spec/jobs/avatar/avatar_from_url_job_spec.rb
       - uses: actions/upload-artifact@v4
         if: always()
@@ -128,6 +133,12 @@ jobs:
           app/builders/messages/messenger/message_builder.rb
           app/models/attachment.rb
           lib/instagram/media_url.rb
+          lib/instagram/preview_url.rb
+          app/services/instagram/preview_service.rb
+          app/controllers/api/v1/accounts/conversations/instagram_previews_controller.rb
+          spec/lib/instagram/preview_url_spec.rb
+          spec/services/instagram/preview_service_spec.rb
+          spec/controllers/api/v1/accounts/conversations/instagram_previews_controller_spec.rb
           app/controllers/api/v1/accounts/whatsmeow_starred_messages_controller.rb
           app/controllers/api/v1/accounts/whatsmeow_conversations_controller.rb
           app/controllers/api/v1/accounts/inboxes/whatsmeow_groups_controller.rb
