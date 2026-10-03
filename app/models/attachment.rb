@@ -106,7 +106,7 @@ class Attachment < ApplicationRecord
   end
 
   def audio_metadata
-    audio_file_data = base_data.merge(file.attached? ? file_metadata : { data_url: '', thumb_url: '' })
+    audio_file_data = base_data.merge(file_metadata)
     audio_file_data.merge(
       {
         # Resolve via the configured Active Storage route so proxy setups (S3/CORS) are honoured.
@@ -125,6 +125,8 @@ class Attachment < ApplicationRecord
   end
 
   def file_metadata
+    return { data_url: '', thumb_url: '' } unless file.attached?
+
     metadata = {
       extension: extension,
       content_type: file.content_type,
