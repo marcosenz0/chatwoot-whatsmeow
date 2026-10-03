@@ -468,7 +468,7 @@ onMounted(() => {
               controls
               playsInline
               :autoplay="autoPlay"
-              class="max-h-full max-w-full object-contain"
+              class="size-full object-contain"
               @click.stop
             />
 
