@@ -137,6 +137,8 @@ export function useMessageContext() {
         ATTACHMENT_TYPES.IMAGE,
         ATTACHMENT_TYPES.VIDEO,
         ATTACHMENT_TYPES.IG_REEL,
+        ATTACHMENT_TYPES.IG_POST,
+        ATTACHMENT_TYPES.SHARE,
         ATTACHMENT_TYPES.AUDIO,
       ].includes(attachment.file_type)
     );

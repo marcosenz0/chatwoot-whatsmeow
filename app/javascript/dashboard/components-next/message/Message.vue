@@ -16,6 +16,7 @@ import Avatar from 'next/avatar/Avatar.vue';
 import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
 import { useBranding } from 'shared/composables/useBranding';
 import { isWhatsmeowSticker } from 'dashboard/helper/whatsmeowStickerHelper';
+import { getInstagramMediaUrl } from 'dashboard/helper/instagramMediaHelper';
 import { provideMessageContext } from './provider.js';
 import {
   MESSAGE_TYPES,
@@ -37,6 +38,7 @@ import VideoBubble from './bubbles/Video.vue';
 import EmbedBubble from './bubbles/Embed.vue';
 import FallbackBubble from './bubbles/Fallback.vue';
 import InstagramStoryBubble from './bubbles/InstagramStory.vue';
+import InstagramMediaBubble from './bubbles/InstagramMedia.vue';
 import EmailBubble from './bubbles/Email/Index.vue';
 import UnsupportedBubble from './bubbles/Unsupported.vue';
 import ContactBubble from './bubbles/Contact.vue';
@@ -362,6 +364,13 @@ const componentToRender = computed(() => {
 
   if (props.contentAttributes.type === 'dyte') {
     return DyteBubble;
+  }
+
+  if (
+    props.attachments?.length === 1 &&
+    getInstagramMediaUrl(props.attachments[0].dataUrl)
+  ) {
+    return InstagramMediaBubble;
   }
 
   const instagramSharedTypes = [

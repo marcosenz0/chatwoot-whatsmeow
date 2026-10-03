@@ -894,6 +894,11 @@
     "TRY_THESE_PROMPTS": "Try these prompts"
   },
   "GALLERY_VIEW": {
+    "EXPAND": "Expand media",
+    "CLOSE": "Close media",
+    "OPEN_INSTAGRAM": "Open in Instagram",
+    "INSTAGRAM_PREVIEW": "Instagram post preview",
+    "MEDIA_UNAVAILABLE": "This media is unavailable.",
     "ERROR_DOWNLOADING": "Unable to download attachment. Please try again",
     "COUNT": "{current} of {total}",
     "YOU": "You",
