@@ -373,6 +373,15 @@ const componentToRender = computed(() => {
     return InstagramMediaBubble;
   }
 
+  if (
+    props.attachments?.length === 1 &&
+    props.attachments[0].fileType === ATTACHMENT_TYPES.IG_POST
+  ) {
+    const { contentType } = props.attachments[0];
+    if (contentType?.startsWith('image/')) return ImageBubble;
+    if (contentType?.startsWith('video/')) return VideoBubble;
+  }
+
   const instagramSharedTypes = [
     ATTACHMENT_TYPES.STORY_MENTION,
     ATTACHMENT_TYPES.IG_STORY,

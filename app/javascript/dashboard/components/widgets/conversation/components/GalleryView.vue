@@ -111,16 +111,21 @@ const readableTime = computed(() => {
 const instagramMedia = computed(() =>
   getInstagramMediaUrl(activeAttachment.value.data_url)
 );
+const isImageAttachment = item =>
+  item.file_type === ALLOWED_FILE_TYPES.IMAGE ||
+  (item.file_type === ALLOWED_FILE_TYPES.IG_POST &&
+    item.content_type?.startsWith('image/'));
+const isVideoAttachment = item =>
+  [ALLOWED_FILE_TYPES.VIDEO, ALLOWED_FILE_TYPES.IG_REEL].includes(
+    item.file_type
+  ) ||
+  (item.file_type === ALLOWED_FILE_TYPES.IG_POST &&
+    item.content_type?.startsWith('video/'));
 const isImage = computed(
-  () =>
-    !instagramMedia.value && activeFileType.value === ALLOWED_FILE_TYPES.IMAGE
+  () => !instagramMedia.value && isImageAttachment(activeAttachment.value)
 );
 const isVideo = computed(
-  () =>
-    !instagramMedia.value &&
-    [ALLOWED_FILE_TYPES.VIDEO, ALLOWED_FILE_TYPES.IG_REEL].includes(
-      activeFileType.value
-    )
+  () => !instagramMedia.value && isVideoAttachment(activeAttachment.value)
 );
 const isAudio = computed(
   () => activeFileType.value === ALLOWED_FILE_TYPES.AUDIO
@@ -528,7 +533,7 @@ onMounted(() => {
               <img
                 v-if="
                   !getInstagramMediaUrl(item.data_url) &&
-                  item.file_type === ALLOWED_FILE_TYPES.IMAGE
+                  isImageAttachment(item)
                 "
                 :src="item.thumb_url || item.data_url"
                 class="size-full object-cover"
@@ -536,10 +541,7 @@ onMounted(() => {
               <video
                 v-else-if="
                   !getInstagramMediaUrl(item.data_url) &&
-                  [
-                    ALLOWED_FILE_TYPES.VIDEO,
-                    ALLOWED_FILE_TYPES.IG_REEL,
-                  ].includes(item.file_type)
+                  isVideoAttachment(item)
                 "
                 :src="item.data_url"
                 class="size-full object-cover"
