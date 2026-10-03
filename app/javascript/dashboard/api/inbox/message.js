@@ -57,6 +57,13 @@ class MessageApi extends ApiClient {
     super('conversations', { accountScoped: true });
   }
 
+  instagramPreview(conversationId, messageId, url) {
+    return axios.get(
+      `${this.url}/${conversationId}/messages/${messageId}/instagram_preview`,
+      { params: { url } }
+    );
+  }
+
   create({
     conversationId,
     message,

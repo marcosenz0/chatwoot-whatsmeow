@@ -59,7 +59,14 @@ export default {
       default: false,
     },
   },
-  emits: ['open', 'close', 'replyTo', 'react', 'select'],
+  emits: [
+    'open',
+    'close',
+    'replyTo',
+    'react',
+    'select',
+    'toggleInstagramPreview',
+  ],
   setup() {
     const { getPlainText } = useMessageFormatter();
 
@@ -242,6 +249,10 @@ export default {
     },
     handleReplyTo() {
       this.$emit('replyTo', this.message);
+      this.handleClose();
+    },
+    toggleInstagramPreview() {
+      this.$emit('toggleInstagramPreview');
       this.handleClose();
     },
     handleSelect() {
@@ -551,6 +562,17 @@ export default {
           }"
           variant="icon"
           @click.stop="handleReplyTo"
+        />
+        <MenuItem
+          v-if="enabledOptions['instagramPreview']"
+          :option="{
+            icon: 'i-lucide-link',
+            label: enabledOptions['instagramLinkVisible']
+              ? $t('INSTAGRAM_PREVIEW.SHOW_PREVIEW')
+              : $t('INSTAGRAM_PREVIEW.SHOW_LINK'),
+          }"
+          variant="icon"
+          @click.stop="toggleInstagramPreview"
         />
         <MenuItem
           v-if="enabledOptions['downloadAudio']"

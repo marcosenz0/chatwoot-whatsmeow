@@ -907,5 +907,14 @@
     "MORE": "More options",
     "SAVE_AS": "Save as...",
     "GO_TO_MESSAGE": "Go to message"
+  },
+  "INSTAGRAM_PREVIEW": {
+    "MEDIA": "Instagram publication",
+    "LOADING": "Loading preview...",
+    "VIDEO_LIMIT": "Instagram did not provide a directly playable video. The Instagram player may require opening the publication on Instagram.",
+    "PROFILE_LIMIT": "Instagram did not make the photo, biography or recent posts available for this preview. The profile may still be accessible on Instagram.",
+    "PLATFORM_PLAYER": "Try the Instagram player",
+    "SHOW_LINK": "Convert to link",
+    "SHOW_PREVIEW": "Show preview"
   }
 }

@@ -16,7 +16,7 @@ import Avatar from 'next/avatar/Avatar.vue';
 import ContextMenu from 'dashboard/modules/conversations/components/MessageContextMenu.vue';
 import { useBranding } from 'shared/composables/useBranding';
 import { isWhatsmeowSticker } from 'dashboard/helper/whatsmeowStickerHelper';
-import { getInstagramMediaUrl } from 'dashboard/helper/instagramMediaHelper';
+import { getInstagramPreviewUrl } from 'dashboard/helper/instagramMediaHelper';
 import { provideMessageContext } from './provider.js';
 import {
   MESSAGE_TYPES,
@@ -318,6 +318,17 @@ const shouldShowAvatar = computed(() => {
   return true;
 });
 
+const showInstagramLink = ref(false);
+const instagramPreview = computed(() => {
+  if (props.attachments.length === 1) {
+    return getInstagramPreviewUrl(props.attachments[0].dataUrl);
+  }
+  if (!props.attachments.length && props.contentType === 'text') {
+    return getInstagramPreviewUrl(props.content);
+  }
+  return null;
+});
+
 const componentToRender = computed(() => {
   if (props.isEmailInbox && !props.private) {
     const emailInboxTypes = [MESSAGE_TYPES.INCOMING, MESSAGE_TYPES.OUTGOING];
@@ -366,10 +377,7 @@ const componentToRender = computed(() => {
     return DyteBubble;
   }
 
-  if (
-    props.attachments?.length === 1 &&
-    getInstagramMediaUrl(props.attachments[0].dataUrl)
-  ) {
+  if (instagramPreview.value) {
     return InstagramMediaBubble;
   }
 
@@ -590,6 +598,8 @@ const contextMenuEnabledOptions = computed(() => {
   const isOutgoing = props.messageType === MESSAGE_TYPES.OUTGOING;
 
   return {
+    instagramPreview: !!instagramPreview.value && !isMessageDeleted.value,
+    instagramLinkVisible: showInstagramLink.value,
     copy: hasText,
     delete:
       (hasText || hasAttachments) &&
@@ -898,6 +908,8 @@ onBeforeUnmount(() =>
 
 provideMessageContext({
   ...toRefs(props),
+  instagramPreview,
+  showInstagramLink,
   forwardMediaMessage: attachment => emit('forward', attachment),
   isPrivate: computed(() => props.private),
   variant,
@@ -1067,6 +1079,7 @@ provideMessageContext({
             @reply-to="handleReplyTo"
             @react="handleReactToMessage"
             @select="handleSelect"
+            @toggle-instagram-preview="showInstagramLink = !showInstagramLink"
           />
           <MessageReactionButton
             v-if="canReactToMessage"

@@ -884,5 +884,14 @@
     "MORE": "Mais opções",
     "SAVE_AS": "Salvar como...",
     "GO_TO_MESSAGE": "Ir para a mensagem"
+  },
+  "INSTAGRAM_PREVIEW": {
+    "MEDIA": "Publicação do Instagram",
+    "LOADING": "Carregando prévia...",
+    "VIDEO_LIMIT": "O Instagram não forneceu um vídeo reproduzível diretamente. O player do Instagram pode exigir abrir a publicação no Instagram.",
+    "PROFILE_LIMIT": "O Instagram não disponibilizou a foto, a bio ou as publicações recentes para esta prévia. O perfil pode continuar acessível no Instagram.",
+    "PLATFORM_PLAYER": "Tentar player do Instagram",
+    "SHOW_LINK": "Converter para link",
+    "SHOW_PREVIEW": "Mostrar prévia"
   }
 }

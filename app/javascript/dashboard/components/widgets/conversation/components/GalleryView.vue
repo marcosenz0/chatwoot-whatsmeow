@@ -9,8 +9,9 @@ import { useKeyboardEvents } from 'dashboard/composables/useKeyboardEvents';
 import { useImageZoom } from 'dashboard/composables/useImageZoom';
 import { messageTimestamp } from 'shared/helpers/timeHelper';
 import { downloadFile } from '@chatwoot/utils';
-import { getInstagramMediaUrl } from 'dashboard/helper/instagramMediaHelper';
+import { getInstagramPreviewUrl } from 'dashboard/helper/instagramMediaHelper';
 
+import InstagramPreview from 'dashboard/components-next/message/InstagramPreview.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Avatar from 'next/avatar/Avatar.vue';
 import TeleportWithDirection from 'dashboard/components-next/TeleportWithDirection.vue';
@@ -109,7 +110,12 @@ const readableTime = computed(() => {
 });
 
 const instagramMedia = computed(() =>
-  getInstagramMediaUrl(activeAttachment.value.data_url)
+  getInstagramPreviewUrl(activeAttachment.value.data_url)
+);
+const instagramSource = computed(
+  () =>
+    getInstagramPreviewUrl(activeAttachment.value.instagram_url) ||
+    instagramMedia.value
 );
 const isImageAttachment = item =>
   item.file_type === ALLOWED_FILE_TYPES.IMAGE ||
@@ -348,8 +354,8 @@ onMounted(() => {
               @click="onRotate('clockwise')"
             />
             <a
-              v-if="instagramMedia"
-              :href="instagramMedia.permalink"
+              v-if="instagramSource"
+              :href="instagramSource.permalink"
               target="_blank"
               rel="noopener noreferrer"
               class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-n-blue-text hover:bg-n-alpha-2"
@@ -426,14 +432,12 @@ onMounted(() => {
           </div>
 
           <div class="flex-1 flex items-center justify-center overflow-hidden">
-            <iframe
+            <InstagramPreview
               v-if="instagramMedia"
-              :key="instagramMedia.embedUrl"
-              :src="instagramMedia.embedUrl"
-              :title="t('GALLERY_VIEW.INSTAGRAM_PREVIEW')"
-              class="h-full w-full max-w-[40rem] rounded-lg border-0 bg-white"
-              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-              allowfullscreen
+              :url="instagramMedia.permalink"
+              :conversation-id="conversationId"
+              :message-id="activeAttachment.message_id"
+              expanded
             />
             <div
               v-if="isImage"
@@ -532,7 +536,7 @@ onMounted(() => {
             >
               <img
                 v-if="
-                  !getInstagramMediaUrl(item.data_url) &&
+                  !getInstagramPreviewUrl(item.data_url) &&
                   isImageAttachment(item)
                 "
                 :src="item.thumb_url || item.data_url"
@@ -540,7 +544,7 @@ onMounted(() => {
               />
               <video
                 v-else-if="
-                  !getInstagramMediaUrl(item.data_url) &&
+                  !getInstagramPreviewUrl(item.data_url) &&
                   isVideoAttachment(item)
                 "
                 :src="item.data_url"
@@ -549,7 +553,7 @@ onMounted(() => {
                 preload="metadata"
               />
               <span
-                v-else-if="getInstagramMediaUrl(item.data_url)"
+                v-else-if="getInstagramPreviewUrl(item.data_url)"
                 class="i-lucide-instagram mx-auto size-6 text-n-slate-11"
               />
               <span
