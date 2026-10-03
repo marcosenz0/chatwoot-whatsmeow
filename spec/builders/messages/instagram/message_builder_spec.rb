@@ -100,6 +100,22 @@ describe Messages::Instagram::MessageBuilder do
       )
     end
 
+    %w[ig_reel ig_post share].each do |type|
+      it "preserves a shared #{type} webpage without downloading HTML as media" do
+        messaging = shared_reel_params[:entry][0]['messaging'][0]
+        messaging[:message][:attachments] = [{ type: type, payload: { url: 'https://www.instagram.com/reel/AbC123/' } }]
+        create_instagram_contact_for_sender(messaging['sender']['id'], instagram_inbox)
+
+        described_class.new(messaging, instagram_inbox).perform
+
+        attachment = instagram_inbox.messages.first.attachments.first
+        expect(attachment.file_type).to eq(type)
+        expect(attachment.external_url).to eq('https://www.instagram.com/reel/AbC123/')
+        expect(attachment.file).not_to be_attached
+        expect(a_request(:get, 'https://www.instagram.com/reel/AbC123/')).not_to have_been_made
+      end
+    end
+
     it 'creates message with story id' do
       messaging = instagram_story_reply_event[:entry][0]['messaging'][0]
       create_instagram_contact_for_sender(messaging['sender']['id'], instagram_inbox)

@@ -164,14 +164,14 @@ RSpec.describe Attachment do
       end
       let(:instagram_message) { create(:message, account: account, inbox: instagram_inbox, conversation: conversation, message_type: :incoming) }
 
-      it 'uses external_url for data_url and thumb_url' do
+      it 'uses persistent storage for downloaded Instagram media' do
         attachment = instagram_message.attachments.new(account_id: account.id, file_type: :image, external_url: 'https://instagram.com/image.jpg')
         attachment.file.attach(io: Rails.root.join('spec/assets/avatar.png').open, filename: 'avatar.png', content_type: 'image/png')
         attachment.save!
 
         event_data = attachment.push_event_data
-        expect(event_data[:data_url]).to eq('https://instagram.com/image.jpg')
-        expect(event_data[:thumb_url]).to eq('https://instagram.com/image.jpg')
+        expect(event_data[:data_url]).to eq(attachment.file_url)
+        expect(event_data[:thumb_url]).to eq(attachment.thumb_url)
       end
     end
 
@@ -215,14 +215,23 @@ RSpec.describe Attachment do
       let(:conversation) { create(:conversation, account: account, inbox: direct_inbox) }
       let(:incoming_message) { create(:message, account: account, inbox: direct_inbox, conversation: conversation, message_type: :incoming) }
 
-      it 'uses external_url for data_url and thumb_url' do
+      it 'uses persistent storage for downloaded Instagram media' do
         attachment = incoming_message.attachments.new(account_id: account.id, file_type: :image, external_url: 'https://instagram.com/image.jpg')
         attachment.file.attach(io: Rails.root.join('spec/assets/avatar.png').open, filename: 'avatar.png', content_type: 'image/png')
         attachment.save!
 
         event_data = attachment.push_event_data
-        expect(event_data[:data_url]).to eq('https://instagram.com/image.jpg')
-        expect(event_data[:thumb_url]).to eq('https://instagram.com/image.jpg')
+        expect(event_data[:data_url]).to eq(attachment.file_url)
+        expect(event_data[:thumb_url]).to eq(attachment.thumb_url)
+      end
+
+      it 'renders the permalink for legacy reels that incorrectly attached HTML' do
+        attachment = incoming_message.attachments.new(account_id: account.id, file_type: :ig_reel,
+                                                      external_url: 'https://www.instagram.com/reel/AbC123/')
+        attachment.file.attach(io: StringIO.new('<html>Instagram</html>'), filename: 'reel.html', content_type: 'text/html')
+        attachment.save!
+
+        expect(attachment.push_event_data[:data_url]).to eq(attachment.external_url)
       end
     end
   end

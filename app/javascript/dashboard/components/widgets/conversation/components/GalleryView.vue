@@ -9,6 +9,7 @@ import { useKeyboardEvents } from 'dashboard/composables/useKeyboardEvents';
 import { useImageZoom } from 'dashboard/composables/useImageZoom';
 import { messageTimestamp } from 'shared/helpers/timeHelper';
 import { downloadFile } from '@chatwoot/utils';
+import { getInstagramMediaUrl } from 'dashboard/helper/instagramMediaHelper';
 
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Avatar from 'next/avatar/Avatar.vue';
@@ -45,6 +46,8 @@ const ALLOWED_FILE_TYPES = {
   IMAGE: 'image',
   VIDEO: 'video',
   IG_REEL: 'ig_reel',
+  IG_POST: 'ig_post',
+  SHARE: 'share',
   AUDIO: 'audio',
 };
 
@@ -57,6 +60,8 @@ const galleryItems = computed(() => {
             ALLOWED_FILE_TYPES.IMAGE,
             ALLOWED_FILE_TYPES.VIDEO,
             ALLOWED_FILE_TYPES.IG_REEL,
+            ALLOWED_FILE_TYPES.IG_POST,
+            ALLOWED_FILE_TYPES.SHARE,
           ].includes(item.file_type)
         );
   return items.length ? items : [props.attachment];
@@ -103,13 +108,24 @@ const readableTime = computed(() => {
   return messageTimestamp(createdAt, 'LLL d yyyy, h:mm a') || '';
 });
 
-const isImage = computed(
-  () => activeFileType.value === ALLOWED_FILE_TYPES.IMAGE
+const instagramMedia = computed(() =>
+  getInstagramMediaUrl(activeAttachment.value.data_url)
 );
-const isVideo = computed(() =>
+const isImageAttachment = item =>
+  item.file_type === ALLOWED_FILE_TYPES.IMAGE ||
+  (item.file_type === ALLOWED_FILE_TYPES.IG_POST &&
+    item.content_type?.startsWith('image/'));
+const isVideoAttachment = item =>
   [ALLOWED_FILE_TYPES.VIDEO, ALLOWED_FILE_TYPES.IG_REEL].includes(
-    activeFileType.value
-  )
+    item.file_type
+  ) ||
+  (item.file_type === ALLOWED_FILE_TYPES.IG_POST &&
+    item.content_type?.startsWith('video/'));
+const isImage = computed(
+  () => !instagramMedia.value && isImageAttachment(activeAttachment.value)
+);
+const isVideo = computed(
+  () => !instagramMedia.value && isVideoAttachment(activeAttachment.value)
 );
 const isAudio = computed(
   () => activeFileType.value === ALLOWED_FILE_TYPES.AUDIO
@@ -296,7 +312,7 @@ onMounted(() => {
               </div>
             </div>
             <NextButton
-              v-if="conversationId"
+              v-if="conversationId && !instagramMedia"
               v-tooltip.bottom="t('GALLERY_VIEW.FORWARD')"
               icon="i-lucide-forward"
               slate
@@ -331,7 +347,18 @@ onMounted(() => {
               ghost
               @click="onRotate('clockwise')"
             />
+            <a
+              v-if="instagramMedia"
+              :href="instagramMedia.permalink"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-n-blue-text hover:bg-n-alpha-2"
+            >
+              <span class="i-lucide-external-link size-4" />
+              {{ t('GALLERY_VIEW.OPEN_INSTAGRAM') }}
+            </a>
             <NextButton
+              v-if="!instagramMedia"
               icon="i-lucide-download"
               slate
               ghost
@@ -352,6 +379,7 @@ onMounted(() => {
                 class="absolute right-0 top-12 z-50 min-w-44 rounded-lg border border-n-weak bg-n-background p-1 shadow-xl"
               >
                 <button
+                  v-if="!instagramMedia"
                   type="button"
                   class="flex w-full rounded px-3 py-2 text-sm text-n-slate-12 hover:bg-n-alpha-2"
                   @click="onClickDownload"
@@ -368,7 +396,13 @@ onMounted(() => {
                 </button>
               </div>
             </div>
-            <NextButton icon="i-lucide-x" slate ghost @click="onClose" />
+            <NextButton
+              :aria-label="t('GALLERY_VIEW.CLOSE')"
+              icon="i-lucide-x"
+              slate
+              ghost
+              @click="onClose"
+            />
           </div>
         </header>
 
@@ -392,6 +426,15 @@ onMounted(() => {
           </div>
 
           <div class="flex-1 flex items-center justify-center overflow-hidden">
+            <iframe
+              v-if="instagramMedia"
+              :key="instagramMedia.embedUrl"
+              :src="instagramMedia.embedUrl"
+              :title="t('GALLERY_VIEW.INSTAGRAM_PREVIEW')"
+              class="h-full w-full max-w-[40rem] rounded-lg border-0 bg-white"
+              allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+              allowfullscreen
+            />
             <div
               v-if="isImage"
               :style="imageWrapperStyle"
@@ -425,7 +468,7 @@ onMounted(() => {
               controls
               playsInline
               :autoplay="autoPlay"
-              class="max-h-full max-w-full object-contain"
+              class="size-full object-contain"
               @click.stop
             />
 
@@ -488,21 +531,26 @@ onMounted(() => {
               @click.stop="onClickChangeAttachment(item, index)"
             >
               <img
-                v-if="item.file_type === ALLOWED_FILE_TYPES.IMAGE"
+                v-if="
+                  !getInstagramMediaUrl(item.data_url) &&
+                  isImageAttachment(item)
+                "
                 :src="item.thumb_url || item.data_url"
                 class="size-full object-cover"
               />
               <video
                 v-else-if="
-                  [
-                    ALLOWED_FILE_TYPES.VIDEO,
-                    ALLOWED_FILE_TYPES.IG_REEL,
-                  ].includes(item.file_type)
+                  !getInstagramMediaUrl(item.data_url) &&
+                  isVideoAttachment(item)
                 "
                 :src="item.data_url"
                 class="size-full object-cover"
                 muted
                 preload="metadata"
+              />
+              <span
+                v-else-if="getInstagramMediaUrl(item.data_url)"
+                class="i-lucide-instagram mx-auto size-6 text-n-slate-11"
               />
               <span
                 v-else

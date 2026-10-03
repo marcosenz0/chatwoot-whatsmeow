@@ -871,6 +871,11 @@
     "TRY_THESE_PROMPTS": "Experimente estes comandos"
   },
   "GALLERY_VIEW": {
+    "EXPAND": "Ampliar mídia",
+    "CLOSE": "Fechar mídia",
+    "OPEN_INSTAGRAM": "Abrir no Instagram",
+    "INSTAGRAM_PREVIEW": "Prévia da publicação do Instagram",
+    "MEDIA_UNAVAILABLE": "Esta mídia está indisponível.",
     "ERROR_DOWNLOADING": "Não foi possível baixar o anexo. Tente novamente.",
     "COUNT": "{current} de {total}",
     "YOU": "Você",

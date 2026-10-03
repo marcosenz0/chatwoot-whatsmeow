@@ -13,6 +13,10 @@ class Messages::Messenger::MessageBuilder
 
     attachment_obj = @message.attachments.new(params.except(:remote_file_url))
     attachment_obj.save!
+    # Instagram shares can contain a post webpage rather than downloadable media.
+    # Keep the permalink for the embedded preview instead of attaching HTML as video.
+    return if Instagram::MediaUrl.permalink(params[:remote_file_url])
+
     if facebook_reel?(attachment)
       update_facebook_reel_content(attachment)
     elsif params[:remote_file_url]

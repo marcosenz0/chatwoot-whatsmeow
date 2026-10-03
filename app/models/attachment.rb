@@ -136,7 +136,9 @@ class Attachment < ApplicationRecord
     }
     metadata[:meta] = meta || {}
 
-    metadata[:data_url] = metadata[:thumb_url] = external_url if instagram_incoming_message?
+    # Older Instagram shares may have an HTML blob attached. Render their permalink,
+    # while downloaded media uses persistent storage instead of expiring Meta URLs.
+    metadata[:data_url] = external_url if instagram_incoming_message? && Instagram::MediaUrl.permalink(external_url)
     metadata
   end
 

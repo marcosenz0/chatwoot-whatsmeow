@@ -1,13 +1,16 @@
 <script setup>
 import { ref, computed } from 'vue';
-import BaseBubble from './Base.vue';
 import Icon from 'next/icon/Icon.vue';
+import Button from 'next/button/Button.vue';
+import { useI18n } from 'vue-i18n';
 import { useSnakeCase } from 'dashboard/composables/useTransformKeys';
-import { useMessageContext } from '../provider.js';
 import GalleryView from 'dashboard/components/widgets/conversation/components/GalleryView.vue';
+import { useMessageContext } from '../provider.js';
+import BaseBubble from './Base.vue';
 import { ATTACHMENT_TYPES } from '../constants';
 
 const emit = defineEmits(['error']);
+const { t } = useI18n();
 const hasError = ref(false);
 const showGallery = ref(false);
 const {
@@ -22,20 +25,18 @@ const handleError = () => {
   emit('error');
 };
 
-const attachment = computed(() => {
-  return attachments.value[0];
-});
+const attachment = computed(() => attachments.value[0]);
 
-const isReel = computed(() => {
-  return attachment.value.fileType === ATTACHMENT_TYPES.IG_REEL;
-});
+const isReel = computed(
+  () => attachment.value.fileType === ATTACHMENT_TYPES.IG_REEL
+);
 </script>
 
 <template>
   <BaseBubble
     class="max-w-[20rem] overflow-hidden p-1.5"
     data-bubble-name="video"
-    @click="showGallery = true"
+    @click="showGallery = Boolean(attachment.dataUrl) && !hasError"
   >
     <div class="relative group rounded-lg overflow-hidden">
       <div
@@ -45,6 +46,7 @@ const isReel = computed(() => {
         <Icon icon="i-lucide-instagram" class="text-white shadow-lg" />
       </div>
       <video
+        v-if="attachment.dataUrl && !hasError"
         controls
         class="max-h-[22rem] max-w-full rounded-lg bg-black object-contain skip-context-menu"
         :src="attachment.dataUrl"
@@ -54,6 +56,24 @@ const isReel = computed(() => {
         }"
         @click.stop
         @error="handleError"
+      />
+      <div
+        v-else
+        class="flex w-80 max-w-full items-center gap-2 p-5 text-sm text-n-slate-11"
+      >
+        <Icon icon="i-lucide-circle-off" />
+        {{ t('GALLERY_VIEW.MEDIA_UNAVAILABLE') }}
+      </div>
+      <Button
+        v-if="attachment.dataUrl && !hasError"
+        :aria-label="t('GALLERY_VIEW.EXPAND')"
+        :title="t('GALLERY_VIEW.EXPAND')"
+        icon="i-lucide-expand"
+        slate
+        solid
+        sm
+        class="absolute right-2 top-2 opacity-80"
+        @click.stop="showGallery = true"
       />
     </div>
   </BaseBubble>
