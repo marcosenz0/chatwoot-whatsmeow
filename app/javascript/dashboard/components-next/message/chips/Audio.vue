@@ -96,9 +96,7 @@ const attachmentSummaryType = computed(() => {
     audioMeta.value.summary_type;
   return isValidSummaryType(type) ? type : DEFAULT_SUMMARY_TYPE;
 });
-const preferredSummaryType = () => {
-  return DEFAULT_SUMMARY_TYPE;
-};
+const preferredSummaryType = () => DEFAULT_SUMMARY_TYPE;
 const selectedSummaryType = ref(preferredSummaryType());
 const summaryTypeOptions = computed(() =>
   SUMMARY_TYPES.map(summaryType => ({
