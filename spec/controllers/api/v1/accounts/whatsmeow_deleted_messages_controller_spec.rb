@@ -27,6 +27,13 @@ RSpec.describe 'Whatsmeow deleted messages API', type: :request do
     expect(response.parsed_body['payload']).to be_empty
   end
 
+  it 'returns deleted audio messages whose file is no longer attached' do
+    message.attachments.create!(account: account, file_type: :audio)
+    get endpoint, headers: agent.create_new_auth_token
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body['payload'].first['message']['attachments'].first).to include('file_type' => 'audio', 'data_url' => '')
+  end
+
   it 'excludes messages from another account or an inaccessible inbox' do
     other_inbox = create(:channel_whatsmeow, account: account).inbox
     other_conversation = create(:conversation, account: account, inbox: other_inbox)
