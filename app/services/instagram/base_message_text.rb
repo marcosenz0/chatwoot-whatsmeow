@@ -19,7 +19,7 @@ class Instagram::BaseMessageText < Instagram::WebhooksBaseService
 
     return unsend_message if message_is_deleted?
 
-    ensure_contact(contact_id) if contacts_first_message?(contact_id)
+    ensure_contact(contact_id) if contact_profile_needed?(contact_id)
 
     create_message
   end
@@ -43,9 +43,11 @@ class Instagram::BaseMessageText < Instagram::WebhooksBaseService
   end
 
   # if contact was present before find out contact_inbox to create message
-  def contacts_first_message?(ig_scope_id)
+  def contact_profile_needed?(ig_scope_id)
     @contact_inbox = @inbox.contact_inboxes.where(source_id: ig_scope_id).last
-    @contact_inbox.blank? && @inbox.channel.instagram_id.present?
+    return false if @inbox.channel.instagram_id.blank?
+
+    @contact_inbox.blank? || contact_avatar_missing?(@contact_inbox.contact)
   end
 
   def unsend_message

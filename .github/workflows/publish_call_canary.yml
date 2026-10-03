@@ -8,6 +8,7 @@ on:
       - codex/whatsmeow-stars-groups
       - codex/whatsmeow-ui-corrections
       - codex/whatsmeow-group-links-members
+      - codex/instagram-audio-md
 
 permissions:
   contents: read
@@ -106,6 +107,9 @@ jobs:
           spec/controllers/api/v1/accounts/whatsmeow_conversations_controller_spec.rb
           spec/controllers/api/v1/accounts/whatsmeow_starred_messages_controller_spec.rb
           spec/controllers/api/v1/accounts/inboxes/whatsmeow_groups_controller_spec.rb
+          spec/jobs/webhooks/instagram_events_job_spec.rb
+          spec/builders/messages/instagram
+          spec/jobs/avatar/avatar_from_url_job_spec.rb
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -115,6 +119,8 @@ jobs:
         if: always()
         run: >-
           bundle exec rubocop
+          app/services/instagram/base_message_text.rb
+          app/services/instagram/webhooks_base_service.rb
           app/controllers/api/v1/accounts/whatsmeow_starred_messages_controller.rb
           app/controllers/api/v1/accounts/whatsmeow_conversations_controller.rb
           app/controllers/api/v1/accounts/inboxes/whatsmeow_groups_controller.rb

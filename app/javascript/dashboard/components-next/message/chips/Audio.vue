@@ -40,7 +40,7 @@ defineOptions({
   inheritAttrs: false,
 });
 
-const { contentAttributes, conversationId, id, orientation, sender } =
+const { contentAttributes, conversationId, id, inboxId, orientation, sender } =
   useMessageContext();
 const store = useStore();
 const { t } = useI18n();
@@ -146,6 +146,14 @@ const extension = computed(() =>
   String(props.attachment.extension || '').toLowerCase()
 );
 const isOutgoing = computed(() => orientation.value === ORIENTATION.RIGHT);
+const isIncomingInstagramAudio = computed(() => {
+  const inbox = store.getters['inboxes/getInbox'](inboxId.value);
+  return (
+    !isOutgoing.value &&
+    (inbox.channel_type === 'Channel::Instagram' ||
+      (inbox.channel_type === 'Channel::FacebookPage' && inbox.instagram_id))
+  );
+});
 const isRecordedAudio = computed(() => {
   const meta = audioMeta.value;
   const attributes = contentAttributes.value || {};
@@ -166,6 +174,9 @@ const isRecordedAudio = computed(() => {
       ['ogg', 'opus'].includes(extension.value)
   );
 });
+const showSenderAvatar = computed(
+  () => isRecordedAudio.value || isIncomingInstagramAudio.value
+);
 
 const PLAYED_AUDIO_STORE = 'chatwoot:played-audio-attachments';
 const audioPlayedKey = computed(() =>
@@ -622,7 +633,7 @@ const changePlaybackSpeed = () => {
   />
   <div v-bind="$attrs" class="flex w-full max-w-[28rem] flex-col gap-2">
     <div :class="playerClass">
-      <div v-if="isRecordedAudio && isOutgoing" class="relative shrink-0">
+      <div v-if="showSenderAvatar && isOutgoing" class="relative shrink-0">
         <Avatar :name="avatarName" :src="avatarSrc" :size="44" />
         <span
           class="absolute -bottom-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-n-teal-9 text-white"
@@ -632,7 +643,7 @@ const changePlaybackSpeed = () => {
       </div>
 
       <div
-        v-else-if="!isRecordedAudio"
+        v-else-if="!showSenderAvatar"
         class="grid size-11 shrink-0 place-items-center rounded-full bg-n-amber-9 text-n-amber-12"
       >
         <Icon class="size-6" icon="i-lucide-headphones" />
@@ -692,9 +703,10 @@ const changePlaybackSpeed = () => {
         </div>
       </div>
 
-      <div v-if="isRecordedAudio && !isOutgoing" class="relative shrink-0">
+      <div v-if="showSenderAvatar && !isOutgoing" class="relative shrink-0">
         <Avatar :name="avatarName" :src="avatarSrc" :size="44" />
         <span
+          v-if="isRecordedAudio"
           class="absolute -bottom-0.5 -left-0.5 grid size-4 place-items-center rounded-full text-white"
           :class="micBadgeClass"
         >
