@@ -11,6 +11,7 @@ on:
       - codex/instagram-audio-md
       - codex/instagram-media-preview
       - codex/instagram-native-preview
+      - codex/whatsmeow-deleted-messages
 
 permissions:
   contents: read
@@ -110,6 +111,7 @@ jobs:
           spec/finders/message_finder_spec.rb
           spec/controllers/api/v1/accounts/whatsmeow_conversations_controller_spec.rb
           spec/controllers/api/v1/accounts/whatsmeow_starred_messages_controller_spec.rb
+          spec/controllers/api/v1/accounts/whatsmeow_deleted_messages_controller_spec.rb
           spec/controllers/api/v1/accounts/inboxes/whatsmeow_groups_controller_spec.rb
           spec/jobs/webhooks/instagram_events_job_spec.rb
           spec/builders/messages/instagram
@@ -140,6 +142,7 @@ jobs:
           spec/services/instagram/preview_service_spec.rb
           spec/controllers/api/v1/accounts/conversations/instagram_previews_controller_spec.rb
           app/controllers/api/v1/accounts/whatsmeow_starred_messages_controller.rb
+          app/controllers/api/v1/accounts/whatsmeow_deleted_messages_controller.rb
           app/controllers/api/v1/accounts/whatsmeow_conversations_controller.rb
           app/controllers/api/v1/accounts/inboxes/whatsmeow_groups_controller.rb
           app/services/whatsmeow/message_star_service.rb
@@ -152,6 +155,7 @@ jobs:
           spec/services/whatsmeow/group_change_service_spec.rb
           spec/controllers/api/v1/accounts/whatsmeow_conversations_controller_spec.rb
           spec/controllers/api/v1/accounts/whatsmeow_starred_messages_controller_spec.rb
+          spec/controllers/api/v1/accounts/whatsmeow_deleted_messages_controller_spec.rb
           spec/controllers/api/v1/accounts/inboxes/whatsmeow_groups_controller_spec.rb
 
   publish:

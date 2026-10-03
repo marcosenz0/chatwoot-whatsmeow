@@ -49,6 +49,7 @@ const actionMenuItems = computed(() => {
       'search',
       'select_messages',
       'starred_messages',
+      'deleted_messages',
       'invite',
       'leave',
     ].forEach(action => {
@@ -162,6 +163,12 @@ const handleActionClick = async ({ action }) => {
     const operation = action.slice(6);
     if (operation === 'starred_messages') {
       emitter.emit(BUS_EVENTS.WHATSMEOW_STARRED_MESSAGES, {
+        conversationId: currentChat.value.id,
+      });
+      return;
+    }
+    if (operation === 'deleted_messages') {
+      emitter.emit(BUS_EVENTS.WHATSMEOW_DELETED_MESSAGES, {
         conversationId: currentChat.value.id,
       });
       return;

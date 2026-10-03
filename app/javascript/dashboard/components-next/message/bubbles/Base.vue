@@ -1,19 +1,19 @@
 <script setup>
 import { computed } from 'vue';
 
+import { emitter } from 'shared/helpers/mitt';
+import { useI18n } from 'vue-i18n';
+import MessageFormatter from 'shared/helpers/MessageFormatter.js';
+import { BUS_EVENTS } from 'shared/constants/busEvents';
+import Icon from 'next/icon/Icon.vue';
 import MessageMeta from '../MessageMeta.vue';
 import CaptainGenerationDetails from '../CaptainGenerationDetails.vue';
 import WhatsmeowAdPreview from './WhatsmeowAdPreview.vue';
 import WhatsmeowStatusReplyPreview from './WhatsmeowStatusReplyPreview.vue';
 
-import { emitter } from 'shared/helpers/mitt';
 import { useMessageContext } from '../provider.js';
-import { useI18n } from 'vue-i18n';
 
-import MessageFormatter from 'shared/helpers/MessageFormatter.js';
-import { BUS_EVENTS } from 'shared/constants/busEvents';
 import { MESSAGE_VARIANTS, ORIENTATION, SENDER_TYPES } from '../constants';
-import Icon from 'next/icon/Icon.vue';
 
 const props = defineProps({
   hideMeta: { type: Boolean, default: false },
@@ -106,6 +106,14 @@ const shouldShowMeta = computed(
 );
 
 const isMessageDeleted = computed(() => !!contentAttributes.value?.deleted);
+const disappearingMessageLabel = computed(() => {
+  const attributes = contentAttributes.value || {};
+  if (attributes.whatsmeowViewOnce || attributes.whatsmeow_view_once)
+    return t('WHATSMEOW_UI.VIEW_ONCE');
+  if (attributes.whatsmeowEphemeral || attributes.whatsmeow_ephemeral)
+    return t('WHATSMEOW_UI.DISAPPEARING_MESSAGE');
+  return '';
+});
 const isLocallyDeleted = computed(() => {
   const attributes = contentAttributes.value || {};
   const deletedBy = attributes.deletedBy || attributes.deleted_by;
@@ -223,6 +231,13 @@ const replyToPreview = computed(() => {
       />
     </div>
     <slot />
+    <div
+      v-if="disappearingMessageLabel"
+      class="mt-2 flex items-center gap-1 text-[11px] font-medium leading-4 opacity-70"
+    >
+      <Icon icon="i-lucide-timer" class="size-3 shrink-0" />
+      <span>{{ disappearingMessageLabel }}</span>
+    </div>
     <div v-if="isMessageDeleted" :class="deletedIndicatorClass">
       <Icon icon="i-lucide-ban" class="size-3 shrink-0" />
       <span>{{ deletedMessageLabel }}</span>

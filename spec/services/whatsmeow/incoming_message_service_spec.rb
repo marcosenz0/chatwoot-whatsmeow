@@ -1,7 +1,9 @@
 require 'rails_helper'
 
 RSpec.describe Whatsmeow::IncomingMessageService do
-  subject(:service) { described_class.new(inbox: instance_double(Inbox), params: params) }
+  subject(:service) { described_class.new(inbox: inbox, params: params) }
+
+  let(:inbox) { instance_double(Inbox) }
 
   let(:params) do
     {
@@ -26,6 +28,24 @@ RSpec.describe Whatsmeow::IncomingMessageService do
 
   it 'uses the merchant name as searchable fallback content' do
     expect(service.send(:message_content)).to eq('Example Store')
+  end
+
+  it 'preserves view once and disappearing message markers' do
+    params.merge!(view_once: true, view_once_unavailable: true, ephemeral: true)
+    expect(service.send(:message_content_attributes)).to include(
+      whatsmeow_view_once: true, whatsmeow_view_once_unavailable: true, whatsmeow_ephemeral: true
+    )
+  end
+
+  it 'uses a localized notice when WhatsApp did not supply view once media' do
+    params.merge!(view_once: true, view_once_unavailable: true, content: 'View once message.')
+    allow(inbox).to receive(:account).and_return(instance_double(Account, locale: 'pt_BR'))
+    expect(service.send(:message_content)).to eq(I18n.t('messages.whatsmeow_view_once_unavailable', locale: 'pt_BR'))
+  end
+
+  it 'preserves supplied content when view once media is available' do
+    params.merge!(view_once: true, view_once_unavailable: false, content: 'Supplied caption')
+    expect(service.send(:message_content)).to eq('Supplied caption')
   end
 
   context 'when a received Pix key does not match local validation rules' do

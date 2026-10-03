@@ -62,7 +62,7 @@ import ConversationBulkActions from './widgets/conversation/conversationBulkActi
 import ChatTypeTabs from './widgets/ChatTypeTabs.vue';
 import ConversationList from './ConversationList.vue';
 import ChatListHeader from './ChatListHeader.vue';
-import StarredMessagesPanel from './widgets/whatsmeow/StarredMessagesPanel.vue';
+import MessageHistoryPanel from './widgets/whatsmeow/MessageHistoryPanel.vue';
 
 const props = defineProps({
   conversationInbox: { type: [String, Number], default: 0 },
@@ -83,7 +83,14 @@ const route = useRoute();
 const store = useStore();
 const showStarredMessages = ref(false);
 const starredConversation = ref(null);
+const deletedMessages = ref(false);
 useEmitter(BUS_EVENTS.WHATSMEOW_STARRED_MESSAGES, ({ conversationId } = {}) => {
+  deletedMessages.value = false;
+  starredConversation.value = conversationId || null;
+  showStarredMessages.value = true;
+});
+useEmitter(BUS_EVENTS.WHATSMEOW_DELETED_MESSAGES, ({ conversationId } = {}) => {
+  deletedMessages.value = true;
   starredConversation.value = conversationId || null;
   showStarredMessages.value = true;
 });
@@ -1217,8 +1224,10 @@ watch(appliedFilters, () => resetBulkActions());
       />
     </div>
     <slot />
-    <StarredMessagesPanel
+    <MessageHistoryPanel
       v-if="showStarredMessages"
+      :key="`${deletedMessages}:${starredConversation}`"
+      :deleted="deletedMessages"
       :conversation-id="starredConversation"
       @close="showStarredMessages = false"
     />

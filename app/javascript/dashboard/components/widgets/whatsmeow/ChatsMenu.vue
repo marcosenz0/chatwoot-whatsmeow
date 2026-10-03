@@ -37,6 +37,7 @@ const items = computed(() =>
   [
     'new_group',
     'starred_messages',
+    'deleted_messages',
     'select_conversations',
     'read_all',
     'app_lock',
@@ -48,6 +49,7 @@ const items = computed(() =>
     icon: {
       new_group: 'i-lucide-users',
       starred_messages: 'i-lucide-star',
+      deleted_messages: 'i-lucide-trash-2',
       select_conversations: 'i-lucide-square-check',
       read_all: 'i-lucide-check-check',
       app_lock: 'i-lucide-lock-keyhole',
@@ -60,6 +62,8 @@ function select({ action }) {
   if (action === 'new_group') newGroup.value = true;
   if (action === 'starred_messages')
     emitter.emit(BUS_EVENTS.WHATSMEOW_STARRED_MESSAGES, {});
+  if (action === 'deleted_messages')
+    emitter.emit(BUS_EVENTS.WHATSMEOW_DELETED_MESSAGES, {});
   if (action === 'select_conversations')
     emitter.emit(BUS_EVENTS.WHATSMEOW_SELECT_CONVERSATIONS);
   if (action === 'app_lock') emitter.emit(BUS_EVENTS.WHATSMEOW_APP_LOCK);
