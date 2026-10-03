@@ -18,4 +18,18 @@ Compartilhamentos de perfil que chegam com `is_unsupported`, sem mídia nem link
 
 ## Validação e publicação
 
-Em preparação no worktree `codex/instagram-media-preview`, a partir de `fac9690bd9`. Alvos autorizados: principal primeiro, depois MX e MD com a mesma imagem fixada. Bancos, armazenamento, segredos e sessões permanecem separados. Serviços Go e Chatwoot oficial fora do escopo.
+[PR #29](https://github.com/marcosenz0/chatwoot-whatsmeow/pull/29), código `c583db06f3f7240c580e4f8fce4eb227f7e99e2a`, [canário 37089523220](https://github.com/marcosenz0/chatwoot-whatsmeow/actions/runs/37089523220). Publicação realizada primeiro na principal, depois MX e MD, com a mesma imagem nos seis serviços web/Sidekiq:
+
+`ghcr.io/marcosenz0/chatwoot-whatsmeow:fork-c583db06f3f7240c580e4f8fce4eb227f7e99e2a`
+
+Docker ImageID comum: `sha256:f28541c09f45468e378455bac8a1e7f28af0935fb0bb96fe85266dfedb7ab403`. Manifesto: `sha256:700ca170b841af13b8a84cdfc0b1470a6002188bd9c249b4ad448b28aed7dc88`.
+
+- 168 testes JavaScript em 19 arquivos, 437 exemplos Rails sem falhas e 19 arquivos Ruby sem infrações. Lint dos arquivos de interface alterados aprovado. As verificações gerais herdadas do repositório não são apresentadas como verdes.
+- Na principal, a prévia abriu a galeria sem navegar para fora do Chatwoot. Um reel público reproduziu no frame ampliado, com duração de 11,398 segundos e `readyState=4`. A rota de publicação `/p/` também abriu a incorporação. Imagem armazenada abriu na galeria; vídeo armazenado carregou 13,696 segundos e reproduziu no visualizador de 1552 × 796, mantendo a proporção. A incorporação vertical pode ter rolagem própria, conforme o formato fornecido pelo Instagram.
+- As quatro notas privadas históricas criadas exclusivamente para validar a principal foram removidas após os testes. Não houve envio externo, e a atividade da conversa permaneceu inalterada.
+- No MD, os anexos antigos das mensagens 22 e 23 foram reconhecidos como permalinks de reels sem baixar novamente o HTML. A mensagem 21 não tem URL; mensagens 24 e 27 continuam não suportadas e sem anexos. A navegação da galeria ignora anexos sem endereço. Os áudios e avatares das conversas de Clara e Emilly permanecem armazenados.
+- Os três domínios responderam HTTP 200 após a inicialização. A revisão foi confirmada em Rails. Principal manteve inboxes 27/15/28 conectadas e 23/10 previamente desconectadas; a inbox pessoal 1 do MX permaneceu conectada.
+- As montagens persistentes foram preservadas. Principal e MD usam volume no web e bind mount no worker: os caminhos correspondentes têm o mesmo dispositivo/inode no host, confirmando que acessam o mesmo diretório. MX usa o mesmo volume nos dois serviços. O armazenamento continua separado entre instâncias.
+- Os três serviços Go mantiveram `whatsmeow-54aae63ad477bc6d5bf0077a091a1a9ac7c0efa2`, sem reinício. Bancos, Redis, segredos, domínios e sessões permanecem separados. Chatwoot oficial fora do escopo.
+
+Recarregar abas abertas antes do deploy para carregar os novos assets. O worktree isolado preservou as alterações preexistentes do checkout principal.
