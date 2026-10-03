@@ -23,9 +23,9 @@ class Instagram::WebhooksBaseService
     end
 
     update_instagram_profile_link(user)
-    if user['profile_pic'].present? && contact_avatar_missing?(@contact)
-      Avatar::AvatarFromUrlJob.perform_later(@contact, user['profile_pic'], force: true)
-    end
+    return unless user['profile_pic'].present? && contact_avatar_missing?(@contact)
+
+    Avatar::AvatarFromUrlJob.perform_later(@contact, user['profile_pic'], force: true)
   end
 
   def contact_avatar_missing?(contact)
