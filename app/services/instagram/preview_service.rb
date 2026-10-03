@@ -30,27 +30,39 @@ class Instagram::PreviewService
     metadata = doc.css('meta[property^="og:"]').to_h { |node| [node['property'], node['content']] }
     return unless metadata['og:title'].present? && metadata['og:title'] != 'Instagram'
 
-    @preview[:title] ||= metadata['og:title']
-    @preview[:description] ||= metadata['og:description']
+    @preview[:title] = metadata['og:title']
+    @preview[:description] = metadata['og:description']
     image_key = @preview[:kind] == 'profile' ? :avatar_url : :image_url
-    @preview[image_key] ||= media_url(metadata['og:image'])
-    @preview[:video_url] ||= media_url(metadata['og:video:secure_url'] || metadata['og:video'])
+    @preview[image_key] = media_url(metadata['og:image'])
+    @preview[:video_url] = media_url(metadata['og:video:secure_url'] || metadata['og:video'])
   end
 
   def read_embed(doc)
-    @preview[:username] ||= doc.at_css('.Username')&.text&.strip.presence
-    @preview[:title] ||= doc.at_css('.FullName')&.text&.strip.presence
-    @preview[:bio] ||= doc.at_css('.Biography')&.text&.strip.presence
-    @preview[:avatar_url] ||= media_url(doc.at_css('.Avatar img')&.[]('src'))
-    @preview[:image_url] ||= media_url(doc.at_css('.EmbeddedMediaImage')&.[]('src')) if @preview[:kind] == 'media'
-    @preview[:video_url] ||= media_url(doc.at_css('video source, video[src]')&.[]('src'))
-    return unless @preview[:kind] == 'profile'
+    { username: '.Username', title: '.FullName', bio: '.Biography' }.each do |field, selector|
+      @preview[field] ||= text_content(doc, selector)
+    end
+    { avatar_url: '.Avatar img', video_url: 'video source, video[src]' }.each do |field, selector|
+      @preview[field] ||= image_source(doc, selector)
+    end
+    @preview[:image_url] ||= image_source(doc, '.EmbeddedMediaImage') if @preview[:kind] == 'media'
+    @preview[:posts] = profile_posts(doc) if @preview[:kind] == 'profile'
+  end
 
-    @preview[:posts] = doc.css('a[href] img').filter_map do |image|
+  def text_content(doc, selector)
+    doc.at_css(selector)&.text&.strip.presence
+  end
+
+  def image_source(doc, selector)
+    media_url(doc.at_css(selector)&.[]('src'))
+  end
+
+  def profile_posts(doc)
+    posts = doc.css('a[href] img').filter_map do |image|
       post = Instagram::PreviewUrl.parse(image.ancestors('a').first['href'])
       image_url = media_url(image['src'])
       { url: post[:url], image_url: image_url } if post && post[:kind] == 'media' && image_url
-    end.uniq { |post| post[:url] }.first(6)
+    end
+    posts.uniq { |post| post[:url] }.first(6)
   end
 
   def media_url(value)
