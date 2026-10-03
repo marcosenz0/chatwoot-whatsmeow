@@ -41,10 +41,9 @@ class Instagram::PreviewService
     { username: '.Username', title: '.FullName', bio: '.Biography' }.each do |field, selector|
       @preview[field] ||= text_content(doc, selector)
     end
-    { avatar_url: '.Avatar img', video_url: 'video source, video[src]' }.each do |field, selector|
+    { avatar_url: '.Avatar img', video_url: 'video source, video[src]', image_url: '.EmbeddedMediaImage' }.each do |field, selector|
       @preview[field] ||= image_source(doc, selector)
     end
-    @preview[:image_url] ||= image_source(doc, '.EmbeddedMediaImage') if @preview[:kind] == 'media'
     @preview[:posts] = profile_posts(doc) if @preview[:kind] == 'profile'
   end
 
