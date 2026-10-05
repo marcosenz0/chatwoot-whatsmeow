@@ -215,7 +215,9 @@ class ConversationFinder
   end
 
   def group_conversations(relation)
-    relation.joins(:contact).where("contacts.additional_attributes ->> 'whatsmeow_group' = 'true' OR conversations.additional_attributes ->> 'telegram_group' = 'true'")
+    relation.joins(:contact).where(
+      "contacts.additional_attributes ->> 'whatsmeow_group' = 'true' OR conversations.additional_attributes ->> 'telegram_group' = 'true'"
+    )
   end
 
   def direct_conversations(relation)
