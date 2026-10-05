@@ -110,6 +110,7 @@ module Api::V1::InboxesHelper
       'email' => Current.account.email_channels,
       'line' => Current.account.line_channels,
       'telegram' => Current.account.telegram_channels,
+      'telegram_personal' => Current.account.telegram_personal_channels,
       'whatsapp' => Current.account.whatsapp_channels,
       'sms' => Current.account.sms_channels,
       'whatsmeow' => Current.account.whatsmeow_channels

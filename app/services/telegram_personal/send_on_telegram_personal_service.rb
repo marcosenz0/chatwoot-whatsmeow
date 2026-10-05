@@ -30,14 +30,12 @@ class TelegramPersonal::SendOnTelegramPersonalService < Base::SendOnChannelServi
 
     message.attachments.map do |attachment|
       blob = attachment.file.blob
-      raise TelegramPersonal::SessionClient::Error, 'file_too_large' if blob.byte_size > MAX_ATTACHMENT_BYTES
-
       {
         filename: blob.filename.to_s,
         content_type: blob.content_type,
         file_type: attachment.file_type,
         voice: message.content_attributes['telegram_personal_recorded_audio'].present?,
-        data: Base64.strict_encode64(attachment.file.download)
+        data: blob.open { |file| Base64.strict_encode64(file.read) }
       }
     end
   end

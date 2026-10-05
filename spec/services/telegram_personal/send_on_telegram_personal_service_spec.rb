@@ -14,7 +14,7 @@ RSpec.describe TelegramPersonal::SendOnTelegramPersonalService do
 
   it 'routes the message through the personal account and stores Telegram ids' do
     expect(client).to receive(:send_message).with(hash_including(request_id: message.id.to_s, chat_id: '42', content: 'Reply'))
-                                         .and_return('source_id' => '42:120', 'message_ids' => [120])
+                                            .and_return('source_id' => '42:120', 'message_ids' => [120])
     described_class.new(message: message).perform
     expect(message.reload.source_id).to eq('42:120')
     expect(message.external_source_ids['telegram_personal']).to eq([120])

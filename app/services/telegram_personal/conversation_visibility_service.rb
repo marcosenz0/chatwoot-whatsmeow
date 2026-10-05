@@ -1,8 +1,10 @@
 class TelegramPersonal::ConversationVisibilityService
   def self.perform(relation)
-    hidden_groups = Inbox.where(channel_type: 'Channel::TelegramPersonal', channel_id: Channel::TelegramPersonal.where(hide_groups: true).select(:id))
-    hidden_channels = Inbox.where(channel_type: 'Channel::TelegramPersonal', channel_id: Channel::TelegramPersonal.where(hide_channels: true).select(:id))
-    relation.where.not(id: relation.where(inbox_id: hidden_groups).where("conversations.additional_attributes ->> 'telegram_group' = 'true'").select(:id))
-            .where.not(id: relation.where(inbox_id: hidden_channels).where("conversations.additional_attributes ->> 'telegram_channel' = 'true'").select(:id))
+    %w[group channel].reduce(relation) do |visible, kind|
+      channels = Channel::TelegramPersonal.where("hide_#{kind.pluralize}" => true).select(:id)
+      inboxes = Inbox.where(channel_type: 'Channel::TelegramPersonal', channel_id: channels)
+      hidden = relation.where(inbox_id: inboxes).where("conversations.additional_attributes ->> ? = 'true'", "telegram_#{kind}").select(:id)
+      visible.where.not(id: hidden)
+    end
   end
 end

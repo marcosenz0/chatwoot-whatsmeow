@@ -16,33 +16,50 @@ class TelegramPersonal::IncomingEventService
   private
 
   def create_message
-    if payload['chatwoot_message_id'].present?
-      message = inbox.messages.outgoing.where(private: false).find(payload['chatwoot_message_id'])
-      message.update!(source_id: payload.fetch('source_id'), status: :sent) if message.source_id.blank?
-      return
-    end
+    return if merge_outgoing_echo
     return if inbox.messages.exists?(source_id: payload.fetch('source_id'))
-    return if inbox.channel.ignore_groups && payload['group']
-    return if inbox.channel.ignore_channels && payload['channel']
+    return if ignored_chat?
 
-    contact_inbox = ContactInboxWithContactBuilder.new(
-      inbox: inbox, source_id: payload.fetch('chat_id').to_s,
-      contact_attributes: { name: payload.fetch('chat_name'), additional_attributes: payload.fetch('contact_attributes', {}) }
-    ).perform
-    conversation = contact_inbox.conversations.order(:id).last || contact_inbox.conversations.create!(
-      account_id: inbox.account_id, inbox_id: inbox.id, contact_id: contact_inbox.contact_id,
-      additional_attributes: { 'telegram_chat_id' => payload['chat_id'], 'telegram_group' => !!payload['group'], 'telegram_channel' => !!payload['channel'] }
-    )
-    message = conversation.messages.build(
-      account_id: inbox.account_id, inbox_id: inbox.id, source_id: payload.fetch('source_id'),
-      content: payload['content'], message_type: payload['outgoing'] ? :outgoing : :incoming,
-      sender: payload['outgoing'] ? nil : contact_inbox.contact,
-      created_at: Time.at(payload.fetch('date')),
-      content_attributes: payload.fetch('content_attributes', {})
-    )
+    message = conversation.messages.build(message_attributes)
     payload.fetch('attachments', []).each { |attachment| attach_file(message, attachment) }
     attach_location(message) if payload['location']
     message.save!
+  end
+
+  def merge_outgoing_echo
+    return false if payload['chatwoot_message_id'].blank?
+
+    message = inbox.messages.outgoing.where(private: false).find(payload['chatwoot_message_id'])
+    message.update!(source_id: payload.fetch('source_id'), status: :sent) if message.source_id.blank?
+    true
+  end
+
+  def ignored_chat?
+    (inbox.channel.ignore_groups && payload['group']) || (inbox.channel.ignore_channels && payload['channel'])
+  end
+
+  def contact_inbox
+    @contact_inbox ||= ContactInboxWithContactBuilder.new(
+      inbox: inbox, source_id: payload.fetch('chat_id').to_s,
+      contact_attributes: { name: payload.fetch('chat_name'), additional_attributes: payload.fetch('contact_attributes', {}) }
+    ).perform
+  end
+
+  def conversation
+    @conversation ||= contact_inbox.conversations.order(:id).last || contact_inbox.conversations.create!(
+      account_id: inbox.account_id, inbox_id: inbox.id, contact_id: contact_inbox.contact_id,
+      additional_attributes: payload.slice('chat_id', 'group', 'channel').transform_keys { |key| "telegram_#{key}" }
+    )
+  end
+
+  def message_attributes
+    {
+      account_id: inbox.account_id, inbox_id: inbox.id, source_id: payload.fetch('source_id'),
+      content: payload['content'], message_type: payload['outgoing'] ? :outgoing : :incoming,
+      sender: payload['outgoing'] ? nil : contact_inbox.contact,
+      created_at: Time.zone.at(payload.fetch('date')),
+      content_attributes: payload.fetch('content_attributes', {})
+    }
   end
 
   def attach_file(message, attachment)
