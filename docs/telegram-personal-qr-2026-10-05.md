@@ -20,7 +20,7 @@ Workflow `.github/workflows/telegram_personal.yml` gates Python, Vue/regression 
 
 ## Validation and limits
 
-Local service tests: 15 passed, including QR refresh/2FA, wrong number logout, retry/dedup/partial echo, durable media download, Opus voice normalization, separate group/channel options and namespace isolation. Focused Vue tests initially 112 passed; expanded tests and CI still in progress. Windows local Rails dependencies absent; Rails gate runs on Linux with PostgreSQL/Redis. Do not declare live connection or all repository tests passed.
+Local service tests: 15 passed, including QR refresh/2FA, wrong number logout, retry/dedup/partial echo, durable media download, Opus voice normalization, separate group/channel options and namespace isolation. Expanded Vue regression tests: 226 passed. Linux CI passed 233 Rails examples, Ruby lint and the production frontend build for commit `02be54b195`. Final service health check, schema foreign key and settings-form tests are undergoing the last validation. Windows local Rails dependencies absent; Rails gate runs on Linux with PostgreSQL/Redis. Do not declare live connection or all repository tests passed.
 
 No initial bulk Telegram history import. New updates and available catch-up are imported; temporary media stays a notice to open in Telegram. Files up to 50 MB per outgoing message. Outgoing edits/deletions and group administration are outside this first delivery. Incoming edits/deletions and read receipts are synchronized. Broadcast posting still depends on the Telegram account's actual permissions.
 

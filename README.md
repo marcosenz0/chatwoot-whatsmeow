@@ -150,3 +150,6 @@ Thanks goes to all these [wonderful people](https://www.chatwoot.com/docs/contri
 
 
 *Chatwoot* &copy; 2017-2026, Chatwoot Inc - Released under the MIT License.
+
+
+Telegram personal accounts in this fork: [QR connection and group/channel controls](docs/telegram-personal-qr-2026-10-05.md). Configure the Telegram application once per installation; authorize each number with its own QR session.
