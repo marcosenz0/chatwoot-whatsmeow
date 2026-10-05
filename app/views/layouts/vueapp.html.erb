@@ -40,6 +40,7 @@
         fbAppId: '<%= @global_config['FB_APP_ID'] %>',
         instagramAppId: '<%= @global_config['INSTAGRAM_APP_ID'] %>',
         tiktokAppId: '<%= @global_config['TIKTOK_APP_ID'] %>',
+        telegramPersonalEnabled: <%= ENV['TELEGRAM_PERSONAL_SERVICE_URL'].present? && ENV['TELEGRAM_PERSONAL_SHARED_SECRET'].present? %>,
         googleOAuthClientId: '<%= ENV.fetch('GOOGLE_OAUTH_CLIENT_ID', nil) %>',
         googleOAuthCallbackUrl: '<%= ENV.fetch('GOOGLE_OAUTH_CALLBACK_URL', nil) %>',
         allowedLoginMethods: <%= @global_config['ALLOWED_LOGIN_METHODS'].to_json.html_safe %>,

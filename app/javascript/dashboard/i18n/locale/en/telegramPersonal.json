@@ -1,0 +1,69 @@
+{
+  "TELEGRAM_PERSONAL": {
+    "TITLE": "Telegram — personal account",
+    "DESCRIPTION": "Connect your Telegram number by scanning a QR code. Agents reply as your account.",
+    "NAME": "Inbox name",
+    "PHONE": "Telegram number (international format)",
+    "PHONE_PLACEHOLDER": "+15551234567",
+    "CREATE": "Create inbox",
+    "CONNECT": "Connect with QR code",
+    "DISCONNECT": "Disconnect this account",
+    "SCAN": "On the account's phone: Telegram → Settings → Devices → Link Desktop Device. Scan this code.",
+    "QR_ALT": "Telegram account pairing QR code",
+    "QR_REFRESH": "The code refreshes automatically. Scan with the account matching this inbox's number.",
+    "PASSWORD": "Telegram two-step verification password",
+    "CONFIRM": "Confirm password",
+    "APP_ONCE": "The server's Telegram application is configured once. New accounts only need QR pairing and their two-step password, if enabled.",
+    "DEVELOPER_LINK": "Telegram application settings (server administrator)",
+    "SAVE": "Save settings",
+    "SAVED": "Settings saved. They apply to this account immediately.",
+    "STATUS": {
+      "disconnected": "Account disconnected",
+      "connecting": "Connecting to Telegram…",
+      "qr": "Scan to connect your account",
+      "password": "This account requires its two-step verification password",
+      "connected": "Telegram account connected",
+      "error": "Connection needs attention"
+    },
+    "ERRORS": {
+      "service_unavailable": "The connection service is unavailable. Try again shortly.",
+      "application_not_configured": "A server administrator must configure the Telegram application once using the link below.",
+      "connection_failed": "Could not connect to Telegram. Try connecting again.",
+      "wrong_account": "The scanned account does not match this inbox's number. Scan with the correct account.",
+      "personal_account_required": "Connect a personal Telegram account.",
+      "session_expired": "Telegram revoked or expired this session. Connect again using QR.",
+      "qr_expired": "Pairing timed out. Generate a new QR code.",
+      "invalid_password": "Incorrect two-step verification password. Try again.",
+      "password_not_required": "Refresh the connection status before submitting a password.",
+      "disconnect_before_changing_number": "Disconnect this account before changing its number.",
+      "not_connected": "Connect this account before sending messages.",
+      "flood_wait": "Telegram requested a pause. Try again after the indicated wait.",
+      "telegram_rejected_message": "Telegram could not send this message.",
+      "delivery_unconfirmed": "Delivery confirmation is pending. Retry the same message.",
+      "file_too_large": "Attachments may total up to 50 MB per message.",
+      "invalid_file": "This attachment could not be read.",
+      "empty_message": "Enter a message or add a file.",
+      "invalid_media": "Invalid attachment reference.",
+      "media_unavailable": "This attachment is unavailable."
+    },
+    "FILTERS_TITLE": "Groups and channels",
+    "FILTERS": {
+      "ignore_groups": {
+        "LABEL": "Ignore new group messages",
+        "DESCRIPTION": "Stops importing new messages. Existing conversations stay stored."
+      },
+      "ignore_channels": {
+        "LABEL": "Ignore new channel messages",
+        "DESCRIPTION": "Stops importing new messages. Existing conversations stay stored."
+      },
+      "hide_groups": {
+        "LABEL": "Hide existing group conversations",
+        "DESCRIPTION": "Hides conversations from the list without deleting history. Turn off to show them again."
+      },
+      "hide_channels": {
+        "LABEL": "Hide existing channel conversations",
+        "DESCRIPTION": "Hides conversations from the list without deleting history. Turn off to show them again."
+      }
+    }
+  }
+}

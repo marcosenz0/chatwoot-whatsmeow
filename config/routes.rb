@@ -379,6 +379,9 @@ Rails.application.routes.draw do
               end
             end
             resource :whatsmeow_pix, only: [:show, :update, :destroy], controller: 'inboxes/whatsmeow_pix'
+            resource :telegram_personal, only: [:show, :create, :destroy], controller: 'inboxes/telegram_personal' do
+              post :password
+            end
             get :assignable_agents, on: :member
             get :campaigns, on: :member
             get :agent_bot, on: :member
@@ -780,6 +783,7 @@ Rails.application.routes.draw do
   post 'webhooks/tiktok', to: 'webhooks/tiktok#events'
   post 'webhooks/shopify', to: 'webhooks/shopify#events'
   post 'webhooks/whatsmeow/:account_id/:channel_id', to: 'webhooks/whatsmeow#process_payload'
+  post 'webhooks/telegram_personal/:account_id/:inbox_id', to: 'webhooks/telegram_personal#process_payload'
 
   namespace :twitter do
     resource :callback, only: [:show]

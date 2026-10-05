@@ -1327,6 +1327,9 @@ export default {
           const isRecordedWhatsmeowAudio =
             this.isAWhatsmeowChannel &&
             (attachment?.isRecordedAudio || attachment?.sendAsRecordedAudio);
+          const isRecordedTelegramAudio =
+            this.isATelegramPersonalChannel &&
+            (attachment?.isRecordedAudio || attachment?.sendAsRecordedAudio);
           const isOfficialVoiceMessage =
             this.isAWhatsAppCloudChannel && attachment?.isVoiceMessage;
           const attachedFile = this.globalConfig.directUploadsEnabled
@@ -1337,7 +1340,11 @@ export default {
             files: [attachedFile],
             private: false,
             message:
-              isRecordedWhatsmeowAudio || isOfficialVoiceMessage ? '' : caption,
+              isRecordedWhatsmeowAudio ||
+              isRecordedTelegramAudio ||
+              isOfficialVoiceMessage
+                ? ''
+                : caption,
             sender: this.sender,
             isVoiceMessage: isOfficialVoiceMessage,
           };
@@ -1349,11 +1356,18 @@ export default {
               whatsmeow_recorded_audio: true,
             };
           }
+          if (isRecordedTelegramAudio) {
+            attachmentPayload.contentAttributes = {
+              ...attachmentPayload.contentAttributes,
+              telegram_personal_recorded_audio: true,
+            };
+          }
           multipleMessagePayload.push(attachmentPayload);
           // For WhatsApp, only the first attachment gets a caption
           if (
             !this.isAnInstagramChannel &&
             !isRecordedWhatsmeowAudio &&
+            !isRecordedTelegramAudio &&
             !isOfficialVoiceMessage
           ) {
             caption = '';
@@ -1364,7 +1378,7 @@ export default {
       const hasNoAttachments =
         !this.attachedFiles || !this.attachedFiles.length;
       const hasRecordedWhatsmeowAudio =
-        this.isAWhatsmeowChannel &&
+        (this.isAWhatsmeowChannel || this.isATelegramPersonalChannel) &&
         this.attachedFiles?.some(
           file => file?.isRecordedAudio || file?.sendAsRecordedAudio
         );
@@ -1651,7 +1665,10 @@ export default {
           <AttachmentPreview
             class="mt-2"
             :attachments="attachedFiles"
-            :allow-recorded-audio="isAWhatsmeowChannel && !isOnPrivateNote"
+            :allow-recorded-audio="
+              (isAWhatsmeowChannel || isATelegramPersonalChannel) &&
+              !isOnPrivateNote
+            "
             @remove-attachment="removeAttachment"
             @toggle-recorded-audio="toggleRecordedAudio"
           />

@@ -53,6 +53,7 @@ import { matchesFilters } from '../store/modules/conversations/helpers/filterHel
 import {
   filterByHiddenGroups,
   isWhatsmeowGroupConversation,
+  isTelegramConversationHidden,
   sortComparator,
 } from '../store/modules/conversations/helpers';
 import { CONVERSATION_EVENTS } from '../helper/AnalyticsHelper/events';
@@ -413,13 +414,18 @@ const pageTitle = computed(() => {
 });
 
 function filterByAssigneeTab(conversations) {
-  const visibleConversations = conversations.filter(conversation =>
-    filterByHiddenGroups(
-      true,
-      hiddenGroupTabs.value,
-      activeAssigneeTab.value,
-      conversation
-    )
+  const visibleConversations = conversations.filter(
+    conversation =>
+      !isTelegramConversationHidden(
+        conversation,
+        inboxesList.value.find(record => record.id === conversation.inbox_id)
+      ) &&
+      filterByHiddenGroups(
+        true,
+        hiddenGroupTabs.value,
+        activeAssigneeTab.value,
+        conversation
+      )
   );
   if (activeAssigneeTab.value === wootConstants.ASSIGNEE_TYPE.GROUPS) {
     return visibleConversations.filter(isWhatsmeowGroupConversation);

@@ -15,6 +15,7 @@ export const INBOX_FEATURE_MAP = {
     INBOX_TYPES.WHATSAPP,
     INBOX_TYPES.WHATSMEOW,
     INBOX_TYPES.TELEGRAM,
+    INBOX_TYPES.TELEGRAM_PERSONAL,
     INBOX_TYPES.TIKTOK,
     INBOX_TYPES.API,
   ],
@@ -24,6 +25,7 @@ export const INBOX_FEATURE_MAP = {
     INBOX_TYPES.WHATSAPP,
     INBOX_TYPES.WHATSMEOW,
     INBOX_TYPES.TELEGRAM,
+    INBOX_TYPES.TELEGRAM_PERSONAL,
     INBOX_TYPES.TIKTOK,
     INBOX_TYPES.API,
   ],
@@ -68,17 +70,22 @@ export default {
       return this.channelType === INBOX_TYPES.EMAIL;
     },
     isATelegramChannel() {
-      return this.channelType === INBOX_TYPES.TELEGRAM;
+      return [INBOX_TYPES.TELEGRAM, INBOX_TYPES.TELEGRAM_PERSONAL].includes(
+        this.channelType
+      );
+    },
+    isATelegramPersonalChannel() {
+      return this.channelType === INBOX_TYPES.TELEGRAM_PERSONAL;
     },
     isATwilioSMSChannel() {
-      const { medium: medium = '' } = this.inbox;
+      const { medium = '' } = this.inbox;
       return this.isATwilioChannel && medium === 'sms';
     },
     isASmsInbox() {
       return this.channelType === INBOX_TYPES.SMS || this.isATwilioSMSChannel;
     },
     isATwilioWhatsAppChannel() {
-      const { medium: medium = '' } = this.inbox;
+      const { medium = '' } = this.inbox;
       return this.isATwilioChannel && medium === 'whatsapp';
     },
     isAWhatsAppCloudChannel() {

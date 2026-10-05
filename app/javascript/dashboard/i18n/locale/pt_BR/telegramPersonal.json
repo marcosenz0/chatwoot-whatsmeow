@@ -1,0 +1,69 @@
+{
+  "TELEGRAM_PERSONAL": {
+    "TITLE": "Telegram — conta pessoal",
+    "DESCRIPTION": "Conecte o número do Telegram escaneando um QR Code. A equipe responde pela sua conta.",
+    "NAME": "Nome da caixa",
+    "PHONE": "Número do Telegram (formato internacional)",
+    "PHONE_PLACEHOLDER": "+5563999999999",
+    "CREATE": "Criar caixa",
+    "CONNECT": "Conectar com QR Code",
+    "DISCONNECT": "Desconectar esta conta",
+    "SCAN": "No celular da conta: Telegram → Configurações → Dispositivos → Conectar dispositivo. Escaneie este código.",
+    "QR_ALT": "QR Code para conectar a conta Telegram",
+    "QR_REFRESH": "O código se renova automaticamente. Escaneie com a conta do número informado nesta caixa.",
+    "PASSWORD": "Senha de verificação em duas etapas do Telegram",
+    "CONFIRM": "Confirmar senha",
+    "APP_ONCE": "O aplicativo Telegram é configurado uma única vez no servidor. Para novas contas, basta escanear o QR e informar a senha de duas etapas, se estiver ativada.",
+    "DEVELOPER_LINK": "Configuração do aplicativo Telegram (administrador do servidor)",
+    "SAVE": "Salvar configuração",
+    "SAVED": "Configuração salva e aplicada a esta conta.",
+    "STATUS": {
+      "disconnected": "Conta desconectada",
+      "connecting": "Conectando ao Telegram…",
+      "qr": "Escaneie para conectar a conta",
+      "password": "Esta conta exige a senha de verificação em duas etapas",
+      "connected": "Conta Telegram conectada",
+      "error": "A conexão precisa de atenção"
+    },
+    "ERRORS": {
+      "service_unavailable": "O serviço de conexão está indisponível. Tente novamente em instantes.",
+      "application_not_configured": "O administrador precisa configurar uma vez o aplicativo Telegram usando o link abaixo.",
+      "connection_failed": "Não foi possível conectar ao Telegram. Tente conectar novamente.",
+      "wrong_account": "A conta escaneada não corresponde ao número desta caixa. Escaneie com a conta correta.",
+      "personal_account_required": "Conecte uma conta pessoal do Telegram.",
+      "session_expired": "O Telegram revogou ou expirou esta sessão. Conecte novamente por QR.",
+      "qr_expired": "O tempo de conexão terminou. Gere um novo QR Code.",
+      "invalid_password": "Senha de duas etapas incorreta. Tente novamente.",
+      "password_not_required": "Atualize o estado da conexão antes de informar uma senha.",
+      "disconnect_before_changing_number": "Desconecte a conta antes de alterar seu número.",
+      "not_connected": "Conecte a conta antes de enviar mensagens.",
+      "flood_wait": "O Telegram solicitou uma pausa. Tente após o tempo indicado.",
+      "telegram_rejected_message": "O Telegram não conseguiu enviar esta mensagem.",
+      "delivery_unconfirmed": "A confirmação de envio está pendente. Tente novamente na mesma mensagem.",
+      "file_too_large": "Os anexos podem somar até 50 MB por mensagem.",
+      "invalid_file": "Não foi possível ler este anexo.",
+      "empty_message": "Digite uma mensagem ou adicione um arquivo.",
+      "invalid_media": "Referência de anexo inválida.",
+      "media_unavailable": "Este anexo está indisponível."
+    },
+    "FILTERS_TITLE": "Grupos e canais",
+    "FILTERS": {
+      "ignore_groups": {
+        "LABEL": "Ignorar novas mensagens de grupos",
+        "DESCRIPTION": "Impede a entrada de novas mensagens. As conversas já recebidas continuam guardadas."
+      },
+      "ignore_channels": {
+        "LABEL": "Ignorar novas mensagens de canais",
+        "DESCRIPTION": "Impede a entrada de novas mensagens. As conversas já recebidas continuam guardadas."
+      },
+      "hide_groups": {
+        "LABEL": "Ocultar conversas de grupos já recebidas",
+        "DESCRIPTION": "Retira as conversas da lista sem apagar o histórico. Desmarque para mostrá-las novamente."
+      },
+      "hide_channels": {
+        "LABEL": "Ocultar conversas de canais já recebidas",
+        "DESCRIPTION": "Retira as conversas da lista sem apagar o histórico. Desmarque para mostrá-las novamente."
+      }
+    }
+  }
+}

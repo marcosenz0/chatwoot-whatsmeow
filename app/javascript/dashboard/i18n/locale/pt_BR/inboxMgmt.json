@@ -1645,7 +1645,8 @@
       "INSTAGRAM": "Instagram",
       "TIKTOK": "TikTok",
       "VOICE": "Voz",
-      "WHATSMEOW": "WhatsApp Direto"
+      "WHATSMEOW": "WhatsApp Direto",
+      "TELEGRAM_PERSONAL": "Telegram — conta pessoal"
     }
   }
 }

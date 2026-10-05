@@ -225,7 +225,8 @@ export default {
         (this.isAnEmailChannel && !this.inbox.provider) ||
         this.shouldShowWhatsAppConfiguration ||
         this.isAWebWidgetInbox ||
-        this.isAWhatsmeowChannel
+        this.isAWhatsmeowChannel ||
+        this.isATelegramPersonalChannel
       ) {
         visibleToAllChannelTabs = [
           ...visibleToAllChannelTabs,
