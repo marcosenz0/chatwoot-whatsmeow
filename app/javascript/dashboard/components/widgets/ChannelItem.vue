@@ -17,20 +17,19 @@ const props = defineProps({
 const emit = defineEmits(['channelItemClick']);
 const { isOnChatwootCloud } = useAccount();
 
-const hasFbConfigured = computed(() => {
-  return window.chatwootConfig?.fbAppId;
-});
+const hasFbConfigured = computed(() => window.chatwootConfig?.fbAppId);
 
-const hasInstagramConfigured = computed(() => {
-  return window.chatwootConfig?.instagramAppId;
-});
+const hasInstagramConfigured = computed(
+  () => window.chatwootConfig?.instagramAppId
+);
 
-const hasTiktokConfigured = computed(() => {
-  return window.chatwootConfig?.tiktokAppId;
-});
+const hasTiktokConfigured = computed(() => window.chatwootConfig?.tiktokAppId);
 
 const isActive = computed(() => {
   const { key } = props.channel;
+  if (key === 'telegram_personal') {
+    return !!window.chatwootConfig?.telegramPersonalEnabled;
+  }
   if (Object.keys(props.enabledFeatures).length === 0) {
     return false;
   }
@@ -80,26 +79,24 @@ const isComingSoon = computed(() => {
   return ['voice'].includes(key) && !isActive.value;
 });
 
-const isBeta = computed(() => {
-  return ['tiktok', 'voice', 'whatsapp_call'].includes(props.channel.key);
-});
+const isBeta = computed(() =>
+  ['tiktok', 'voice', 'whatsapp_call'].includes(props.channel.key)
+);
 
-const canRequestTiktokAccess = computed(() => {
-  return (
+const canRequestTiktokAccess = computed(
+  () =>
     props.channel.key === 'tiktok' &&
     isOnChatwootCloud.value &&
     hasTiktokConfigured.value &&
     Object.keys(props.enabledFeatures).length > 0 &&
     !props.enabledFeatures.channel_tiktok
-  );
-});
+);
 
-const hasVoiceBadge = computed(() => {
-  return (
+const hasVoiceBadge = computed(
+  () =>
     ['voice', 'whatsapp_call'].includes(props.channel.key) &&
     !!props.enabledFeatures.channel_voice
-  );
-});
+);
 
 const onItemClick = () => {
   if (canRequestTiktokAccess.value) {

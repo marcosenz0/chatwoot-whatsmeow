@@ -41,6 +41,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: >-
           pnpm exec vitest run
+          app/javascript/dashboard/routes/dashboard/settings/inbox/components/specs/TelegramPersonalChannelList.spec.js
           app/javascript/dashboard/routes/dashboard/settings/inbox/components/specs/TelegramPersonalPairing.spec.js
           app/javascript/dashboard/routes/dashboard/settings/inbox/components/specs/TelegramPersonalConfiguration.spec.js
           app/javascript/dashboard/helper/specs/inbox.spec.js
@@ -51,6 +52,11 @@ jobs:
       - name: Lint Telegram interface
         run: >-
           pnpm exec eslint
+          app/javascript/dashboard/components/widgets/ChannelItem.vue
+          app/javascript/dashboard/routes/dashboard/settings/inbox/ChannelList.vue
+          app/javascript/dashboard/i18n/locale/en/index.js
+          app/javascript/dashboard/i18n/locale/pt_BR/index.js
+          app/javascript/dashboard/routes/dashboard/settings/inbox/components/specs/TelegramPersonalChannelList.spec.js
           app/javascript/dashboard/routes/dashboard/settings/inbox/components/TelegramPersonalPairing.vue
           app/javascript/dashboard/routes/dashboard/settings/inbox/channels/TelegramPersonal.vue
           app/javascript/dashboard/routes/dashboard/settings/inbox/settingsPage/TelegramPersonalConfiguration.vue
