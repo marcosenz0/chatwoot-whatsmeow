@@ -48,10 +48,14 @@ jobs:
           app/javascript/shared/mixins/specs/inboxMixin.spec.js
           app/javascript/dashboard/components/widgets/conversation/specs/ReplyBox.spec.js
           app/javascript/dashboard/components-next/icon/specs/provider.spec.js
+          app/javascript/dashboard/components-next/message/specs/MessageMeta.spec.js
           app/javascript/dashboard/store/modules/specs/conversations/helpers.spec.js
       - name: Lint Telegram interface
         run: >-
           pnpm exec eslint
+          app/javascript/dashboard/composables/useInbox.js
+          app/javascript/dashboard/components-next/message/MessageMeta.vue
+          app/javascript/dashboard/components-next/message/specs/MessageMeta.spec.js
           app/javascript/dashboard/components/widgets/conversation/ReplyBox.vue
           app/javascript/dashboard/components/widgets/conversation/specs/ReplyBox.spec.js
           app/javascript/dashboard/components/widgets/ChannelItem.vue

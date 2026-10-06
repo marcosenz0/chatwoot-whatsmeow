@@ -81,6 +81,10 @@ export const useInbox = (inboxId = null) => {
     )
   );
 
+  const isATelegramPersonalChannel = computed(
+    () => channelType.value === INBOX_TYPES.TELEGRAM_PERSONAL
+  );
+
   const whatsAppAPIProvider = computed(() => inbox.value?.provider || '');
 
   const isAMicrosoftInbox = computed(
@@ -143,6 +147,7 @@ export const useInbox = (inboxId = null) => {
     isAPIInbox,
     isASmsInbox,
     isATelegramChannel,
+    isATelegramPersonalChannel,
     isATwilioChannel,
     isATwilioSMSChannel,
     isAWebWidgetInbox,
