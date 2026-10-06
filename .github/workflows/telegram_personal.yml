@@ -52,6 +52,8 @@ jobs:
       - name: Lint Telegram interface
         run: >-
           pnpm exec eslint
+          app/javascript/dashboard/components/widgets/conversation/ReplyBox.vue
+          app/javascript/dashboard/components/widgets/conversation/specs/ReplyBox.spec.js
           app/javascript/dashboard/components/widgets/ChannelItem.vue
           app/javascript/dashboard/routes/dashboard/settings/inbox/ChannelList.vue
           app/javascript/dashboard/i18n/locale/en/index.js

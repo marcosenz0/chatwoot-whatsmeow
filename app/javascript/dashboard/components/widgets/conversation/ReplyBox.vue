@@ -1002,7 +1002,15 @@ export default {
         // To handle both cases, text and attachments are always sent as separate messages.
         const isOnInstagram = this.isAnInstagramChannel;
         const isOnTiktok = this.isATiktokChannel;
-        if ((isOnWhatsApp || isOnInstagram || isOnTiktok) && !this.isPrivate) {
+        // Telegram personal needs per-attachment attributes for recorded audio.
+        const isOnTelegramPersonal = this.isATelegramPersonalChannel;
+        if (
+          (isOnWhatsApp ||
+            isOnInstagram ||
+            isOnTiktok ||
+            isOnTelegramPersonal) &&
+          !this.isPrivate
+        ) {
           this.sendMessageAsMultipleMessages(
             this.message,
             copilotAcceptedMessage
