@@ -5,7 +5,64 @@ import {
   filterByTeam,
   filterByLabel,
   filterByUnattended,
+  isTelegramConversationHidden,
+  isWhatsmeowGroupConversation,
 } from '../../conversations/helpers';
+
+describe('Telegram group and channel visibility', () => {
+  const inbox = {
+    channel_type: 'Channel::TelegramPersonal',
+    hide_groups: true,
+    hide_channels: true,
+  };
+  it('hides previously received groups and channels while keeping private conversations', () => {
+    expect(
+      isTelegramConversationHidden(
+        { additional_attributes: { telegram_group: true } },
+        inbox
+      )
+    ).toBe(true);
+    expect(
+      isTelegramConversationHidden(
+        { additional_attributes: { telegram_channel: true } },
+        inbox
+      )
+    ).toBe(true);
+    expect(
+      isTelegramConversationHidden({ additional_attributes: {} }, inbox)
+    ).toBe(false);
+  });
+  it('shows stored history again when hiding is disabled, regardless of ignore settings', () => {
+    expect(
+      isTelegramConversationHidden(
+        { additional_attributes: { telegram_group: true } },
+        {
+          ...inbox,
+          hide_groups: false,
+          ignore_groups: true,
+        }
+      )
+    ).toBe(false);
+  });
+  it('keeps Whatsmeow behavior separate and includes Telegram groups in the group tab', () => {
+    expect(
+      isTelegramConversationHidden(
+        { additional_attributes: { telegram_group: true } },
+        { channel_type: 'Channel::Whatsmeow' }
+      )
+    ).toBe(false);
+    expect(
+      isWhatsmeowGroupConversation({
+        additional_attributes: { telegram_group: true },
+      })
+    ).toBe(true);
+    expect(
+      isWhatsmeowGroupConversation({
+        meta: { sender: { additional_attributes: { whatsmeow_group: true } } },
+      })
+    ).toBe(true);
+  });
+});
 
 const conversationList = [
   {

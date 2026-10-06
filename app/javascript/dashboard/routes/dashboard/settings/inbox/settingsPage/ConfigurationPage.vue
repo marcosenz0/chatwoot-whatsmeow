@@ -13,6 +13,7 @@ import NextButton from 'dashboard/components-next/button/Button.vue';
 import TextArea from 'next/textarea/TextArea.vue';
 import { sanitizeAllowedDomains } from 'dashboard/helper/URLHelper';
 import WhatsmeowConfigurationPage from './WhatsmeowConfigurationPage.vue';
+import TelegramPersonalConfiguration from './TelegramPersonalConfiguration.vue';
 import SmtpSettings from '../SmtpSettings.vue';
 import ImapSettings from '../ImapSettings.vue';
 import WhatsappBusinessManagementToken from './WhatsappBusinessManagementToken.vue';
@@ -28,6 +29,7 @@ export default {
     NextButton,
     TextArea,
     WhatsmeowConfigurationPage,
+    TelegramPersonalConfiguration,
     WhatsappBusinessManagementToken,
     HmacSecretKey,
   },
@@ -384,6 +386,9 @@ export default {
     </div>
     <ImapSettings :inbox="inbox" />
     <SmtpSettings :inbox="inbox" />
+  </div>
+  <div v-else-if="isATelegramPersonalChannel">
+    <TelegramPersonalConfiguration :inbox="inbox" />
   </div>
   <div v-else-if="isAWhatsmeowChannel">
     <WhatsmeowConfigurationPage :inbox="inbox" />

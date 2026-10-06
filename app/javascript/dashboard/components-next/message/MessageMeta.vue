@@ -18,6 +18,7 @@ const {
   isAPIInbox,
   isASmsInbox,
   isATelegramChannel,
+  isATelegramPersonalChannel,
   isATwilioChannel,
   isAWebWidgetInbox,
   isAWhatsAppChannel,
@@ -119,6 +120,7 @@ const isRead = computed(() => {
     isAWhatsAppChannel.value ||
     isATwilioChannel.value ||
     isAFacebookInbox.value ||
+    isATelegramPersonalChannel.value ||
     isAnInstagramChannel.value ||
     isATiktokChannel.value
   ) {

@@ -1,7 +1,7 @@
 <script setup>
 import { computed, toRef } from 'vue';
-import { useChannelIcon, useChannelBrandIcon } from './provider';
 import Icon from 'next/icon/Icon.vue';
+import { useChannelIcon, useChannelBrandIcon } from './provider';
 
 const props = defineProps({
   inbox: {
@@ -45,7 +45,11 @@ const isWhatsmeowConnected = computed(
       <Icon icon="i-lucide-audio-lines" class="size-1.5 text-n-slate-12" />
     </span>
     <span
-      v-if="inbox.channel_type === 'Channel::Whatsmeow'"
+      v-if="
+        ['Channel::Whatsmeow', 'Channel::TelegramPersonal'].includes(
+          inbox.channel_type
+        )
+      "
       class="absolute bottom-[-3px] right-[-3px] w-2.5 h-2.5 rounded-full border border-white flex items-center justify-center"
       :class="isWhatsmeowConnected ? 'bg-green-500' : 'bg-red-500'"
     >

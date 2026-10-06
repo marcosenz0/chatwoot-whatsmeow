@@ -92,6 +92,24 @@ class Inboxes extends CacheEnabledApiClient {
     });
   }
 
+  getTelegramPersonalStatus(inboxId) {
+    return axios.get(`${this.url}/${inboxId}/telegram_personal`);
+  }
+
+  connectTelegramPersonal(inboxId) {
+    return axios.post(`${this.url}/${inboxId}/telegram_personal`);
+  }
+
+  disconnectTelegramPersonal(inboxId) {
+    return axios.delete(`${this.url}/${inboxId}/telegram_personal`);
+  }
+
+  submitTelegramPersonalPassword(inboxId, password) {
+    return axios.post(`${this.url}/${inboxId}/telegram_personal/password`, {
+      password,
+    });
+  }
+
   checkWhatsmeowNumber(inboxId, phoneNumber) {
     return axios.get(`${this.url}/${inboxId}/whatsmeow_number`, {
       params: { phone: phoneNumber },

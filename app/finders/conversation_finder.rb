@@ -104,6 +104,7 @@ class ConversationFinder
       current_account
     ).perform
     filter_by_conversation_type if params[:conversation_type]
+    @conversations = TelegramPersonal::ConversationVisibilityService.perform(@conversations)
     @conversations
   end
 
@@ -214,11 +215,14 @@ class ConversationFinder
   end
 
   def group_conversations(relation)
-    relation.joins(:contact).where("contacts.additional_attributes ->> 'whatsmeow_group' = ?", 'true')
+    relation.joins(:contact).where(
+      "contacts.additional_attributes ->> 'whatsmeow_group' = 'true' OR conversations.additional_attributes ->> 'telegram_group' = 'true'"
+    )
   end
 
   def direct_conversations(relation)
-    relation.joins(:contact).where("COALESCE(contacts.additional_attributes ->> 'whatsmeow_group', 'false') != ?", 'true')
+    relation.joins(:contact).where("COALESCE(contacts.additional_attributes ->> 'whatsmeow_group', 'false') != 'true'")
+            .where("COALESCE(conversations.additional_attributes ->> 'telegram_group', 'false') != 'true'")
   end
 
   def hide_group_tabs

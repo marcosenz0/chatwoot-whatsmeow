@@ -33,6 +33,7 @@ class Conversations::FilterService < FilterService
       inbox: :channel, ai_assignee: { avatar_attachment: [:blob] }
     )
 
+    conversations = TelegramPersonal::ConversationVisibilityService.perform(conversations)
     Conversations::PermissionFilterService.new(
       conversations,
       @user,

@@ -1,0 +1,7 @@
+Telethon==1.45.0
+fastapi==0.142.2
+uvicorn==0.54.0
+httpx==0.28.1
+qrcode[pil]==8.2
+pytest==9.1.1
+pytest-asyncio==1.4.0

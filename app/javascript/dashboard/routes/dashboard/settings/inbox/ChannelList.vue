@@ -16,13 +16,21 @@ const globalConfig = useMapGetter('globalConfig/get');
 
 const enabledFeatures = computed(() => currentAccount.value?.features || {});
 
-const hasTiktokConfigured = computed(() => {
-  return window.chatwootConfig?.tiktokAppId;
-});
+const hasTiktokConfigured = computed(() => window.chatwootConfig?.tiktokAppId);
 
 const channelList = computed(() => {
   const { apiChannelName } = globalConfig.value;
   const channels = [
+    ...(window.chatwootConfig?.telegramPersonalEnabled
+      ? [
+          {
+            key: 'telegram_personal',
+            title: t('TELEGRAM_PERSONAL.TITLE'),
+            description: t('TELEGRAM_PERSONAL.DESCRIPTION'),
+            icon: 'i-woot-telegram',
+          },
+        ]
+      : []),
     {
       key: 'whatsmeow',
       title: t('INBOX_MGMT.ADD.AUTH.CHANNEL.WHATSMEOW.TITLE'),

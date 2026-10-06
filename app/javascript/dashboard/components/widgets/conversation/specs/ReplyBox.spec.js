@@ -124,6 +124,69 @@ const editor = wrapper =>
   wrapper.findComponent({ name: 'WootMessageEditor' }).props();
 
 describe('ReplyBox', () => {
+  describe('Telegram personal audio send button', () => {
+    it.each([true, false])(
+      'sends selected audio with recorded mode %s through the send button',
+      async recorded => {
+        const { wrapper } = mountWith({
+          inbox: { channel_type: 'Channel::TelegramPersonal' },
+        });
+        const file = new File(['audio fixture'], 'test.ogg', {
+          type: 'audio/ogg',
+        });
+        const send = vi.spyOn(wrapper.vm, 'sendMessage').mockResolvedValue();
+        await wrapper.setData({
+          attachedFiles: [{ resource: { file }, isAudio: true }],
+        });
+        if (recorded) {
+          wrapper
+            .findComponent({ name: 'AttachmentPreview' })
+            .vm.$emit('toggleRecordedAudio', 0);
+          await nextTick();
+        }
+
+        await bottomPanel(wrapper).onSend();
+
+        expect(send).toHaveBeenCalledOnce();
+        const payload = send.mock.calls[0][0];
+        expect(payload.files).toEqual([file]);
+        expect(payload.private).toBe(false);
+        expect(
+          payload.contentAttributes?.telegram_personal_recorded_audio
+        ).toBe(recorded ? true : undefined);
+      }
+    );
+
+    it('keeps audio in a private note without Telegram voice attributes', async () => {
+      const { wrapper } = mountWith({
+        inbox: { channel_type: 'Channel::TelegramPersonal' },
+      });
+      const file = new File(['audio fixture'], 'test.ogg', {
+        type: 'audio/ogg',
+      });
+      const send = vi.spyOn(wrapper.vm, 'sendMessage').mockResolvedValue();
+      wrapper
+        .findComponent({ name: 'ReplyTopPanel' })
+        .vm.$emit('setReplyMode', REPLY_EDITOR_MODES.NOTE);
+      await nextTick();
+      await wrapper.setData({
+        attachedFiles: [{ resource: { file }, isRecordedAudio: true }],
+      });
+
+      await bottomPanel(wrapper).onSend();
+
+      expect(send).toHaveBeenCalledOnce();
+      expect(send.mock.calls[0][0]).toMatchObject({
+        files: [file],
+        private: true,
+      });
+      expect(
+        send.mock.calls[0][0].contentAttributes
+          ?.telegram_personal_recorded_audio
+      ).toBeUndefined();
+    });
+  });
+
   describe('Instagram incident restriction', () => {
     it('opens in note mode and restores only the private-note draft', async () => {
       const { wrapper, store } = mountWith({

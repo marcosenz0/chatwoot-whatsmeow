@@ -26,7 +26,18 @@ export const filterByLabel = (shouldFilter, labels, chatLabels) => {
 };
 
 export const isWhatsmeowGroupConversation = conversation =>
-  !!conversation?.meta?.sender?.additional_attributes?.whatsmeow_group;
+  !!conversation?.meta?.sender?.additional_attributes?.whatsmeow_group ||
+  !!conversation?.additional_attributes?.telegram_group;
+
+export const isTelegramConversationHidden = (conversation, inbox) => {
+  if (inbox?.channel_type !== 'Channel::TelegramPersonal') return false;
+  const attributes = conversation.additional_attributes || {};
+  return (
+    (inbox.hide_groups && attributes.telegram_group) ||
+    (inbox.hide_channels && attributes.telegram_channel) ||
+    false
+  );
+};
 
 export const filterByHiddenGroups = (
   shouldFilter,
@@ -46,11 +57,10 @@ export const filterByUnattended = (
   conversationType,
   firstReplyOn,
   waitingSince
-) => {
-  return conversationType === 'unattended'
+) =>
+  conversationType === 'unattended'
     ? (!firstReplyOn || !!waitingSince) && shouldFilter
     : shouldFilter;
-};
 
 export const applyPageFilters = (conversation, filters) => {
   const {

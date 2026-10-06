@@ -22,6 +22,7 @@ export const INBOX_FEATURE_MAP = {
     INBOX_TYPES.WHATSAPP,
     INBOX_TYPES.WHATSMEOW,
     INBOX_TYPES.TELEGRAM,
+    INBOX_TYPES.TELEGRAM_PERSONAL,
     INBOX_TYPES.TIKTOK,
     INBOX_TYPES.API,
   ],
@@ -31,6 +32,7 @@ export const INBOX_FEATURE_MAP = {
     INBOX_TYPES.WHATSAPP,
     INBOX_TYPES.WHATSMEOW,
     INBOX_TYPES.TELEGRAM,
+    INBOX_TYPES.TELEGRAM_PERSONAL,
     INBOX_TYPES.TIKTOK,
     INBOX_TYPES.API,
   ],
@@ -53,93 +55,86 @@ export const useInbox = (inboxId = null) => {
     return useCamelCase(inboxGetter.value(targetInboxId), { deep: true });
   });
 
-  const channelType = computed(() => {
-    return inbox.value?.channelType;
-  });
+  const channelType = computed(() => inbox.value?.channelType);
 
-  const isAPIInbox = computed(() => {
-    return channelType.value === INBOX_TYPES.API;
-  });
+  const isAPIInbox = computed(() => channelType.value === INBOX_TYPES.API);
 
-  const isAFacebookInbox = computed(() => {
-    return channelType.value === INBOX_TYPES.FB;
-  });
+  const isAFacebookInbox = computed(() => channelType.value === INBOX_TYPES.FB);
 
-  const isAWebWidgetInbox = computed(() => {
-    return channelType.value === INBOX_TYPES.WEB;
-  });
+  const isAWebWidgetInbox = computed(
+    () => channelType.value === INBOX_TYPES.WEB
+  );
 
-  const isATwilioChannel = computed(() => {
-    return channelType.value === INBOX_TYPES.TWILIO;
-  });
+  const isATwilioChannel = computed(
+    () => channelType.value === INBOX_TYPES.TWILIO
+  );
 
-  const isALineChannel = computed(() => {
-    return channelType.value === INBOX_TYPES.LINE;
-  });
+  const isALineChannel = computed(() => channelType.value === INBOX_TYPES.LINE);
 
-  const isAnEmailChannel = computed(() => {
-    return channelType.value === INBOX_TYPES.EMAIL;
-  });
+  const isAnEmailChannel = computed(
+    () => channelType.value === INBOX_TYPES.EMAIL
+  );
 
-  const isATelegramChannel = computed(() => {
-    return channelType.value === INBOX_TYPES.TELEGRAM;
-  });
+  const isATelegramChannel = computed(() =>
+    [INBOX_TYPES.TELEGRAM, INBOX_TYPES.TELEGRAM_PERSONAL].includes(
+      channelType.value
+    )
+  );
 
-  const whatsAppAPIProvider = computed(() => {
-    return inbox.value?.provider || '';
-  });
+  const isATelegramPersonalChannel = computed(
+    () => channelType.value === INBOX_TYPES.TELEGRAM_PERSONAL
+  );
 
-  const isAMicrosoftInbox = computed(() => {
-    return isAnEmailChannel.value && inbox.value?.provider === 'microsoft';
-  });
+  const whatsAppAPIProvider = computed(() => inbox.value?.provider || '');
 
-  const isAGoogleInbox = computed(() => {
-    return isAnEmailChannel.value && inbox.value?.provider === 'google';
-  });
+  const isAMicrosoftInbox = computed(
+    () => isAnEmailChannel.value && inbox.value?.provider === 'microsoft'
+  );
+
+  const isAGoogleInbox = computed(
+    () => isAnEmailChannel.value && inbox.value?.provider === 'google'
+  );
 
   const isATwilioSMSChannel = computed(() => {
-    const { medium: medium = '' } = inbox.value || {};
+    const { medium = '' } = inbox.value || {};
     return isATwilioChannel.value && medium === 'sms';
   });
 
-  const isASmsInbox = computed(() => {
-    return channelType.value === INBOX_TYPES.SMS || isATwilioSMSChannel.value;
-  });
+  const isASmsInbox = computed(
+    () => channelType.value === INBOX_TYPES.SMS || isATwilioSMSChannel.value
+  );
 
   const isATwilioWhatsAppChannel = computed(() => {
-    const { medium: medium = '' } = inbox.value || {};
+    const { medium = '' } = inbox.value || {};
     return isATwilioChannel.value && medium === 'whatsapp';
   });
 
-  const isAWhatsAppCloudChannel = computed(() => {
-    return (
+  const isAWhatsAppCloudChannel = computed(
+    () =>
       channelType.value === INBOX_TYPES.WHATSAPP &&
       whatsAppAPIProvider.value === 'whatsapp_cloud'
-    );
-  });
+  );
 
-  const is360DialogWhatsAppChannel = computed(() => {
-    return (
+  const is360DialogWhatsAppChannel = computed(
+    () =>
       channelType.value === INBOX_TYPES.WHATSAPP &&
       whatsAppAPIProvider.value === 'default'
-    );
-  });
+  );
 
-  const isAWhatsAppChannel = computed(() => {
-    return (
+  const isAWhatsAppChannel = computed(
+    () =>
       channelType.value === INBOX_TYPES.WHATSAPP ||
       channelType.value === INBOX_TYPES.WHATSMEOW ||
       isATwilioWhatsAppChannel.value
-    );
-  });
+  );
 
-  const isAnInstagramChannel = computed(() => {
-    return channelType.value === INBOX_TYPES.INSTAGRAM;
-  });
+  const isAnInstagramChannel = computed(
+    () => channelType.value === INBOX_TYPES.INSTAGRAM
+  );
 
-  const isATiktokChannel = computed(() => {
-    return channelType.value === INBOX_TYPES.TIKTOK;
-  });
+  const isATiktokChannel = computed(
+    () => channelType.value === INBOX_TYPES.TIKTOK
+  );
 
   const voiceCallEnabled = computed(() => isVoiceCallEnabled(inbox.value));
 
@@ -152,6 +147,7 @@ export const useInbox = (inboxId = null) => {
     isAPIInbox,
     isASmsInbox,
     isATelegramChannel,
+    isATelegramPersonalChannel,
     isATwilioChannel,
     isATwilioSMSChannel,
     isAWebWidgetInbox,

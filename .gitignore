@@ -105,3 +105,13 @@ CLAUDE.local.md
 local/
 Procfile.worktree
 .nodeterm/project.json
+
+# Telegram personal-account runtime secrets and sessions
+telegram-personal-service/.venv/
+telegram-personal-service/.pytest_cache/
+telegram-personal-service/**/__pycache__/
+*.session
+*.session-journal
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
