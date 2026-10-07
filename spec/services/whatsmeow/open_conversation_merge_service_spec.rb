@@ -36,7 +36,7 @@ RSpec.describe Whatsmeow::OpenConversationMergeService do
 
   it 'keeps a permanent human takeover when the canonical conversation was active' do
     target_state
-    human_message = create(:message, :outgoing, account: account, inbox: inbox, conversation: source)
+    human_message = create(:message, message_type: :outgoing, account: account, inbox: inbox, conversation: source)
     source_state.pause_by_human!(message: human_message, minutes: 0)
 
     service.perform
@@ -60,7 +60,7 @@ RSpec.describe Whatsmeow::OpenConversationMergeService do
   end
 
   it 'keeps the longer of two temporary human pauses' do
-    human_message = create(:message, :outgoing, account: account, inbox: inbox, conversation: source)
+    human_message = create(:message, message_type: :outgoing, account: account, inbox: inbox, conversation: source)
     target_state.pause_by_human!(message: human_message, minutes: 5)
     source_state.pause_by_human!(message: human_message, minutes: 30)
     paused_until = source_state.paused_until
