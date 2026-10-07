@@ -98,6 +98,11 @@ class MarcosxAi::Assistant < ApplicationRecord
     return false unless conversation.can_reply?
     return false if conversation.contact.blocked?
 
+    if conversation.inbox.channel_type.in?(%w[Channel::FacebookPage Channel::Instagram])
+      last_incoming = conversation.messages.incoming.order(:created_at, :id).last
+      return false unless last_incoming && last_incoming.created_at > 24.hours.ago
+    end
+
     group = conversation.additional_attributes['whatsmeow_group'] || conversation.additional_attributes['telegram_group'] ||
             conversation.contact.additional_attributes['whatsmeow_group'] || conversation.additional_attributes['chat_type'].in?(%w[group supergroup
                                                                                                                                     channel])

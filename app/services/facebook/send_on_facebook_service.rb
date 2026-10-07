@@ -95,7 +95,7 @@ class Facebook::SendOnFacebookService < Base::SendOnChannelService
   end
 
   def merge_human_agent_tag(params)
-    unless GlobalConfigService.load('ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT', nil)
+    if message.sender.is_a?(MarcosxAi::Assistant) || !GlobalConfigService.load('ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT', nil)
       params[:messaging_type] = 'RESPONSE'
       return params
     end

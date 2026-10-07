@@ -70,6 +70,9 @@ jobs:
           spec/models/attachment_spec.rb
           spec/services/whatsmeow
           spec/services/telegram_personal
+          spec/services/facebook/send_on_facebook_service_spec.rb
+          spec/services/instagram/send_on_instagram_service_spec.rb
+          spec/services/instagram/messenger/send_on_instagram_service_spec.rb
       - name: Check Ruby syntax, layout and unsafe code
         run: >-
           bundle exec rubocop --only Lint,Layout,Security
