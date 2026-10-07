@@ -122,6 +122,7 @@ class Conversation < ApplicationRecord
   belongs_to :contact
   belongs_to :contact_inbox
   has_one :marcosx_ai_conversation_state, class_name: 'MarcosxAi::ConversationState', dependent: :destroy, inverse_of: :conversation
+  has_many :marcosx_ai_logs, class_name: 'MarcosxAi::Log', dependent: :delete_all, inverse_of: :conversation
   belongs_to :team, optional: true
   belongs_to :campaign, optional: true
   belongs_to :conversation_pipeline, optional: true
