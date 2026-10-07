@@ -93,6 +93,21 @@ RSpec.describe 'MarcoXIA API', type: :request do
     expect(response.parsed_body['state']['processing']).to be(true)
   end
 
+  it 'uses the saved reaction setting in the private test area' do
+    assistant.update!(config: { allow_reactions: false })
+    client = instance_double(MarcosxAi::ProviderClient, usage: {})
+    plan = { messages: ['You are welcome'], reaction: nil, reaction_message_id: nil, handoff: false, handoff_reason: nil }
+    allow(MarcosxAi::ProviderClient).to receive(:new).and_return(client)
+    expect(client).to receive(:chat) do |messages:, schema:|
+      expect(messages.first[:content]).to include('use reaction=null e reaction_message_id=null')
+      expect(schema).to eq(MarcosxAi::ReplyPlan::SCHEMA)
+      plan.to_json
+    end
+    post "#{endpoint}/assistants/#{assistant.id}/playground", params: { assistant: { message: 'Thank you' } }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body['plan']['reaction']).to be_nil
+  end
+
   it 'tests attachments without creating messages or keeping temporary files' do
     client = instance_double(MarcosxAi::ProviderClient, usage: {})
     plan = { messages: ['That is an image'], reaction: nil, reaction_message_id: nil, handoff: false, handoff_reason: nil }

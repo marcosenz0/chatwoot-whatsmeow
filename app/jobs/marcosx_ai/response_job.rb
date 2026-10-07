@@ -1,4 +1,6 @@
 class MarcosxAi::ResponseJob < ApplicationJob
+  # Scheduled AI replies must survive process restarts, including installs using async for UI jobs.
+  self.queue_adapter = :sidekiq unless Rails.env.test?
   queue_as :default
   discard_on ActiveRecord::RecordNotFound
 

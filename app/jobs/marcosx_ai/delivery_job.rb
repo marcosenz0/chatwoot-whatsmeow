@@ -1,4 +1,6 @@
 class MarcosxAi::DeliveryJob < ApplicationJob
+  # Keep delayed message parts in the same durable queue as response generation.
+  self.queue_adapter = :sidekiq unless Rails.env.test?
   queue_as :default
   discard_on ActiveRecord::RecordNotFound
 

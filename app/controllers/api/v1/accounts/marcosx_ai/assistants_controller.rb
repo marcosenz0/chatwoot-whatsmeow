@@ -43,7 +43,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
 
     client = MarcosxAi::ProviderClient.new(account: Current.account, provider: @assistant.provider, model: @assistant.model,
                                            temperature: @assistant.temperature, reasoning_effort: @assistant.reasoning_effort)
-    prompts = MarcosxAi::PromptBuilder.messages(assistant: @assistant, reactions: true)
+    prompts = MarcosxAi::PromptBuilder.messages(assistant: @assistant, reactions: @assistant.feature_enabled?(:allow_reactions))
     history = playground_params.fetch(:history, []).last(@assistant.history_limit).map { |item| { role: item[:role], content: item[:content] } }
     return render json: { error: 'Invalid history' }, status: :unprocessable_entity unless history.all? { |item|
       %w[user assistant].include?(item[:role])

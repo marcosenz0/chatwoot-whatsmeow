@@ -26,7 +26,7 @@
     "EMPTY_CONTROL": "Você controla o atendimento",
     "ACTIVE": "Ativo",
     "DRAFT": "Pausado",
-    "INBOX_COUNT": "{count} caixas de entrada",
+    "INBOX_COUNT": "{count} caixa de entrada | {count} caixas de entrada",
     "NO_INBOX": "Nenhuma caixa selecionada",
     "ALL_INBOXES": "Selecionar todas as disponíveis",
     "NO_AGENTS": "Crie um agente para começar os testes.",
