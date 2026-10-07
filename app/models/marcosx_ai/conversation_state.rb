@@ -80,10 +80,21 @@ class MarcosxAi::ConversationState < ApplicationRecord
   def current_run?(token)
     status == 'active' && metadata['run_token'] == token && assistant&.auto_response_enabled? &&
       conversation.inbox.marcosx_ai_assistant&.id == assistant_id && assistant.accepts_conversation?(conversation) &&
-      !conversation.resolved? && !conversation.snoozed? && metadata['assistant_version'] == assistant.updated_at.iso8601(6)
+      !conversation.resolved? && !conversation.snoozed? && metadata['assistant_version'] == assistant.updated_at.iso8601(6) && !superseded?
   end
 
   private
+
+  def superseded?
+    newer = conversation.messages.where(private: false).where('id > ?', metadata.fetch('trigger_message_id'))
+    newer = newer.where("COALESCE(content_attributes ->> 'historical', 'false') != 'true'")
+                 .where.not(content_type: Message.content_types[:voice_call])
+    incoming = newer.incoming.where("COALESCE(content_attributes ->> 'deleted', 'false') != 'true'")
+                    .where("COALESCE(content_attributes ->> 'is_unsupported', 'false') != 'true'")
+    human = newer.outgoing.where("sender_type = 'User' OR content_attributes ->> 'external_echo' = 'true'")
+                 .where("content_attributes ->> 'automation_rule_id' IS NULL AND additional_attributes ->> 'campaign_id' IS NULL")
+    incoming.exists? || human.exists?
+  end
 
   def cancelled_metadata
     metadata.except('pending_response', 'pending_since_message_id').merge('run_token' => SecureRandom.uuid, 'processing' => false)

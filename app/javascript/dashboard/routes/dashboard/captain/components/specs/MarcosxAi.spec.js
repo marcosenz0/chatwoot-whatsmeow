@@ -1,9 +1,9 @@
 import { flushPromises, mount, shallowMount } from '@vue/test-utils';
 import { vi } from 'vitest';
+import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import AgentEditor from '../AgentEditor.vue';
 import AiModelSelect from '../AiModelSelect.vue';
 import AiPlayground from '../AiPlayground.vue';
-import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 
 vi.mock('dashboard/api/marcosxAi', () => ({
   default: { runPlayground: vi.fn() },

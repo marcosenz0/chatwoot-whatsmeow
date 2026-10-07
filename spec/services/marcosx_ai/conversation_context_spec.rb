@@ -10,7 +10,10 @@ RSpec.describe MarcosxAi::ConversationContext do
   let(:client) { instance_double(MarcosxAi::ProviderClient) }
   let(:message) { create(:message, account: account, inbox: inbox, conversation: conversation, content: 'Last question') }
   let(:token) { 'test-token' }
-  let(:context) { described_class.new(conversation: conversation, assistant: assistant, state: state, client: client, trigger_message: message, token: token) }
+  let(:context) do
+    state.update!(metadata: state.metadata.merge('trigger_message_id' => message.id))
+    described_class.new(conversation: conversation, assistant: assistant, state: state, client: client, trigger_message: message, token: token)
+  end
 
   before do
     assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)

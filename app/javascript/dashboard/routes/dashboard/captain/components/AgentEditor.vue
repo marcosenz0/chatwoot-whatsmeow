@@ -201,7 +201,7 @@ const channelLabel = inbox =>
               required
               maxlength="120"
               :placeholder="t('MARCOX_AI.EDITOR.NAME_PLACEHOLDER')"
-              class="!mb-0 mt-2 !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
+              class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
             />
           </label>
           <label class="block text-sm font-medium text-n-slate-12">
@@ -209,7 +209,7 @@ const channelLabel = inbox =>
             <input
               v-model="form.description"
               :placeholder="t('MARCOX_AI.EDITOR.DESCRIPTION_PLACEHOLDER')"
-              class="!mb-0 mt-2 !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
+              class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
             />
           </label>
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -217,7 +217,7 @@ const channelLabel = inbox =>
               {{ t('MARCOX_AI.EDITOR.PROVIDER') }}
               <select
                 v-model="form.config.provider"
-                class="!mb-0 mt-2 !h-10 w-full rounded-lg border border-n-weak bg-n-background px-3 text-sm"
+                class="!mb-0 mt-2 !block !h-10 !w-full rounded-lg border border-n-weak bg-n-background px-3 text-sm"
               >
                 <option
                   v-for="provider in providerOptions"
@@ -252,7 +252,7 @@ const channelLabel = inbox =>
             {{ t('MARCOX_AI.EDITOR.REASONING') }}
             <select
               v-model="form.config.reasoning_effort"
-              class="!mb-0 mt-2 !h-10 w-full rounded-lg border border-n-weak bg-n-background px-3 text-sm"
+              class="!mb-0 mt-2 !block !h-10 !w-full rounded-lg border border-n-weak bg-n-background px-3 text-sm"
             >
               <option value="low">{{ t('MARCOX_AI.EDITOR.LOW') }}</option>
               <option value="medium">{{ t('MARCOX_AI.EDITOR.MEDIUM') }}</option>
@@ -267,7 +267,7 @@ const channelLabel = inbox =>
               min="0"
               max="2"
               step="0.1"
-              class="!mb-0 mt-2 !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
+              class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
             />
           </label>
           <div class="rounded-xl border border-n-weak bg-n-alpha-1 px-4">
@@ -398,7 +398,7 @@ const channelLabel = inbox =>
                 type="number"
                 min="0"
                 max="300"
-                class="!mb-0 mt-2 !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
+                class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
               />
               <span
                 class="mt-1 block text-xs font-normal leading-5 text-n-slate-11"
@@ -412,7 +412,7 @@ const channelLabel = inbox =>
                 type="number"
                 min="10"
                 max="300"
-                class="!mb-0 mt-2 !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
+                class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
               />
               <span
                 class="mt-1 block text-xs font-normal leading-5 text-n-slate-11"
@@ -424,7 +424,7 @@ const channelLabel = inbox =>
             {{ t('MARCOX_AI.EDITOR.HUMAN_PAUSE') }}
             <select
               v-model.number="form.config.human_pause_minutes"
-              class="!mb-0 mt-2 !h-10 w-full rounded-lg border border-n-weak bg-n-background px-3 text-sm"
+              class="!mb-0 mt-2 !block !h-10 !w-full rounded-lg border border-n-weak bg-n-background px-3 text-sm"
             >
               <option :value="0">
                 {{ t('MARCOX_AI.EDITOR.PAUSE_FOREVER') }}
@@ -453,7 +453,7 @@ const channelLabel = inbox =>
                   type="number"
                   min="1"
                   max="5"
-                  class="!mb-0 mt-2 !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
+                  class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
               /></label>
               <label class="text-xs text-n-slate-11"
                 >{{ t('MARCOX_AI.EDITOR.INTERVAL')
@@ -462,7 +462,7 @@ const channelLabel = inbox =>
                   type="number"
                   min="0"
                   max="15"
-                  class="!mb-0 mt-2 !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
+                  class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
               /></label>
             </div>
             <div class="border-t border-n-weak">
