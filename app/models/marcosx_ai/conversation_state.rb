@@ -28,6 +28,8 @@ class MarcosxAi::ConversationState < ApplicationRecord
         state.pause_by_agent! unless assistant.feature_enabled?(:auto_start)
       end
     end
+    # A failed create attempt can leave its unsaved inverse in the conversation's association cache.
+    conversation.association(:marcosx_ai_conversation_state).reset
     state
   end
 
@@ -102,6 +104,7 @@ class MarcosxAi::ConversationState < ApplicationRecord
   end
 
   def broadcast_state
+    conversation.association(:marcosx_ai_conversation_state).reset
     conversation.dispatch_conversation_updated_event
   end
 end
