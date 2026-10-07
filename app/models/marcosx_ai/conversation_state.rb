@@ -6,7 +6,7 @@ class MarcosxAi::ConversationState < ApplicationRecord
   belongs_to :account
   belongs_to :assistant, class_name: 'MarcosxAi::Assistant', optional: true
   belongs_to :conversation
-  belongs_to :inbox
+  belongs_to :inbox, class_name: '::Inbox'
 
   validates :status, inclusion: { in: STATUSES }
   # The unique database index makes create_or_find_by! safe under concurrent arrivals.

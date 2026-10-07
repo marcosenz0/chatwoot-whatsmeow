@@ -19,11 +19,17 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
     when 'resume'
       return render json: { error: 'Enable the agent first' }, status: :unprocessable_entity unless @state.assistant.auto_response_enabled?
 
+      return render json: { error: I18n.t('marcosx_ai.errors.conversation_unavailable') },
+                    status: :unprocessable_entity unless @state.assistant.accepts_conversation?(@conversation)
+
       @state.with_lock { @state.resume! }
       latest = @conversation.messages.where(message_type: [:incoming, :outgoing], private: false).order(:created_at, :id).last
       MarcosxAi::ResponseScheduler.perform(message: latest) if latest&.incoming?
     when 'reply_now'
       return render json: { error: 'Enable the agent first' }, status: :unprocessable_entity unless @state.assistant.auto_response_enabled?
+
+      return render json: { error: I18n.t('marcosx_ai.errors.conversation_unavailable') },
+                    status: :unprocessable_entity unless @state.assistant.accepts_conversation?(@conversation)
 
       @state.with_lock { @state.resume! }
       latest = @conversation.messages.where(message_type: [:incoming, :outgoing], private: false).order(:created_at, :id).last

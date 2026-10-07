@@ -49,6 +49,7 @@ class MarcosxAi::ConversationContext
       end
     }
     data[:story_reply] = attributes.slice('story_id', 'story_url', 'story_sender') if attributes['story_id'].present?
+    data[:reactions] = attributes['whatsmeow_reactions'] if attributes['whatsmeow_reactions'].present?
     if attributes['in_reply_to'].present?
       replied = @conversation.messages.find_by(id: attributes['in_reply_to'])
       data[:reply_to] = { message_id: replied.id, text: replied.content } if replied

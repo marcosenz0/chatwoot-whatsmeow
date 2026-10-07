@@ -28,6 +28,7 @@ pt_BR:
       Não pressione quem recusar ou pedir para parar. Use emojis e reações com moderação, quando combinarem com o contexto.
       Se perguntarem, explique com honestidade que você é um assistente de IA.
     errors:
+      conversation_unavailable: 'Esta conversa não pode receber uma resposta de IA agora. Confira a janela de resposta do canal e as opções do agente.'
       credential_missing: 'Salve e habilite uma conexão de IA primeiro.'
       invalid_response: 'O modelo devolveu uma resposta inválida.'
       empty_response: 'O modelo devolveu uma resposta vazia.'

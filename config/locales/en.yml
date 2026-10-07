@@ -41,6 +41,7 @@ en:
       Do not pressure someone who declines or asks to stop. Use emojis and reactions sparingly, when appropriate.
       If asked, explain honestly that you are an AI assistant.
     errors:
+      conversation_unavailable: 'This conversation cannot receive an AI reply right now. Check the channel reply window and agent settings.'
       credential_missing: 'Save and enable a provider connection first.'
       invalid_response: 'The model returned an invalid response.'
       empty_response: 'The model returned an empty response.'

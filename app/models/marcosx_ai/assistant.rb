@@ -94,6 +94,7 @@ class MarcosxAi::Assistant < ApplicationRecord
   end
 
   def accepts_conversation?(conversation)
+    return false unless conversation.can_reply?
     return false if conversation.contact.blocked?
 
     group = conversation.additional_attributes['whatsmeow_group'] || conversation.additional_attributes['telegram_group'] ||
