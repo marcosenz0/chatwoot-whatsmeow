@@ -4,6 +4,10 @@ RSpec.describe 'MarcoXIA Meta delivery' do
   let(:account) { create(:account) }
   let(:assistant) { account.marcosx_ai_assistants.create!(name: 'Support') }
 
+  before do
+    allow(Facebook::Messenger::Subscriptions).to receive(:subscribe).and_return(true)
+  end
+
   [[:channel_facebook_page, Facebook::SendOnFacebookService, :fb_text_message_params],
    [:channel_facebook_page, Instagram::Messenger::SendOnInstagramService, :message_params],
    [:channel_instagram, Instagram::SendOnInstagramService, :message_params]].each do |factory, service, payload_method|
@@ -14,9 +18,14 @@ RSpec.describe 'MarcoXIA Meta delivery' do
       let(:message) { create(:message, message_type: :outgoing, account: account, inbox: inbox, conversation: conversation, sender: assistant) }
 
       it 'never labels an AI reply as a human agent message' do
-        allow(GlobalConfigService).to receive(:load).and_return(true)
-        allow(GlobalConfig).to receive(:get).and_return(
+        allow(GlobalConfigService).to receive(:load).and_call_original
+        allow(GlobalConfigService).to receive(:load).with('ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT', nil).and_return(true)
+        allow(GlobalConfig).to receive(:get).and_call_original
+        allow(GlobalConfig).to receive(:get).with('ENABLE_INSTAGRAM_CHANNEL_HUMAN_AGENT').and_return(
           'ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT' => true, 'ENABLE_INSTAGRAM_CHANNEL_HUMAN_AGENT' => true
+        )
+        allow(GlobalConfig).to receive(:get).with('ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT').and_return(
+          'ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT' => true
         )
         payload = service.new(message: message).send(payload_method)
         expect(payload[:tag]).to be_nil
