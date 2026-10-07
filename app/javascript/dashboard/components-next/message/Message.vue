@@ -911,6 +911,7 @@ provideMessageContext({
   instagramPreview,
   showInstagramLink,
   forwardMediaMessage: attachment => emit('forward', attachment),
+  canReactToMessage,
   isPrivate: computed(() => props.private),
   variant,
   orientation,

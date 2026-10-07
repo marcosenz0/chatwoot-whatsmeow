@@ -13,6 +13,8 @@ import {
 
 import FileIcon from 'next/icon/FileIcon.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
+import { isPdfAttachment } from 'dashboard/helper/pdfAttachmentHelper';
+import PdfViewer from 'dashboard/components/widgets/conversation/components/PdfViewer.vue';
 
 const props = defineProps({
   attachments: { type: Array, default: () => [] },
@@ -39,6 +41,8 @@ const fileAttachments = computed(() =>
 
 const showAll = ref(false);
 const downloadingId = ref(null);
+const selectedPdf = ref(null);
+const showPdf = ref(false);
 
 const isPeekable = computed(() => props.peekLimit > 0);
 
@@ -68,7 +72,14 @@ const displayTime = attachment => {
   return shortTimestamp(dynamicTime(attachment.created_at), true);
 };
 
-const onActivate = attachment => emit('select', attachment);
+const onActivate = attachment => {
+  if (isPdfAttachment(attachment)) {
+    selectedPdf.value = attachment;
+    showPdf.value = true;
+  } else {
+    emit('select', attachment);
+  }
+};
 
 const onDownloadFile = async attachment => {
   const { id, file_type: type, data_url: url, extension } = attachment;
@@ -151,6 +162,17 @@ const onDownloadFile = async attachment => {
         </div>
         <div class="flex items-center gap-1">
           <NextButton
+            v-if="isPdfAttachment(attachment)"
+            ghost
+            slate
+            sm
+            icon="i-lucide-eye"
+            :aria-label="t('PDF_VIEWER.VIEW')"
+            @click.stop="onActivate(attachment)"
+            @keydown.enter.stop
+            @keydown.space.stop
+          />
+          <NextButton
             v-if="showJumpToMessage && attachment.message_id"
             v-tooltip.top="{
               content: t('CONVERSATION_SIDEBAR.SHARED_FILES.JUMP_TO_MESSAGE'),
@@ -183,4 +205,10 @@ const onDownloadFile = async attachment => {
     </ul>
   </section>
   <template v-else />
+  <PdfViewer
+    v-if="showPdf"
+    v-model:show="showPdf"
+    :attachment="selectedPdf"
+    @close="showPdf = false"
+  />
 </template>

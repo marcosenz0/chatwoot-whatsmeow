@@ -1,8 +1,8 @@
 <script setup>
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
-import BaseBubble from './Base.vue';
 import Icon from 'next/icon/Icon.vue';
+import BaseBubble from './Base.vue';
 import { useMessageContext } from '../provider.js';
 
 defineProps({
@@ -14,18 +14,14 @@ defineProps({
   action: {
     type: Object,
     required: true,
-    validator: action => {
-      return action.label && (action.href || action.onClick);
-    },
+    validator: action => action.label && (action.href || action.onClick),
   },
 });
 
 const { sender } = useMessageContext();
 const { t } = useI18n();
 
-const senderName = computed(() => {
-  return sender?.value?.name || '';
-});
+const senderName = computed(() => sender?.value?.name || '');
 </script>
 
 <template>
@@ -59,22 +55,24 @@ const senderName = computed(() => {
         </div>
       </div>
       <div v-if="action" class="mb-2">
-        <a
-          v-if="action.href"
-          :href="action.href"
-          rel="noreferrer noopener nofollow"
-          target="_blank"
-          class="w-full block bg-n-solid-3 px-4 py-2 rounded-lg text-sm text-center border border-n-container"
-        >
-          {{ action.label }}
-        </a>
-        <button
-          v-else
-          class="w-full bg-n-solid-3 px-4 py-2 rounded-lg text-sm text-center border border-n-container"
-          @click="action.onClick"
-        >
-          {{ action.label }}
-        </button>
+        <slot name="actions">
+          <a
+            v-if="action.href"
+            :href="action.href"
+            rel="noreferrer noopener nofollow"
+            target="_blank"
+            class="w-full block bg-n-solid-3 px-4 py-2 rounded-lg text-sm text-center border border-n-container"
+          >
+            {{ action.label }}
+          </a>
+          <button
+            v-else
+            class="w-full bg-n-solid-3 px-4 py-2 rounded-lg text-sm text-center border border-n-container"
+            @click="action.onClick"
+          >
+            {{ action.label }}
+          </button>
+        </slot>
       </div>
     </div>
   </BaseBubble>
