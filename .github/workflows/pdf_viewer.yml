@@ -1,0 +1,98 @@
+name: PDF viewer validation and image
+
+on:
+  push:
+    branches: [codex/pdf-viewer]
+    paths:
+      - 'app/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/pdf_viewer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Validate message and attachment behavior
+        run: >-
+          pnpm exec vitest run
+          app/javascript/dashboard/components-next/message
+          app/javascript/dashboard/store/modules/specs/conversations/actions.spec.js
+          app/javascript/dashboard/components/widgets/conversation/specs/ReplyBox.spec.js
+          app/javascript/dashboard/helper/specs/instagramMediaHelper.spec.js
+          app/javascript/dashboard/helper/specs/instagramPreviewUrl.spec.js
+      - name: Lint PDF interface
+        run: >-
+          pnpm exec eslint
+          app/javascript/dashboard/helper/pdfAttachmentHelper.js
+          app/javascript/dashboard/components/widgets/conversation/components/PdfDocument.vue
+          app/javascript/dashboard/components/widgets/conversation/components/PdfViewer.vue
+          app/javascript/dashboard/components-next/message/bubbles/BaseAttachment.vue
+          app/javascript/dashboard/components-next/message/bubbles/File.vue
+          app/javascript/dashboard/components-next/SharedAttachments/Files.vue
+      - run: pnpm exec vite build
+
+  rails:
+    runs-on: ubuntu-latest
+    env:
+      RAILS_ENV: test
+      POSTGRES_HOST: localhost
+      POSTGRES_USERNAME: postgres
+      REDIS_URL: redis://localhost:6379
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:alpine
+        ports: ['6379:6379']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - run: bundle exec rake db:create db:schema:load db:migrate
+      - name: Preserve attachment and connected channel behavior
+        run: >-
+          bundle exec rspec
+          spec/models/attachment_spec.rb
+          spec/services/whatsmeow
+          spec/services/telegram_personal
+          spec/controllers/api/v1/accounts/whatsmeow_starred_messages_controller_spec.rb
+          spec/controllers/api/v1/accounts/whatsmeow_deleted_messages_controller_spec.rb
+
+  publish:
+    needs: [frontend, rails]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/chatwoot-whatsmeow:fork-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
