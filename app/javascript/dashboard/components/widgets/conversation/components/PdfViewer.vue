@@ -38,7 +38,10 @@ const showMoreMenu = ref(false);
 const fileName = computed(() => attachmentFileName(props.attachment));
 const sender = computed(() => props.attachment.sender || {});
 const conversationId = computed(
-  () => props.conversationId || Number(route.params.conversation_id)
+  () =>
+    props.conversationId ||
+    props.attachment.conversation_id ||
+    Number(route.params.conversation_id)
 );
 const readableTime = computed(() =>
   props.attachment.created_at
