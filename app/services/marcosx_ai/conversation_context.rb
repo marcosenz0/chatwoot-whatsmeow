@@ -44,7 +44,7 @@ class MarcosxAi::ConversationContext
       message_id: message.id, sent_at: message.created_at.iso8601, sender: message.sender&.name,
       text: text.to_s.truncate(15_000),
       attachments: message.attachments.map do |attachment|
-        { type: attachment.file_type,
+        { type: attachment.file_type, name: attachment.file.attached? ? attachment.file.filename.to_s : attachment.fallback_title,
           description: MarcosxAi::MediaContext.new(attachment: attachment, assistant: @assistant, client: @client).describe(process: process_media) }
       end
     }

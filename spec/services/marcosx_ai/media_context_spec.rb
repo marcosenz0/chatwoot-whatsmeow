@@ -45,6 +45,16 @@ RSpec.describe MarcosxAi::MediaContext do
     ))
   end
 
+  it 'analyzes a locally stored Instagram story image using its media type' do
+    attachment.update!(file_type: :ig_story)
+    attachment.file.attach(io: Rails.root.join('spec/assets/avatar.png').open, filename: 'story.png', content_type: 'image/png')
+    allow(client).to receive(:chat).and_return('Story image description')
+    expect(service.describe).to eq('Story image description')
+    expect(client).to have_received(:chat).with(messages: array_including(
+      hash_including(role: 'user', content: array_including(hash_including(type: 'input_image')))
+    ))
+  end
+
   it 'marks inaccessible external media as unavailable' do
     attachment.update!(file_type: :image, external_url: 'https://example.com/expired')
     expect(service.describe).to include('unavailable')
