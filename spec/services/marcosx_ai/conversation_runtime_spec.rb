@@ -34,9 +34,12 @@ RSpec.describe 'MarcoXIA conversation runtime' do
 
   it 'does not automatically start in manual mode' do
     assistant.update!(config: assistant.resolved_config.merge(auto_start: false))
-    expect { MarcosxAi::ResponseScheduler.perform(message: message) }.not_to have_enqueued_job(MarcosxAi::ResponseJob)
-    expect(state.reload.status).to eq('paused_by_agent')
-    expect(inbox.reload.external_bot_active?).to be(false)
+    inbox.reload
+    new_conversation = create(:conversation, account: account, inbox: inbox)
+    incoming = create(:message, account: account, inbox: inbox, conversation: new_conversation)
+    expect { MarcosxAi::ResponseScheduler.perform(message: incoming) }.not_to have_enqueued_job(MarcosxAi::ResponseJob)
+    expect(MarcosxAi::ConversationState.find_by!(conversation: new_conversation).status).to eq('paused_by_agent')
+    expect(inbox.external_bot_active?).to be(false)
   end
 
   it 'does not restart an explicitly paused agent when another customer message arrives' do

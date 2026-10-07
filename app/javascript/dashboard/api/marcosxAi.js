@@ -85,7 +85,9 @@ class MarcosxAiAPI extends ApiClient {
   }
 
   updateConversationState(conversationId, data) {
-    return axios.put(`${this.url}/conversations/${conversationId}/state`, data);
+    return axios.put(`${this.url}/conversations/${conversationId}/state`, {
+      state: data,
+    });
   }
 
   createGoogleAuthorization() {

@@ -62,14 +62,14 @@ RSpec.describe 'MarcoXIA API', type: :request do
 
   it 'protects conversations outside the operator inboxes' do
     assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
-    put "#{endpoint}/conversations/#{conversation.display_id}/state", params: { action: 'resume' }, headers: agent.create_new_auth_token
+    put "#{endpoint}/conversations/#{conversation.display_id}/state", params: { state: { action: 'resume' } }, headers: agent.create_new_auth_token
     expect(response).to have_http_status(:unauthorized)
     expect(MarcosxAi::ConversationState.find_by(conversation: conversation)).to be_nil
   end
 
   it 'pauses a conversation permanently through its own control' do
     assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
-    put "#{endpoint}/conversations/#{conversation.display_id}/state", params: { action: 'pause' }, headers: admin.create_new_auth_token
+    put "#{endpoint}/conversations/#{conversation.display_id}/state", params: { state: { action: 'pause' } }, headers: admin.create_new_auth_token
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body['state']).to include('status' => 'paused_by_agent', 'paused_until' => nil, 'assistant_name' => 'Support')
   end
@@ -87,7 +87,7 @@ RSpec.describe 'MarcoXIA API', type: :request do
     assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
     create(:message, account: account, conversation: conversation, inbox: inbox, message_type: :outgoing)
     expect {
-      put "#{endpoint}/conversations/#{conversation.display_id}/state", params: { action: 'reply_now' }, headers: admin.create_new_auth_token
+      put "#{endpoint}/conversations/#{conversation.display_id}/state", params: { state: { action: 'reply_now' } }, headers: admin.create_new_auth_token
     }.to have_enqueued_job(MarcosxAi::ResponseJob)
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body['state']['processing']).to be(true)

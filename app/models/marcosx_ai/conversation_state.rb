@@ -9,7 +9,8 @@ class MarcosxAi::ConversationState < ApplicationRecord
   belongs_to :inbox
 
   validates :status, inclusion: { in: STATUSES }
-  validates :conversation_id, uniqueness: true
+  # The unique database index makes create_or_find_by! safe under concurrent arrivals.
+  validates :conversation_id, presence: true
   after_commit :broadcast_state, on: [:create, :update]
 
   def self.for_conversation!(conversation, assistant: nil)

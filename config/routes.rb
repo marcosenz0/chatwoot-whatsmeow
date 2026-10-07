@@ -125,7 +125,7 @@ Rails.application.routes.draw do
               post :playground, on: :member
               resources :inboxes, only: [:index, :create, :destroy], param: :inbox_id
             end
-            resources :conversations, only: [], param: :conversation_id do
+            resources :conversations, only: [] do
               resource :state, only: [:show, :update], controller: 'conversation_states'
             end
             namespace :google do

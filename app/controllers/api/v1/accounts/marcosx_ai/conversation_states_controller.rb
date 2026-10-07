@@ -56,7 +56,7 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
   end
 
   def state_params
-    params.permit(:action, :minutes, :reason)
+    params.require(:state).permit(:action, :reason)
   end
 
   def serialize(state)

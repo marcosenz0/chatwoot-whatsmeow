@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils';
-import ConversationAiButton from '../ConversationAiButton.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
+import ConversationAiButton from '../ConversationAiButton.vue';
 
 vi.mock('dashboard/api/marcosxAi', () => ({
   default: { getConversationState: vi.fn(), updateConversationState: vi.fn() },

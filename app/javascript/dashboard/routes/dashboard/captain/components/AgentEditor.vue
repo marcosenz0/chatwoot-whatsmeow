@@ -18,6 +18,9 @@ const props = defineProps({
 const emit = defineEmits(['save', 'cancel', 'delete', 'test', 'change']);
 const { t } = useI18n();
 const form = ref({});
+const hasUnsavedChanges = computed(
+  () => JSON.stringify(form.value) !== JSON.stringify(props.agent)
+);
 const section = ref('identity');
 const inboxSearch = ref('');
 const sections = computed(() => [
@@ -519,7 +522,10 @@ const channelLabel = inbox =>
           icon="i-lucide-flask-conical"
           variant="outline"
           color="slate"
-          :disabled="!form.id"
+          v-tooltip="
+            hasUnsavedChanges ? t('MARCOX_AI.PLAYGROUND.SAVE_FIRST') : ''
+          "
+          :disabled="!form.id || hasUnsavedChanges"
           @click="emit('test', form.id)"
         />
         <Button
