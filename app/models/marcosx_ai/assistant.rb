@@ -3,12 +3,23 @@ class MarcosxAi::Assistant < ApplicationRecord
 
   DEFAULT_CONFIG = {
     provider: 'openai',
-    model: 'gpt-4.1-mini',
+    model: 'gpt-6.1-sol',
     temperature: 0.7,
-    response_delay_seconds: 3,
-    history_limit: 20,
-    human_pause_minutes: 60,
-    auto_response_enabled: true,
+    reasoning_effort: 'medium',
+    response_delay_seconds: 8,
+    history_limit: 80,
+    human_pause_minutes: 0,
+    auto_response_enabled: false,
+    auto_start: true,
+    split_messages: true,
+    max_message_parts: 3,
+    message_interval_seconds: 2,
+    allow_reactions: true,
+    process_images: true,
+    process_audio: true,
+    process_files: true,
+    process_video: true,
+    respond_to_groups: false,
     fallback_message: 'No momento nao consegui processar essa mensagem. Vou chamar uma pessoa para continuar o atendimento.',
     handoff_message: 'Vou transferir essa conversa para uma pessoa do atendimento.'
   }.with_indifferent_access.freeze
@@ -17,13 +28,16 @@ class MarcosxAi::Assistant < ApplicationRecord
   has_many :marcosx_ai_inboxes,
            class_name: 'MarcosxAi::Inbox',
            foreign_key: :assistant_id,
-           dependent: :destroy_async,
+           dependent: :destroy,
            inverse_of: :assistant
   has_many :inboxes, through: :marcosx_ai_inboxes
   has_many :messages, as: :sender, dependent: :nullify
+  has_many :conversation_states, class_name: 'MarcosxAi::ConversationState', dependent: :nullify, inverse_of: :assistant
+  has_many :logs, class_name: 'MarcosxAi::Log', dependent: :nullify, inverse_of: :assistant
 
   validates :name, presence: true
   validates :account_id, presence: true
+  validate :valid_configuration
 
   scope :ordered, -> { order(created_at: :desc) }
 
@@ -48,15 +62,44 @@ class MarcosxAi::Assistant < ApplicationRecord
   end
 
   def history_limit
-    resolved_config[:history_limit].to_i.clamp(1, 100)
+    resolved_config[:history_limit].to_i.clamp(10, 300)
   end
 
   def human_pause_minutes
-    resolved_config[:human_pause_minutes].to_i.clamp(1, 10_080)
+    resolved_config[:human_pause_minutes].to_i.clamp(0, 10_080)
   end
 
   def auto_response_enabled?
     ActiveModel::Type::Boolean.new.cast(resolved_config[:auto_response_enabled])
+  end
+
+  def reasoning_effort
+    resolved_config[:reasoning_effort]
+  end
+
+  def split_messages?
+    ActiveModel::Type::Boolean.new.cast(resolved_config[:split_messages])
+  end
+
+  def max_message_parts
+    resolved_config[:max_message_parts].to_i.clamp(1, 5)
+  end
+
+  def message_interval_seconds
+    resolved_config[:message_interval_seconds].to_i.clamp(0, 15)
+  end
+
+  def feature_enabled?(feature)
+    ActiveModel::Type::Boolean.new.cast(resolved_config[feature])
+  end
+
+  def accepts_conversation?(conversation)
+    return false if conversation.contact.blocked?
+
+    group = conversation.additional_attributes['whatsmeow_group'] || conversation.additional_attributes['telegram_group'] ||
+            conversation.contact.additional_attributes['whatsmeow_group'] || conversation.additional_attributes['chat_type'].in?(%w[group supergroup
+                                                                                                                                    channel])
+    !group || feature_enabled?(:respond_to_groups)
   end
 
   def fallback_message
@@ -87,6 +130,16 @@ class MarcosxAi::Assistant < ApplicationRecord
   end
 
   private
+
+  def valid_configuration
+    errors.add(:config, 'has an invalid provider') unless MarcosxAi::Credential::PROVIDERS.key?(provider)
+    errors.add(:config, 'requires a model') if model.blank?
+    errors.add(:config, 'has an invalid reasoning effort') unless %w[low medium high].include?(reasoning_effort)
+    return unless auto_response_enabled?
+
+    credential = account&.marcosx_ai_credentials&.find_by(provider: provider, enabled: true)
+    errors.add(:config, I18n.t('marcosx_ai.errors.credential_missing')) unless credential&.configured?
+  end
 
   def default_avatar_url
     nil

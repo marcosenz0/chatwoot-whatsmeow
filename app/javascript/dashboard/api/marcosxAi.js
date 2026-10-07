@@ -18,6 +18,16 @@ class MarcosxAiAPI extends ApiClient {
     return axios.get(`${this.url}/credentials`);
   }
 
+  getModels(provider, refresh = false) {
+    return axios.get(`${this.url}/credentials/models`, {
+      params: { provider, refresh },
+    });
+  }
+
+  getLogs() {
+    return axios.get(`${this.url}/logs`);
+  }
+
   saveCredential(id, data) {
     if (id) {
       return axios.put(`${this.url}/credentials/${id}`, data);

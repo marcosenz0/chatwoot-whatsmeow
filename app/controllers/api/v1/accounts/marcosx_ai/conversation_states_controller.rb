@@ -15,11 +15,21 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
 
     case state_params[:action]
     when 'pause'
-      @state.pause_by_agent!(minutes: pause_minutes, reason: state_params[:reason])
+      @state.with_lock { @state.pause_by_agent!(reason: state_params[:reason]) }
     when 'resume'
-      @state.resume!
+      return render json: { error: 'Enable the agent first' }, status: :unprocessable_entity unless @state.assistant.auto_response_enabled?
+
+      @state.with_lock { @state.resume! }
+      latest = @conversation.messages.where(message_type: [:incoming, :outgoing], private: false).order(:created_at, :id).last
+      MarcosxAi::ResponseScheduler.perform(message: latest) if latest&.incoming?
+    when 'reply_now'
+      return render json: { error: 'Enable the agent first' }, status: :unprocessable_entity unless @state.assistant.auto_response_enabled?
+
+      @state.with_lock { @state.resume! }
+      latest = @conversation.messages.where(message_type: [:incoming, :outgoing], private: false).order(:created_at, :id).last
+      MarcosxAi::ResponseScheduler.perform(message: latest, manual: true) if latest
     when 'handoff'
-      @state.handoff!(reason: state_params[:reason])
+      @state.with_lock { @state.handoff!(reason: state_params[:reason]) }
       @conversation.bot_handoff! if @conversation.pending?
     else
       return render json: { error: 'Invalid action' }, status: :unprocessable_entity
@@ -32,10 +42,13 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
 
   def set_conversation
     @conversation = Current.account.conversations.find_by!(display_id: params[:conversation_id])
+    authorize @conversation, :show?
   end
 
   def set_state
     assistant = @conversation.inbox.marcosx_ai_assistant
+    return @state = nil unless assistant
+
     @state = MarcosxAi::ConversationState.find_by(conversation: @conversation)
     return if @state.blank? && assistant.blank?
 
@@ -46,20 +59,8 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
     params.permit(:action, :minutes, :reason)
   end
 
-  def pause_minutes
-    minutes = state_params[:minutes].presence
-    minutes.to_i.positive? ? minutes.to_i : 60
-  end
-
   def serialize(state)
-    {
-      id: state.id,
-      status: state.status,
-      paused_until: state.paused_until,
-      assistant_id: state.assistant_id,
-      metadata: state.metadata,
-      updated_at: state.updated_at
-    }
+    state.public_data
   end
 
   def inactive_state

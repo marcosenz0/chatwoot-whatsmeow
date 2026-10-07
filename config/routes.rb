@@ -118,7 +118,9 @@ Rails.application.routes.draw do
             resource :preferences, only: [:show, :update]
             resources :credentials, only: [:index, :show, :create, :update, :destroy] do
               post :test, on: :collection
+              get :models, on: :collection
             end
+            resources :logs, only: [:index]
             resources :assistants do
               post :playground, on: :member
               resources :inboxes, only: [:index, :create, :destroy], param: :inbox_id

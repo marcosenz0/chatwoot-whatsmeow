@@ -53,6 +53,15 @@ class Api::V1::Accounts::MarcosxAi::CredentialsController < Api::V1::Accounts::M
     render json: { success: false, error: e.message }, status: :unprocessable_entity
   end
 
+  def models
+    provider = params[:provider]
+    return render json: { error: 'Invalid provider' }, status: :unprocessable_entity unless MarcosxAi::Credential::PROVIDERS.key?(provider)
+
+    render json: MarcosxAi::ModelCatalog.for_provider(account: Current.account, provider: provider, refresh: params[:refresh] == 'true')
+  rescue CustomExceptions::MarcosxAi => e
+    render json: { error: e.message }, status: :unprocessable_entity
+  end
+
   private
 
   def set_credential

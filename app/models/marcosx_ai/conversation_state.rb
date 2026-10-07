@@ -10,20 +10,29 @@ class MarcosxAi::ConversationState < ApplicationRecord
 
   validates :status, inclusion: { in: STATUSES }
   validates :conversation_id, uniqueness: true
+  after_commit :broadcast_state, on: [:create, :update]
 
   def self.for_conversation!(conversation, assistant: nil)
-    state = find_or_initialize_by(conversation: conversation)
-    if state.new_record?
-      state.account = conversation.account
-      state.inbox = conversation.inbox
+    state = create_or_find_by!(conversation: conversation) do |record|
+      record.account = conversation.account
+      record.inbox = conversation.inbox
+      record.assistant = assistant
+      record.status = 'paused_by_agent' if assistant && !assistant.feature_enabled?(:auto_start)
     end
-    state.assistant = assistant if assistant.present? && state.assistant_id != assistant.id
-    state.save! if state.changed?
+    if assistant && state.assistant_id != assistant.id
+      state.with_lock do
+        state.update!(assistant: assistant, metadata: state.metadata.except('pending_response', 'pending_since_message_id').merge(
+          'run_token' => SecureRandom.uuid, 'processing' => false
+        ))
+        state.pause_by_agent! unless assistant.feature_enabled?(:auto_start)
+      end
+    end
     state
   end
 
   def active_for_ai?
     return true if status == 'active'
+    return false unless status == 'paused_by_human'
     return false if paused_until.blank?
     return false if paused_until.future?
 
@@ -34,29 +43,53 @@ class MarcosxAi::ConversationState < ApplicationRecord
   def pause_by_human!(message:, minutes:)
     update!(
       status: 'paused_by_human',
-      paused_until: Time.current + minutes.minutes,
+      paused_until: minutes.positive? ? Time.current + minutes.minutes : nil,
       last_human_message_id: message.id,
-      metadata: metadata.merge('paused_reason' => 'human_response')
+      metadata: cancelled_metadata.merge('paused_reason' => 'human_response')
     )
   end
 
-  def pause_by_agent!(minutes:, reason: nil)
+  def pause_by_agent!(reason: nil)
     update!(
       status: 'paused_by_agent',
-      paused_until: Time.current + minutes.minutes,
-      metadata: metadata.merge('paused_reason' => reason.presence || 'agent_paused')
+      paused_until: nil,
+      metadata: cancelled_metadata.merge('paused_reason' => reason.presence || 'agent_paused')
     )
   end
 
   def resume!
-    update!(status: 'active', paused_until: nil)
+    update!(status: 'active', paused_until: nil, metadata: cancelled_metadata.except('last_error', 'paused_reason', 'handoff_reason'))
   end
 
   def handoff!(reason: nil)
     update!(
       status: 'handoff',
       paused_until: nil,
-      metadata: metadata.merge('handoff_reason' => reason.presence || 'manual_handoff')
+      metadata: cancelled_metadata.merge('handoff_reason' => reason.presence || 'manual_handoff')
     )
+  end
+
+  def public_data
+    {
+      id: id, assistant_id: assistant_id, assistant_name: assistant&.name, status: status, paused_until: paused_until,
+      enabled: assistant&.auto_response_enabled?, processing: metadata['processing'] == true,
+      reason: metadata['last_error'] || metadata['handoff_reason'] || metadata['paused_reason'], updated_at: updated_at
+    }
+  end
+
+  def current_run?(token)
+    status == 'active' && metadata['run_token'] == token && assistant&.auto_response_enabled? &&
+      conversation.inbox.marcosx_ai_assistant&.id == assistant_id && assistant.accepts_conversation?(conversation) &&
+      !conversation.resolved? && !conversation.snoozed? && metadata['assistant_version'] == assistant.updated_at.iso8601(6)
+  end
+
+  private
+
+  def cancelled_metadata
+    metadata.except('pending_response', 'pending_since_message_id').merge('run_token' => SecureRandom.uuid, 'processing' => false)
+  end
+
+  def broadcast_state
+    conversation.dispatch_conversation_updated_event
   end
 end

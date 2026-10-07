@@ -73,6 +73,7 @@ if conversation.inbox&.channel_type == 'Channel::Whatsmeow'
 end
 json.labels conversation.cached_label_list_array
 json.pipeline conversation.pipeline_push_data
+json.marcosx_ai conversation.marcosx_ai_state_data
 json.muted conversation.muted?
 json.snoozed_until conversation.snoozed_until
 json.status conversation.status

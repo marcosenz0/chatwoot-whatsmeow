@@ -715,66 +715,11 @@ const menuItems = computed(() => [
   {
     name: 'Captain',
     icon: 'i-lucide-sparkles',
-    label: t('SIDEBAR.CAPTAIN'),
+    label: t('MARCOX_AI.TITLE'),
     activeOn: ['captain_index', 'captain_assistants_index'],
-    children: [
-      {
-        name: 'Overview',
-        label: t('SIDEBAR.CAPTAIN_RESPONSES'),
-        activeOn: ['captain_index', 'captain_assistants_index'],
-        to: accountScopedRoute('captain_assistants_index', {
-          navigationPath: 'overview',
-        }),
-      },
-      {
-        name: 'Assistants',
-        label: t('SIDEBAR.CAPTAIN_DOCUMENTS'),
-        activeOn: ['captain_assistants_index'],
-        to: accountScopedRoute('captain_assistants_index', {
-          navigationPath: 'assistants',
-        }),
-      },
-      {
-        name: 'Credentials',
-        label: t('SIDEBAR.CAPTAIN_SCENARIOS'),
-        activeOn: ['captain_assistants_index'],
-        to: accountScopedRoute('captain_assistants_index', {
-          navigationPath: 'credentials',
-        }),
-      },
-      {
-        name: 'Playground',
-        label: t('SIDEBAR.CAPTAIN_PLAYGROUND'),
-        activeOn: ['captain_assistants_index'],
-        to: accountScopedRoute('captain_assistants_index', {
-          navigationPath: 'playground',
-        }),
-      },
-      {
-        name: 'Inboxes',
-        label: t('SIDEBAR.CAPTAIN_INBOXES'),
-        activeOn: ['captain_assistants_index'],
-        to: accountScopedRoute('captain_assistants_index', {
-          navigationPath: 'inboxes',
-        }),
-      },
-      {
-        name: 'Google',
-        label: t('SIDEBAR.CAPTAIN_TOOLS'),
-        activeOn: ['captain_assistants_index'],
-        to: accountScopedRoute('captain_assistants_index', {
-          navigationPath: 'google',
-        }),
-      },
-      {
-        name: 'Settings',
-        label: t('SIDEBAR.CAPTAIN_SETTINGS'),
-        activeOn: ['captain_assistants_index'],
-        to: accountScopedRoute('captain_assistants_index', {
-          navigationPath: 'settings',
-        }),
-      },
-    ],
+    to: accountScopedRoute('captain_assistants_index', {
+      navigationPath: 'overview',
+    }),
   },
   ...(isCallsAvailable.value
     ? [

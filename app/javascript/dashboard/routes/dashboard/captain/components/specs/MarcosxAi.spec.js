@@ -1,0 +1,145 @@
+import { flushPromises, mount, shallowMount } from '@vue/test-utils';
+import { vi } from 'vitest';
+import AgentEditor from '../AgentEditor.vue';
+import AiModelSelect from '../AiModelSelect.vue';
+import AiPlayground from '../AiPlayground.vue';
+import MarcosxAiAPI from 'dashboard/api/marcosxAi';
+
+vi.mock('dashboard/api/marcosxAi', () => ({
+  default: { runPlayground: vi.fn() },
+}));
+const agent = {
+  id: 1,
+  name: 'Support',
+  description: '',
+  instructions: 'Be kind',
+  inbox_ids: [1],
+  config: {
+    provider: 'openai',
+    model: 'gpt-6.1-sol',
+    reasoning_effort: 'medium',
+    auto_response_enabled: false,
+    split_messages: true,
+  },
+};
+const catalogs = {
+  openai: {
+    models: [
+      {
+        id: 'gpt-6.1-sol',
+        name: 'gpt-6.1-sol',
+        recommended: true,
+        vision: true,
+        files: true,
+        reasoning: true,
+      },
+      { id: 'gpt-4.1', name: 'gpt-4.1' },
+    ],
+  },
+};
+const props = {
+  agent,
+  agents: [agent, { id: 2, name: 'Other', inbox_ids: [3] }],
+  canEdit: true,
+  inboxes: [
+    { id: 1, name: 'WhatsApp', channel_type: 'Channel::Whatsmeow' },
+    { id: 2, name: 'Telegram', channel_type: 'Channel::TelegramPersonal' },
+    { id: 3, name: 'Email', channel_type: 'Channel::Email' },
+  ],
+  catalogs,
+  credentials: [{ provider: 'openai', configured: true, enabled: true }],
+};
+
+describe('MarcoXIA agent configuration', () => {
+  it('offers models in a select and emits the selected identifier', async () => {
+    const wrapper = mount(AiModelSelect, {
+      props: { modelValue: 'gpt-6.1-sol', models: catalogs.openai.models },
+    });
+    expect(wrapper.findAll('option')).toHaveLength(2);
+    await wrapper.find('select').setValue('gpt-4.1');
+    expect(wrapper.emitted('update:modelValue')[0]).toEqual(['gpt-4.1']);
+  });
+  it('preserves the selected model when it is absent from the catalog', () => {
+    const wrapper = mount(AiModelSelect, {
+      props: { modelValue: 'legacy-model', models: catalogs.openai.models },
+    });
+    expect(wrapper.find('select').element.value).toBe('legacy-model');
+  });
+  it('selects every available inbox without stealing another agent inbox', async () => {
+    const wrapper = mount(AgentEditor, { props });
+    await wrapper
+      .findAll('button')
+      .find(button => button.text().includes('MARCOX_AI.ALL_INBOXES'))
+      .trigger('click');
+    await wrapper.find('form').trigger('submit');
+    expect(wrapper.emitted('save')[0][0].inbox_ids).toEqual([1, 2]);
+  });
+  it('keeps the supplied profile untouched until it is saved', async () => {
+    const wrapper = shallowMount(AgentEditor, { props });
+    await wrapper.find('input[maxlength="120"]').setValue('Edited support');
+    expect(agent.name).toBe('Support');
+    await wrapper.find('form').trigger('submit');
+    expect(wrapper.emitted('save')[0][0].name).toBe('Edited support');
+  });
+  it('disables editing for an operator without admin permission', () => {
+    const wrapper = shallowMount(AgentEditor, {
+      props: { ...props, canEdit: false },
+    });
+    expect(wrapper.find('fieldset').attributes()).toHaveProperty('disabled');
+  });
+});
+
+describe('MarcoXIA private test conversation', () => {
+  const plan = { messages: ['Hello'], reaction: null, handoff: false };
+  beforeEach(() => {
+    MarcosxAiAPI.runPlayground.mockResolvedValue({
+      data: {
+        response: 'Hello',
+        plan,
+        user_context: 'First question with image details',
+      },
+    });
+  });
+  it('sends multi-turn history to the selected saved agent', async () => {
+    const wrapper = mount(AiPlayground, { props: { agents: [agent] } });
+    await wrapper.find('textarea').setValue('First question');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    await wrapper.find('textarea').setValue('Follow up');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    const [id, body] = MarcosxAiAPI.runPlayground.mock.calls[1];
+    expect(id).toBe(1);
+    expect(body.getAll('assistant[history][][role]')).toEqual([
+      'user',
+      'assistant',
+    ]);
+    expect(body.getAll('assistant[history][][content]')).toEqual([
+      'First question with image details',
+      'Hello',
+    ]);
+  });
+  it('displays each reply part and a reaction separately', async () => {
+    MarcosxAiAPI.runPlayground.mockResolvedValue({
+      data: {
+        response: 'Hello\nMore',
+        plan: { messages: ['Hello', 'More'], reaction: '👍', handoff: false },
+      },
+    });
+    const wrapper = mount(AiPlayground, { props: { agents: [agent] } });
+    await wrapper.find('textarea').setValue('Hi');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    expect(wrapper.text()).toContain('More');
+    expect(wrapper.text()).toContain('MARCOX_AI.PLAYGROUND.REACTION');
+  });
+  it('rejects oversized attachments before invoking the provider', async () => {
+    const wrapper = mount(AiPlayground, { props: { agents: [agent] } });
+    Object.defineProperty(wrapper.find('input[type="file"]').element, 'files', {
+      value: [{ name: 'large.pdf', size: 26 * 1024 * 1024 }],
+    });
+    await wrapper.find('input[type="file"]').trigger('change');
+    expect(wrapper.text()).toContain('MARCOX_AI.PLAYGROUND.FILE_LIMIT');
+    expect(MarcosxAiAPI.runPlayground).not.toHaveBeenCalled();
+  });
+});
