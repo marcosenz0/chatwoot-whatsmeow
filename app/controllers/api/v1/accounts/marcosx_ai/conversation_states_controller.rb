@@ -5,7 +5,7 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
   def show
     return render json: { state: inactive_state } if @state.blank?
 
-    render json: { state: serialize(@state) }
+    render json: { state: serialize(@state.reload) }
   end
 
   def update
@@ -41,7 +41,7 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
       return render json: { error: 'Invalid action' }, status: :unprocessable_entity
     end
 
-    render json: { state: serialize(@state) }
+    render json: { state: serialize(@state.reload) }
   end
 
   private

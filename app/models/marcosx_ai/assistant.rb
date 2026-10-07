@@ -38,6 +38,7 @@ class MarcosxAi::Assistant < ApplicationRecord
   validates :name, presence: true
   validates :account_id, presence: true
   validate :valid_configuration
+  after_commit :cancel_pending_runs, on: :update
 
   scope :ordered, -> { order(created_at: :desc) }
 
@@ -131,6 +132,18 @@ class MarcosxAi::Assistant < ApplicationRecord
   end
 
   private
+
+  def cancel_pending_runs
+    return unless saved_changes?
+
+    conversation_states.where("metadata ->> 'processing' = 'true'").find_each do |state|
+      state.with_lock do
+        state.update!(metadata: state.metadata.except('pending_response', 'pending_since_message_id').merge(
+          'run_token' => SecureRandom.uuid, 'processing' => false
+        ))
+      end
+    end
+  end
 
   def valid_configuration
     errors.add(:config, 'has an invalid provider') unless MarcosxAi::Credential::PROVIDERS.key?(provider)

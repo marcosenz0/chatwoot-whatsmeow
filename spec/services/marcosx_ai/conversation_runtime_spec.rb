@@ -5,7 +5,9 @@ RSpec.describe 'MarcoXIA conversation runtime' do
 
   let(:account) { create(:account) }
   let!(:credential) { account.marcosx_ai_credentials.create!(provider: 'openai', api_key: 'test', enabled: true) }
-  let!(:assistant) { account.marcosx_ai_assistants.create!(name: 'Support', instructions: 'Never invent prices', config: { auto_response_enabled: true }) }
+  let!(:assistant) {
+    account.marcosx_ai_assistants.create!(name: 'Support', instructions: 'Never invent prices', config: { auto_response_enabled: true })
+  }
   let(:inbox) { create(:channel_whatsmeow, account: account).inbox }
   let(:conversation) { create(:conversation, account: account, inbox: inbox) }
   let(:message) { create(:message, account: account, inbox: inbox, conversation: conversation, sender: conversation.contact, content: 'Hello') }
@@ -16,7 +18,7 @@ RSpec.describe 'MarcoXIA conversation runtime' do
   before do
     assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
     allow(MarcosxAi::ProviderClient).to receive(:new).and_return(client)
-    allow(client).to receive(:chat).and_return(plan.to_json)
+    allow(client).to receive(:chat) { plan.to_json }
     message
     clear_enqueued_jobs
   end
@@ -24,7 +26,8 @@ RSpec.describe 'MarcoXIA conversation runtime' do
   it 'debounces a burst and makes the earlier job obsolete' do
     MarcosxAi::ResponseScheduler.perform(message: message)
     first = state.reload.metadata['run_token']
-    next_message = create(:message, account: account, conversation: conversation, inbox: inbox, sender: conversation.contact, content: 'Another detail')
+    next_message = create(:message, account: account, conversation: conversation, inbox: inbox, sender: conversation.contact,
+                                    content: 'Another detail')
     MarcosxAi::ResponseScheduler.perform(message: next_message)
     expect(state.reload.metadata['run_token']).not_to eq(first)
     expect(state.metadata['pending_since_message_id']).to eq(message.id)
@@ -125,6 +128,7 @@ RSpec.describe 'MarcoXIA conversation runtime' do
     token = state.reload.metadata['run_token']
     assistant.update!(instructions: 'Updated instructions')
     expect(state.reload.current_run?(token)).to be(false)
+    expect(state.metadata['processing']).to be(false)
   end
 
   it 'sends a contextual reaction using the existing WhatsApp provider' do
@@ -160,4 +164,3 @@ RSpec.describe 'MarcoXIA conversation runtime' do
     expect(conversation.messages.outgoing.where(private: true).last.content).to include('Provider unavailable')
   end
 end
-
