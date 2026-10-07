@@ -20,6 +20,8 @@ const {
   createdAt,
   isPreview,
   forwardMediaMessage,
+  contentAttributes,
+  canReactToMessage,
 } = useMessageContext();
 const showPdf = ref(false);
 const attachment = computed(() => attachments.value[0]);
@@ -28,6 +30,7 @@ const pdfAttachment = computed(() => ({
   message_id: id.value,
   sender: sender.value,
   created_at: createdAt.value,
+  content_attributes: useSnakeCase(contentAttributes.value),
 }));
 
 const { t } = useI18n();
@@ -87,6 +90,7 @@ const fileType = computed(() => fileName.value.split('.').pop());
     :attachment="pdfAttachment"
     :conversation-id="conversationId"
     :allow-forward="!isPreview"
+    :allow-message-actions="canReactToMessage"
     @forward="forwardMediaMessage"
     @close="showPdf = false"
   />
