@@ -1,8 +1,27 @@
 # MarcoXIA agents — October 7–8, 2026
 
-The Captain overview is a dedicated MarcoXIA workspace with **Agents** and **Activity**. The selected agent fills the remaining workspace, with its connection, searchable model selection, instructions, inboxes, conversation behavior and private test area inside that profile. An agent can cover one or many inboxes; an inbox has one default agent to prevent competing replies. A conversation can select a different agent without changing that inbox default. Existing Whatsmeow, personal Telegram and PDF features are preserved. There is no n8n integration, RAG, clinic tool or scheduling tool.
+The Captain overview is a dedicated MarcoXIA workspace. The selected agent fills the remaining workspace, with its connection, searchable model selection, instructions, inboxes, conversation behavior, private test area, attendance and activity inside that profile. An agent can cover one or many inboxes; an inbox has one default agent to prevent competing replies. A conversation can select a different agent without changing that inbox default. Existing Whatsmeow, personal Telegram and PDF features are preserved. There is no n8n integration, RAG, clinic tool or scheduling tool.
 
-## Workspace and conversation revision — October 8, 2026
+## General support and individual attendance — October 8, 2026
+
+- The main form uses Chatwoot's standard dark surface. The redundant title/subtitle banner is removed, giving the editor more vertical space. Every settings tab, including Identity and model, has a visible fixed-size icon. Each profile card has an immediate general-support switch that preserves unsaved edits to the selected profile's other settings.
+- **General support** controls default inbox automation. Explicitly enabling the agent from a conversation sets a separate manual activation for that conversation; it works even when general support is off. Pausing it from the conversation cancels only that conversation's pending replies. Turning general support off cancels queued default replies, while explicit individual activation remains eligible. Provider availability, account permissions, groups, reply windows and human pauses still apply.
+- **Attendance** shows a compact **Automatic support** summary and selected/all inboxes when general support and automatic start are enabled. Otherwise, it lists only active individual conversations, with contact, inbox, processing state and a direct conversation link. The list excludes resolved, snoozed, blocked and permanently paused conversations and pages 25 contacts at a time.
+- **Activity** is the last settings tab inside the selected profile. Its events are filtered by account and agent before the result limit. Both attendance and activity require administrator access. Switching profiles aborts stale reads so another agent's contacts or events cannot replace the selected profile's data.
+- Conversation links use Chatwoot's actual `inbox_conversation` route and its `conversation_id` parameter. Frontend regression tests render the real RouterLink with the production route definition; they reproduce and prevent an empty contact row caused by a mismatched route parameter.
+
+
+### Current validation and rollout
+
+Gate [37778773159](https://github.com/marcosenz0/chatwoot-whatsmeow/actions/runs/37778773159) passed **442 targeted checks**: 222 frontend tests and 220 Rails examples, scoped lint and the production frontend build. It published `ghcr.io/marcosenz0/chatwoot-whatsmeow:fork-71fc764be52db80807c13b8c13476b154cbe5a7b`, OCI index digest `sha256:dbcc1b538217817eb4033e5193e7153539aaeadba15c41eedbfa7c6457c78a47`, actual image ID `sha256:8b4fd6912a4bfe843b59d2d90e18b2f659c438d6893d2858ecdbd10d63d2ece7`. All earlier image pins below are historical.
+
+Principal was validated first. With general support off, the conversation header enabled Felipe only for the owner's authorized conversation 2170. Attendance showed exactly that contact and its working link; pausing the conversation removed it from the list without changing general support. Toggle actions did not send historical replies. Complete-history analysis considered all 45 public non-call messages and recommended waiting because there was no new customer request. One explicitly edited technical response was delivered through the real WhatsApp channel, appeared on the outgoing side with the robot/name signature and left AI paused. Outgoing messages increased only from 67 to 68 for this reviewed send. No other customer conversation was activated or messaged.
+
+The final native UI confirmed the black surface, compact header, fixed icons, quick general-support control, individual contact link and per-profile activity. The local editor also had no horizontal overflow at 1024 pixels. Live Chrome screenshots were successfully saved for the deployed identity and individual-attendance views; the earlier capture limitation is resolved.
+
+MX and MD were then updated to the same pinned image. All six application containers matched the image, all three health endpoints returned 200, the 20 preserved service-configuration checksums matched and all six Whatsmeow/personal Telegram bridge image/container IDs were unchanged. Principal's two connected WhatsApp inboxes, MX's personal WhatsApp, MD's two WhatsApp inboxes and MD's personal Telegram remained connected. All three instances have zero profiles enabled for general automatic support. Felipe retains inbox 27 with general support and automatic start off; owner conversation 2170 is `paused_by_agent`, reason `validation_completed`, with no pending processing. PR 34 is mergeable and remains unmerged above PRs 33/32. The official instance was not changed.
+
+## Workspace and conversation revision — October 8, 2026 (historical pin)
 
 - The full workspace replaces the centered agent card/editor. Profile navigation and settings tabs stay visible, with a fixed save header and a scrollable form. Provider credentials are managed inside the selected profile; each profile keeps its own model, reasoning depth and activation settings when switching agents. Account-scoped credentials remain encrypted and shared by provider.
 - All selectors use Chatwoot's dropdown controls, with an inset chevron, native colors, selected marks, optional search, keyboard navigation, Escape and focus restoration. Model discovery retains a saved model absent from the current catalog. No new UI library or custom CSS was added.
@@ -13,7 +32,7 @@ The Captain overview is a dedicated MarcoXIA workspace with **Agents** and **Act
 
 The implementation follows the existing [Chatwoot dropdown](https://github.com/chatwoot/chatwoot/blob/develop/app/javascript/dashboard/components-next/dropdown-menu/DropdownMenu.vue), [combobox](https://github.com/chatwoot/chatwoot/blob/develop/app/javascript/dashboard/components-next/combobox/ComboBox.vue) and [assistant settings layout](https://github.com/chatwoot/chatwoot/blob/develop/app/javascript/dashboard/components-next/captain/pageComponents/assistant/settings/SettingsPageLayout.vue). Keyboard behavior was reviewed against [WAI-ARIA combobox guidance](https://www.w3.org/WAI/ARIA/apg/patterns/combobox/).
 
-### Revision validation and current deployment
+### Initial workspace revision validation
 
 Gate [37762785143](https://github.com/marcosenz0/chatwoot-whatsmeow/actions/runs/37762785143) passed **423 targeted checks**: 214 frontend tests and 209 Rails examples, scoped lint and the production frontend build. It published `ghcr.io/marcosenz0/chatwoot-whatsmeow:fork-ae115891bc1e4fda1f7c8caa0f2479de23d399e6`, OCI index digest `sha256:7b5110dd1375e42fe66e63bea51eaa477648f802e3386afdac4d00d492a33314`, actual image ID `sha256:c5785130c0d6cac6fff5c816bc2ab003b4f2783b085b1535f7c706460642af35`. Earlier pins in this document are historical.
 
@@ -23,7 +42,7 @@ The owner's authorized conversation 2170 retained 66 outgoing messages through r
 
 MX and MD were then updated to the same pinned image. All six application containers matched the image and all three health endpoints returned 200. The 20 service-configuration checksums matched; all six Whatsmeow/personal Telegram bridge image/container IDs were unchanged. Principal's test WhatsApp and second connected WhatsApp, MX's personal WhatsApp, MD's two WhatsApp inboxes and MD's personal Telegram stayed connected. MX and MD retain zero enabled AI profiles. The official instance was not modified.
 
-Live Chrome screenshot capture timed out in the browser tool after the power interruption, so no new production screenshot is included as evidence. Native UI state, DOM geometry and delivery/database evidence above were verified; earlier local visual checks covered the layout and dropdowns. This capture limitation does not affect the application or WhatsApp delivery.
+During the initial workspace revision, live Chrome screenshot capture timed out after the power interruption. Native UI state, DOM geometry and delivery/database evidence were verified. Screenshot capture succeeded in the later controls revision above.
 
 ## Product behavior
 
