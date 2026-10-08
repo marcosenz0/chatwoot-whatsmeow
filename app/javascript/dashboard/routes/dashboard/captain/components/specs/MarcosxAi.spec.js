@@ -132,6 +132,29 @@ describe('MarcoXIA agent configuration', () => {
     });
     expect(wrapper.find('fieldset').attributes()).toHaveProperty('disabled');
   });
+  it('preserves a different agent model and enabled state when switching profiles', async () => {
+    const wrapper = shallowMount(AgentEditor, { props });
+    await wrapper.setProps({
+      agent: {
+        ...agent,
+        id: 2,
+        name: 'Other',
+        config: {
+          ...agent.config,
+          provider: 'gemini',
+          model: 'individual-model',
+          auto_response_enabled: true,
+        },
+      },
+    });
+    await wrapper.get('form').trigger('submit');
+    expect(wrapper.emitted('save')[0][0].config).toMatchObject({
+      provider: 'gemini',
+      model: 'individual-model',
+      auto_response_enabled: true,
+    });
+    wrapper.unmount();
+  });
 });
 
 describe('MarcoXIA private test conversation', () => {

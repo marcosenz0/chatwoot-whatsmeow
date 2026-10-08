@@ -91,18 +91,14 @@ const providerOptions = [
 const credential = computed(() =>
   props.credentials.find(item => item.provider === form.value.config.provider)
 );
-watch(
-  () => form.value.config.provider,
-  (provider, previous) => {
-    if (!previous || provider === previous) return;
-    const credential = props.credentials.find(
-      item => item.provider === provider
-    );
-    form.value.config.model =
-      credential?.model || props.catalogs[provider]?.models?.[0]?.id || '';
-    form.value.config.auto_response_enabled = false;
-  }
-);
+const changeProvider = provider => {
+  if (provider === form.value.config.provider) return;
+  form.value.config.provider = provider;
+  const connection = props.credentials.find(item => item.provider === provider);
+  form.value.config.model =
+    connection?.model || props.catalogs[provider]?.models?.[0]?.id || '';
+  form.value.config.auto_response_enabled = false;
+};
 const visibleInboxes = computed(() =>
   props.inboxes.filter(inbox =>
     inbox.name.toLowerCase().includes(inboxSearch.value.toLowerCase())
@@ -178,6 +174,15 @@ const channelLabel = inbox =>
         </h2>
       </div>
       <div class="flex items-center gap-3">
+        <Button
+          v-if="form.id && canEdit"
+          icon="i-lucide-trash-2"
+          variant="ghost"
+          color="ruby"
+          class="lg:hidden"
+          :aria-label="t('MARCOX_AI.DELETE')"
+          @click="emit('delete', form.id)"
+        />
         <span
           v-if="hasUnsavedChanges"
           class="hidden text-xs text-n-amber-11 lg:block"
@@ -280,7 +285,7 @@ const channelLabel = inbox =>
               <label class="block text-sm font-medium text-n-slate-12">
                 {{ t('MARCOX_AI.EDITOR.PROVIDER') }}
                 <AiSelect
-                  v-model="form.config.provider"
+                  :model-value="form.config.provider"
                   :options="providerOptions"
                   :label="t('MARCOX_AI.EDITOR.PROVIDER')"
                   :disabled="!canEdit"
@@ -334,6 +339,7 @@ const channelLabel = inbox =>
                 :label="t('MARCOX_AI.EDITOR.REASONING')"
                 :disabled="!canEdit"
                 class="mt-2"
+                @update:model-value="changeProvider"
               />
             </label>
             <label v-else class="block text-sm font-medium text-n-slate-12">

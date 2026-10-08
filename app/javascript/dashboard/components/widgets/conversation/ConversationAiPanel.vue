@@ -171,6 +171,7 @@ defineExpose({ open });
   <Dialog
     ref="dialog"
     width="3xl"
+    overflow-y-auto
     :title="t('MARCOX_AI.CONVERSATION.PANEL_TITLE')"
     :description="t('MARCOX_AI.CONVERSATION.PANEL_HINT')"
     :show-confirm-button="false"

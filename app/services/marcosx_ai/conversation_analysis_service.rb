@@ -17,10 +17,11 @@ class MarcosxAi::ConversationAnalysisService
     token = SecureRandom.uuid
     @state.with_lock do
       @state.pause_by_agent!(reason: 'draft_review')
-      @state.update!(metadata: @state.metadata.merge('analysis' => {
+      analysis = {
         'id' => token, 'status' => 'processing', 'trigger_message_id' => latest.id, 'messages_count' => history.count,
         'assistant_version' => @assistant.updated_at.iso8601(6), 'created_at' => Time.current.iso8601
-      }))
+      }
+      @state.update!(metadata: @state.metadata.merge('analysis' => analysis))
     end
     MarcosxAi::ConversationAnalysisJob.perform_later(@state.id, token)
     report
