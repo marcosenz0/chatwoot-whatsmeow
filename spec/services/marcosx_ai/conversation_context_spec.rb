@@ -58,6 +58,18 @@ RSpec.describe MarcosxAi::ConversationContext do
     expect(prompts.first[:content]).to include('dados não confiáveis')
   end
 
+  it 'reads every older batch for a review without replacing automatic conversation memory' do
+    create_list(:message, 165, account: account, inbox: inbox, conversation: conversation, content: 'Earlier confirmed detail')
+    message
+    state.update!(metadata: state.metadata.merge('conversation_summary' => 'Existing memory', 'summary_cursor' => { 'id' => message.id }))
+    allow(client).to receive(:chat).and_return('Reviewed complete history')
+    review = described_class.new(conversation: conversation, assistant: assistant, state: state, client: client,
+                                 trigger_message: message, token: token, persist_memory: false, valid_run: -> { true })
+    expect(review.messages.first[:content]).to include('Reviewed complete history')
+    expect(client).to have_received(:chat).twice
+    expect(state.reload.metadata['conversation_summary']).to eq('Existing memory')
+  end
+
   it 'analyzes every attachment in the current burst rather than only the last message' do
     image = create(:message, :with_attachment, account: account, inbox: inbox, conversation: conversation)
     message

@@ -6,9 +6,9 @@ import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import AgentEditor from '../components/AgentEditor.vue';
-import ProvidersPanel from '../components/ProvidersPanel.vue';
 import AiPlayground from '../components/AiPlayground.vue';
 
 const store = useStore();
@@ -29,14 +29,42 @@ const busyProvider = ref('');
 const editing = ref(null);
 const search = ref('');
 const testAgentId = ref(null);
+const dirty = ref(false);
+const discardDialog = ref(null);
+const deleteDialog = ref(null);
+const deletingId = ref(null);
+let pendingNavigation = null;
+const reviewNavigation = action => {
+  if (dirty.value) {
+    pendingNavigation = action;
+    discardDialog.value.open();
+  } else action();
+};
+const discardChanges = () => {
+  dirty.value = false;
+  pendingNavigation?.();
+  pendingNavigation = null;
+  discardDialog.value.close();
+};
+const selectAgent = agent =>
+  reviewNavigation(() => {
+    editing.value = agent;
+    dirty.value = false;
+  });
+const cancelAgent = () => {
+  const saved =
+    agents.value.find(agent => agent.id === editing.value?.id) ||
+    agents.value[0];
+  editing.value = saved ? { ...saved } : null;
+  dirty.value = false;
+};
 const inboxes = computed(() => store.getters['inboxes/getInboxes'] || []);
 const tabs = [
   { id: 'overview', key: 'AGENTS', icon: 'i-lucide-bot' },
-  { id: 'credentials', key: 'PROVIDERS', icon: 'i-lucide-plug-zap' },
-  { id: 'playground', key: 'PLAYGROUND', icon: 'i-lucide-messages-square' },
   { id: 'activity', key: 'ACTIVITY', icon: 'i-lucide-activity' },
 ];
 const activeTab = computed(() =>
+  route.params.navigationPath === 'playground' ||
   tabs.some(item => item.id === route.params.navigationPath)
     ? route.params.navigationPath
     : 'overview'
@@ -58,13 +86,14 @@ const loadModels = async (provider, refresh = false) => {
     if (refresh) notifyError(error);
   }
 };
-const navigate = id => {
-  editing.value = null;
-  router.replace({
-    name: 'captain_assistants_index',
-    params: { accountId: route.params.accountId, navigationPath: id },
+const navigate = id =>
+  reviewNavigation(() => {
+    router.replace({
+      name: 'captain_assistants_index',
+      params: { accountId: route.params.accountId, navigationPath: id },
+    });
+    dirty.value = false;
   });
-};
 const refresh = async () => {
   loading.value = true;
   try {
@@ -76,6 +105,10 @@ const refresh = async () => {
     preferences.value = settings.data;
     credentials.value = settings.data.credentials;
     agents.value = profiles.data.assistants;
+    editing.value =
+      agents.value.find(agent => agent.id === editing.value?.id) ||
+      agents.value[0] ||
+      null;
     if (canEdit.value) {
       await Promise.all(
         Object.keys(settings.data.providers).map(provider =>
@@ -92,18 +125,20 @@ const refresh = async () => {
   }
 };
 onMounted(refresh);
-const newAgent = () => {
-  editing.value = {
-    id: null,
-    name: '',
-    description: '',
-    instructions: preferences.value.default_prompt || '',
-    inbox_ids: [],
-    config: { ...preferences.value.agent_defaults },
-    response_guidelines: [],
-    guardrails: [],
-  };
-};
+const newAgent = () =>
+  reviewNavigation(() => {
+    editing.value = {
+      id: null,
+      name: '',
+      description: '',
+      instructions: preferences.value.default_prompt || '',
+      inbox_ids: [],
+      config: { ...preferences.value.agent_defaults },
+      response_guidelines: [],
+      guardrails: [],
+    };
+    dirty.value = false;
+  });
 const saveAgent = async form => {
   saving.value = true;
   try {
@@ -135,7 +170,8 @@ const saveAgent = async form => {
       data.assistant,
       ...agents.value.filter(item => item.id !== id),
     ];
-    editing.value = null;
+    editing.value = data.assistant;
+    dirty.value = false;
     useAlert(t('MARCOX_AI.SAVED'));
   } catch (error) {
     notifyError(error);
@@ -143,12 +179,17 @@ const saveAgent = async form => {
     saving.value = false;
   }
 };
-const deleteAgent = async id => {
-  if (!window.confirm(t('MARCOX_AI.EDITOR.CONFIRM_DELETE'))) return;
+const deleteAgent = id => {
+  deletingId.value = id;
+  deleteDialog.value.open();
+};
+const confirmDelete = async () => {
   try {
-    await MarcosxAiAPI.deleteAssistant(id);
-    agents.value = agents.value.filter(item => item.id !== id);
-    editing.value = null;
+    await MarcosxAiAPI.deleteAssistant(deletingId.value);
+    agents.value = agents.value.filter(item => item.id !== deletingId.value);
+    editing.value = agents.value[0] || null;
+    dirty.value = false;
+    deleteDialog.value.close();
   } catch (error) {
     notifyError(error);
   }
@@ -196,295 +237,288 @@ const eventLabel = event =>
     response_sent: 'SENT',
     handoff: 'HANDOFF',
     response_failed: 'FAILED',
+    analysis_ready: 'ANALYSIS',
   })[event] || 'EVENT';
 </script>
 
 <template>
-  <div class="flex h-full min-w-0 flex-1 flex-col bg-n-solid-2">
-    <header class="border-b border-n-weak bg-n-solid-1 px-6 pt-6 lg:px-10">
-      <div class="flex items-start justify-between gap-4">
-        <div class="flex items-center gap-4">
-          <span
-            class="flex size-12 items-center justify-center rounded-2xl bg-n-blue-3 text-n-blue-11"
-            ><span class="i-lucide-sparkles size-6"
-          /></span>
-          <div>
-            <h1 class="text-2xl font-semibold tracking-tight text-n-slate-12">
-              {{ t('MARCOX_AI.TITLE') }}
-            </h1>
-            <p class="mt-1 text-sm text-n-slate-11">
-              {{ t('MARCOX_AI.SUBTITLE') }}
-            </p>
-          </div>
+  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-n-solid-2">
+    <header
+      class="flex shrink-0 items-center justify-between gap-4 border-b border-n-weak bg-n-solid-1 px-5 py-3"
+    >
+      <div class="flex min-w-0 items-center gap-3">
+        <span
+          class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-n-blue-3 text-n-blue-11"
+          ><span class="i-lucide-bot size-5"
+        /></span>
+        <div class="min-w-0">
+          <h1 class="m-0 text-lg font-semibold text-n-slate-12">
+            {{ t('MARCOX_AI.TITLE') }}
+          </h1>
+          <p class="m-0 hidden truncate text-xs text-n-slate-11 sm:block">
+            {{ t('MARCOX_AI.SUBTITLE') }}
+          </p>
         </div>
-        <Button
-          v-if="canEdit && activeTab === 'overview' && !editing"
-          :label="t('MARCOX_AI.NEW_AGENT')"
-          icon="i-lucide-plus"
-          :disabled="loading"
-          @click="newAgent"
-        />
       </div>
-      <nav
-        class="mt-6 flex gap-6 overflow-x-auto"
-        :aria-label="t('MARCOX_AI.TITLE')"
-      >
-        <button
-          v-for="item in tabs.filter(
-            item => canEdit || !['credentials', 'activity'].includes(item.id)
-          )"
+      <nav class="flex items-center gap-1" :aria-label="t('MARCOX_AI.TITLE')">
+        <Button
+          v-for="item in tabs.filter(item => canEdit || item.id !== 'activity')"
           :key="item.id"
-          class="flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 text-sm font-medium"
-          :class="
-            activeTab === item.id
-              ? 'border-n-blue-9 text-n-blue-11'
-              : 'border-transparent text-n-slate-11 hover:text-n-slate-12'
-          "
-          :aria-current="activeTab === item.id ? 'page' : undefined"
+          variant="ghost"
+          color="slate"
+          size="sm"
+          :icon="item.icon"
+          :label="t(`MARCOX_AI.TABS.${item.key}`)"
+          :class="{ 'bg-n-alpha-2': activeTab === item.id }"
           @click="navigate(item.id)"
-        >
-          <span class="size-4" :class="item.icon" />{{
-            t(`MARCOX_AI.TABS.${item.key}`)
-          }}
-        </button>
+        />
       </nav>
     </header>
     <div v-if="loading" class="flex flex-1 items-center justify-center">
       <Spinner />
     </div>
-    <main v-else class="min-h-0 flex-1 overflow-y-auto p-6 lg:p-10">
-      <p v-if="!canEdit" class="mb-4 text-sm text-n-slate-11">
-        {{ t('MARCOX_AI.READ_ONLY') }}
-      </p>
-      <template v-if="activeTab === 'overview'">
-        <AgentEditor
-          v-if="editing"
-          class="mx-auto h-full min-h-[32rem] max-w-4xl"
-          :agent="editing"
-          :agents="agents"
-          :inboxes="inboxes"
-          :credentials="credentials"
-          :catalogs="catalogs"
-          :default-prompt="preferences.default_prompt"
-          :can-edit="canEdit"
-          :saving="saving"
-          @save="saveAgent"
-          @cancel="editing = null"
-          @delete="deleteAgent"
-          @test="testAgent"
-        />
-        <div
-          v-else-if="!agents.length"
-          class="mx-auto mt-8 max-w-3xl rounded-3xl border border-n-weak bg-n-solid-1 px-8 py-14 text-center"
-        >
-          <span
-            class="mx-auto flex size-20 items-center justify-center rounded-3xl bg-n-blue-3 text-n-blue-11"
-            ><span class="i-lucide-bot size-10"
-          /></span>
-          <h2 class="mt-7 text-2xl font-semibold text-n-slate-12">
-            {{ t('MARCOX_AI.EMPTY_TITLE') }}
-          </h2>
-          <p class="mx-auto mt-3 max-w-lg text-base text-n-slate-11">
-            {{ t('MARCOX_AI.EMPTY_BODY') }}
-          </p>
-          <Button
-            v-if="canEdit"
-            class="mt-7"
-            icon="i-lucide-plus"
-            :label="t('MARCOX_AI.EMPTY_CTA')"
-            @click="newAgent"
-          />
-          <div
-            class="mt-12 grid gap-6 border-t border-n-weak pt-8 sm:grid-cols-3"
-          >
-            <div
-              v-for="(key, index) in [
-                'EMPTY_CONTEXT',
-                'EMPTY_MEDIA',
-                'EMPTY_CONTROL',
-              ]"
-              :key="key"
-              class="space-y-3 text-sm text-n-slate-11"
-            >
-              <span
-                class="mx-auto block size-5 text-n-slate-12"
-                :class="
-                  [
-                    'i-lucide-brain',
-                    'i-lucide-audio-lines',
-                    'i-lucide-toggle-right',
-                  ][index]
-                "
-              />
-              <p>{{ t(`MARCOX_AI.${key}`) }}</p>
-            </div>
+    <main
+      v-else-if="activeTab === 'overview'"
+      class="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row"
+    >
+      <aside
+        class="flex shrink-0 flex-col border-b border-n-weak bg-n-solid-1 md:w-64 md:border-b-0 md:border-e"
+      >
+        <div class="space-y-3 border-b border-n-weak p-4">
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="m-0 text-sm font-semibold text-n-slate-12">
+              {{ t('MARCOX_AI.TABS.AGENTS') }}
+              <span class="ms-1 text-xs text-n-slate-11">{{
+                agents.length
+              }}</span>
+            </h2>
+            <Button
+              v-if="canEdit"
+              icon="i-lucide-plus"
+              variant="ghost"
+              color="slate"
+              size="sm"
+              :aria-label="t('MARCOX_AI.NEW_AGENT')"
+              @click="newAgent"
+            />
           </div>
-        </div>
-        <div v-else class="mx-auto max-w-6xl space-y-6">
-          <label class="relative block max-w-sm"
-            ><span
-              class="i-lucide-search absolute left-3 top-3 size-4 text-n-slate-11" /><input
+          <label class="relative block">
+            <span
+              class="i-lucide-search absolute start-3 top-2.5 size-4 text-n-slate-11"
+            />
+            <input
               v-model="search"
               :aria-label="t('MARCOX_AI.SEARCH_AGENTS')"
               :placeholder="t('MARCOX_AI.SEARCH_AGENTS')"
-              class="!mb-0 h-10 w-full rounded-lg border border-n-weak bg-n-solid-1 pl-10 pr-3 text-sm"
-          /></label>
-          <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            <button
-              v-for="agent in visibleAgents"
-              :key="agent.id"
-              class="flex min-h-60 flex-col rounded-2xl border border-n-weak bg-n-solid-1 p-6 text-left transition-colors hover:border-n-blue-7"
-              @click="editing = agent"
-            >
-              <div class="flex w-full items-center justify-between">
+              class="reset-base !mb-0 h-9 w-full rounded-lg border border-n-weak bg-n-solid-2 !ps-9 !pe-3 text-sm"
+            />
+          </label>
+        </div>
+        <div
+          class="flex max-h-52 min-h-0 gap-1 overflow-auto p-2 md:max-h-none md:flex-1 md:flex-col"
+        >
+          <button
+            v-for="agent in visibleAgents"
+            :key="agent.id"
+            type="button"
+            class="flex min-w-48 shrink-0 items-start gap-3 rounded-lg p-3 text-start transition-colors md:min-w-0"
+            :class="
+              editing?.id === agent.id ? 'bg-n-alpha-2' : 'hover:bg-n-alpha-1'
+            "
+            @click="selectAgent(agent)"
+          >
+            <span
+              class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-n-blue-3 text-n-blue-11"
+              ><span class="i-lucide-bot size-4"
+            /></span>
+            <span class="min-w-0 flex-1">
+              <span class="flex items-center gap-2"
+                ><span class="truncate text-sm font-semibold text-n-slate-12">{{
+                  agent.name
+                }}</span>
                 <span
-                  class="flex size-11 items-center justify-center rounded-xl bg-n-blue-3 text-n-blue-11"
-                  ><span class="i-lucide-bot size-5" /></span
-                ><span
-                  class="rounded-full px-2.5 py-1 text-xs font-medium"
+                  class="size-1.5 shrink-0 rounded-full"
                   :class="
                     agent.config.auto_response_enabled
-                      ? 'bg-n-teal-3 text-n-teal-11'
-                      : 'bg-n-alpha-2 text-n-slate-11'
+                      ? 'bg-n-teal-9'
+                      : 'bg-n-slate-8'
                   "
-                  >{{
+                  :title="
                     t(
                       agent.config.auto_response_enabled
                         ? 'MARCOX_AI.ACTIVE'
                         : 'MARCOX_AI.DRAFT'
                     )
-                  }}</span
-                >
-              </div>
-              <h2 class="mt-5 text-lg font-semibold text-n-slate-12">
-                {{ agent.name }}
-              </h2>
-              <p class="mt-2 line-clamp-2 text-sm text-n-slate-11">
-                {{ agent.description || agent.instructions }}
-              </p>
-              <div
-                class="mt-auto flex w-full items-center justify-between gap-3 border-t border-n-weak pt-4 text-xs text-n-slate-11"
-              >
-                <span class="truncate">{{ agent.config.model }}</span
-                ><span>{{
-                  t(
-                    agent.inboxes_count
-                      ? 'MARCOX_AI.INBOX_COUNT'
-                      : 'MARCOX_AI.NO_INBOX',
-                    { count: agent.inboxes_count }
-                  )
-                }}</span>
-              </div>
-            </button>
-          </div>
-        </div>
-      </template>
-      <ProvidersPanel
-        v-else-if="activeTab === 'credentials' && canEdit"
-        :providers="preferences.providers"
-        :credentials="credentials"
-        :catalogs="catalogs"
-        :can-edit="canEdit"
-        :busy="busyProvider"
-        @save="saveConnection"
-        @test="testConnection"
-        @refresh="provider => loadModels(provider, true)"
-      />
-      <AiPlayground
-        v-else-if="activeTab === 'playground'"
-        :agents="agents"
-        :agent-id="testAgentId"
-      />
-      <section
-        v-else-if="activeTab === 'activity' && canEdit"
-        class="mx-auto max-w-6xl"
-      >
-        <div class="mb-6 flex items-center justify-between">
-          <div>
-            <h2 class="text-xl font-semibold text-n-slate-12">
-              {{ t('MARCOX_AI.ACTIVITY.TITLE') }}
-            </h2>
-            <p class="mt-2 text-sm text-n-slate-11">
-              {{ t('MARCOX_AI.ACTIVITY.BODY') }}
-            </p>
-          </div>
+                  "
+              /></span>
+              <span class="mt-1 block truncate text-xs text-n-slate-11">{{
+                agent.config.model
+              }}</span>
+              <span class="mt-1.5 block text-xs text-n-slate-10">{{
+                t(
+                  agent.inboxes_count
+                    ? 'MARCOX_AI.INBOX_COUNT'
+                    : 'MARCOX_AI.NO_INBOX',
+                  { count: agent.inboxes_count }
+                )
+              }}</span>
+            </span>
+          </button>
           <Button
-            icon="i-lucide-refresh-cw"
-            variant="outline"
+            v-if="canEdit"
+            class="mt-2 !justify-start"
+            variant="ghost"
             color="slate"
-            :label="t('MARCOX_AI.REFRESH')"
-            @click="refresh"
+            icon="i-lucide-plus"
+            :label="t('MARCOX_AI.NEW_AGENT')"
+            @click="newAgent"
           />
         </div>
-        <div
-          class="overflow-x-auto rounded-2xl border border-n-weak bg-n-solid-1"
-        >
-          <p
-            v-if="!logs.length"
-            class="p-12 text-center text-sm text-n-slate-11"
-          >
-            {{ t('MARCOX_AI.ACTIVITY.EMPTY') }}
-          </p>
-          <table v-else class="w-full text-left text-sm">
-            <thead class="border-b border-n-weak text-n-slate-11">
-              <tr>
-                <th
-                  v-for="key in ['EVENT', 'AGENT', 'CONVERSATION', 'WHEN']"
-                  :key="key"
-                  class="p-4 font-medium"
-                >
-                  {{ t(`MARCOX_AI.ACTIVITY.${key}`) }}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="log in logs"
-                :key="log.id"
-                class="border-b border-n-weak last:border-0"
-              >
-                <td class="p-4">
-                  <span
-                    :class="
-                      log.status === 'error'
-                        ? 'text-n-ruby-11'
-                        : 'text-n-slate-12'
-                    "
-                    >{{
-                      t(`MARCOX_AI.ACTIVITY.${eventLabel(log.event)}`)
-                    }}</span
-                  >
-                  <p
-                    v-if="log.error"
-                    class="mt-1 max-w-sm break-words text-xs text-n-ruby-11"
-                  >
-                    {{ log.error }}
-                  </p>
-                </td>
-                <td class="p-4 text-n-slate-12">{{ log.assistant_name }}</td>
-                <td class="p-4">
-                  <RouterLink
-                    v-if="log.conversation_id"
-                    :to="{
-                      name: 'inbox_conversation',
-                      params: {
-                        accountId: route.params.accountId,
-                        conversationId: log.conversation_id,
-                      },
-                    }"
-                    class="text-n-blue-11"
-                  >
-                    {{ `#${log.conversation_id}` }}
-                  </RouterLink>
-                </td>
-                <td class="p-4 text-n-slate-11">
-                  {{ new Date(log.created_at).toLocaleString() }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      </aside>
+      <AgentEditor
+        v-if="editing"
+        :agent="editing"
+        :agents="agents"
+        :inboxes="inboxes"
+        :credentials="credentials"
+        :catalogs="catalogs"
+        :providers="preferences.providers"
+        :busy-provider="busyProvider"
+        :default-prompt="preferences.default_prompt"
+        :can-edit="canEdit"
+        :saving="saving"
+        @save="saveAgent"
+        @cancel="cancelAgent"
+        @delete="deleteAgent"
+        @test="testAgent"
+        @change="
+          form => (dirty = JSON.stringify(form) !== JSON.stringify(editing))
+        "
+        @save-connection="saveConnection"
+        @test-connection="testConnection"
+        @refresh-models="provider => loadModels(provider, true)"
+      />
+      <div
+        v-else
+        class="flex flex-1 flex-col items-center justify-center p-8 text-center"
+      >
+        <span
+          class="flex size-16 items-center justify-center rounded-2xl bg-n-blue-3 text-n-blue-11"
+          ><span class="i-lucide-bot size-8"
+        /></span>
+        <h2 class="mt-6 text-xl font-semibold text-n-slate-12">
+          {{ t('MARCOX_AI.EMPTY_TITLE') }}
+        </h2>
+        <p class="mt-2 max-w-lg text-sm leading-6 text-n-slate-11">
+          {{ t('MARCOX_AI.EMPTY_BODY') }}
+        </p>
+        <Button
+          v-if="canEdit"
+          class="mt-5"
+          icon="i-lucide-plus"
+          :label="t('MARCOX_AI.EMPTY_CTA')"
+          @click="newAgent"
+        />
+      </div>
     </main>
+    <main v-else-if="activeTab === 'playground'" class="min-h-0 flex-1 p-6">
+      <AiPlayground :agents="agents" :agent-id="testAgentId" />
+    </main>
+    <main
+      v-else-if="activeTab === 'activity' && canEdit"
+      class="min-h-0 flex-1 overflow-y-auto p-6"
+    >
+      <div class="mb-6 flex items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-semibold text-n-slate-12">
+            {{ t('MARCOX_AI.ACTIVITY.TITLE') }}
+          </h2>
+          <p class="mt-2 text-sm text-n-slate-11">
+            {{ t('MARCOX_AI.ACTIVITY.BODY') }}
+          </p>
+        </div>
+        <Button
+          icon="i-lucide-refresh-cw"
+          variant="outline"
+          color="slate"
+          :label="t('MARCOX_AI.REFRESH')"
+          @click="refresh"
+        />
+      </div>
+      <div class="overflow-x-auto rounded-xl border border-n-weak bg-n-solid-1">
+        <p v-if="!logs.length" class="p-12 text-center text-sm text-n-slate-11">
+          {{ t('MARCOX_AI.ACTIVITY.EMPTY') }}
+        </p>
+        <table v-else class="w-full text-start text-sm">
+          <thead class="border-b border-n-weak text-n-slate-11">
+            <tr>
+              <th
+                v-for="key in ['EVENT', 'AGENT', 'CONVERSATION', 'WHEN']"
+                :key="key"
+                class="p-4 text-start font-medium"
+              >
+                {{ t(`MARCOX_AI.ACTIVITY.${key}`) }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="log in logs"
+              :key="log.id"
+              class="border-b border-n-weak last:border-0"
+            >
+              <td class="p-4">
+                <span
+                  :class="
+                    log.status === 'error'
+                      ? 'text-n-ruby-11'
+                      : 'text-n-slate-12'
+                  "
+                  >{{ t(`MARCOX_AI.ACTIVITY.${eventLabel(log.event)}`) }}</span
+                >
+                <p
+                  v-if="log.error"
+                  class="mt-1 max-w-sm break-words text-xs text-n-ruby-11"
+                >
+                  {{ log.error }}
+                </p>
+              </td>
+              <td class="p-4 text-n-slate-12">{{ log.assistant_name }}</td>
+              <td class="p-4">
+                <RouterLink
+                  v-if="log.conversation_id"
+                  :to="{
+                    name: 'inbox_conversation',
+                    params: {
+                      accountId: route.params.accountId,
+                      conversationId: log.conversation_id,
+                    },
+                  }"
+                  class="text-n-blue-11"
+                >
+                  {{ `#${log.conversation_id}` }}
+                </RouterLink>
+              </td>
+              <td class="p-4 text-n-slate-11">
+                {{ new Date(log.created_at).toLocaleString() }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+    <Dialog
+      ref="discardDialog"
+      :title="t('MARCOX_AI.EDITOR.UNSAVED')"
+      :description="t('MARCOX_AI.EDITOR.DISCARD_HINT')"
+      :confirm-button-label="t('MARCOX_AI.EDITOR.DISCARD')"
+      @confirm="discardChanges"
+    />
+    <Dialog
+      ref="deleteDialog"
+      :title="t('MARCOX_AI.DELETE')"
+      :description="t('MARCOX_AI.EDITOR.CONFIRM_DELETE')"
+      @confirm="confirmDelete"
+    />
   </div>
 </template>

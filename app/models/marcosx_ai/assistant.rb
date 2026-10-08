@@ -143,7 +143,7 @@ class MarcosxAi::Assistant < ApplicationRecord
 
     conversation_states.where("metadata ->> 'processing' = 'true'").find_each do |state|
       state.with_lock do
-        state.update!(metadata: state.metadata.except('pending_response', 'pending_since_message_id').merge(
+        state.update!(metadata: state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft').merge(
           'run_token' => SecureRandom.uuid, 'processing' => false
         ))
       end

@@ -1,11 +1,15 @@
 class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Accounts::MarcosxAi::BaseController
   before_action :set_conversation
+  before_action :validate_action, only: :update
   before_action :set_state
 
   def show
-    return render json: { state: inactive_state } if @state.blank?
-
-    render json: { state: serialize(@state.reload) }
+    render json: {
+      state: @state ? serialize(@state.reload) : inactive_state,
+      assistants: Current.account.marcosx_ai_assistants.ordered.map do |assistant|
+        { id: assistant.id, name: assistant.name, model: assistant.model, enabled: assistant.auto_response_enabled? }
+      end
+    }
   end
 
   def update
@@ -23,8 +27,6 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
                     status: :unprocessable_entity unless @state.assistant.accepts_conversation?(@conversation)
 
       @state.with_lock { @state.resume! }
-      latest = @conversation.messages.where(message_type: [:incoming, :outgoing], private: false).order(:created_at, :id).last
-      MarcosxAi::ResponseScheduler.perform(message: latest) if latest&.incoming?
     when 'reply_now'
       return render json: { error: 'Enable the agent first' }, status: :unprocessable_entity unless @state.assistant.auto_response_enabled?
 
@@ -37,6 +39,8 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
     when 'handoff'
       @state.with_lock { @state.handoff!(reason: state_params[:reason]) }
       @conversation.bot_handoff! if @conversation.pending?
+    when 'select'
+      @state.with_lock { @state.pause_by_agent!(reason: 'agent_selected') }
     else
       return render json: { error: 'Invalid action' }, status: :unprocessable_entity
     end
@@ -52,7 +56,12 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
   end
 
   def set_state
-    assistant = @conversation.inbox.marcosx_ai_assistant
+    if action_name == 'update' && state_params[:assistant_id].present?
+      assistant = Current.account.marcosx_ai_assistants.find(state_params[:assistant_id])
+      return @state = MarcosxAi::ConversationState.choose_for_conversation!(@conversation, assistant: assistant)
+    end
+
+    assistant = @conversation.marcosx_ai_assistant
     return @state = nil unless assistant
 
     @state = MarcosxAi::ConversationState.find_by(conversation: @conversation)
@@ -61,8 +70,17 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
     @state = MarcosxAi::ConversationState.for_conversation!(@conversation, assistant: assistant)
   end
 
+  def validate_action
+    valid_action = %w[pause resume reply_now handoff select].include?(state_params[:action])
+    id = state_params[:assistant_id]
+    valid_id = id.nil? || (id.is_a?(Integer) && id.positive?)
+    return if valid_action && valid_id
+
+    render json: { error: I18n.t('marcosx_ai.errors.invalid_assistant') }, status: :unprocessable_entity
+  end
+
   def state_params
-    params.require(:state).permit(:action, :reason)
+    params.require(:state).permit(:action, :reason, :assistant_id)
   end
 
   def serialize(state)

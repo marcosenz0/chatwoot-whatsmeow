@@ -28,6 +28,7 @@ const {
   id,
   sender,
   senderType,
+  isMarcoxMessage,
 } = useMessageContext();
 const { t } = useI18n();
 
@@ -101,7 +102,7 @@ const scrollToMessage = () => {
 const shouldShowMeta = computed(
   () =>
     !props.hideMeta &&
-    !shouldGroupWithNext.value &&
+    (isMarcoxMessage?.value || !shouldGroupWithNext.value) &&
     variant.value !== MESSAGE_VARIANTS.ACTIVITY
 );
 

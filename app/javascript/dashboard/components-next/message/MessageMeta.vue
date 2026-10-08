@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { messageTimestamp } from 'shared/helpers/timeHelper';
 import { useExactTimestamp } from 'shared/composables/useExactTimestamp';
 
@@ -34,7 +35,20 @@ const {
   sourceId,
   messageType,
   contentAttributes,
+  isMarcoxMessage,
+  sender,
+  additionalAttributes,
 } = useMessageContext();
+
+const { t } = useI18n();
+const aiSignature = computed(() =>
+  t('MARCOX_AI.CONVERSATION.SIGNATURE', {
+    name:
+      sender?.value?.name ||
+      additionalAttributes?.value?.assistantName ||
+      t('MARCOX_AI.TITLE'),
+  })
+);
 
 const readableTime = computed(() =>
   messageTimestamp(createdAt.value, 'LLL d, h:mm a')
@@ -145,6 +159,15 @@ const statusToShow = computed(() => {
 
 <template>
   <div class="text-xs flex items-center gap-1.5">
+    <span
+      v-if="isMarcoxMessage"
+      class="inline-flex items-center gap-1 font-medium"
+      :aria-label="aiSignature"
+    >
+      <Icon icon="i-lucide-bot" class="size-3.5 shrink-0" />
+      <span>{{ aiSignature }}</span>
+      <span aria-hidden="true">{{ '·' }}</span>
+    </span>
     <div class="inline">
       <time
         v-tooltip.top="{

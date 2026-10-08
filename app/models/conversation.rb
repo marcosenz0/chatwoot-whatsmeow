@@ -274,6 +274,13 @@ class Conversation < ApplicationRecord
     state&.public_data
   end
 
+  def marcosx_ai_assistant
+    state = marcosx_ai_conversation_state
+    return state.assistant if state&.metadata&.dig('conversation_override')
+
+    inbox.marcosx_ai_assistant
+  end
+
   def pipeline_push_data
     return if conversation_pipeline.blank? || conversation_pipeline_stage.blank?
 

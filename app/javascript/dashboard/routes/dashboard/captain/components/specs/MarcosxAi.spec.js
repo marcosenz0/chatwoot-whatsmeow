@@ -4,6 +4,7 @@ import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import AgentEditor from '../AgentEditor.vue';
 import AiModelSelect from '../AiModelSelect.vue';
 import AiPlayground from '../AiPlayground.vue';
+import AiSelect from '../AiSelect.vue';
 
 vi.mock('dashboard/api/marcosxAi', () => ({
   default: { runPlayground: vi.fn() },
@@ -51,19 +52,63 @@ const props = {
 };
 
 describe('MarcoXIA agent configuration', () => {
-  it('offers models in a select and emits the selected identifier', async () => {
+  it('offers a searchable app menu and emits the selected model identifier', async () => {
     const wrapper = mount(AiModelSelect, {
       props: { modelValue: 'gpt-6.1-sol', models: catalogs.openai.models },
+      global: {
+        stubs: {
+          DropdownFloating: {
+            template: '<div data-dropdown-menu><slot /></div>',
+          },
+        },
+      },
     });
-    expect(wrapper.findAll('option')).toHaveLength(2);
-    await wrapper.find('select').setValue('gpt-4.1');
+    expect(wrapper.find('select').exists()).toBe(false);
+    await wrapper.get('button').trigger('click');
+    await wrapper.get('input[type="search"]').setValue('4.1');
+    expect(wrapper.findAll('[role="option"]')).toHaveLength(1);
+    await wrapper.get('[role="option"]').trigger('click');
     expect(wrapper.emitted('update:modelValue')[0]).toEqual(['gpt-4.1']);
   });
   it('preserves the selected model when it is absent from the catalog', () => {
     const wrapper = mount(AiModelSelect, {
       props: { modelValue: 'legacy-model', models: catalogs.openai.models },
     });
-    expect(wrapper.find('select').element.value).toBe('legacy-model');
+    expect(wrapper.get('button').text()).toBe('legacy-model');
+  });
+  it('supports keyboard navigation and returns focus to the selector', async () => {
+    const wrapper = mount(AiSelect, {
+      attachTo: document.body,
+      props: {
+        modelValue: 'one',
+        label: 'Models',
+        options: [
+          { value: 'one', label: 'One' },
+          { value: 'two', label: 'Two' },
+        ],
+      },
+      global: {
+        stubs: {
+          DropdownFloating: {
+            template: '<div data-dropdown-menu><slot /></div>',
+          },
+        },
+      },
+    });
+    const trigger = wrapper.get('button');
+    await trigger.trigger('keydown', { key: 'ArrowDown' });
+    await flushPromises();
+    expect(document.activeElement.textContent).toContain('One');
+    await wrapper
+      .get('[role="option"]')
+      .trigger('keydown', { key: 'ArrowDown' });
+    expect(document.activeElement.textContent).toContain('Two');
+    await wrapper
+      .findAll('[role="option"]')[1]
+      .trigger('keydown', { key: 'Escape' });
+    expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    expect(document.activeElement).toBe(trigger.element);
+    wrapper.unmount();
   });
   it('selects every available inbox without stealing another agent inbox', async () => {
     const wrapper = mount(AgentEditor, { props });

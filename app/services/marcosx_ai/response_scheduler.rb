@@ -5,7 +5,7 @@ class MarcosxAi::ResponseScheduler
     return unless manual || message.incoming?
 
     conversation = message.conversation
-    assistant = conversation.inbox.marcosx_ai_assistant
+    assistant = conversation.marcosx_ai_assistant
     return unless assistant&.auto_response_enabled? && assistant.accepts_conversation?(conversation)
     return if conversation.resolved? || conversation.snoozed?
 

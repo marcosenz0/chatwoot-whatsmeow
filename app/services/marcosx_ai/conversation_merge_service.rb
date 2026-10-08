@@ -20,7 +20,8 @@ class MarcosxAi::ConversationMergeService
     retained = states.find { |state| state.conversation_id == target.id } || states.first
     paused = states.reject { |state| state.status == 'active' }
     decision = paused.find { |state| state.paused_until.nil? } || paused.max_by(&:paused_until) || retained
-    metadata = decision.metadata.except('pending_response', 'pending_since_message_id', 'conversation_summary', 'summary_cursor')
+    metadata = decision.metadata.except('pending_response', 'pending_since_message_id', 'conversation_summary', 'summary_cursor',
+                                        'analysis', 'approved_draft')
     retained.update!(
       conversation: target, assistant: decision.assistant, status: decision.status, paused_until: decision.paused_until,
       last_human_message_id: states.filter_map(&:last_human_message_id).max,

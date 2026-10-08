@@ -48,6 +48,7 @@ class MarcosxAi::DeliveryJob < ApplicationJob
     @state.conversation.messages.create!(
       message_type: :outgoing, account: @state.account, inbox: @state.inbox, sender: @state.assistant, content: content,
       additional_attributes: { marcosx_ai: true, provider: @state.assistant.provider, model: @state.assistant.model,
+                               assistant_name: @state.assistant.name,
                                trigger_message_id: @state.metadata['trigger_message_id'] }
     )
   ensure
@@ -55,7 +56,7 @@ class MarcosxAi::DeliveryJob < ApplicationJob
   end
 
   def finish(plan)
-    @state.update!(metadata: @state.metadata.except('pending_response', 'pending_since_message_id').merge(
+    @state.update!(metadata: @state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft').merge(
       'processing' => false, 'last_processed_trigger_id' => @state.metadata['trigger_message_id']
     ))
     if plan['handoff']

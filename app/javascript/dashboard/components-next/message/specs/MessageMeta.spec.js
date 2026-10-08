@@ -85,4 +85,12 @@ describe('Telegram personal message status', () => {
       wrapper.findComponent({ name: 'MessageStatus' }).props('status')
     ).toBe('read');
   });
+  it('shows an AI signature beside the timestamp and delivery status', () => {
+    state.context.isMarcoxMessage = ref(true);
+    state.context.sender = ref({ name: 'Felipe' });
+    const wrapper = render();
+    expect(wrapper.get('[aria-label="MARCOX_AI.CONVERSATION.SIGNATURE"]').exists()).toBe(true);
+    expect(wrapper.findComponent({ name: 'MessageStatus' }).exists()).toBe(true);
+    expect(wrapper.findAllComponents({ name: 'Icon' }).some(icon => icon.props('icon') === 'i-lucide-bot')).toBe(true);
+  });
 });

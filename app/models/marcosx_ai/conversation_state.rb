@@ -43,6 +43,17 @@ class MarcosxAi::ConversationState < ApplicationRecord
     true
   end
 
+  def self.choose_for_conversation!(conversation, assistant:)
+    transaction do
+      state = for_conversation!(conversation, assistant: assistant)
+      state.with_lock do
+        state.update!(metadata: state.metadata.except('conversation_summary', 'summary_cursor', 'analysis').merge('conversation_override' => true))
+        state.pause_by_agent!(reason: 'agent_selected')
+      end
+      state
+    end
+  end
+
   def pause_by_human!(message:, minutes:)
     update!(
       status: 'paused_by_human',
@@ -81,8 +92,9 @@ class MarcosxAi::ConversationState < ApplicationRecord
   end
 
   def current_run?(token)
-    status == 'active' && metadata['run_token'] == token && assistant&.auto_response_enabled? &&
-      conversation.inbox.marcosx_ai_assistant&.id == assistant_id && assistant.accepts_conversation?(conversation) &&
+    (status == 'active' || (status == 'paused_by_agent' && metadata['approved_draft'])) &&
+      metadata['run_token'] == token && assistant&.auto_response_enabled? &&
+      conversation.marcosx_ai_assistant&.id == assistant_id && assistant.accepts_conversation?(conversation) &&
       !conversation.resolved? && !conversation.snoozed? && metadata['assistant_version'] == assistant.updated_at.iso8601(6) && !superseded?
   end
 
@@ -100,7 +112,7 @@ class MarcosxAi::ConversationState < ApplicationRecord
   end
 
   def cancelled_metadata
-    metadata.except('pending_response', 'pending_since_message_id').merge('run_token' => SecureRandom.uuid, 'processing' => false)
+    metadata.except('pending_response', 'pending_since_message_id', 'approved_draft').merge('run_token' => SecureRandom.uuid, 'processing' => false)
   end
 
   def broadcast_state

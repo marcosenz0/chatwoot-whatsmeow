@@ -1,12 +1,15 @@
 <script setup>
 import { ref } from 'vue';
-import { useToggle } from '@vueuse/core';
 import { vOnClickOutside } from '@vueuse/components';
 import DropdownFloating from './DropdownFloating.vue';
 import { provideDropdownContext, useDropdownTeleport } from './provider.js';
 
 const emit = defineEmits(['close']);
-const [isOpen, toggle] = useToggle(false);
+const isOpen = ref(false);
+const toggle = (value = !isOpen.value) => {
+  isOpen.value = value;
+  return value;
+};
 
 const teleport = useDropdownTeleport();
 const containerRef = ref(null);
@@ -30,6 +33,8 @@ provideDropdownContext({
   toggle,
   closeMenu,
 });
+
+defineExpose({ close: closeMenu, open: () => toggle(true) });
 </script>
 
 <template>

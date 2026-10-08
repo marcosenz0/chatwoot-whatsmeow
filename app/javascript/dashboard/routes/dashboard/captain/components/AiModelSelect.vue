@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { useI18n } from 'vue-i18n';
+import AiSelect from './AiSelect.vue';
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -20,18 +21,21 @@ const options = computed(() => {
 </script>
 
 <template>
-  <select
-    :value="modelValue"
+  <AiSelect
+    :model-value="modelValue"
     :disabled="disabled"
-    :aria-label="t('MARCOX_AI.EDITOR.MODEL')"
-    class="!w-full !h-10 !mb-0 rounded-lg border border-n-weak bg-n-background px-3 text-sm text-n-slate-12 disabled:opacity-50"
-    @change="emit('update:modelValue', $event.target.value)"
-  >
-    <option v-for="model in options" :key="model.id" :value="model.id">
-      {{ model.name
-      }}{{
-        model.recommended ? ` · ${t('MARCOX_AI.PROVIDERS.RECOMMENDED')}` : ''
-      }}
-    </option>
-  </select>
+    :label="t('MARCOX_AI.EDITOR.MODEL')"
+    searchable
+    :options="
+      options.map(model => ({
+        value: model.id,
+        label: model.name,
+        description: model.recommended
+          ? t('MARCOX_AI.PROVIDERS.RECOMMENDED')
+          : model.id,
+        icon: model.vision ? 'i-lucide-scan-eye' : 'i-lucide-brain',
+      }))
+    "
+    @update:model-value="emit('update:modelValue', $event)"
+  />
 </template>

@@ -3,10 +3,12 @@ import { computed, nextTick, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Button from 'dashboard/components-next/button/Button.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
+import AiSelect from './AiSelect.vue';
 
 const props = defineProps({
   agents: { type: Array, default: () => [] },
   agentId: { type: Number, default: null },
+  embedded: { type: Boolean, default: false },
 });
 const { t } = useI18n();
 const selectedId = ref(props.agentId || props.agents[0]?.id || null);
@@ -103,7 +105,8 @@ const send = async () => {
 
 <template>
   <section
-    class="mx-auto flex h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-n-weak bg-n-solid-1"
+    class="flex h-full min-h-0 min-w-0 w-full flex-1 flex-col overflow-hidden bg-n-solid-1"
+    :class="{ 'mx-auto max-w-5xl rounded-xl border border-n-weak': !embedded }"
   >
     <div class="border-b border-n-weak p-5">
       <div class="flex items-center justify-between gap-4">
@@ -121,17 +124,20 @@ const send = async () => {
       <p class="mt-2 text-sm text-n-slate-11">
         {{ t('MARCOX_AI.PLAYGROUND.BODY') }}
       </p>
-      <label class="mt-4 block text-sm text-n-slate-12"
+      <label v-if="!embedded" class="mt-4 block text-sm text-n-slate-12"
         >{{ t('MARCOX_AI.PLAYGROUND.SELECT')
-        }}<select
+        }}<AiSelect
           v-model="selectedId"
-          class="mt-2 !mb-0 h-10 w-full rounded-lg border border-n-weak bg-n-solid-2 px-3"
-        >
-          <option v-for="item in agents" :key="item.id" :value="item.id">
-            {{ item.name }}
-          </option>
-        </select></label
-      >
+          :options="
+            agents.map(item => ({
+              value: item.id,
+              label: item.name,
+              description: item.config.model,
+            }))
+          "
+          :label="t('MARCOX_AI.PLAYGROUND.SELECT')"
+          class="mt-2"
+      /></label>
       <p v-if="agent" class="mt-2 text-xs text-n-slate-11">
         {{ t('MARCOX_AI.PLAYGROUND.MODEL', { model: agent.config.model }) }}
       </p>

@@ -108,6 +108,58 @@ RSpec.describe 'MarcoXIA API', type: :request do
     expect(response.parsed_body['plan']['reaction']).to be_nil
   end
 
+  it 'lists agents in a conversation with no default inbox agent' do
+    get "#{endpoint}/conversations/#{conversation.display_id}/state", headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body['state']['assistant_id']).to be_nil
+    expect(response.parsed_body['assistants'].map { |item| item['id'] }).to include(assistant.id)
+  end
+
+  it 'selects an agent for one conversation without changing the inbox default' do
+    assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
+    another = account.marcosx_ai_assistants.create!(name: 'Individual', config: { auto_response_enabled: true })
+    put "#{endpoint}/conversations/#{conversation.display_id}/state",
+        params: { state: { action: 'select', assistant_id: another.id } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body['state']).to include('assistant_id' => another.id, 'status' => 'paused_by_agent')
+    expect(conversation.reload.marcosx_ai_assistant).to eq(another)
+    expect(inbox.reload.marcosx_ai_assistant).to eq(assistant)
+    expect(create(:conversation, account: account, inbox: inbox).marcosx_ai_assistant).to eq(assistant)
+  end
+
+  it 'enables future messages without scheduling a backlog reply' do
+    assistant.update!(config: { auto_response_enabled: true, auto_start: false })
+    create(:message, account: account, conversation: conversation, inbox: inbox)
+    expect {
+      put "#{endpoint}/conversations/#{conversation.display_id}/state",
+          params: { state: { action: 'resume', assistant_id: assistant.id } }, headers: admin.create_new_auth_token, as: :json
+    }.not_to have_enqueued_job(MarcosxAi::ResponseJob)
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body['state']['status']).to eq('active')
+  end
+
+  it 'rejects an agent from another account before changing the conversation' do
+    other = create(:account).marcosx_ai_assistants.create!(name: 'Other')
+    post "#{endpoint}/conversations/#{conversation.display_id}/analysis",
+         params: { analysis: { assistant_id: other.id } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:not_found)
+    expect(MarcosxAi::ConversationState.find_by(conversation: conversation)).to be_nil
+  end
+
+  it 'rejects invalid state actions without assigning an agent' do
+    put "#{endpoint}/conversations/#{conversation.display_id}/state",
+        params: { state: { action: 'bad', assistant_id: assistant.id } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(MarcosxAi::ConversationState.find_by(conversation: conversation)).to be_nil
+  end
+
+  it 'protects history analysis outside the operator inboxes' do
+    post "#{endpoint}/conversations/#{conversation.display_id}/analysis",
+         params: { analysis: { assistant_id: assistant.id } }, headers: agent.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unauthorized)
+    expect(MarcosxAi::ConversationState.find_by(conversation: conversation)).to be_nil
+  end
+
   it 'tests attachments without creating messages or keeping temporary files' do
     client = instance_double(MarcosxAi::ProviderClient, usage: {})
     plan = { messages: ['That is an image'], reaction: nil, reaction_message_id: nil, handoff: false, handoff_reason: nil }

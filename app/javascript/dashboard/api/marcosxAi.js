@@ -90,6 +90,28 @@ class MarcosxAiAPI extends ApiClient {
     });
   }
 
+  getConversationAnalysis(conversationId, options = {}) {
+    return axios.get(
+      `${this.url}/conversations/${conversationId}/analysis`,
+      options
+    );
+  }
+
+  analyzeConversation(conversationId, assistantId) {
+    return axios.post(`${this.url}/conversations/${conversationId}/analysis`, {
+      analysis: { assistant_id: assistantId },
+    });
+  }
+
+  sendConversationAnalysis(conversationId, id, messages) {
+    return axios.post(
+      `${this.url}/conversations/${conversationId}/analysis/send_reply`,
+      {
+        analysis: { id, messages },
+      }
+    );
+  }
+
   createGoogleAuthorization() {
     return axios.post(`${this.url}/google/authorizations`);
   }

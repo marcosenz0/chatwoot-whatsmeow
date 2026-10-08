@@ -88,7 +88,16 @@
       "CONNECTION_REQUIRED": "Conecte este provedor antes de ativar o agente.",
       "SAVED_REQUIRED": "Salve o agente para testá-lo.",
       "CONFIRM_DELETE": "Excluir este agente e desvincular suas caixas de entrada?",
-      "UNSAVED": "Alterações não salvas"
+      "UNSAVED": "Alterações não salvas",
+      "TEST": "Testar agente",
+      "DISCARD": "Descartar alterações",
+      "DISCARD_HINT": "Você tem alterações neste agente. Descarte-as para continuar.",
+      "SECTION_HINTS": {
+        "IDENTITY": "Escolha o nome, o modelo e a conexão que este agente vai usar.",
+        "PROMPT": "Defina como este agente atende, o que sabe e quando deve passar para alguém.",
+        "INBOXES": "Escolha onde este agente inicia o atendimento. Você também pode escolhê-lo em uma conversa específica.",
+        "BEHAVIOR": "Ajuste o contexto, o ritmo das mensagens e os tipos de mídia que o agente entende."
+      }
     },
     "PROVIDERS": {
       "TITLE": "Conecte a inteligência dos seus agentes",
@@ -114,7 +123,10 @@
       "GEMINI": "Google Gemini",
       "OPENAI_HINT": "Recomendado para atendimento com contexto e mídia.",
       "GROQ_HINT": "Respostas rápidas. O suporte a mídia depende do modelo.",
-      "GEMINI_HINT": "Modelos Google para texto, imagens e documentos."
+      "GEMINI_HINT": "Modelos Google para texto, imagens e documentos.",
+      "IN_AGENT": "Conexão do modelo deste agente",
+      "EDIT_KEY": "Alterar chave",
+      "SHARED_KEY": "A chave deste provedor é compartilhada pelos agentes da conta. O modelo e as instruções são próprios de cada agente."
     },
     "PLAYGROUND": {
       "TITLE": "Deixe o agente com o seu jeito",
@@ -149,7 +161,8 @@
       "SENT": "Resposta enviada",
       "HANDOFF": "Passou para uma pessoa",
       "FAILED": "Agente pausado após um erro",
-      "TOKENS": "{count} tokens"
+      "TOKENS": "{count} tokens",
+      "ANALYSIS": "Histórico analisado"
     },
     "CONVERSATION": {
       "ON": "IA ligada",
@@ -160,14 +173,35 @@
       "RESUME": "Ligar IA",
       "CONTINUE": "Continuar conversa agora",
       "HUMAN": "Assumir atendimento",
-      "NO_AGENT": "Conecte um agente a esta caixa na MarcoXIA.",
+      "NO_AGENT": "Crie um agente na MarcoXIA para usá-lo nesta conversa.",
       "PAUSED_OK": "IA desligada nesta conversa.",
-      "RESUMED_OK": "IA ligada nesta conversa.",
+      "RESUMED_OK": "IA ligada para as próximas mensagens desta conversa.",
       "CONTINUE_OK": "O agente está preparando a continuação.",
       "ERROR": "Não foi possível atualizar o agente.",
       "LABEL": "{name} · {status}",
       "PAUSED_HUMAN": "Desligada após uma resposta humana",
-      "GLOBAL_PAUSED": "Ative este agente na MarcoXIA primeiro."
+      "GLOBAL_PAUSED": "Ative este agente na MarcoXIA primeiro.",
+      "SIGNATURE": "{name} · IA",
+      "PANEL_TITLE": "IA nesta conversa",
+      "PANEL_HINT": "Escolha quem atende este contato e controle o atendimento desta conversa.",
+      "SELECT_AGENT": "Agente desta conversa",
+      "FUTURE_ONLY": "Ligar a IA responde às próximas mensagens. Para continuar uma conversa existente, analise o histórico e revise a resposta abaixo. A escolha aqui vale somente para esta conversa."
+    },
+    "ANALYSIS": {
+      "TITLE": "Analisar o histórico e preparar uma resposta",
+      "HINT": "Usa o histórico público completo, com memória resumida para conversas longas. A IA fica desligada durante a revisão.",
+      "ANALYZE": "Analisar conversa",
+      "PROCESSING": "Lendo o histórico e preparando uma resposta…",
+      "OUTDATED": "A conversa ou o agente mudou. Analise novamente antes de enviar.",
+      "FAILED": "Não foi possível analisar. Verifique a conexão do agente e tente novamente.",
+      "COUNT": "{count} mensagens consideradas",
+      "SUMMARY": "Contexto da conversa",
+      "NEXT_STEP": "Próximo passo sugerido",
+      "DRAFT": "Resposta para revisar",
+      "PART": "Mensagem {number}",
+      "SEND": "Enviar resposta",
+      "SENT": "Resposta encaminhada para envio. A IA continua desligada nesta conversa.",
+      "CLOSE": "Fechar"
     }
   }
 }

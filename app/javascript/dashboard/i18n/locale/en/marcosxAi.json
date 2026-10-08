@@ -88,7 +88,16 @@
       "CONNECTION_REQUIRED": "Connect this provider before enabling the agent.",
       "SAVED_REQUIRED": "Save the agent to test it.",
       "CONFIRM_DELETE": "Delete this agent and remove its inbox connections?",
-      "UNSAVED": "Unsaved changes"
+      "UNSAVED": "Unsaved changes",
+      "TEST": "Test agent",
+      "DISCARD": "Discard changes",
+      "DISCARD_HINT": "This agent has unsaved changes. Discard them to continue.",
+      "SECTION_HINTS": {
+        "IDENTITY": "Choose the name, model and connection this agent will use.",
+        "PROMPT": "Define how this agent responds, what it knows and when it should hand over.",
+        "INBOXES": "Choose where this agent starts responding. You can also select it for an individual conversation.",
+        "BEHAVIOR": "Adjust context, message pacing and the media the agent can understand."
+      }
     },
     "PROVIDERS": {
       "TITLE": "Connect the intelligence behind your agents",
@@ -114,7 +123,10 @@
       "GEMINI": "Google Gemini",
       "OPENAI_HINT": "Recommended for contextual, multimodal support.",
       "GROQ_HINT": "Fast inference. Media capabilities depend on the model.",
-      "GEMINI_HINT": "Google models for text, images and documents."
+      "GEMINI_HINT": "Google models for text, images and documents.",
+      "IN_AGENT": "Connection for this agent's model",
+      "EDIT_KEY": "Change key",
+      "SHARED_KEY": "This provider key is shared by agents in this account. Each agent has its own model and instructions."
     },
     "PLAYGROUND": {
       "TITLE": "Make it sound like you",
@@ -149,7 +161,8 @@
       "SENT": "Reply sent",
       "HANDOFF": "Passed to a person",
       "FAILED": "Agent paused after an error",
-      "TOKENS": "{count} tokens"
+      "TOKENS": "{count} tokens",
+      "ANALYSIS": "History analyzed"
     },
     "CONVERSATION": {
       "ON": "AI on",
@@ -160,14 +173,35 @@
       "RESUME": "Turn AI on",
       "CONTINUE": "Continue conversation now",
       "HUMAN": "Take over conversation",
-      "NO_AGENT": "Connect an agent to this inbox in MarcoXIA.",
+      "NO_AGENT": "Create an agent in MarcoXIA to use it in this conversation.",
       "PAUSED_OK": "AI paused in this conversation.",
-      "RESUMED_OK": "AI enabled in this conversation.",
+      "RESUMED_OK": "AI enabled for new messages in this conversation.",
       "CONTINUE_OK": "The agent is preparing a continuation.",
       "ERROR": "Could not update the agent.",
       "LABEL": "{name} · {status}",
       "PAUSED_HUMAN": "Paused after a human reply",
-      "GLOBAL_PAUSED": "Enable this agent in MarcoXIA first."
+      "GLOBAL_PAUSED": "Enable this agent in MarcoXIA first.",
+      "SIGNATURE": "{name} · AI",
+      "PANEL_TITLE": "AI in this conversation",
+      "PANEL_HINT": "Choose who assists this contact and control AI for this conversation.",
+      "SELECT_AGENT": "Conversation agent",
+      "FUTURE_ONLY": "Enabling AI responds to new messages. To continue an existing conversation, analyze its history and review the reply below. This selection applies only to this conversation."
+    },
+    "ANALYSIS": {
+      "TITLE": "Analyze history and prepare a reply",
+      "HINT": "Uses the complete public history, with summarized memory for long conversations. AI is paused during review.",
+      "ANALYZE": "Analyze conversation",
+      "PROCESSING": "Reading history and preparing a reply…",
+      "OUTDATED": "The conversation or agent changed. Analyze again before sending.",
+      "FAILED": "Analysis failed. Check the agent connection and try again.",
+      "COUNT": "{count} messages considered",
+      "SUMMARY": "Conversation context",
+      "NEXT_STEP": "Suggested next step",
+      "DRAFT": "Reply to review",
+      "PART": "Message {number}",
+      "SEND": "Send reply",
+      "SENT": "Reply queued for delivery. AI remains paused in this conversation.",
+      "CLOSE": "Close"
     }
   }
 }

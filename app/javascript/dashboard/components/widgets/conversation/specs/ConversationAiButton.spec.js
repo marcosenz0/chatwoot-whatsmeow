@@ -6,6 +6,14 @@ vi.mock('dashboard/api/marcosxAi', () => ({
   default: { getConversationState: vi.fn(), updateConversationState: vi.fn() },
 }));
 vi.mock('dashboard/composables', () => ({ useAlert: vi.fn() }));
+vi.mock('../ConversationAiPanel.vue', () => ({
+  default: {
+    setup(_, { expose }) {
+      expose({ open: vi.fn() });
+    },
+    template: '<div />',
+  },
+}));
 const active = {
   assistant_id: 1,
   assistant_name: 'Support',
@@ -29,13 +37,31 @@ describe('Conversation AI control', () => {
       'MARCOX_AI.CONVERSATION.ON'
     );
   });
-  it('does not show a control when no agent is linked', async () => {
+  it('keeps a control visible when the inbox has no default agent', async () => {
     MarcosxAiAPI.getConversationState.mockResolvedValue({
       data: { state: { assistant_id: null } },
     });
     const wrapper = mount(ConversationAiButton, { props });
     await flushPromises();
-    expect(wrapper.find('button').exists()).toBe(false);
+    expect(wrapper.find('button').exists()).toBe(true);
+    expect(wrapper.find('button').text()).toContain(
+      'MARCOX_AI.CONVERSATION.OFF'
+    );
+  });
+  it('enables new messages without asking for an immediate reply', async () => {
+    MarcosxAiAPI.getConversationState.mockResolvedValue({
+      data: { state: { ...active, status: 'paused_by_agent' } },
+    });
+    MarcosxAiAPI.updateConversationState.mockResolvedValue({
+      data: { state: active },
+    });
+    const wrapper = mount(ConversationAiButton, { props });
+    await flushPromises();
+    await wrapper.get('button').trigger('click');
+    expect(MarcosxAiAPI.updateConversationState).toHaveBeenCalledWith(1, {
+      action: 'resume',
+      reason: 'agent_action',
+    });
   });
   it('updates its status from a conversation event', async () => {
     const wrapper = mount(ConversationAiButton, { props });

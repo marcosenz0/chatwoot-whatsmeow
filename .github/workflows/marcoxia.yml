@@ -22,7 +22,7 @@ jobs:
         run: >-
           pnpm exec vitest run
           app/javascript/dashboard/routes/dashboard/captain/components/specs
-          app/javascript/dashboard/components/widgets/conversation/specs/ConversationAiButton.spec.js
+          app/javascript/dashboard/components/widgets/conversation/specs/ConversationAi*.spec.js
           app/javascript/dashboard/components-next/message
           app/javascript/dashboard/store/modules/specs/conversations/actions.spec.js
           app/javascript/dashboard/components/widgets/conversation/specs/ReplyBox.spec.js
@@ -33,6 +33,11 @@ jobs:
           app/javascript/dashboard/routes/dashboard/captain/components
           app/javascript/dashboard/routes/dashboard/captain/pages/MarcosxAiPage.vue
           app/javascript/dashboard/components/widgets/conversation/ConversationAiButton.vue
+          app/javascript/dashboard/components/widgets/conversation/ConversationAiPanel.vue
+          app/javascript/dashboard/components-next/dropdown-menu/base/DropdownContainer.vue
+          app/javascript/dashboard/components-next/message/Message.vue
+          app/javascript/dashboard/components-next/message/MessageMeta.vue
+          app/javascript/dashboard/components-next/message/bubbles/Base.vue
           app/javascript/dashboard/components/widgets/conversation/ConversationHeader.vue
           app/javascript/dashboard/components/widgets/conversation/MoreActions.vue
           app/javascript/dashboard/components-next/sidebar/Sidebar.vue
