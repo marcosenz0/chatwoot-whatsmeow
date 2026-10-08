@@ -27,7 +27,7 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
 
       return render json: { error: I18n.t('marcosx_ai.errors.conversation_unavailable') },
                     status: :unprocessable_entity if !@state.assistant.accepts_conversation?(@conversation) ||
-                                                    @conversation.resolved? || @conversation.snoozed?
+                                                     @conversation.resolved? || @conversation.snoozed?
 
       @state.with_lock { @state.resume!(manual: true) }
       if state_params[:action] == 'reply_now'
