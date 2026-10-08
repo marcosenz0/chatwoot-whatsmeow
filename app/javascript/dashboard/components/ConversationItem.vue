@@ -1,12 +1,17 @@
 <script setup>
-import { computed, ref, watch, inject } from 'vue';
+import { computed, ref, watch, inject, nextTick, onUnmounted } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { useAlert } from 'dashboard/composables';
 import { useRouter } from 'vue-router';
 import { useStore, useMapGetter } from 'dashboard/composables/store';
 import { frontendURL, conversationUrl } from 'dashboard/helper/URLHelper';
-import ConversationCard from './widgets/conversation/ConversationCard.vue';
 import ConversationCardExpanded from 'dashboard/components-next/Conversation/ConversationCard/ConversationCardExpanded.vue';
 import ContextMenu from 'dashboard/components/ui/ContextMenu.vue';
+import MarcosxAiAPI from 'dashboard/api/marcosxAi';
+import mutationTypes from 'dashboard/store/mutation-types';
 import ConversationContextMenu from './widgets/conversation/contextMenu/Index.vue';
+import ConversationAiPanel from './widgets/conversation/ConversationAiPanel.vue';
+import ConversationCard from './widgets/conversation/ConversationCard.vue';
 
 const props = defineProps({
   source: { type: Object, required: true },
@@ -20,6 +25,15 @@ const props = defineProps({
 
 const router = useRouter();
 const store = useStore();
+const { t } = useI18n();
+const aiPanel = ref(null);
+const aiPanelVisible = ref(false);
+const aiState = ref(null);
+const aiAssistants = ref([]);
+let aiRequest = 0;
+onUnmounted(() => {
+  aiRequest += 1;
+});
 
 const selectConversation = inject('selectConversation');
 const deSelectConversation = inject('deSelectConversation');
@@ -50,6 +64,8 @@ watch(
     }
     showContextMenu.value = false;
     contextMenu.value = { x: null, y: null };
+    aiRequest += 1;
+    aiPanelVisible.value = false;
   }
 );
 
@@ -187,6 +203,39 @@ const onTogglePin = () => {
   toggleConversationPin(props.source.id);
   closeContextMenu();
 };
+const updateAiState = state => {
+  aiState.value = state;
+  store.commit(mutationTypes.UPDATE_CONVERSATION, {
+    id: props.source.id,
+    marcosx_ai: state,
+  });
+};
+const openAiPanel = async () => {
+  closeContextMenu();
+  const { id } = props.source;
+  aiRequest += 1;
+  const request = aiRequest;
+  try {
+    const { data } = await MarcosxAiAPI.getConversationState(id);
+    if (request !== aiRequest || id !== props.source.id) return;
+    updateAiState(data.state);
+    aiAssistants.value = data.assistants || [];
+    aiPanelVisible.value = true;
+    await nextTick();
+    if (request === aiRequest) aiPanel.value.open();
+  } catch (error) {
+    if (request === aiRequest)
+      useAlert(
+        error.response?.data?.error || t('MARCOX_AI.CONVERSATION.ERROR')
+      );
+  }
+};
+watch(
+  () => props.source.marcosx_ai,
+  state => {
+    if (aiPanelVisible.value) aiState.value = state;
+  }
+);
 </script>
 
 <template>
@@ -245,6 +294,8 @@ const onTogglePin = () => {
       :is-pinned="isPinned"
       :conversation-labels="source.labels"
       :conversation-url="conversationPath"
+      enable-ai-reply
+      @generate-ai-reply="openAiPanel"
       @update-conversation="onUpdateConversation"
       @assign-agent="onAssignAgent"
       @assign-label="onAssignLabel"
@@ -258,4 +309,12 @@ const onTogglePin = () => {
       @close="closeContextMenu"
     />
   </ContextMenu>
+  <ConversationAiPanel
+    v-if="aiPanelVisible"
+    ref="aiPanel"
+    :chat="source"
+    :state="aiState"
+    :assistants="aiAssistants"
+    @updated="updateAiState"
+  />
 </template>

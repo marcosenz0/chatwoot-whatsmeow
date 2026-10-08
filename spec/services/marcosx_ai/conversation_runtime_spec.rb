@@ -214,4 +214,18 @@ RSpec.describe 'MarcoXIA conversation runtime' do
     expect(conversation.messages.outgoing.where(private: false)).to be_empty
     expect(conversation.messages.outgoing.where(private: true).last.content).to include('Provider unavailable')
   end
+
+  it 'keeps manual support active after suggesting a handoff and responds to the next incoming question' do
+    assistant.update!(config: assistant.resolved_config.merge(auto_response_enabled: false))
+    state.resume!(manual: true)
+    plan.merge!(messages: ['I will ask a colleague'], handoff: true, handoff_reason: 'Needs an external action')
+    MarcosxAi::ResponseScheduler.perform(message: message)
+    token = state.reload.metadata['run_token']
+    MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, message.id, token)
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
+    expect(state.reload.status).to eq('active')
+    expect(conversation.messages.outgoing.where(private: true).last.content).to include('Needs an external action')
+    next_message = create(:message, account: account, inbox: inbox, conversation: conversation, sender: conversation.contact)
+    expect { MarcosxAi::ResponseScheduler.perform(message: next_message) }.to have_enqueued_job(MarcosxAi::ResponseJob)
+  end
 end

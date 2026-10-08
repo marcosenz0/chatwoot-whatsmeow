@@ -4,16 +4,17 @@ import { useI18n } from 'vue-i18n';
 import { getLastMessage } from 'dashboard/helper/conversationHelper';
 import Avatar from 'next/avatar/Avatar.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
-import MessagePreview from './MessagePreview.vue';
-import InboxName from '../InboxName.vue';
 import TimeAgo from 'dashboard/components/ui/TimeAgo.vue';
-import CardLabels from './conversationCardComponents/CardLabels.vue';
 import CardPriorityIcon from 'dashboard/components-next/Conversation/ConversationCard/CardPriorityIcon.vue';
 import UnreadBadge from 'dashboard/components-next/Conversation/ConversationCard/UnreadBadge.vue';
-import SLACardLabel from './components/SLACardLabel.vue';
-import VoiceCallStatus from './VoiceCallStatus.vue';
 import Checkbox from 'dashboard/components-next/checkbox/Checkbox.vue';
 import { getTypingUsersText } from 'dashboard/helper/commons';
+import MessagePreview from './MessagePreview.vue';
+import InboxName from '../InboxName.vue';
+import CardLabels from './conversationCardComponents/CardLabels.vue';
+import SLACardLabel from './components/SLACardLabel.vue';
+import VoiceCallStatus from './VoiceCallStatus.vue';
+import ConversationAiStatus from './ConversationAiStatus.vue';
 
 const props = defineProps({
   chat: { type: Object, required: true },
@@ -62,13 +63,12 @@ const voiceCallData = computed(() => {
   };
 });
 
-const showMetaSection = computed(() => {
-  return (
+const showMetaSection = computed(
+  () =>
     props.showInboxName ||
     (props.showAssignee && props.assignee.name) ||
     props.chat.priority
-  );
-});
+);
 
 const isAIAssignee = computed(() =>
   ['AgentBot', 'Captain::Assistant'].includes(props.chat?.meta?.assignee_type)
@@ -78,17 +78,15 @@ const hasSlaPolicyId = computed(
   () => props.chat?.applied_sla?.id && !props.currentContact?.blocked
 );
 
-const showLabelsSection = computed(() => {
-  return props.chat.labels?.length > 0 || hasSlaPolicyId.value;
-});
+const showLabelsSection = computed(
+  () => props.chat.labels?.length > 0 || hasSlaPolicyId.value
+);
 
-const messagePreviewClass = computed(() => {
-  return [
-    hasUnread.value ? 'font-medium text-n-slate-12' : 'text-n-slate-11',
-    !props.compact && hasUnread.value ? 'ltr:pr-4 rtl:pl-4' : '',
-    props.compact && hasUnread.value ? 'ltr:pr-6 rtl:pl-6' : '',
-  ];
-});
+const messagePreviewClass = computed(() => [
+  hasUnread.value ? 'font-medium text-n-slate-12' : 'text-n-slate-11',
+  !props.compact && hasUnread.value ? 'ltr:pr-4 rtl:pl-4' : '',
+  props.compact && hasUnread.value ? 'ltr:pr-6 rtl:pl-6' : '',
+]);
 
 const onThumbnailHover = () => {
   hovered.value = !props.hideThumbnail;
@@ -191,10 +189,11 @@ watch(
         </div>
       </div>
       <h4
-        class="conversation--user text-sm my-0 mx-2 capitalize pt-0.5 text-ellipsis overflow-hidden whitespace-nowrap flex-1 min-w-0 ltr:pr-16 rtl:pl-16 text-n-slate-12"
+        class="conversation--user text-sm my-0 mx-2 capitalize pt-0.5 overflow-hidden flex items-center gap-1.5 flex-1 min-w-0 ltr:pr-16 rtl:pl-16 text-n-slate-12"
         :class="hasUnread ? 'font-semibold' : 'font-medium'"
       >
-        {{ currentContact.name }}
+        <span class="truncate">{{ currentContact.name }}</span>
+        <ConversationAiStatus :chat="chat" />
         <span
           v-if="isPinned"
           v-tooltip.top="$t('CONVERSATION.CARD_CONTEXT_MENU.PINNED')"

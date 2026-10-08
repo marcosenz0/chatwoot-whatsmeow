@@ -17,7 +17,7 @@ class MarcosxAi::ConversationResponderService
     return unless @state.reload.current_run?(@token)
 
     prompts = MarcosxAi::PromptBuilder.messages(
-      assistant: @assistant, context: { contact: @conversation.contact.name, inbox: @conversation.inbox.name, now: Time.current.iso8601 },
+      assistant: @assistant, context: MarcosxAi::PromptBuilder.context_for(@conversation),
       reactions: @assistant.feature_enabled?(:allow_reactions) && @conversation.inbox.channel_type == 'Channel::Whatsmeow',
       proactive: @state.metadata['manual']
     )

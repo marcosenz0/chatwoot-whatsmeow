@@ -6,7 +6,11 @@ class Api::V1::Accounts::MarcosxAi::ConversationAnalysesController < Api::V1::Ac
 
   def show
     state = MarcosxAi::ConversationState.find_by(conversation: @conversation)
-    render json: { analysis: state ? MarcosxAi::ConversationAnalysisService.new(state: state).report : { status: 'idle' } }
+    render json: {
+      analysis: state ? MarcosxAi::ConversationAnalysisService.new(state: state).report : { status: 'idle' },
+      context: { total_messages_count: MarcosxAi::ConversationContext.public_history(@conversation).count,
+                 messages_limit: state&.metadata&.fetch('context_messages_limit', nil) }
+    }
   end
 
   def create
@@ -16,8 +20,14 @@ class Api::V1::Accounts::MarcosxAi::ConversationAnalysesController < Api::V1::Ac
     end
 
     assistant = Current.account.marcosx_ai_assistants.find(id)
-    state = MarcosxAi::ConversationState.choose_for_conversation!(@conversation, assistant: assistant)
-    render json: { analysis: MarcosxAi::ConversationAnalysisService.new(state: state).start! }, status: :accepted
+    limit = analysis_params[:messages_limit]
+    unless limit.nil? || (limit.is_a?(Integer) && limit.positive?)
+      return render json: { error: I18n.t('marcosx_ai.errors.invalid_response') }, status: :unprocessable_entity
+    end
+
+    state = MarcosxAi::ConversationState.find_by(conversation: @conversation, assistant: assistant)
+    state ||= MarcosxAi::ConversationState.choose_for_conversation!(@conversation, assistant: assistant)
+    render json: { analysis: MarcosxAi::ConversationAnalysisService.new(state: state).start!(messages_limit: limit) }, status: :accepted
   end
 
   def send_reply
@@ -39,6 +49,6 @@ class Api::V1::Accounts::MarcosxAi::ConversationAnalysesController < Api::V1::Ac
   end
 
   def analysis_params
-    params.require(:analysis).permit(:assistant_id, :id, messages: [])
+    params.require(:analysis).permit(:assistant_id, :id, :messages_limit, messages: [])
   end
 end

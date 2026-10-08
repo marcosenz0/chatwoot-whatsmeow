@@ -64,7 +64,7 @@ describe('Conversation history review', () => {
       .find(button => button.text().includes('MARCOX_AI.ANALYSIS.ANALYZE'))
       .trigger('click');
     await flushPromises();
-    expect(MarcosxAiAPI.analyzeConversation).toHaveBeenCalledWith(7, 1);
+    expect(MarcosxAiAPI.analyzeConversation).toHaveBeenCalledWith(7, 1, null);
     expect(MarcosxAiAPI.sendConversationAnalysis).not.toHaveBeenCalled();
     expect(wrapper.text()).toContain(ready.summary);
     expect(wrapper.text()).toContain(ready.next_step);
@@ -75,7 +75,9 @@ describe('Conversation history review', () => {
       data: { analysis: ready },
     });
     MarcosxAiAPI.sendConversationAnalysis.mockResolvedValue({
-      data: { state: props.state },
+      data: {
+        state: { ...props.state, status: 'active', manual_activation: true },
+      },
     });
     const wrapper = mount(ConversationAiPanel, { props, global });
     wrapper.vm.open();
@@ -91,7 +93,7 @@ describe('Conversation history review', () => {
       'snapshot',
       ['Edited reply']
     );
-    expect(wrapper.emitted('updated')[0][0].status).toBe('paused_by_agent');
+    expect(wrapper.emitted('updated')[0][0].status).toBe('active');
     expect(wrapper.find('textarea').exists()).toBe(false);
     wrapper.unmount();
   });
@@ -152,6 +154,35 @@ describe('Conversation history review', () => {
         .findAll('button')
         .some(button => button.text().includes('MARCOX_AI.ANALYSIS.SEND'))
     ).toBe(false);
+    wrapper.unmount();
+  });
+  it('selects a recent history window and requires a new preview before sending', async () => {
+    MarcosxAiAPI.getConversationAnalysis.mockResolvedValue({
+      data: {
+        analysis: ready,
+        context: { total_messages_count: 200, messages_limit: null },
+      },
+    });
+    MarcosxAiAPI.analyzeConversation.mockResolvedValue({
+      data: { analysis: { ...ready, messages_count: 25, messages_limit: 25 } },
+    });
+    const wrapper = mount(ConversationAiPanel, { props, global });
+    wrapper.vm.open();
+    await flushPromises();
+    const range = wrapper.get('input[type="range"]');
+    expect(range.attributes('max')).toBe('200');
+    await range.setValue('25');
+    const sendButton = wrapper
+      .findAll('button')
+      .find(button => button.text().includes('MARCOX_AI.ANALYSIS.SEND'));
+    expect(sendButton.attributes('disabled')).toBeDefined();
+    await wrapper
+      .findAll('button')
+      .find(button => button.text().includes('MARCOX_AI.ANALYSIS.ANALYZE'))
+      .trigger('click');
+    await flushPromises();
+    expect(MarcosxAiAPI.analyzeConversation).toHaveBeenCalledWith(7, 1, 25);
+    expect(sendButton.attributes('disabled')).toBeUndefined();
     wrapper.unmount();
   });
   it('allows individual activation and history review while general support is off', async () => {

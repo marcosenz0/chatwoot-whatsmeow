@@ -2,12 +2,15 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
+import { useStore } from 'dashboard/composables/store';
+import mutationTypes from 'dashboard/store/mutation-types';
 import Button from 'dashboard/components-next/button/Button.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import ConversationAiPanel from './ConversationAiPanel.vue';
 
 const props = defineProps({ chat: { type: Object, required: true } });
 const { t } = useI18n();
+const store = useStore();
 const state = ref(null);
 const assistants = ref([]);
 const busy = ref(false);
@@ -60,6 +63,10 @@ watch(
 const updateState = value => {
   request += 1;
   state.value = value;
+  store.commit(mutationTypes.UPDATE_CONVERSATION, {
+    id: props.chat.id,
+    marcosx_ai: value,
+  });
 };
 const toggle = async () => {
   if (!state.value?.assistant_id || !state.value.available) {
@@ -78,6 +85,10 @@ const toggle = async () => {
     });
     if (current !== request) return;
     state.value = data.state;
+    store.commit(mutationTypes.UPDATE_CONVERSATION, {
+      id,
+      marcosx_ai: data.state,
+    });
     useAlert(
       t(
         action === 'resume'

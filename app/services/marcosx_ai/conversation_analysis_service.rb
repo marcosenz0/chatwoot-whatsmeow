@@ -10,7 +10,7 @@ class MarcosxAi::ConversationAnalysisService
     @assistant = state.assistant
   end
 
-  def start!
+  def start!(messages_limit: nil)
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.credential_missing') unless @assistant.available?
 
     latest = history.reorder(:id).last
@@ -18,12 +18,15 @@ class MarcosxAi::ConversationAnalysisService
 
     token = SecureRandom.uuid
     @state.with_lock do
-      @state.pause_by_agent!(reason: 'draft_review')
+      metadata = @state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft',
+                                       'conversation_summary', 'summary_cursor', 'context_messages_limit')
       analysis = {
-        'id' => token, 'status' => 'processing', 'trigger_message_id' => latest.id, 'messages_count' => history.count,
+        'id' => token, 'status' => 'processing', 'trigger_message_id' => latest.id,
+        'messages_count' => messages_limit ? [messages_limit, history.count].min : history.count, 'messages_limit' => messages_limit,
         'assistant_version' => @assistant.updated_at.iso8601(6), 'created_at' => Time.current.iso8601
       }
-      @state.update!(metadata: @state.metadata.merge('analysis' => analysis))
+      @state.update!(metadata: metadata.merge('run_token' => token, 'processing' => false,
+                                             'context_messages_limit' => messages_limit, 'analysis' => analysis))
     end
     MarcosxAi::ConversationAnalysisJob.perform_later(@state.id, token)
     report
@@ -38,12 +41,12 @@ class MarcosxAi::ConversationAnalysisService
     context = MarcosxAi::ConversationContext.new(
       conversation: @conversation, assistant: @assistant, state: @state, client: client,
       trigger_message: history.find(analysis.fetch('trigger_message_id')), token: token,
-      persist_memory: false, valid_run: -> { current?(token) }
+      persist_memory: false, messages_limit: analysis['messages_limit'], valid_run: -> { current?(token) }
     ).messages
     return invalidate(token) unless current?(token)
 
     prompts = MarcosxAi::PromptBuilder.messages(
-      assistant: @assistant, context: { contact: @conversation.contact.name, inbox: @conversation.inbox.name, now: Time.current.iso8601 },
+      assistant: @assistant, context: MarcosxAi::PromptBuilder.context_for(@conversation),
       reactions: @assistant.feature_enabled?(:allow_reactions) && @state.inbox.channel_type == 'Channel::Whatsmeow', proactive: true
     )
     prompts << {
@@ -82,7 +85,7 @@ class MarcosxAi::ConversationAnalysisService
     analysis = @state.reload.metadata['analysis']
     return { status: 'idle' } unless analysis
 
-    data = analysis.slice('id', 'status', 'created_at', 'messages_count', 'summary', 'next_step', 'plan')
+    data = analysis.slice('id', 'status', 'created_at', 'messages_count', 'messages_limit', 'summary', 'next_step', 'plan')
     data['status'] = 'outdated' if data['status'].in?(%w[processing ready]) && !snapshot_current?(analysis)
     data
   end
@@ -104,7 +107,7 @@ class MarcosxAi::ConversationAnalysisService
         raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response')
       end
 
-      @state.pause_by_agent!(reason: 'draft_review')
+      @state.resume!(manual: true)
       @state.update!(metadata: @state.metadata.merge(
         'run_token' => run_token, 'trigger_message_id' => analysis['trigger_message_id'],
         'assistant_version' => @assistant.updated_at.iso8601(6), 'approved_draft' => true, 'processing' => true,
@@ -117,8 +120,7 @@ class MarcosxAi::ConversationAnalysisService
   private
 
   def history
-    @conversation.messages.where(message_type: [:incoming, :outgoing], private: false)
-                 .where.not(content_type: Message.content_types[:voice_call])
+    MarcosxAi::ConversationContext.public_history(@conversation)
   end
 
   def snapshot_current?(analysis)

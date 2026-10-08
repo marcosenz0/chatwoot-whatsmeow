@@ -19,7 +19,7 @@ class MarcosxAi::ResponseScheduler
       return if !manual && state.metadata['last_processed_trigger_id'].to_i >= message.id
 
       token = SecureRandom.uuid
-      metadata = state.metadata.except('pending_response').merge(
+      metadata = state.metadata.except('pending_response', 'approved_draft').merge(
         'run_token' => token, 'trigger_message_id' => message.id,
         'pending_since_message_id' => state.metadata['pending_since_message_id'] || message.id,
         'manual' => manual, 'processing' => true, 'assistant_version' => assistant.updated_at.iso8601(6)

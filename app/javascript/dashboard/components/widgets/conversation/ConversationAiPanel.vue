@@ -22,6 +22,14 @@ const working = ref(false);
 const assistantId = ref(null);
 const analysis = ref({ status: 'idle' });
 const parts = ref([]);
+const totalMessages = ref(0);
+const messagesLimit = ref(null);
+const contextChanged = computed(
+  () => (analysis.value.messages_limit ?? null) !== messagesLimit.value
+);
+const selectedMessages = computed(() =>
+  Math.min(messagesLimit.value || totalMessages.value, totalMessages.value)
+);
 const { run, abort } = useAbortableRequest();
 const selected = computed(() =>
   props.assistants.find(item => item.id === assistantId.value)
@@ -65,8 +73,14 @@ const fetchReport = async () => {
     const result = await run(signal =>
       MarcosxAiAPI.getConversationAnalysis(id, { signal })
     );
-    if (result && visible.value && id === props.chat.id)
+    if (result && visible.value && id === props.chat.id) {
+      totalMessages.value =
+        result.data.context?.total_messages_count ||
+        result.data.analysis.messages_count ||
+        0;
+      messagesLimit.value = result.data.context?.messages_limit ?? null;
       setReport(result.data.analysis);
+    }
   } catch (error) {
     notifyError(error);
   }
@@ -84,6 +98,8 @@ const open = () => {
     props.assistants.find(item => item.available)?.id ||
     null;
   setReport({ status: 'idle' });
+  totalMessages.value = 0;
+  messagesLimit.value = null;
   visible.value = true;
   dialog.value.open();
   fetchReport();
@@ -140,7 +156,8 @@ const analyze = async () => {
   try {
     const { data } = await MarcosxAiAPI.analyzeConversation(
       id,
-      assistantId.value
+      assistantId.value,
+      messagesLimit.value
     );
     if (id !== props.chat.id) return;
     setReport(data.analysis);
@@ -175,6 +192,10 @@ const send = async () => {
   }
 };
 defineExpose({ open });
+const selectContext = event => {
+  const value = Number(event.target.value);
+  messagesLimit.value = value === totalMessages.value ? null : value;
+};
 </script>
 
 <template>
@@ -183,7 +204,13 @@ defineExpose({ open });
     width="3xl"
     overflow-y-auto
     :title="t('MARCOX_AI.CONVERSATION.PANEL_TITLE')"
-    :description="t('MARCOX_AI.CONVERSATION.PANEL_HINT')"
+    :description="
+      chat.meta?.sender?.name
+        ? t('MARCOX_AI.CONVERSATION.PANEL_CONTACT', {
+            name: chat.meta.sender.name,
+          })
+        : t('MARCOX_AI.CONVERSATION.PANEL_HINT')
+    "
     :show-confirm-button="false"
     :show-cancel-button="false"
     @close="close"
@@ -255,6 +282,44 @@ defineExpose({ open });
           :disabled="working || processing || !available"
           @click="analyze"
         />
+      </div>
+      <div v-if="totalMessages" class="space-y-2">
+        <label
+          :for="`ai-context-${chat.id}`"
+          class="flex items-center justify-between gap-3 text-xs font-medium text-n-slate-12"
+        >
+          <span>{{ t('MARCOX_AI.ANALYSIS.CONTEXT_LABEL') }}</span>
+          <span class="text-n-slate-11">
+            {{
+              messagesLimit === null
+                ? t('MARCOX_AI.ANALYSIS.CONTEXT_ALL', {
+                    count: totalMessages,
+                  })
+                : t('MARCOX_AI.ANALYSIS.CONTEXT_RECENT', {
+                    count: selectedMessages,
+                  })
+            }}
+          </span>
+        </label>
+        <input
+          :id="`ai-context-${chat.id}`"
+          type="range"
+          min="1"
+          :max="totalMessages"
+          :value="selectedMessages"
+          :disabled="working || processing"
+          class="reset-base !mb-0 w-full cursor-pointer accent-n-teal-9"
+          @input="selectContext"
+        />
+        <p class="m-0 text-xs leading-5 text-n-slate-11">
+          {{ t('MARCOX_AI.ANALYSIS.CONTEXT_HINT') }}
+        </p>
+        <p
+          v-if="contextChanged && analysis.status === 'ready'"
+          class="text-xs text-n-amber-11"
+        >
+          {{ t('MARCOX_AI.ANALYSIS.CONTEXT_CHANGED') }}
+        </p>
       </div>
       <p
         v-if="processing"
@@ -350,7 +415,7 @@ defineExpose({ open });
             type="button"
             icon="i-lucide-send"
             :label="t('MARCOX_AI.ANALYSIS.SEND')"
-            :disabled="working || !available || !hasResponse"
+            :disabled="working || !available || !hasResponse || contextChanged"
             :is-loading="working"
             @click="send"
           />
