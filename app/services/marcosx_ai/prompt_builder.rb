@@ -1,13 +1,16 @@
 class MarcosxAi::PromptBuilder
-  def self.timezone_for(conversation)
+  def self.timezone_for(conversation, assistant: nil)
+    assistant_timezone = assistant&.resolved_config&.dig(:timezone)
+    return assistant_timezone if assistant_timezone.present?
+
     inbox_timezone = conversation.inbox.timezone
     return inbox_timezone if inbox_timezone.present? && inbox_timezone != 'UTC'
 
     conversation.account.reporting_timezone.presence || Time.zone.name
   end
 
-  def self.context_for(conversation)
-    timezone = timezone_for(conversation)
+  def self.context_for(conversation, assistant: nil)
+    timezone = timezone_for(conversation, assistant: assistant)
     { contact: conversation.contact.name, inbox: conversation.inbox.name, timezone: timezone,
       now: Time.current.in_time_zone(timezone).iso8601 }
   end

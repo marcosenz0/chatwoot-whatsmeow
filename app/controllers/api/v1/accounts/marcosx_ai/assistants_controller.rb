@@ -132,6 +132,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
         :reasoning_effort,
         :response_delay_seconds,
         :history_limit,
+        :timezone,
         :human_pause_minutes,
         :auto_response_enabled,
         :fallback_message,

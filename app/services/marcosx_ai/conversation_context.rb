@@ -53,7 +53,8 @@ class MarcosxAi::ConversationContext
     attributes = message.content_attributes
     text = message.processed_message_content.presence || message.content
     data = {
-      message_id: message.id, sent_at: message.created_at.in_time_zone(MarcosxAi::PromptBuilder.timezone_for(@conversation)).iso8601,
+      message_id: message.id,
+      sent_at: message.created_at.in_time_zone(MarcosxAi::PromptBuilder.timezone_for(@conversation, assistant: @assistant)).iso8601,
       sender: message.sender&.name,
       text: text.to_s.truncate(15_000),
       attachments: message.attachments.map do |attachment|

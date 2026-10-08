@@ -228,6 +228,20 @@ RSpec.describe 'MarcoXIA API', type: :request do
     expect(MarcosxAi::ConversationState.find_by(conversation: conversation)).to be_nil
   end
 
+  it 'saves a timezone for the agent without changing its other settings' do
+    put "#{endpoint}/assistants/#{assistant.id}",
+        params: { assistant: { config: { timezone: 'America/Araguaina' } } }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok)
+    expect(assistant.reload.resolved_config).to include('timezone' => 'America/Araguaina', 'auto_response_enabled' => false)
+  end
+
+  it 'rejects an unknown timezone without changing the saved agent' do
+    put "#{endpoint}/assistants/#{assistant.id}",
+        params: { assistant: { config: { timezone: 'Unknown/Place' } } }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(assistant.reload.resolved_config[:timezone]).to be_nil
+  end
+
   it 'keeps the same manually enabled agent active while starting a limited analysis' do
     create(:message, account: account, inbox: inbox, conversation: conversation)
     state = MarcosxAi::ConversationState.choose_for_conversation!(conversation, assistant: assistant)

@@ -48,7 +48,7 @@ class MarcosxAi::ConversationAnalysisService
     return invalidate(token) unless current?(token)
 
     prompts = MarcosxAi::PromptBuilder.messages(
-      assistant: @assistant, context: MarcosxAi::PromptBuilder.context_for(@conversation),
+      assistant: @assistant, context: MarcosxAi::PromptBuilder.context_for(@conversation, assistant: @assistant),
       reactions: @assistant.feature_enabled?(:allow_reactions) && @state.inbox.channel_type == 'Channel::Whatsmeow', proactive: true
     )
     prompts << {

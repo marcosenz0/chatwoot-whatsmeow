@@ -55,6 +55,22 @@ RSpec.describe MarcosxAi::ConversationContext do
     expect(MarcosxAi::PromptBuilder.context_for(conversation)[:timezone]).to eq('America/Sao_Paulo')
   end
 
+  it 'uses the agent timezone across inboxes without changing their business hours' do
+    assistant.update!(config: assistant.config.merge(timezone: 'America/Araguaina'))
+    another = create(:conversation, account: account, inbox: create(:inbox, account: account, timezone: 'Asia/Tokyo'))
+    message.update!(created_at: Time.utc(2026, 10, 8, 2, 30))
+    expect(JSON.parse(context.messages.last[:content])['sent_at']).to eq('2026-10-07T23:30:00-03:00')
+    travel_to Time.utc(2026, 10, 8, 2, 45) do
+      [conversation, another].each do |item|
+        expect(MarcosxAi::PromptBuilder.context_for(item, assistant: assistant)).to include(
+          timezone: 'America/Araguaina', now: '2026-10-07T23:45:00-03:00'
+        )
+      end
+    end
+    expect(inbox.reload.timezone).to eq('UTC')
+    expect(another.inbox.reload.timezone).to eq('Asia/Tokyo')
+  end
+
   it 'does not leak an older summary into a selected rolling context window' do
     create_list(:message, 12, account: account, inbox: inbox, conversation: conversation, content: 'Excluded old fact')
     state.update!(metadata: state.metadata.merge('context_messages_limit' => 1, 'conversation_summary' => 'Excluded secret memory'))
