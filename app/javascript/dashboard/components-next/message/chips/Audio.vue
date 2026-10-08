@@ -10,7 +10,7 @@ import {
 import { useStore } from 'vuex';
 import { useI18n } from 'vue-i18n';
 import Icon from 'next/icon/Icon.vue';
-import Avatar from 'next/avatar/Avatar.vue';
+import ProfilePhotoAvatar from 'next/avatar/ProfilePhotoAvatar.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import { timeStampAppendedURL } from 'dashboard/helper/URLHelper';
 import { useAlert } from 'dashboard/composables';
@@ -632,7 +632,13 @@ const changePlaybackSpeed = () => {
   <div v-bind="$attrs" class="flex w-full max-w-[28rem] flex-col gap-2">
     <div :class="playerClass">
       <div v-if="showSenderAvatar && isOutgoing" class="relative shrink-0">
-        <Avatar :name="avatarName" :src="avatarSrc" :size="44" />
+        <ProfilePhotoAvatar
+          :name="avatarName"
+          :src="avatarSrc"
+          :size="44"
+          :inbox-id="inboxId"
+          own-profile
+        />
         <span
           class="absolute -bottom-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-n-teal-9 text-white"
         >
@@ -702,7 +708,13 @@ const changePlaybackSpeed = () => {
       </div>
 
       <div v-if="showSenderAvatar && !isOutgoing" class="relative shrink-0">
-        <Avatar :name="avatarName" :src="avatarSrc" :size="44" />
+        <ProfilePhotoAvatar
+          :name="avatarName"
+          :src="avatarSrc"
+          :size="44"
+          :inbox-id="inboxId"
+          :contact-id="sender?.id"
+        />
         <span
           v-if="isRecordedAudio"
           class="absolute -bottom-0.5 -left-0.5 grid size-4 place-items-center rounded-full text-white"

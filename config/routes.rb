@@ -321,6 +321,7 @@ Rails.application.routes.draw do
               delete :avatar
             end
             scope module: :contacts do
+              resource :profile_photo, only: [:show], controller: 'profile_photos'
               resources :conversations, only: [:index]
               resources :contact_inboxes, only: [:create]
               resources :labels, only: [:create, :index]
@@ -378,6 +379,11 @@ Rails.application.routes.draw do
           resource :branded_email_layout, only: [:show, :update]
           resources :inboxes, only: [:index, :show, :create, :update, :destroy] do
             scope module: :inboxes do
+              resource :whatsmeow_profile, only: [:show, :update], controller: 'whatsmeow_profiles' do
+                get :photo
+                put :photo, action: :update_photo
+                delete :photo, action: :destroy_photo
+              end
               resource :whatsmeow_group, only: [:show, :create, :update], controller: 'whatsmeow_groups' do
                 post :action
                 get :contacts

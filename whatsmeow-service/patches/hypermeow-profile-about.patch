@@ -1,0 +1,57 @@
+--- a/types/user.go
++++ b/types/user.go
+@@ -32,0 +33 @@
++	TextStatus   *SetStatusInput
+--- a/user.go
++++ b/user.go
+@@ -15,0 +16,3 @@
++	"time"
++
++	"go.mau.fi/util/jsontime"
+@@ -270,0 +274,14 @@
++// parseUserTextStatus keeps modern About separate from the legacy status field.
++func parseUserTextStatus(node waBinary.Node) *types.SetStatusInput {
++	if _, failed := node.GetOptionalChildByTag("error"); failed {
++		return nil
++	}
++	ag := node.AttrGetter()
++	text := ag.OptionalString("text")
++	status := &types.SetStatusInput{Text: &text, Duration: jsontime.S(time.Duration(ag.OptionalInt("ephemeral_duration_sec")) * time.Second)}
++	if emoji, ok := node.GetOptionalChildByTag("emoji"); ok {
++		status.Emoji = &types.SetStatusEmoji{Content: emoji.AttrGetter().OptionalString("content")}
++	}
++	return status
++}
++
+@@ -280,0 +298 @@
++		{Tag: "text_status"},
+@@ -305,0 +324,3 @@
++		if textStatus, ok := child.GetOptionalChildByTag("text_status"); ok {
++			info.TextStatus = parseUserTextStatus(textStatus)
++		}
+--- /dev/null
++++ b/profile_about_test.go
+@@ -0,0 +1,23 @@
++package whatsmeow
++
++import (
++	waBinary "github.com/polymorfa/hypermeow/binary"
++	"testing"
++	"time"
++)
++
++func TestParseUserTextStatus(t *testing.T) {
++	node := waBinary.Node{Tag: "text_status", Attrs: waBinary.Attrs{"text": "Current About", "ephemeral_duration_sec": "86400"}, Content: []waBinary.Node{{Tag: "emoji", Attrs: waBinary.Attrs{"content": "👋"}}}}
++	status := parseUserTextStatus(node)
++	if status == nil || *status.Text != "Current About" || status.Emoji.Content != "👋" || status.Duration.Duration != 24*time.Hour {
++		t.Fatalf("modern About metadata lost: %#v", status)
++	}
++	status = parseUserTextStatus(waBinary.Node{Tag: "text_status"})
++	if status == nil || *status.Text != "" || !status.Duration.IsZero() || status.Emoji != nil {
++		t.Fatal("empty modern status must remain an explicit clear")
++	}
++	status = parseUserTextStatus(waBinary.Node{Tag: "text_status", Content: []waBinary.Node{{Tag: "error"}}})
++	if status != nil {
++		t.Fatal("unavailable modern status must permit the existing legacy value")
++	}
++}
