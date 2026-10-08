@@ -1,4 +1,5 @@
 import advancedFilters from './advancedFilters.json';
+import whatsappProfile from './whatsappProfile.json';
 import marcosxAi from './marcosxAi.json';
 import whatsmeowUI from './whatsmeowUI.json';
 import telegramPersonal from './telegramPersonal.json';
@@ -57,6 +58,7 @@ export default {
   ...telegramPersonal,
   ...whatsmeowUI,
   ...advancedFilters,
+  ...whatsappProfile,
   ...agentBots,
   ...agentMgmt,
   ...attributesMgmt,

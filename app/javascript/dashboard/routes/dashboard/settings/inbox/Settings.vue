@@ -39,6 +39,7 @@ import WhatsappReauthorize from './channels/whatsapp/Reauthorize.vue';
 import PreChatFormSettings from './PreChatForm/Settings.vue';
 import WeeklyAvailability from './components/WeeklyAvailability.vue';
 import ConfigurationPage from './settingsPage/ConfigurationPage.vue';
+import WhatsmeowProfilePage from './settingsPage/WhatsmeowProfilePage.vue';
 import VoiceConfigurationPage from './settingsPage/VoiceConfigurationPage.vue';
 import WhatsappCallingPage from './settingsPage/WhatsappCallingPage.vue';
 import CustomerSatisfactionPage from './settingsPage/CustomerSatisfactionPage.vue';
@@ -58,6 +59,7 @@ export default {
     BotConfiguration,
     CollaboratorsPage,
     ConfigurationPage,
+    WhatsmeowProfilePage,
     VoiceConfigurationPage,
     WhatsappCallingPage,
     CustomerSatisfactionPage,
@@ -235,6 +237,13 @@ export default {
             name: this.$t('INBOX_MGMT.TABS.CONFIGURATION'),
           },
         ];
+      }
+
+      if (this.isAWhatsmeowChannel) {
+        visibleToAllChannelTabs.push({
+          key: 'whatsapp-profile',
+          name: this.$t('WHATSAPP_PROFILE.TAB'),
+        });
       }
 
       if (
@@ -1428,6 +1437,11 @@ export default {
         >
           <WhatsappCallingPage :inbox="inbox" />
         </div>
+        <WhatsmeowProfilePage
+          v-if="selectedTabKey === 'whatsapp-profile'"
+          :key="inbox.id"
+          :inbox="inbox"
+        />
         <div v-if="selectedTabKey === 'csat'">
           <CustomerSatisfactionPage :inbox="inbox" />
         </div>

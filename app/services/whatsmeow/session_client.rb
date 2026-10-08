@@ -100,6 +100,13 @@ class Whatsmeow::SessionClient
     request(:get, path)
   end
 
+  def own_profile = request(:get, "/sessions/#{@inbox.id}/profile")
+  def update_profile(payload) = request(:patch, "/sessions/#{@inbox.id}/profile", body: payload)
+  def own_profile_photo = request(:get, "/sessions/#{@inbox.id}/profile/photo")
+  def update_profile_photo(photo) = request(:put, "/sessions/#{@inbox.id}/profile/photo", body: { photo: photo })
+  def remove_profile_photo = request(:delete, "/sessions/#{@inbox.id}/profile/photo")
+  def full_profile_photo(jid) = request(:get, "/sessions/#{@inbox.id}/profile_picture/full?jid=#{CGI.escape(jid)}")
+
   def resolve_identities(jids)
     request(
       :post,

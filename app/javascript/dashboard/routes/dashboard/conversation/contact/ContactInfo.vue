@@ -8,7 +8,7 @@ import {
 } from 'shared/helpers/CustomErrors';
 import { useExactTimestamp } from 'shared/composables/useExactTimestamp';
 import { useAdmin } from 'dashboard/composables/useAdmin';
-import Avatar from 'next/avatar/Avatar.vue';
+import ProfilePhotoAvatar from 'next/avatar/ProfilePhotoAvatar.vue';
 import ContactMergeModal from 'dashboard/modules/contact/ContactMergeModal.vue';
 import ContactDeleteModal from 'dashboard/modules/contact/ContactDeleteModal.vue';
 import ComposeConversation from 'dashboard/components-next/NewConversation/ComposeConversation.vue';
@@ -27,7 +27,7 @@ export default {
     ContactInfoRow,
     ViewAllConversations,
     EditContact,
-    Avatar,
+    ProfilePhotoAvatar,
     ComposeConversation,
     SocialIcons,
     ContactMergeModal,
@@ -306,10 +306,12 @@ export default {
   <div class="relative items-center w-full p-4">
     <div class="flex flex-col w-full gap-2 text-left rtl:text-right">
       <div class="flex flex-row justify-between">
-        <Avatar
+        <ProfilePhotoAvatar
           v-if="showAvatar"
           :src="contact.thumbnail"
           :name="contact.name"
+          :contact-id="contact.id"
+          :inbox-id="currentInboxId"
           :status="contact.availability_status"
           :size="48"
           hide-offline-status
