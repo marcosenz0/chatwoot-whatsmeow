@@ -6,13 +6,16 @@ class MarcosxAi::ResponseScheduler
 
     conversation = message.conversation
     assistant = conversation.marcosx_ai_assistant
-    return unless assistant&.auto_response_enabled? && assistant.accepts_conversation?(conversation)
+    return unless assistant && assistant.accepts_conversation?(conversation)
     return if conversation.resolved? || conversation.snoozed?
+
+    existing = conversation.marcosx_ai_conversation_state
+    return unless assistant.auto_response_enabled? || (existing&.assistant_id == assistant.id && existing.metadata['manual_activation'] == true)
 
     state = MarcosxAi::ConversationState.for_conversation!(conversation, assistant: assistant)
     token = nil
     state.with_lock do
-      return unless state.active_for_ai?
+      return unless state.enabled_for_ai? && state.active_for_ai?
       return if !manual && state.metadata['last_processed_trigger_id'].to_i >= message.id
 
       token = SecureRandom.uuid

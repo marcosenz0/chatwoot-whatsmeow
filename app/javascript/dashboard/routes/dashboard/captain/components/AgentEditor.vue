@@ -7,6 +7,8 @@ import AiModelSelect from './AiModelSelect.vue';
 import AiSelect from './AiSelect.vue';
 import AgentConnection from './AgentConnection.vue';
 import AiPlayground from './AiPlayground.vue';
+import AgentAttendance from './AgentAttendance.vue';
+import AgentActivity from './AgentActivity.vue';
 
 const props = defineProps({
   agent: { type: Object, required: true },
@@ -19,6 +21,7 @@ const props = defineProps({
   defaultPrompt: { type: String, default: '' },
   canEdit: { type: Boolean, default: false },
   saving: { type: Boolean, default: false },
+  initialSection: { type: String, default: 'identity' },
 });
 const emit = defineEmits([
   'save',
@@ -34,7 +37,7 @@ const form = ref({});
 const hasUnsavedChanges = computed(
   () => JSON.stringify(form.value) !== JSON.stringify(props.agent)
 );
-const section = ref('identity');
+const section = ref(props.initialSection);
 const inboxSearch = ref('');
 const sections = computed(() => [
   {
@@ -58,14 +61,35 @@ const sections = computed(() => [
     label: t('MARCOX_AI.EDITOR.BEHAVIOR'),
   },
   { id: 'test', icon: 'i-lucide-flask-conical', label: t('MARCOX_AI.TEST') },
+  ...(props.canEdit
+    ? [
+        {
+          id: 'attendance',
+          icon: 'i-lucide-messages-square',
+          label: t('MARCOX_AI.COVERAGE.TITLE'),
+        },
+        {
+          id: 'activity',
+          icon: 'i-lucide-activity',
+          label: t('MARCOX_AI.TABS.ACTIVITY'),
+        },
+      ]
+    : []),
 ]);
 watch(
   () => props.agent,
-  agent => {
+  (agent, previous) => {
     form.value = JSON.parse(JSON.stringify(agent));
-    section.value = 'identity';
+    if (agent.id !== previous?.id)
+      section.value = agent.id ? props.initialSection : 'identity';
   },
   { immediate: true }
+);
+watch(
+  () => props.agent.config.auto_response_enabled,
+  enabled => {
+    form.value.config.auto_response_enabled = enabled;
+  }
 );
 watch(form, value => emit('change', value), { deep: true });
 const modelOptions = computed(
@@ -160,7 +184,7 @@ const channelLabel = inbox =>
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-n-solid-2">
+  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-n-solid-1">
     <div
       class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-n-weak bg-n-solid-1 px-6 py-4"
     >
@@ -207,7 +231,7 @@ const channelLabel = inbox =>
     </div>
     <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
       <aside
-        class="flex shrink-0 flex-col border-b border-n-weak bg-n-solid-1 lg:w-48 lg:border-b-0 lg:border-e"
+        class="flex shrink-0 flex-col border-b border-n-weak bg-n-solid-1 lg:w-56 lg:border-b-0 lg:border-e"
       >
         <nav
           class="flex gap-1 overflow-x-auto p-3 lg:flex-col"
@@ -220,7 +244,10 @@ const channelLabel = inbox =>
             type="button"
             role="tab"
             :aria-selected="section === item.id"
-            :disabled="item.id === 'test' && (!form.id || hasUnsavedChanges)"
+            :disabled="
+              (item.id === 'test' && (!form.id || hasUnsavedChanges)) ||
+              (['attendance', 'activity'].includes(item.id) && !form.id)
+            "
             class="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2.5 text-start text-sm font-medium disabled:opacity-40"
             :class="
               section === item.id
@@ -229,7 +256,7 @@ const channelLabel = inbox =>
             "
             @click="section = item.id"
           >
-            <span :class="item.icon" class="size-4" />{{ item.label }}
+            <span :class="item.icon" class="size-4 shrink-0" />{{ item.label }}
           </button>
         </nav>
         <div
@@ -247,7 +274,7 @@ const channelLabel = inbox =>
         </div>
       </aside>
       <form
-        v-show="section !== 'test'"
+        v-show="!['test', 'attendance', 'activity'].includes(section)"
         id="marcosx-agent-editor"
         class="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-6 xl:px-10"
         @submit.prevent="emit('save', form)"
@@ -587,6 +614,15 @@ const channelLabel = inbox =>
         :agents="[agent]"
         :agent-id="form.id"
         embedded
+      />
+      <AgentAttendance
+        v-if="section === 'attendance' && form.id && canEdit"
+        :agent="agent"
+        :inboxes="inboxes"
+      />
+      <AgentActivity
+        v-if="section === 'activity' && form.id && canEdit"
+        :agent-id="form.id"
       />
     </div>
   </div>

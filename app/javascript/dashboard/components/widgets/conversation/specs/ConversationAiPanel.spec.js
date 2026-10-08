@@ -14,8 +14,15 @@ vi.mock('dashboard/api/marcosxAi', () => ({
 vi.mock('dashboard/composables', () => ({ useAlert: vi.fn() }));
 const props = {
   chat: { id: 7, status: 'open' },
-  state: { assistant_id: 1, enabled: true, status: 'paused_by_agent' },
-  assistants: [{ id: 1, name: 'Felipe', enabled: true, model: 'model' }],
+  state: {
+    assistant_id: 1,
+    enabled: true,
+    available: true,
+    status: 'paused_by_agent',
+  },
+  assistants: [
+    { id: 1, name: 'Felipe', enabled: true, available: true, model: 'model' },
+  ],
 };
 const ready = {
   id: 'snapshot',
@@ -145,6 +152,36 @@ describe('Conversation history review', () => {
         .findAll('button')
         .some(button => button.text().includes('MARCOX_AI.ANALYSIS.SEND'))
     ).toBe(false);
+    wrapper.unmount();
+  });
+  it('allows individual activation and history review while general support is off', async () => {
+    const wrapper = mount(ConversationAiPanel, {
+      props: {
+        ...props,
+        state: { ...props.state, enabled: false },
+        assistants: [{ ...props.assistants[0], enabled: false }],
+      },
+      global,
+    });
+    wrapper.vm.open();
+    await flushPromises();
+    const resume = wrapper
+      .findAll('button')
+      .find(button => button.text().includes('MARCOX_AI.CONVERSATION.RESUME'));
+    const analyze = wrapper
+      .findAll('button')
+      .find(button => button.text().includes('MARCOX_AI.ANALYSIS.ANALYZE'));
+    expect(resume.attributes('disabled')).toBeUndefined();
+    expect(analyze.attributes('disabled')).toBeUndefined();
+    MarcosxAiAPI.updateConversationState.mockResolvedValue({
+      data: { state: { ...props.state, status: 'active' } },
+    });
+    await resume.trigger('click');
+    await flushPromises();
+    expect(MarcosxAiAPI.updateConversationState).toHaveBeenCalledWith(7, {
+      action: 'resume',
+      reason: 'agent_action',
+    });
     wrapper.unmount();
   });
 });

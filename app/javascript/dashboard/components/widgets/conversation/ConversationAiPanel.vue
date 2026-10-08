@@ -35,11 +35,14 @@ const options = computed(() =>
   }))
 );
 const active = computed(
-  () => props.state?.status === 'active' && props.state.enabled
+  () =>
+    props.state?.status === 'active' &&
+    props.state.enabled &&
+    props.state.available
 );
 const available = computed(
   () =>
-    selected.value?.enabled &&
+    selected.value?.available &&
     !['resolved', 'snoozed'].includes(props.chat.status)
 );
 const processing = computed(() => analysis.value.status === 'processing');
@@ -78,7 +81,7 @@ const close = () => {
 const open = () => {
   assistantId.value =
     props.state?.assistant_id ||
-    props.assistants.find(item => item.enabled)?.id ||
+    props.assistants.find(item => item.available)?.id ||
     null;
   setReport({ status: 'idle' });
   visible.value = true;
@@ -220,10 +223,10 @@ defineExpose({ open });
         {{ t('MARCOX_AI.CONVERSATION.NO_AGENT') }}
       </p>
       <p
-        v-else-if="selected && !selected.enabled"
+        v-else-if="selected && !selected.available"
         class="text-sm text-n-amber-11"
       >
-        {{ t('MARCOX_AI.CONVERSATION.GLOBAL_PAUSED') }}
+        {{ t('MARCOX_AI.EDITOR.CONNECTION_REQUIRED') }}
       </p>
       <div
         class="rounded-lg bg-n-alpha-1 p-3 text-xs leading-5 text-n-slate-11"
@@ -231,7 +234,7 @@ defineExpose({ open });
         {{ t('MARCOX_AI.CONVERSATION.FUTURE_ONLY') }}
       </div>
       <div
-        class="flex items-center justify-between gap-3 border-t border-n-weak pt-5"
+        class="flex flex-col items-start justify-between gap-3 border-t border-n-weak pt-5 sm:flex-row sm:items-center"
       >
         <div>
           <h4 class="m-0 text-sm font-semibold text-n-slate-12">
@@ -244,6 +247,7 @@ defineExpose({ open });
         <Button
           type="button"
           icon="i-lucide-scan-text"
+          class="shrink-0"
           variant="outline"
           color="slate"
           :label="t('MARCOX_AI.ANALYSIS.ANALYZE')"

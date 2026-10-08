@@ -123,6 +123,7 @@ Rails.application.routes.draw do
             resources :logs, only: [:index]
             resources :assistants do
               post :playground, on: :member
+              get :coverage, on: :member
               resources :inboxes, only: [:index, :create, :destroy], param: :inbox_id
             end
             resources :conversations, only: [] do

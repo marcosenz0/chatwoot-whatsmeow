@@ -11,6 +11,8 @@ class MarcosxAi::ConversationAnalysisService
   end
 
   def start!
+    raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.credential_missing') unless @assistant.available?
+
     latest = history.reorder(:id).last
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_history') unless latest
 
@@ -92,7 +94,7 @@ class MarcosxAi::ConversationAnalysisService
       unless analysis && analysis['id'] == token && analysis['status'] == 'ready' && snapshot_current?(analysis)
         raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.analysis_outdated')
       end
-      unless @assistant.auto_response_enabled? && @assistant.accepts_conversation?(@conversation) &&
+      unless @assistant.available? && @assistant.accepts_conversation?(@conversation) &&
              !@conversation.resolved? && !@conversation.snoozed?
         raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.conversation_unavailable')
       end

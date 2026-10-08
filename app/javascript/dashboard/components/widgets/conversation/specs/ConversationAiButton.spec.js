@@ -18,6 +18,7 @@ const active = {
   assistant_id: 1,
   assistant_name: 'Support',
   enabled: true,
+  available: true,
   status: 'active',
   processing: false,
   updated_at: '2026-10-07T10:00:00Z',
@@ -79,6 +80,24 @@ describe('Conversation AI control', () => {
     expect(wrapper.find('button').text()).toContain(
       'MARCOX_AI.CONVERSATION.OFF'
     );
+  });
+  it('directly enables one conversation when general support is disabled', async () => {
+    MarcosxAiAPI.getConversationState.mockResolvedValue({
+      data: { state: { ...active, enabled: false, status: 'paused_by_agent' } },
+    });
+    MarcosxAiAPI.updateConversationState.mockResolvedValue({
+      data: { state: active },
+    });
+    const wrapper = mount(ConversationAiButton, { props });
+    await flushPromises();
+    await wrapper.get('button').trigger('click');
+    await flushPromises();
+    expect(MarcosxAiAPI.updateConversationState).toHaveBeenCalledWith(1, {
+      action: 'resume',
+      reason: 'agent_action',
+    });
+    expect(wrapper.get('button').text()).toContain('MARCOX_AI.CONVERSATION.ON');
+    wrapper.unmount();
   });
   it('ignores a state fetch from a previously selected conversation', async () => {
     let complete;

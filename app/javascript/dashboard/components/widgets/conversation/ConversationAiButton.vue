@@ -14,7 +14,10 @@ const busy = ref(false);
 const panel = ref(null);
 let request = 0;
 const active = computed(
-  () => state.value?.status === 'active' && state.value?.enabled
+  () =>
+    state.value?.status === 'active' &&
+    state.value?.enabled &&
+    state.value?.available
 );
 const label = computed(() => {
   if (state.value?.processing && active.value)
@@ -59,7 +62,7 @@ const updateState = value => {
   state.value = value;
 };
 const toggle = async () => {
-  if (!state.value?.assistant_id || !state.value.enabled) {
+  if (!state.value?.assistant_id || !state.value.available) {
     panel.value.open();
     return;
   }

@@ -124,9 +124,9 @@ const send = async () => {
       <p class="mt-2 text-sm text-n-slate-11">
         {{ t('MARCOX_AI.PLAYGROUND.BODY') }}
       </p>
-      <label v-if="!embedded" class="mt-4 block text-sm text-n-slate-12"
-        >{{ t('MARCOX_AI.PLAYGROUND.SELECT')
-        }}<AiSelect
+      <label v-if="!embedded" class="mt-4 block text-sm text-n-slate-12">
+        {{ t('MARCOX_AI.PLAYGROUND.SELECT') }}
+        <AiSelect
           v-model="selectedId"
           :options="
             agents.map(item => ({

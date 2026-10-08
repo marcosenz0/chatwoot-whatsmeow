@@ -3,9 +3,10 @@ class Api::V1::Accounts::MarcosxAi::LogsController < Api::V1::Accounts::MarcosxA
 
   def index
     logs = Current.account.marcosx_ai_logs.includes(:assistant, :conversation).order(created_at: :desc).limit(50)
+    logs = logs.where(assistant: Current.account.marcosx_ai_assistants.find(params[:assistant_id])) if params[:assistant_id].present?
     render json: { logs: logs.map do |log|
       {
-        id: log.id, event: log.event, status: log.status, assistant_name: log.assistant&.name,
+        id: log.id, event: log.event, status: log.status, assistant_id: log.assistant_id, assistant_name: log.assistant&.name,
         conversation_id: log.conversation&.display_id, response: log.response, error: log.error, created_at: log.created_at
       }
     end }

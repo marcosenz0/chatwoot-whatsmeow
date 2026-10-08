@@ -22,7 +22,8 @@ class MarcosxAi::ConversationState < ApplicationRecord
     end
     if assistant && state.assistant_id != assistant.id
       state.with_lock do
-        state.update!(assistant: assistant, metadata: state.metadata.except('pending_response', 'pending_since_message_id').merge(
+        metadata = state.metadata.except('pending_response', 'pending_since_message_id', 'manual_activation')
+        state.update!(assistant: assistant, metadata: metadata.merge(
           'run_token' => SecureRandom.uuid, 'processing' => false
         ))
         state.pause_by_agent! unless assistant.feature_enabled?(:auto_start)
@@ -43,11 +44,16 @@ class MarcosxAi::ConversationState < ApplicationRecord
     true
   end
 
+  def enabled_for_ai?
+    assistant.present? && (assistant.auto_response_enabled? || metadata['manual_activation'] == true)
+  end
+
   def self.choose_for_conversation!(conversation, assistant:)
     transaction do
       state = for_conversation!(conversation, assistant: assistant)
       state.with_lock do
-        state.update!(metadata: state.metadata.except('conversation_summary', 'summary_cursor', 'analysis').merge('conversation_override' => true))
+        state.update!(metadata: state.metadata.except('conversation_summary', 'summary_cursor', 'analysis', 'manual_activation')
+                                     .merge('conversation_override' => true))
         state.pause_by_agent!(reason: 'agent_selected')
       end
       state
@@ -71,8 +77,10 @@ class MarcosxAi::ConversationState < ApplicationRecord
     )
   end
 
-  def resume!
-    update!(status: 'active', paused_until: nil, metadata: cancelled_metadata.except('last_error', 'paused_reason', 'handoff_reason'))
+  def resume!(manual: false)
+    data = cancelled_metadata.except('last_error', 'paused_reason', 'handoff_reason')
+    data.merge!('manual_activation' => true, 'conversation_override' => true) if manual
+    update!(status: 'active', paused_until: nil, metadata: data)
   end
 
   def handoff!(reason: nil)
@@ -86,14 +94,15 @@ class MarcosxAi::ConversationState < ApplicationRecord
   def public_data
     {
       id: id, assistant_id: assistant_id, assistant_name: assistant&.name, status: status, paused_until: paused_until,
-      enabled: assistant&.auto_response_enabled?, processing: metadata['processing'] == true,
+      enabled: enabled_for_ai?, available: assistant&.available? || false, manual_activation: metadata['manual_activation'] == true,
+      processing: metadata['processing'] == true,
       reason: metadata['last_error'] || metadata['handoff_reason'] || metadata['paused_reason'], updated_at: updated_at
     }
   end
 
   def current_run?(token)
     (status == 'active' || (status == 'paused_by_agent' && metadata['approved_draft'])) &&
-      metadata['run_token'] == token && assistant&.auto_response_enabled? &&
+      metadata['run_token'] == token && assistant&.available? && (enabled_for_ai? || metadata['approved_draft'] == true) &&
       conversation.marcosx_ai_assistant&.id == assistant_id && assistant.accepts_conversation?(conversation) &&
       !conversation.resolved? && !conversation.snoozed? && metadata['assistant_version'] == assistant.updated_at.iso8601(6) && !superseded?
   end

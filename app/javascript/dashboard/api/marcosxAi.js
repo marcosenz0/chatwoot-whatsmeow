@@ -24,8 +24,11 @@ class MarcosxAiAPI extends ApiClient {
     });
   }
 
-  getLogs() {
-    return axios.get(`${this.url}/logs`);
+  getLogs(assistantId, options = {}) {
+    return axios.get(`${this.url}/logs`, {
+      ...options,
+      params: { assistant_id: assistantId },
+    });
   }
 
   saveCredential(id, data) {
@@ -46,6 +49,13 @@ class MarcosxAiAPI extends ApiClient {
 
   getAssistants() {
     return axios.get(`${this.url}/assistants`);
+  }
+
+  getAssistantCoverage(assistantId, page = 1, options = {}) {
+    return axios.get(`${this.url}/assistants/${assistantId}/coverage`, {
+      ...options,
+      params: { page },
+    });
   }
 
   createAssistant(data) {

@@ -138,6 +138,74 @@ RSpec.describe 'MarcoXIA API', type: :request do
     expect(response.parsed_body['state']['status']).to eq('active')
   end
 
+  it 'enables and pauses one conversation while leaving general support off and another conversation alone' do
+    assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
+    other = create(:conversation, account: account, inbox: inbox)
+    put "#{endpoint}/conversations/#{conversation.display_id}/state",
+        params: { state: { action: 'resume' } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body['state']).to include('status' => 'active', 'enabled' => true, 'available' => true, 'manual_activation' => true)
+    expect(assistant.reload.auto_response_enabled?).to be(false)
+    expect(MarcosxAi::ConversationState.find_by(conversation: other)).to be_nil
+    get "#{endpoint}/assistants/#{assistant.id}/coverage", headers: admin.create_new_auth_token
+    expect(response.parsed_body).to include('mode' => 'individual', 'total' => 1)
+    expect(response.parsed_body['conversations'].first).to include('id' => conversation.display_id, 'contact_name' => conversation.contact.name)
+
+    put "#{endpoint}/conversations/#{conversation.display_id}/state",
+        params: { state: { action: 'pause' } }, headers: admin.create_new_auth_token, as: :json
+    get "#{endpoint}/assistants/#{assistant.id}/coverage", headers: admin.create_new_auth_token
+    expect(response.parsed_body).to include('mode' => 'individual', 'total' => 0, 'conversations' => [])
+  end
+
+  it 'requires a configured provider before individually enabling a conversation' do
+    credential.update!(enabled: false)
+    put "#{endpoint}/conversations/#{conversation.display_id}/state",
+        params: { state: { action: 'resume', assistant_id: assistant.id } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(MarcosxAi::ConversationState.find_by!(conversation: conversation).status).to eq('paused_by_agent')
+  end
+
+  it 'keeps automatic coverage compact instead of returning every contact' do
+    assistant.update!(config: { auto_response_enabled: true, auto_start: true })
+    assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
+    MarcosxAi::ConversationState.for_conversation!(conversation, assistant: assistant)
+    get "#{endpoint}/assistants/#{assistant.id}/coverage", headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include('mode' => 'automatic', 'conversations' => [], 'total' => nil)
+    expect(response.body).not_to include(conversation.contact.name)
+  end
+
+  it 'shows selected conversations when automatic start is disabled and hides resolved conversations' do
+    assistant.update!(config: { auto_response_enabled: true, auto_start: false })
+    state = MarcosxAi::ConversationState.choose_for_conversation!(conversation, assistant: assistant)
+    state.resume!(manual: true)
+    get "#{endpoint}/assistants/#{assistant.id}/coverage", headers: admin.create_new_auth_token
+    expect(response.parsed_body).to include('mode' => 'individual', 'total' => 1)
+    conversation.resolved!
+    get "#{endpoint}/assistants/#{assistant.id}/coverage", headers: admin.create_new_auth_token
+    expect(response.parsed_body['total']).to eq(0)
+  end
+
+  it 'scopes coverage and activity to the selected account and administrator' do
+    other = create(:account).marcosx_ai_assistants.create!(name: 'Other')
+    get "#{endpoint}/assistants/#{other.id}/coverage", headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:not_found)
+    get "#{endpoint}/assistants/#{assistant.id}/coverage", headers: agent.create_new_auth_token
+    expect(response).to have_http_status(:unauthorized)
+    get "#{endpoint}/logs", params: { assistant_id: other.id }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'filters recent activity by agent before applying the result limit' do
+    other = account.marcosx_ai_assistants.create!(name: 'Other')
+    first = MarcosxAi::Log.create!(account: account, assistant: assistant, conversation: conversation, event: 'analysis_ready')
+    MarcosxAi::Log.create!(account: account, assistant: other, event: 'response_generated')
+    get "#{endpoint}/logs", params: { assistant_id: assistant.id }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body['logs'].map { |log| log['id'] }).to eq([first.id])
+    expect(response.parsed_body['logs'].first['assistant_id']).to eq(assistant.id)
+  end
+
   it 'rejects an agent from another account before changing the conversation' do
     other = create(:account).marcosx_ai_assistants.create!(name: 'Other')
     post "#{endpoint}/conversations/#{conversation.display_id}/analysis",

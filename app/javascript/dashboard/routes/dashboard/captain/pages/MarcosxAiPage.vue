@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { useStore } from 'vuex';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
@@ -9,11 +9,9 @@ import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import AgentEditor from '../components/AgentEditor.vue';
-import AiPlayground from '../components/AiPlayground.vue';
 
 const store = useStore();
 const route = useRoute();
-const router = useRouter();
 const { t } = useI18n();
 const canEdit = computed(
   () => store.getters.getCurrentRole === 'administrator'
@@ -22,9 +20,9 @@ const preferences = ref({});
 const agents = ref([]);
 const credentials = ref([]);
 const catalogs = ref({});
-const logs = ref([]);
 const loading = ref(true);
 const saving = ref(false);
+const togglingId = ref(null);
 const busyProvider = ref('');
 const editing = ref(null);
 const search = ref('');
@@ -58,15 +56,11 @@ const cancelAgent = () => {
   dirty.value = false;
 };
 const inboxes = computed(() => store.getters['inboxes/getInboxes'] || []);
-const tabs = [
-  { id: 'overview', key: 'AGENTS', icon: 'i-lucide-bot' },
-  { id: 'activity', key: 'ACTIVITY', icon: 'i-lucide-activity' },
-];
-const activeTab = computed(() =>
-  route.params.navigationPath === 'playground' ||
-  tabs.some(item => item.id === route.params.navigationPath)
-    ? route.params.navigationPath
-    : 'overview'
+const initialSection = computed(
+  () =>
+    ({ activity: canEdit.value ? 'activity' : 'identity', playground: 'test' })[
+      route.params.navigationPath
+    ] || 'identity'
 );
 const visibleAgents = computed(() =>
   agents.value.filter(item =>
@@ -85,14 +79,6 @@ const loadModels = async (provider, refresh = false) => {
     if (refresh) notifyError(error);
   }
 };
-const navigate = id =>
-  reviewNavigation(() => {
-    router.replace({
-      name: 'captain_assistants_index',
-      params: { accountId: route.params.accountId, navigationPath: id },
-    });
-    dirty.value = false;
-  });
 const refresh = async () => {
   loading.value = true;
   try {
@@ -114,8 +100,6 @@ const refresh = async () => {
           loadModels(provider)
         )
       );
-      const { data } = await MarcosxAiAPI.getLogs();
-      logs.value = data.logs;
     }
   } catch (error) {
     notifyError(error);
@@ -178,6 +162,40 @@ const saveAgent = async form => {
     saving.value = false;
   }
 };
+const connectionReady = agent =>
+  credentials.value.some(
+    item =>
+      item.provider === agent.config.provider && item.enabled && item.configured
+  );
+const toggleAgent = async agent => {
+  togglingId.value = agent.id;
+  try {
+    const { data } = await MarcosxAiAPI.updateAssistant(agent.id, {
+      assistant: {
+        config: { auto_response_enabled: !agent.config.auto_response_enabled },
+      },
+    });
+    agents.value = agents.value.map(item =>
+      item.id === agent.id ? data.assistant : item
+    );
+    if (editing.value?.id === agent.id) {
+      // Keep unsaved instructions and model choices while updating the saved switch.
+      editing.value.config.auto_response_enabled =
+        data.assistant.config.auto_response_enabled;
+    }
+    useAlert(
+      t(
+        data.assistant.config.auto_response_enabled
+          ? 'MARCOX_AI.COVERAGE.ENABLED'
+          : 'MARCOX_AI.COVERAGE.DISABLED'
+      )
+    );
+  } catch (error) {
+    notifyError(error);
+  } finally {
+    togglingId.value = null;
+  }
+};
 const deleteAgent = id => {
   deletingId.value = id;
   deleteDialog.value.open();
@@ -226,56 +244,15 @@ const testConnection = async provider => {
     busyProvider.value = '';
   }
 };
-const eventLabel = event =>
-  ({
-    response_generated: 'GENERATED',
-    response_sent: 'SENT',
-    handoff: 'HANDOFF',
-    response_failed: 'FAILED',
-    analysis_ready: 'ANALYSIS',
-  })[event] || 'EVENT';
 </script>
 
 <template>
-  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-n-solid-2">
-    <header
-      class="flex shrink-0 items-center justify-between gap-4 border-b border-n-weak bg-n-solid-1 px-5 py-3"
-    >
-      <div class="flex min-w-0 items-center gap-3">
-        <span
-          class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-n-blue-3 text-n-blue-11"
-          ><span class="i-lucide-bot size-5"
-        /></span>
-        <div class="min-w-0">
-          <h1 class="m-0 text-lg font-semibold text-n-slate-12">
-            {{ t('MARCOX_AI.TITLE') }}
-          </h1>
-          <p class="m-0 hidden truncate text-xs text-n-slate-11 sm:block">
-            {{ t('MARCOX_AI.SUBTITLE') }}
-          </p>
-        </div>
-      </div>
-      <nav class="flex items-center gap-1" :aria-label="t('MARCOX_AI.TITLE')">
-        <Button
-          v-for="item in tabs.filter(item => canEdit || item.id !== 'activity')"
-          :key="item.id"
-          variant="ghost"
-          color="slate"
-          size="sm"
-          :icon="item.icon"
-          :label="t(`MARCOX_AI.TABS.${item.key}`)"
-          :class="{ 'bg-n-alpha-2': activeTab === item.id }"
-          @click="navigate(item.id)"
-        />
-      </nav>
-    </header>
+  <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-n-solid-1">
+    <h1 class="sr-only">{{ t('MARCOX_AI.TITLE') }}</h1>
     <div v-if="loading" class="flex flex-1 items-center justify-center">
       <Spinner />
     </div>
-    <main
-      v-else-if="activeTab === 'overview'"
-      class="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row"
-    >
+    <main v-else class="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
       <aside
         class="flex shrink-0 flex-col border-b border-n-weak bg-n-solid-1 md:w-64 md:border-b-0 md:border-e"
       >
@@ -312,53 +289,72 @@ const eventLabel = event =>
         <div
           class="flex max-h-52 min-h-0 gap-1 overflow-auto p-2 md:max-h-none md:flex-1 md:flex-col"
         >
-          <button
+          <div
             v-for="agent in visibleAgents"
             :key="agent.id"
-            type="button"
-            class="flex min-w-48 shrink-0 items-start gap-3 rounded-lg p-3 text-start transition-colors md:min-w-0"
+            class="flex min-w-48 shrink-0 items-start gap-2 rounded-lg p-3 transition-colors md:min-w-0"
             :class="
               editing?.id === agent.id ? 'bg-n-alpha-2' : 'hover:bg-n-alpha-1'
             "
-            @click="selectAgent(agent)"
           >
-            <span
-              class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-n-blue-3 text-n-blue-11"
-              ><span class="i-lucide-bot size-4"
-            /></span>
-            <span class="min-w-0 flex-1">
-              <span class="flex items-center gap-2"
-                ><span class="truncate text-sm font-semibold text-n-slate-12">{{
-                  agent.name
-                }}</span>
-                <span
-                  class="size-1.5 shrink-0 rounded-full"
-                  :class="
-                    agent.config.auto_response_enabled
-                      ? 'bg-n-teal-9'
-                      : 'bg-n-slate-8'
-                  "
-                  :title="
-                    t(
-                      agent.config.auto_response_enabled
-                        ? 'MARCOX_AI.ACTIVE'
-                        : 'MARCOX_AI.DRAFT'
-                    )
-                  "
+            <button
+              type="button"
+              class="flex min-w-0 flex-1 items-start gap-3 text-start"
+              @click="selectAgent(agent)"
+            >
+              <span
+                class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-n-blue-3 text-n-blue-11"
+                ><span class="i-lucide-bot size-4"
               /></span>
-              <span class="mt-1 block truncate text-xs text-n-slate-11">{{
-                agent.config.model
-              }}</span>
-              <span class="mt-1.5 block text-xs text-n-slate-10">{{
-                t(
-                  agent.inboxes_count
-                    ? 'MARCOX_AI.INBOX_COUNT'
-                    : 'MARCOX_AI.NO_INBOX',
-                  { count: agent.inboxes_count }
-                )
-              }}</span>
-            </span>
-          </button>
+              <span class="min-w-0 flex-1">
+                <span
+                  class="block truncate text-sm font-semibold text-n-slate-12"
+                >
+                  {{ agent.name }}
+                </span>
+                <span class="mt-1 block truncate text-xs text-n-slate-11">{{
+                  agent.config.model
+                }}</span>
+                <span class="mt-1.5 block text-xs text-n-slate-10">{{
+                  t(
+                    agent.inboxes_count
+                      ? 'MARCOX_AI.INBOX_COUNT'
+                      : 'MARCOX_AI.NO_INBOX',
+                    { count: agent.inboxes_count }
+                  )
+                }}</span>
+              </span>
+            </button>
+            <button
+              v-if="canEdit"
+              type="button"
+              role="switch"
+              :aria-checked="agent.config.auto_response_enabled"
+              :aria-label="t('MARCOX_AI.COVERAGE.TOGGLE', { name: agent.name })"
+              :title="t('MARCOX_AI.COVERAGE.TOGGLE_HINT')"
+              :disabled="
+                saving ||
+                togglingId !== null ||
+                (!agent.config.auto_response_enabled && !connectionReady(agent))
+              "
+              class="relative mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full !p-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-blue-9 disabled:opacity-40"
+              :class="
+                agent.config.auto_response_enabled
+                  ? 'bg-n-blue-9'
+                  : 'bg-n-slate-6'
+              "
+              @click="toggleAgent(agent)"
+            >
+              <span
+                class="size-4 rounded-full bg-white shadow transition-transform"
+                :class="
+                  agent.config.auto_response_enabled
+                    ? 'translate-x-[18px]'
+                    : 'translate-x-0.5'
+                "
+              />
+            </button>
+          </div>
           <Button
             v-if="canEdit"
             class="mt-2 !justify-start"
@@ -381,7 +377,8 @@ const eventLabel = event =>
         :busy-provider="busyProvider"
         :default-prompt="preferences.default_prompt"
         :can-edit="canEdit"
-        :saving="saving"
+        :saving="saving || togglingId !== null"
+        :initial-section="initialSection"
         @save="saveAgent"
         @cancel="cancelAgent"
         @delete="deleteAgent"
@@ -413,92 +410,6 @@ const eventLabel = event =>
           :label="t('MARCOX_AI.EMPTY_CTA')"
           @click="newAgent"
         />
-      </div>
-    </main>
-    <main v-else-if="activeTab === 'playground'" class="min-h-0 flex-1 p-6">
-      <AiPlayground :agents="agents" />
-    </main>
-    <main
-      v-else-if="activeTab === 'activity' && canEdit"
-      class="min-h-0 flex-1 overflow-y-auto p-6"
-    >
-      <div class="mb-6 flex items-center justify-between gap-4">
-        <div>
-          <h2 class="text-lg font-semibold text-n-slate-12">
-            {{ t('MARCOX_AI.ACTIVITY.TITLE') }}
-          </h2>
-          <p class="mt-2 text-sm text-n-slate-11">
-            {{ t('MARCOX_AI.ACTIVITY.BODY') }}
-          </p>
-        </div>
-        <Button
-          icon="i-lucide-refresh-cw"
-          variant="outline"
-          color="slate"
-          :label="t('MARCOX_AI.REFRESH')"
-          @click="refresh"
-        />
-      </div>
-      <div class="overflow-x-auto rounded-xl border border-n-weak bg-n-solid-1">
-        <p v-if="!logs.length" class="p-12 text-center text-sm text-n-slate-11">
-          {{ t('MARCOX_AI.ACTIVITY.EMPTY') }}
-        </p>
-        <table v-else class="w-full text-start text-sm">
-          <thead class="border-b border-n-weak text-n-slate-11">
-            <tr>
-              <th
-                v-for="key in ['EVENT', 'AGENT', 'CONVERSATION', 'WHEN']"
-                :key="key"
-                class="p-4 text-start font-medium"
-              >
-                {{ t(`MARCOX_AI.ACTIVITY.${key}`) }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="log in logs"
-              :key="log.id"
-              class="border-b border-n-weak last:border-0"
-            >
-              <td class="p-4">
-                <span
-                  :class="
-                    log.status === 'error'
-                      ? 'text-n-ruby-11'
-                      : 'text-n-slate-12'
-                  "
-                  >{{ t(`MARCOX_AI.ACTIVITY.${eventLabel(log.event)}`) }}</span
-                >
-                <p
-                  v-if="log.error"
-                  class="mt-1 max-w-sm break-words text-xs text-n-ruby-11"
-                >
-                  {{ log.error }}
-                </p>
-              </td>
-              <td class="p-4 text-n-slate-12">{{ log.assistant_name }}</td>
-              <td class="p-4">
-                <RouterLink
-                  v-if="log.conversation_id"
-                  :to="{
-                    name: 'inbox_conversation',
-                    params: {
-                      accountId: route.params.accountId,
-                      conversationId: log.conversation_id,
-                    },
-                  }"
-                  class="text-n-blue-11"
-                >
-                  {{ `#${log.conversation_id}` }}
-                </RouterLink>
-              </td>
-              <td class="p-4 text-n-slate-11">
-                {{ new Date(log.created_at).toLocaleString() }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
       </div>
     </main>
     <Dialog

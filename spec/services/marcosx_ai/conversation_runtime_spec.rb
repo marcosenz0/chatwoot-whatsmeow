@@ -50,6 +50,57 @@ RSpec.describe 'MarcoXIA conversation runtime' do
     expect { MarcosxAi::ResponseScheduler.perform(message: message) }.not_to have_enqueued_job(MarcosxAi::ResponseJob)
   end
 
+  it 'responds in a manually enabled conversation while general support is off without enabling another contact' do
+    assistant.update!(config: assistant.resolved_config.merge(auto_response_enabled: false))
+    state.resume!(manual: true)
+    MarcosxAi::ResponseScheduler.perform(message: message)
+    token = state.reload.metadata['run_token']
+    MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, message.id, token)
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 1)
+    expect(conversation.messages.outgoing.where(private: false).order(:id).pluck(:content)).to eq(plan[:messages])
+    expect(state.public_data).to include(enabled: true, available: true, manual_activation: true)
+    expect(assistant.reload.auto_response_enabled?).to be(false)
+
+    other = create(:conversation, account: account, inbox: inbox)
+    expect {
+      incoming = create(:message, account: account, inbox: inbox, conversation: other)
+      MarcosxAi::ResponseScheduler.perform(message: incoming)
+    }.not_to have_enqueued_job(MarcosxAi::ResponseJob)
+  end
+
+  it 'stops an automatic pending reply when general support is disabled' do
+    MarcosxAi::ResponseScheduler.perform(message: message)
+    token = state.reload.metadata['run_token']
+    assistant.update!(config: assistant.resolved_config.merge(auto_response_enabled: false))
+    MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, message.id, token)
+    expect(client).not_to have_received(:chat)
+    expect { MarcosxAi::ResponseScheduler.perform(message: message) }.not_to have_enqueued_job(MarcosxAi::ResponseJob)
+  end
+
+  it 'stops a pending individually enabled reply when that conversation is paused' do
+    assistant.update!(config: assistant.resolved_config.merge(auto_response_enabled: false))
+    state.resume!(manual: true)
+    MarcosxAi::ResponseScheduler.perform(message: message)
+    token = state.reload.metadata['run_token']
+    state.pause_by_agent!
+    MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, message.id, token)
+    expect(client).not_to have_received(:chat)
+    expect { MarcosxAi::ResponseScheduler.perform(message: message) }.not_to have_enqueued_job(MarcosxAi::ResponseJob)
+  end
+
+  it 'does not deliver a manual reply after the provider connection is disabled' do
+    assistant.update!(config: assistant.resolved_config.merge(auto_response_enabled: false))
+    state.resume!(manual: true)
+    MarcosxAi::ResponseScheduler.perform(message: message)
+    token = state.reload.metadata['run_token']
+    MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, message.id, token)
+    credential.update!(enabled: false)
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
+    expect(conversation.messages.outgoing.where(private: false)).to be_empty
+    expect(state.public_data[:available]).to be(false)
+  end
+
   it 'never times out a permanent human takeover' do
     state.pause_by_human!(message: message, minutes: 0)
     travel 2.days do

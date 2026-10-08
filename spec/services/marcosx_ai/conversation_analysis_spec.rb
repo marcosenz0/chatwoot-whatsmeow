@@ -58,6 +58,19 @@ RSpec.describe MarcosxAi::ConversationAnalysisService do
     expect { service.send!(token: token, messages: ['Duplicate']) }.to raise_error(CustomExceptions::MarcosxAi)
   end
 
+  it 'analyzes and sends an explicitly reviewed reply with general support disabled' do
+    assistant.update!(config: assistant.resolved_config.merge(auto_response_enabled: false))
+    service.start!
+    token = service.report['id']
+    service.perform(token)
+    service.send!(token: token, messages: ['Reviewed individual reply'])
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, state.reload.metadata['run_token'], 0)
+    expect(conversation.messages.outgoing.where(private: false).pluck(:content)).to eq(['Reviewed individual reply'])
+    expect(state.reload.status).to eq('paused_by_agent')
+    expect(assistant.reload.auto_response_enabled?).to be(false)
+    expect(state.metadata['manual_activation']).not_to be(true)
+  end
+
   it 'invalidates a ready reply when another message arrives' do
     service.start!
     token = service.report['id']

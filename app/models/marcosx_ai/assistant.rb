@@ -74,6 +74,10 @@ class MarcosxAi::Assistant < ApplicationRecord
     ActiveModel::Type::Boolean.new.cast(resolved_config[:auto_response_enabled])
   end
 
+  def available?
+    account.marcosx_ai_credentials.find_by(provider: provider, enabled: true)&.configured? || false
+  end
+
   def reasoning_effort
     resolved_config[:reasoning_effort]
   end
@@ -156,8 +160,7 @@ class MarcosxAi::Assistant < ApplicationRecord
     errors.add(:config, 'has an invalid reasoning effort') unless %w[low medium high].include?(reasoning_effort)
     return unless auto_response_enabled?
 
-    credential = account&.marcosx_ai_credentials&.find_by(provider: provider, enabled: true)
-    errors.add(:config, I18n.t('marcosx_ai.errors.credential_missing')) unless credential&.configured?
+    errors.add(:config, I18n.t('marcosx_ai.errors.credential_missing')) unless available?
   end
 
   def default_avatar_url
