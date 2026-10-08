@@ -298,6 +298,29 @@ describe('Camera lifecycle', () => {
     wrapper.unmount();
   });
 
+  it('releases the camera immediately if the preview cannot start', async () => {
+    const stop = vi.fn();
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: {
+        getUserMedia: vi
+          .fn()
+          .mockResolvedValue({ getTracks: () => [{ stop }] }),
+      },
+    });
+    vi.spyOn(HTMLMediaElement.prototype, 'play').mockRejectedValue(
+      new Error('Playback failed')
+    );
+    const wrapper = mount(ProfileCamera, {
+      global: { plugins: [store], stubs: { teleport: true } },
+    });
+    await flushPromises();
+    expect(wrapper.find('[role="alert"]').exists()).toBe(true);
+    expect(stop).toHaveBeenCalledOnce();
+    wrapper.unmount();
+    vi.restoreAllMocks();
+  });
+
   it('stops a delayed camera stream even if the dialog was closed before permission completed', async () => {
     let grant;
     const stop = vi.fn();

@@ -34,6 +34,15 @@
     "FILE_ERROR": "Selecione uma imagem JPG, PNG, WebP ou GIF de até 15 MB.",
     "NAME": "Nome",
     "ABOUT": "Sobre",
+    "ABOUT_DURATION": "Duração do Sobre",
+    "ABOUT_DURATION_HELP": "O Sobre atual do WhatsApp tem duração limitada. Apague o texto para removê-lo.",
+    "DURATIONS": {
+      "3600": "1 hora",
+      "28800": "8 horas",
+      "86400": "24 horas",
+      "259200": "3 dias",
+      "604800": "7 dias"
+    },
     "PHONE": "Telefone",
     "NOT_SET": "Não informado",
     "EDIT_FIELD": "Editar {field}",

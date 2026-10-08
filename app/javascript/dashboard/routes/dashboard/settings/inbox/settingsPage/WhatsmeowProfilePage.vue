@@ -13,6 +13,7 @@ import DropdownItem from 'next/dropdown-menu/base/DropdownItem.vue';
 import ProfilePhotoViewer from 'next/avatar/ProfilePhotoViewer.vue';
 import ProfilePhotoEditor from 'next/avatar/ProfilePhotoEditor.vue';
 import ProfileCamera from 'next/avatar/ProfileCamera.vue';
+import AiSelect from 'dashboard/routes/dashboard/captain/components/AiSelect.vue';
 import WhatsmeowBusinessProfile from './WhatsmeowBusinessProfile.vue';
 
 const props = defineProps({ inbox: { type: Object, required: true } });
@@ -23,6 +24,13 @@ const error = ref(false);
 const saving = ref(false);
 const editing = ref('');
 const draft = ref('');
+const aboutDuration = ref(86400);
+const durations = computed(() =>
+  [3600, 28800, 86400, 259200, 604800].map(value => ({
+    value,
+    label: t(`WHATSAPP_PROFILE.DURATIONS.${value}`),
+  }))
+);
 const uploadInput = ref(null);
 const removalDialog = ref(null);
 const showPhoto = ref(false);
@@ -49,6 +57,7 @@ const load = async () => {
 };
 const edit = field => {
   draft.value = profile.value[field];
+  aboutDuration.value = profile.value.about_duration || 86400;
   editing.value = field;
 };
 const save = async payload => {
@@ -62,6 +71,11 @@ const save = async payload => {
   } finally {
     saving.value = false;
   }
+};
+const saveField = field => {
+  const payload = { [field]: draft.value };
+  if (field === 'about') payload.about_duration = aboutDuration.value;
+  return save(payload);
 };
 const pickPhoto = file => {
   if (
@@ -255,7 +269,7 @@ onMounted(load);
           <form
             v-if="editing === field"
             class="space-y-3"
-            @submit.prevent="save({ [field]: draft })"
+            @submit.prevent="saveField(field)"
           >
             <input
               v-if="field === 'name'"
@@ -266,8 +280,22 @@ onMounted(load);
               :disabled="saving"
               class="!mb-0 w-full rounded-lg bg-n-solid-1"
             />
+            <div v-if="field === 'about'" class="space-y-2">
+              <label class="text-sm text-n-slate-11">{{
+                t('WHATSAPP_PROFILE.ABOUT_DURATION')
+              }}</label>
+              <AiSelect
+                v-model="aboutDuration"
+                :options="durations"
+                :label="t('WHATSAPP_PROFILE.ABOUT_DURATION')"
+                :disabled="saving"
+              />
+              <p class="mb-0 text-xs text-n-slate-11">
+                {{ t('WHATSAPP_PROFILE.ABOUT_DURATION_HELP') }}
+              </p>
+            </div>
             <textarea
-              v-else
+              v-if="field === 'about'"
               v-model="draft"
               maxlength="139"
               rows="3"
@@ -303,6 +331,7 @@ onMounted(load);
             <p
               class="mb-0 whitespace-pre-wrap break-words text-sm text-n-slate-12"
             >
+              {{ field === 'about' ? profile.about_emoji : '' }}
               {{ profile[field] || t('WHATSAPP_PROFILE.NOT_SET') }}
             </p>
             <Button

@@ -50,6 +50,7 @@ onMounted(async () => {
     video.value.srcObject = stream;
     await video.value.play();
   } catch {
+    stop();
     if (!disposed) error.value = true;
   } finally {
     loading.value = false;

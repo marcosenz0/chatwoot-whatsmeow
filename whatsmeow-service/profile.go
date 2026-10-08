@@ -15,6 +15,7 @@ import (
 	"github.com/polymorfa/hypermeow"
 	"github.com/polymorfa/hypermeow/appstate"
 	"github.com/polymorfa/hypermeow/types"
+	"go.mau.fi/util/jsontime"
 )
 
 type profileClient interface {
@@ -28,9 +29,10 @@ type profileClient interface {
 }
 
 type profileMutation struct {
-	Name     *string                  `json:"name"`
-	About    *string                  `json:"about"`
-	Business *businessProfileMutation `json:"business"`
+	Name          *string                  `json:"name"`
+	About         *string                  `json:"about"`
+	AboutDuration *int                     `json:"about_duration"`
+	Business      *businessProfileMutation `json:"business"`
 }
 
 type businessProfileMutation struct {
@@ -63,7 +65,22 @@ func (m profileMutation) validate() error {
 	if m.About != nil && utf8.RuneCountInString(*m.About) > 139 {
 		return fmt.Errorf("About must contain at most 139 characters")
 	}
+	if m.AboutDuration != nil && (*m.AboutDuration < 0 || *m.AboutDuration > 604800) {
+		return fmt.Errorf("About duration must be between 0 and 604800 seconds")
+	}
 	return nil
+}
+
+func (m profileMutation) aboutInput() types.SetStatusInput {
+	// Modern About uses null text to clear it and a positive TTL when setting it.
+	if strings.TrimSpace(*m.About) == "" {
+		return types.SetStatusInput{}
+	}
+	duration := 86400
+	if m.AboutDuration != nil && *m.AboutDuration > 0 {
+		duration = *m.AboutDuration
+	}
+	return types.SetStatusInput{Text: m.About, Duration: jsontime.SInt(duration)}
 }
 
 func (m businessProfileMutation) update() types.BusinessProfileUpdate {
@@ -109,6 +126,13 @@ func ownProfileSnapshot(ctx context.Context, client profileClient, jid types.JID
 		return nil, err
 	}
 	photo["name"], photo["about"], photo["phone"] = name, info.Status, "+"+jid.User
+	if info.TextStatus != nil {
+		photo["about"] = *info.TextStatus.Text
+		photo["about_duration"] = int(info.TextStatus.Duration.Seconds())
+		if info.TextStatus.Emoji != nil {
+			photo["about_emoji"] = info.TextStatus.Emoji.Content
+		}
+	}
 	photo["is_business"] = info.VerifiedName != nil || businessName != ""
 	if photo["is_business"] == true {
 		business, err := client.GetBusinessProfile(ctx, jid)
@@ -170,7 +194,21 @@ func handleUpdateOwnProfile(c *gin.Context) {
 		}
 	}
 	if m.About != nil {
-		if err := client.SetStatusMessage(ctx, types.SetStatusInput{Text: m.About}); err != nil {
+		input := m.aboutInput()
+		if input.Text != nil {
+			users, err := client.GetUserInfo(ctx, []types.JID{client.Store.ID.ToNonAD()})
+			if err != nil {
+				c.JSON(502, gin.H{"error": err.Error()})
+				return
+			}
+			if current := users[client.Store.ID.ToNonAD()].TextStatus; current != nil {
+				input.Emoji = current.Emoji
+				if m.AboutDuration == nil && current.Duration.Duration > 0 {
+					input.Duration = current.Duration
+				}
+			}
+		}
+		if err := client.SetStatusMessage(ctx, input); err != nil {
 			c.JSON(502, gin.H{"error": err.Error()})
 			return
 		}

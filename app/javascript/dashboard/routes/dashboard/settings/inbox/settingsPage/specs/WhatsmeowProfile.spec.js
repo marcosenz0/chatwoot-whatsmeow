@@ -89,6 +89,7 @@ describe('WhatsApp profile settings', () => {
     await flushPromises();
     expect(WhatsappProfileAPI.update).toHaveBeenCalledWith(27, {
       about: 'New about',
+      about_duration: 86400,
     });
     wrapper.unmount();
   });
@@ -108,6 +109,27 @@ describe('WhatsApp profile settings', () => {
     await flushPromises();
     expect(useAlert).toHaveBeenCalledWith('WHATSAPP_PROFILE.SAVE_ERROR');
     expect(wrapper.get('input[maxlength="25"]').element.value).toBe('New name');
+    wrapper.unmount();
+  });
+
+  it('retains the current About duration and can explicitly clear its text', async () => {
+    profile.about_duration = 604800;
+    WhatsappProfileAPI.update.mockResolvedValue({ data: { success: true } });
+    const wrapper = mount(WhatsmeowProfilePage, { props, global });
+    await flushPromises();
+    await wrapper
+      .findAll('button[aria-label]')
+      .filter(button =>
+        button.attributes('aria-label').includes('WHATSAPP_PROFILE.EDIT_FIELD')
+      )[1]
+      .trigger('click');
+    await wrapper.get('textarea').setValue('');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+    expect(WhatsappProfileAPI.update).toHaveBeenCalledWith(27, {
+      about: '',
+      about_duration: 604800,
+    });
     wrapper.unmount();
   });
 

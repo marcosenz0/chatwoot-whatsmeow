@@ -36,7 +36,7 @@ class Api::V1::Accounts::Inboxes::WhatsmeowProfilesController < Api::V1::Account
 
   def profile_params
     params.permit(
-      :name, :about,
+      :name, :about, :about_duration,
       business: [:address, :email, :description, { websites: [], hours: [:timezone, { days: [:day, :mode, :open, :close] }] }]
     ).to_h
   end

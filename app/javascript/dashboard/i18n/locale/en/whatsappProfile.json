@@ -34,6 +34,15 @@
     "FILE_ERROR": "Select a JPG, PNG, WebP or GIF image up to 15 MB.",
     "NAME": "Name",
     "ABOUT": "About",
+    "ABOUT_DURATION": "About duration",
+    "ABOUT_DURATION_HELP": "WhatsApp About now has a limited duration. Clear the text to remove it.",
+    "DURATIONS": {
+      "3600": "1 hour",
+      "28800": "8 hours",
+      "86400": "24 hours",
+      "259200": "3 days",
+      "604800": "7 days"
+    },
     "PHONE": "Phone",
     "NOT_SET": "Not set",
     "EDIT_FIELD": "Edit {field}",

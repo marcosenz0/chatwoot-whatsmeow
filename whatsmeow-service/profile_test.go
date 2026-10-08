@@ -9,10 +9,12 @@ import (
 	"image/jpeg"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/polymorfa/hypermeow"
 	"github.com/polymorfa/hypermeow/appstate"
 	"github.com/polymorfa/hypermeow/types"
+	"go.mau.fi/util/jsontime"
 )
 
 type profileTestClient struct {
@@ -83,6 +85,41 @@ func TestFullPhotoRespectsPrivacyAndReportsNetworkFailures(t *testing.T) {
 	f := &profileTestClient{photoErr: errors.New("network error")}
 	if _, err := currentProfilePicture(context.Background(), f, types.EmptyJID); err == nil {
 		t.Fatal("network failure was hidden as no photo")
+	}
+}
+
+func TestOwnProfileReadsModernAboutInsteadOfStaleLegacyStatus(t *testing.T) {
+	jid := types.NewJID("5511999991111", types.DefaultUserServer)
+	text := "Modern About"
+	f := &profileTestClient{users: map[types.JID]types.UserInfo{jid: {Status: "Old About", TextStatus: &types.SetStatusInput{
+		Text: &text, Emoji: &types.SetStatusEmoji{Content: "👋"}, Duration: jsontime.S(24 * time.Hour),
+	}}}, photoErr: whatsmeow.ErrProfilePictureNotSet}
+	result, err := ownProfileSnapshot(context.Background(), f, jid, "Owner", "")
+	if err != nil || result["about"] != text || result["about_duration"] != 86400 || result["about_emoji"] != "👋" {
+		t.Fatalf("profile=%v err=%v", result, err)
+	}
+	text = ""
+	result, err = ownProfileSnapshot(context.Background(), f, jid, "Owner", "")
+	if err != nil || result["about"] != "" {
+		t.Fatal("cleared modern About was replaced by stale legacy status")
+	}
+}
+
+func TestModernAboutSetsPositiveDurationAndClearsWithNull(t *testing.T) {
+	text := "Available"
+	input := (profileMutation{About: &text}).aboutInput()
+	if input.Text == nil || *input.Text != text || input.Duration.Duration != 24*time.Hour {
+		t.Fatal("modern About lacks its required positive duration")
+	}
+	duration := 604800
+	input = (profileMutation{About: &text, AboutDuration: &duration}).aboutInput()
+	if input.Duration.Duration != 7*24*time.Hour {
+		t.Fatal("selected About duration was not applied")
+	}
+	text = " "
+	input = (profileMutation{About: &text, AboutDuration: &duration}).aboutInput()
+	if input.Text != nil || !input.Duration.IsZero() || input.Emoji != nil {
+		t.Fatal("clearing About must send null text with zero duration")
 	}
 }
 
