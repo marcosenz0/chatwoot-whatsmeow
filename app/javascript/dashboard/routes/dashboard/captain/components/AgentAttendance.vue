@@ -172,7 +172,7 @@ watch(
               name: 'inbox_conversation',
               params: {
                 accountId: route.params.accountId,
-                conversationId: conversation.id,
+                conversation_id: conversation.id,
               },
             }"
             class="flex items-center gap-3 p-4 hover:bg-n-alpha-1"

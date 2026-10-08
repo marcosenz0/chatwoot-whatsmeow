@@ -1,10 +1,13 @@
 import { flushPromises, mount } from '@vue/test-utils';
+import { createMemoryHistory, createRouter } from 'vue-router';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
+import conversationRoutes from 'dashboard/routes/dashboard/conversation/conversation.routes';
 import AgentAttendance from '../AgentAttendance.vue';
 import AgentActivity from '../AgentActivity.vue';
 
-vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { accountId: 2 } }),
+vi.mock('dashboard/store', () => ({ default: {} }));
+vi.mock('dashboard/routes/dashboard/conversation/ConversationView.vue', () => ({
+  default: { template: '<div />' },
 }));
 vi.mock('dashboard/composables', () => ({ useAlert: vi.fn() }));
 vi.mock('dashboard/api/marcosxAi', () => ({
@@ -26,7 +29,23 @@ const conversation = {
   inbox_name: 'WhatsApp',
   processing: false,
 };
-const global = { stubs: { RouterLink: { template: '<a><slot /></a>' } } };
+let global;
+beforeEach(async () => {
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      {
+        path: '/app/accounts/:accountId/captain/overview',
+        component: { template: '<div />' },
+      },
+      conversationRoutes.routes.find(
+        route => route.name === 'inbox_conversation'
+      ),
+    ],
+  });
+  await router.push('/app/accounts/2/captain/overview');
+  global = { plugins: [router] };
+});
 
 describe('Agent attendance and activity', () => {
   it('shows individually enabled contacts with links to their conversations', async () => {
@@ -42,6 +61,9 @@ describe('Agent attendance and activity', () => {
     await flushPromises();
     expect(wrapper.get('a').text()).toContain('Owner');
     expect(wrapper.get('a').text()).toContain('#2170');
+    expect(wrapper.get('a').attributes('href')).toBe(
+      '/app/accounts/2/conversations/2170'
+    );
     expect(wrapper.text()).toContain('MARCOX_AI.COVERAGE.INDIVIDUAL');
     wrapper.unmount();
   });
@@ -113,6 +135,9 @@ describe('Agent attendance and activity', () => {
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     );
     expect(wrapper.get('a').text()).toBe('#2170');
+    expect(wrapper.get('a').attributes('href')).toBe(
+      '/app/accounts/2/conversations/2170'
+    );
     MarcosxAiAPI.getLogs.mockResolvedValue({ data: { logs: [] } });
     await wrapper.setProps({ agentId: 2 });
     await flushPromises();

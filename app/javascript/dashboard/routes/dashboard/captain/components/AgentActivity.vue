@@ -115,7 +115,7 @@ const eventLabel = event =>
                   name: 'inbox_conversation',
                   params: {
                     accountId: route.params.accountId,
-                    conversationId: log.conversation_id,
+                    conversation_id: log.conversation_id,
                   },
                 }"
                 class="text-n-blue-11"
