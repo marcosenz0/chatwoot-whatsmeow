@@ -18,15 +18,17 @@ class MarcosxAi::ConversationAnalysisService
 
     token = SecureRandom.uuid
     @state.with_lock do
-      metadata = @state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft',
-                                       'conversation_summary', 'summary_cursor', 'context_messages_limit')
+      metadata = @state.metadata.except(
+        'pending_response', 'pending_since_message_id', 'approved_draft', 'conversation_summary', 'summary_cursor', 'context_messages_limit'
+      )
       analysis = {
         'id' => token, 'status' => 'processing', 'trigger_message_id' => latest.id,
         'messages_count' => messages_limit ? [messages_limit, history.count].min : history.count, 'messages_limit' => messages_limit,
         'assistant_version' => @assistant.updated_at.iso8601(6), 'created_at' => Time.current.iso8601
       }
-      @state.update!(metadata: metadata.merge('run_token' => token, 'processing' => false,
-                                             'context_messages_limit' => messages_limit, 'analysis' => analysis))
+      @state.update!(metadata: metadata.merge(
+        'run_token' => token, 'processing' => false, 'context_messages_limit' => messages_limit, 'analysis' => analysis
+      ))
     end
     MarcosxAi::ConversationAnalysisJob.perform_later(@state.id, token)
     report
