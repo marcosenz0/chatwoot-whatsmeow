@@ -43,11 +43,18 @@ const available = computed(
     !['resolved', 'snoozed'].includes(props.chat.status)
 );
 const processing = computed(() => analysis.value.status === 'processing');
+const hasResponse = computed(
+  () =>
+    parts.value.some(part => part.trim()) ||
+    analysis.value.plan?.reaction ||
+    analysis.value.plan?.handoff
+);
 const notifyError = error =>
   useAlert(error.response?.data?.error || t('MARCOX_AI.CONVERSATION.ERROR'));
 const setReport = report => {
   analysis.value = report;
   parts.value = [...(report.plan?.messages || [])];
+  if (report.status === 'ready' && !parts.value.length) parts.value = [''];
 };
 const fetchReport = async () => {
   const { id } = props.chat;
@@ -149,7 +156,7 @@ const send = async () => {
     const { data } = await MarcosxAiAPI.sendConversationAnalysis(
       id,
       analysis.value.id,
-      parts.value
+      parts.value.filter(part => part.trim())
     );
     if (id !== props.chat.id) return;
     analysis.value = { ...analysis.value, status: 'sent' };
@@ -339,7 +346,7 @@ defineExpose({ open });
             type="button"
             icon="i-lucide-send"
             :label="t('MARCOX_AI.ANALYSIS.SEND')"
-            :disabled="working || !available"
+            :disabled="working || !available || !hasResponse"
             :is-loading="working"
             @click="send"
           />

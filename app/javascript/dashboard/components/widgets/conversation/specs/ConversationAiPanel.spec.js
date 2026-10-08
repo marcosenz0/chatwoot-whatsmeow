@@ -105,6 +105,33 @@ describe('Conversation history review', () => {
     expect(MarcosxAiAPI.sendConversationAnalysis).not.toHaveBeenCalled();
     wrapper.unmount();
   });
+  it('allows writing a reviewed reply when the model recommends waiting', async () => {
+    MarcosxAiAPI.getConversationAnalysis.mockResolvedValue({
+      data: { analysis: { ...ready, plan: { ...ready.plan, messages: [] } } },
+    });
+    MarcosxAiAPI.sendConversationAnalysis.mockResolvedValue({
+      data: { state: props.state },
+    });
+    const wrapper = mount(ConversationAiPanel, { props, global });
+    wrapper.vm.open();
+    await flushPromises();
+    const sendButton = wrapper
+      .findAll('button')
+      .find(button => button.text().includes('MARCOX_AI.ANALYSIS.SEND'));
+    expect(sendButton.attributes('disabled')).toBeDefined();
+    await wrapper.get('textarea').setValue('   ');
+    expect(sendButton.attributes('disabled')).toBeDefined();
+    await wrapper.get('textarea').setValue('Reviewed follow-up');
+    expect(sendButton.attributes('disabled')).toBeUndefined();
+    await sendButton.trigger('click');
+    await flushPromises();
+    expect(MarcosxAiAPI.sendConversationAnalysis).toHaveBeenCalledWith(
+      7,
+      'snapshot',
+      ['Reviewed follow-up']
+    );
+    wrapper.unmount();
+  });
   it('requires a fresh analysis when the conversation has changed', async () => {
     MarcosxAiAPI.getConversationAnalysis.mockResolvedValue({
       data: { analysis: { ...ready, status: 'outdated' } },
@@ -114,7 +141,9 @@ describe('Conversation history review', () => {
     await flushPromises();
     expect(wrapper.text()).toContain('MARCOX_AI.ANALYSIS.OUTDATED');
     expect(
-      wrapper.find('button[aria-label="MARCOX_AI.ANALYSIS.SEND"]').exists()
+      wrapper
+        .findAll('button')
+        .some(button => button.text().includes('MARCOX_AI.ANALYSIS.SEND'))
     ).toBe(false);
     wrapper.unmount();
   });
