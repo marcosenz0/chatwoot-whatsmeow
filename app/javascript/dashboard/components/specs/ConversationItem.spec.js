@@ -66,6 +66,36 @@ const global = {
   },
 };
 describe('AI reply from a conversation context menu', () => {
+  it('keeps the fetched activation when an older conversation event arrives', async () => {
+    const state = {
+      assistant_id: 1,
+      status: 'active',
+      enabled: true,
+      available: true,
+      updated_at: '2026-10-08T23:25:56.908Z',
+    };
+    MarcosxAiAPI.getConversationState.mockResolvedValue({
+      data: { state, assistants: [{ id: 1 }] },
+    });
+    const wrapper = mount(ConversationItem, { props, global });
+    await wrapper.get('.card').trigger('contextmenu');
+    await wrapper.get('.generate').trigger('click');
+    await flushPromises();
+    await wrapper.setProps({
+      source: {
+        ...props.source,
+        marcosx_ai: {
+          ...state,
+          status: 'paused_by_agent',
+          updated_at: '2026-10-08T23:24:00.000Z',
+        },
+      },
+    });
+    expect(
+      wrapper.findComponent({ name: 'ConversationAiPanel' }).props('state')
+    ).toEqual(state);
+    wrapper.unmount();
+  });
   it('opens the same review panel for the clicked row without activating or sending', async () => {
     const state = { assistant_id: 1, status: 'paused_by_agent' };
     MarcosxAiAPI.getConversationState.mockResolvedValue({

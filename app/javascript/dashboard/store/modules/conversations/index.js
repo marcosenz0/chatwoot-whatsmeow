@@ -1,12 +1,12 @@
+import { MESSAGE_STATUS } from 'shared/constants/messages';
+import wootConstants from 'dashboard/constants/globals';
+import { emitter } from 'shared/helpers/mitt';
+import { CONTENT_TYPES } from 'dashboard/components-next/message/constants.js';
 import types from '../../mutation-types';
 import getters, { getSelectedChatConversation } from './getters';
 import actions from './actions';
 import { findPendingMessageIndex } from './helpers';
-import { MESSAGE_STATUS } from 'shared/constants/messages';
-import wootConstants from 'dashboard/constants/globals';
 import { BUS_EVENTS } from '../../../../shared/constants/busEvents';
-import { emitter } from 'shared/helpers/mitt';
-import { CONTENT_TYPES } from 'dashboard/components-next/message/constants.js';
 
 const state = {
   allConversations: [],
@@ -26,9 +26,8 @@ const state = {
   copilotAssistant: {},
 };
 
-const getConversationById = _state => conversationId => {
-  return _state.allConversations.find(c => c.id === conversationId);
-};
+const getConversationById = _state => conversationId =>
+  _state.allConversations.find(c => c.id === conversationId);
 
 const preserveConversationMessageState = (
   conversation,
@@ -218,13 +217,14 @@ export const mutations = {
     const id = message.conversation_id;
     const existingAttachments = _state.attachments[id] || [];
 
-    const attachmentsToAdd = message.attachments.filter(attachment => {
-      // if the attachment is not already in the store, add it
-      // this is to prevent duplicates
-      return !existingAttachments.some(
-        existingAttachment => existingAttachment.id === attachment.id
-      );
-    });
+    const attachmentsToAdd = message.attachments.filter(
+      attachment =>
+        // if the attachment is not already in the store, add it
+        // this is to prevent duplicates
+        !existingAttachments.some(
+          existingAttachment => existingAttachment.id === attachment.id
+        )
+    );
 
     // replace the attachments in the store
     _state.attachments[id] = [...existingAttachments, ...attachmentsToAdd];
@@ -237,9 +237,9 @@ export const mutations = {
     const existingAttachments = _state.attachments[id] || [];
     if (!existingAttachments.length) return;
 
-    _state.attachments[id] = existingAttachments.filter(attachment => {
-      return attachment.message_id !== message.id;
-    });
+    _state.attachments[id] = existingAttachments.filter(
+      attachment => attachment.message_id !== message.id
+    );
   },
 
   [types.ADD_MESSAGE]({ allConversations, selectedChatId }, message) {
@@ -314,13 +314,27 @@ export const mutations = {
 
     if (index > -1) {
       const selectedConversation = allConversations[index];
+      const currentAi = selectedConversation.marcosx_ai;
+      const incomingAi = conversation.marcosx_ai;
+      const hasAiUpdate =
+        incomingAi &&
+        (!currentAi?.updated_at ||
+          new Date(incomingAi.updated_at) >= new Date(currentAi.updated_at));
 
       // ignore out of order events
       if (conversation.updated_at < selectedConversation.updated_at) {
+        if (hasAiUpdate) {
+          allConversations[index] = {
+            ...selectedConversation,
+            marcosx_ai: incomingAi,
+          };
+        }
         return;
       }
 
       const { messages, ...updates } = conversation;
+      if (incomingAi && currentAi && !hasAiUpdate)
+        updates.marcosx_ai = currentAi;
       allConversations[index] = { ...selectedConversation, ...updates };
       if (_state.selectedChatId === conversation.id) {
         emitter.emit(BUS_EVENTS.SCROLL_TO_MESSAGE);

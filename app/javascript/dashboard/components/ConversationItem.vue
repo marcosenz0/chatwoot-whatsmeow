@@ -233,7 +233,13 @@ const openAiPanel = async () => {
 watch(
   () => props.source.marcosx_ai,
   state => {
-    if (aiPanelVisible.value) aiState.value = state;
+    if (
+      aiPanelVisible.value &&
+      state &&
+      (!aiState.value?.updated_at ||
+        new Date(state.updated_at) >= new Date(aiState.value.updated_at))
+    )
+      aiState.value = state;
   }
 );
 </script>
