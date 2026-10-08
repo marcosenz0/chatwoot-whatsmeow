@@ -24,7 +24,6 @@ const emit = defineEmits([
   'save',
   'cancel',
   'delete',
-  'test',
   'change',
   'saveConnection',
   'testConnection',
@@ -290,6 +289,7 @@ const channelLabel = inbox =>
                   :label="t('MARCOX_AI.EDITOR.PROVIDER')"
                   :disabled="!canEdit"
                   class="mt-2"
+                  @update:model-value="changeProvider"
                 />
               </label>
               <label class="block text-sm font-medium text-n-slate-12">
@@ -339,7 +339,6 @@ const channelLabel = inbox =>
                 :label="t('MARCOX_AI.EDITOR.REASONING')"
                 :disabled="!canEdit"
                 class="mt-2"
-                @update:model-value="changeProvider"
               />
             </label>
             <label v-else class="block text-sm font-medium text-n-slate-12">

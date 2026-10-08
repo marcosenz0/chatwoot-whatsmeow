@@ -28,7 +28,6 @@ const saving = ref(false);
 const busyProvider = ref('');
 const editing = ref(null);
 const search = ref('');
-const testAgentId = ref(null);
 const dirty = ref(false);
 const discardDialog = ref(null);
 const deleteDialog = ref(null);
@@ -193,10 +192,6 @@ const confirmDelete = async () => {
   } catch (error) {
     notifyError(error);
   }
-};
-const testAgent = id => {
-  testAgentId.value = id;
-  navigate('playground');
 };
 const saveConnection = async (provider, form) => {
   busyProvider.value = provider;
@@ -390,7 +385,6 @@ const eventLabel = event =>
         @save="saveAgent"
         @cancel="cancelAgent"
         @delete="deleteAgent"
-        @test="testAgent"
         @change="
           form => (dirty = JSON.stringify(form) !== JSON.stringify(editing))
         "
@@ -422,7 +416,7 @@ const eventLabel = event =>
       </div>
     </main>
     <main v-else-if="activeTab === 'playground'" class="min-h-0 flex-1 p-6">
-      <AiPlayground :agents="agents" :agent-id="testAgentId" />
+      <AiPlayground :agents="agents" />
     </main>
     <main
       v-else-if="activeTab === 'activity' && canEdit"

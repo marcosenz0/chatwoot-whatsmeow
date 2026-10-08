@@ -155,6 +155,41 @@ describe('MarcoXIA agent configuration', () => {
     });
     wrapper.unmount();
   });
+  it('changes the provider only from the provider selector and keeps reasoning independent', async () => {
+    const wrapper = shallowMount(AgentEditor, {
+      props: {
+        ...props,
+        catalogs: { ...catalogs, groq: { models: [{ id: 'groq-model' }] } },
+      },
+    });
+    const selectors = wrapper.findAllComponents(AiSelect);
+    selectors
+      .find(item => item.props('label') === 'MARCOX_AI.EDITOR.PROVIDER')
+      .vm.$emit('update:modelValue', 'groq');
+    await flushPromises();
+    await wrapper.get('form').trigger('submit');
+    expect(wrapper.emitted('save')[0][0].config).toMatchObject({
+      provider: 'groq',
+      model: 'groq-model',
+      reasoning_effort: 'medium',
+    });
+    wrapper.unmount();
+  });
+  it('updates reasoning without changing the provider or model', async () => {
+    const wrapper = shallowMount(AgentEditor, { props });
+    wrapper
+      .findAllComponents(AiSelect)
+      .find(item => item.props('label') === 'MARCOX_AI.EDITOR.REASONING')
+      .vm.$emit('update:modelValue', 'high');
+    await flushPromises();
+    await wrapper.get('form').trigger('submit');
+    expect(wrapper.emitted('save')[0][0].config).toMatchObject({
+      provider: 'openai',
+      model: 'gpt-6.1-sol',
+      reasoning_effort: 'high',
+    });
+    wrapper.unmount();
+  });
 });
 
 describe('MarcoXIA private test conversation', () => {
