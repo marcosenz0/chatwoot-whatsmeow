@@ -118,13 +118,19 @@ Rails.application.routes.draw do
             resource :preferences, only: [:show, :update]
             resources :credentials, only: [:index, :show, :create, :update, :destroy] do
               post :test, on: :collection
+              get :models, on: :collection
             end
+            resources :logs, only: [:index]
             resources :assistants do
               post :playground, on: :member
+              get :coverage, on: :member
               resources :inboxes, only: [:index, :create, :destroy], param: :inbox_id
             end
-            resources :conversations, only: [], param: :conversation_id do
+            resources :conversations, only: [] do
               resource :state, only: [:show, :update], controller: 'conversation_states'
+              resource :analysis, only: [:show, :create], controller: 'conversation_analyses' do
+                post :send_reply
+              end
             end
             namespace :google do
               resource :authorizations, only: [:create]

@@ -1,0 +1,118 @@
+name: MarcoXIA validation and image
+on:
+  push:
+    branches: [codex/marcoxia-agents]
+    paths: ['app/**', 'spec/**', 'config/**', 'lib/**', 'Dockerfile', '.github/workflows/marcoxia.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Validate agent UI and preserved conversation behavior
+        run: >-
+          pnpm exec vitest run
+          app/javascript/dashboard/routes/dashboard/captain/components/specs
+          app/javascript/dashboard/components/widgets/conversation/specs/ConversationAi*.spec.js
+          app/javascript/dashboard/components-next/message
+          app/javascript/dashboard/store/modules/specs/conversations/actions.spec.js
+          app/javascript/dashboard/components/widgets/conversation/specs/ReplyBox.spec.js
+          app/javascript/dashboard/helper/specs/instagramMediaHelper.spec.js
+      - name: Lint agent interface
+        run: >-
+          pnpm exec eslint
+          --ext .js,.vue
+          app/javascript/dashboard/routes/dashboard/captain/components
+          app/javascript/dashboard/routes/dashboard/captain/pages/MarcosxAiPage.vue
+          app/javascript/dashboard/components/widgets/conversation/ConversationAiButton.vue
+          app/javascript/dashboard/components/widgets/conversation/ConversationAiPanel.vue
+          app/javascript/dashboard/components-next/dropdown-menu/base/DropdownContainer.vue
+          app/javascript/dashboard/components-next/message/Message.vue
+          app/javascript/dashboard/components-next/message/MessageMeta.vue
+          app/javascript/dashboard/components-next/message/bubbles/Base.vue
+          app/javascript/dashboard/components/widgets/conversation/ConversationHeader.vue
+          app/javascript/dashboard/components/widgets/conversation/MoreActions.vue
+          app/javascript/dashboard/components-next/sidebar/Sidebar.vue
+          app/javascript/dashboard/api/marcosxAi.js
+      - run: pnpm exec vite build
+  rails:
+    runs-on: ubuntu-latest
+    env:
+      RAILS_ENV: test
+      POSTGRES_HOST: localhost
+      POSTGRES_USERNAME: postgres
+      REDIS_URL: redis://localhost:6379
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:alpine
+        ports: ['6379:6379']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - name: Install media dependencies
+        timeout-minutes: 5
+        run: |
+          sudo sed -i 's|azure.archive.ubuntu.com|archive.ubuntu.com|g' /etc/apt/sources.list.d/ubuntu.sources
+          sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=2 \
+          -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update
+          sudo apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=2 \
+          -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 \
+          install -y --no-install-recommends ffmpeg libvips42
+      - run: bundle exec rake db:create db:schema:load db:migrate
+      - name: Validate AI runtime, isolation and media
+        run: >-
+          bundle exec rspec
+          spec/services/marcosx_ai
+          spec/controllers/api/v1/accounts/marcosx_ai_spec.rb
+          spec/models/attachment_spec.rb
+          spec/services/whatsmeow
+          spec/services/telegram_personal
+          spec/services/facebook/send_on_facebook_service_spec.rb
+          spec/services/instagram/send_on_instagram_service_spec.rb
+          spec/services/instagram/messenger/send_on_instagram_service_spec.rb
+      - name: Check Ruby syntax, layout and unsafe code
+        run: >-
+          bundle exec rubocop --only Lint,Layout,Security
+          app/controllers/api/v1/accounts/marcosx_ai
+          app/models/marcosx_ai
+          app/services/marcosx_ai
+          app/jobs/marcosx_ai
+          app/listeners/marcosx_ai_listener.rb
+          lib/custom_exceptions/marcosx_ai.rb
+  publish:
+    needs: [frontend, rails]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/chatwoot-whatsmeow:fork-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -3,7 +3,7 @@ class MarcosxAi::Inbox < ApplicationRecord
 
   belongs_to :account
   belongs_to :assistant, class_name: 'MarcosxAi::Assistant'
-  belongs_to :inbox
+  belongs_to :inbox, class_name: '::Inbox'
 
   validates :inbox_id, uniqueness: true
   validate :same_account

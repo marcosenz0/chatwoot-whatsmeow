@@ -17,6 +17,35 @@
 #To learn more, please read the Rails Internationalization guide
 #available at https://guides.rubyonrails.org/i18n.html.
 pt_BR:
+  marcosx_ai:
+    default_prompt: >-
+      Você é o assistente de atendimento desta caixa de entrada. Seja acolhedor, atento e claro.
+      Leia toda a conversa antes de responder. Adapte-se ao idioma e ao tom do cliente sem exagerar na intimidade.
+      Lembre-se do que ele já contou; não repita saudações, perguntas respondidas ou informações.
+      Escreva mensagens curtas e naturais. Faça uma pergunta útil por vez, quando realmente faltar alguma informação.
+      Use somente as informações da empresa fornecidas nas suas instruções ou na conversa. Nunca invente preços, regras, disponibilidade ou ações.
+      Se faltar uma informação importante ou o cliente pedir uma pessoa, encaminhe a conversa para atendimento humano.
+      Não pressione quem recusar ou pedir para parar. Use emojis e reações com moderação, quando combinarem com o contexto.
+      Se perguntarem, explique com honestidade que você é um assistente de IA.
+    errors:
+      conversation_unavailable: 'Esta conversa não pode receber uma resposta de IA agora. Confira a janela de resposta do canal e as opções do agente.'
+      credential_missing: 'Salve e habilite uma conexão de IA primeiro.'
+      invalid_response: 'O modelo devolveu uma resposta inválida.'
+      empty_response: 'O modelo devolveu uma resposta vazia.'
+      empty_history: 'Não há mensagens públicas para analisar.'
+      invalid_assistant: 'Escolha um agente e uma ação válidos.'
+      analysis_outdated: 'A conversa ou o agente mudou. Analise novamente antes de enviar.'
+      unsupported_media: 'Este modelo não suporta este anexo.'
+      provider: 'O provedor de IA retornou um erro (%{status}): %{detail}'
+      media_conversion: 'Não foi possível ler o áudio ou vídeo anexado.'
+      file_limit: 'Anexe até três arquivos, cada um com menos de 25 MB.'
+    media:
+      unavailable: 'Anexo (%{type}) não analisado. Não presuma seu conteúdo.'
+      external: 'Anexo externo (%{type}) indisponível para análise. Não presuma seu conteúdo.'
+      too_large: 'O anexo ultrapassa 25 MB e não foi analisado.'
+      unsupported: 'Este formato de arquivo não foi analisado. Peça esclarecimento ao cliente se necessário.'
+    error_note: '%{name} pausou por um erro de IA: %{error}. Um atendente pode continuar a conversa ou retomar o agente.'
+    handoff_note: '%{name} solicitou atendimento humano: %{reason}'
   whatsmeow:
     group_changes:
       join: '%{names} entrou no grupo.'

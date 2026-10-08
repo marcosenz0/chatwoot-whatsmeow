@@ -4,7 +4,7 @@ class MarcosxAi::Credential < ApplicationRecord
   PROVIDERS = {
     'openai' => {
       display_name: 'OpenAI',
-      default_model: 'gpt-4.1-mini',
+      default_model: 'gpt-6.1-sol',
       default_api_base: 'https://api.openai.com/v1'
     },
     'groq' => {
@@ -14,7 +14,7 @@ class MarcosxAi::Credential < ApplicationRecord
     },
     'gemini' => {
       display_name: 'Gemini',
-      default_model: 'gemini-1.5-flash',
+      default_model: 'gemini-2.5-flash',
       default_api_base: 'https://generativelanguage.googleapis.com/v1beta'
     }
   }.freeze

@@ -11,11 +11,11 @@ class Api::V1::Accounts::MarcosxAi::PreferencesController < Api::V1::Accounts::M
 
   DEFAULT_SETTINGS = {
     default_provider: 'openai',
-    default_model: 'gpt-4.1-mini',
+    default_model: 'gpt-6.1-sol',
     temperature: 0.7,
-    response_delay_seconds: 3,
-    history_limit: 20,
-    human_pause_minutes: 60
+    response_delay_seconds: 8,
+    history_limit: 80,
+    human_pause_minutes: 0
   }.with_indifferent_access.freeze
 
   def show
@@ -32,6 +32,8 @@ class Api::V1::Accounts::MarcosxAi::PreferencesController < Api::V1::Accounts::M
   def payload
     {
       providers: MarcosxAi::Credential::PROVIDERS,
+      agent_defaults: MarcosxAi::Assistant::DEFAULT_CONFIG,
+      default_prompt: I18n.t('marcosx_ai.default_prompt'),
       features: DEFAULT_FEATURES.deep_merge(account_preferences[:features] || {}),
       settings: DEFAULT_SETTINGS.deep_merge(account_preferences[:settings] || {}),
       credentials: Current.account.marcosx_ai_credentials.order(:provider).map(&:redacted),

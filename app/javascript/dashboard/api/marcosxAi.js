@@ -18,6 +18,19 @@ class MarcosxAiAPI extends ApiClient {
     return axios.get(`${this.url}/credentials`);
   }
 
+  getModels(provider, refresh = false) {
+    return axios.get(`${this.url}/credentials/models`, {
+      params: { provider, refresh },
+    });
+  }
+
+  getLogs(assistantId, options = {}) {
+    return axios.get(`${this.url}/logs`, {
+      ...options,
+      params: { assistant_id: assistantId },
+    });
+  }
+
   saveCredential(id, data) {
     if (id) {
       return axios.put(`${this.url}/credentials/${id}`, data);
@@ -36,6 +49,13 @@ class MarcosxAiAPI extends ApiClient {
 
   getAssistants() {
     return axios.get(`${this.url}/assistants`);
+  }
+
+  getAssistantCoverage(assistantId, page = 1, options = {}) {
+    return axios.get(`${this.url}/assistants/${assistantId}/coverage`, {
+      ...options,
+      params: { page },
+    });
   }
 
   createAssistant(data) {
@@ -75,7 +95,31 @@ class MarcosxAiAPI extends ApiClient {
   }
 
   updateConversationState(conversationId, data) {
-    return axios.put(`${this.url}/conversations/${conversationId}/state`, data);
+    return axios.put(`${this.url}/conversations/${conversationId}/state`, {
+      state: data,
+    });
+  }
+
+  getConversationAnalysis(conversationId, options = {}) {
+    return axios.get(
+      `${this.url}/conversations/${conversationId}/analysis`,
+      options
+    );
+  }
+
+  analyzeConversation(conversationId, assistantId) {
+    return axios.post(`${this.url}/conversations/${conversationId}/analysis`, {
+      analysis: { assistant_id: assistantId },
+    });
+  }
+
+  sendConversationAnalysis(conversationId, id, messages) {
+    return axios.post(
+      `${this.url}/conversations/${conversationId}/analysis/send_reply`,
+      {
+        analysis: { id, messages },
+      }
+    );
   }
 
   createGoogleAuthorization() {

@@ -29,6 +29,8 @@ class Instagram::Messenger::SendOnInstagramService < Instagram::BaseSendService
   end
 
   def merge_human_agent_tag(params)
+    return params if message.sender.is_a?(MarcosxAi::Assistant)
+
     global_config = GlobalConfig.get('ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT')
 
     return params unless global_config['ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT']

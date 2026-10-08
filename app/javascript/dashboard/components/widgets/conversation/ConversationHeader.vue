@@ -15,6 +15,7 @@ import { useUISettings } from 'dashboard/composables/useUISettings';
 import { whatsmeowGroupJid } from 'dashboard/helper/whatsmeowGroup';
 import WhatsmeowConversationCall from './WhatsmeowConversationCall.vue';
 import ConversationCallButton from './ConversationCallButton.vue';
+import ConversationAiButton from './ConversationAiButton.vue';
 import SLACardLabel from './components/SLACardLabel.vue';
 import MoreActions from './MoreActions.vue';
 import InboxName from '../InboxName.vue';
@@ -190,6 +191,7 @@ const copyConversationId = async () => {
         class="hidden md:flex"
       />
       <ConversationCallButton :inbox="inbox" :chat="currentChat" />
+      <ConversationAiButton :chat="currentChat" />
       <WhatsmeowConversationCall
         :inbox="inbox"
         :chat="currentChat"

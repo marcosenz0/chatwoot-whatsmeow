@@ -30,6 +30,35 @@
 # available at https://guides.rubyonrails.org/i18n.html.
 
 en:
+  marcosx_ai:
+    default_prompt: >-
+      You are the customer service assistant for this inbox. Be warm, attentive and clear.
+      Read the entire conversation before replying. Match the customer's language and tone without exaggerating intimacy.
+      Remember what they already told you; do not repeat greetings, answered questions or information.
+      Use short, natural messages. Ask one useful question at a time when something is actually missing.
+      Use only business information supplied in your instructions or in the conversation. Never invent prices, policies, availability or actions.
+      If you lack important information or the customer asks for a person, hand the conversation to a human.
+      Do not pressure someone who declines or asks to stop. Use emojis and reactions sparingly, when appropriate.
+      If asked, explain honestly that you are an AI assistant.
+    errors:
+      conversation_unavailable: 'This conversation cannot receive an AI reply right now. Check the channel reply window and agent settings.'
+      credential_missing: 'Save and enable a provider connection first.'
+      invalid_response: 'The model returned an invalid response.'
+      empty_response: 'The model returned an empty response.'
+      empty_history: 'There are no public messages to analyze.'
+      invalid_assistant: 'Choose a valid agent and action.'
+      analysis_outdated: 'The conversation or agent changed. Analyze again before sending.'
+      unsupported_media: 'This model does not support this attachment.'
+      provider: 'The AI provider returned an error (%{status}): %{detail}'
+      media_conversion: 'Could not read the audio or video attachment.'
+      file_limit: 'Attach up to three files, each smaller than 25 MB.'
+    media:
+      unavailable: 'Attachment (%{type}) not analyzed. Do not assume its contents.'
+      external: 'External attachment (%{type}) unavailable for analysis. Do not assume its contents.'
+      too_large: 'Attachment exceeds 25 MB and was not analyzed.'
+      unsupported: 'This file format was not analyzed. Ask the customer for clarification if needed.'
+    error_note: '%{name} paused because of an AI error: %{error}. A human can continue the conversation or resume the agent.'
+    handoff_note: '%{name} requested human assistance: %{reason}'
   whatsmeow:
     group_changes:
       join: '%{names} joined the group.'

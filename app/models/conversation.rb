@@ -121,6 +121,8 @@ class Conversation < ApplicationRecord
              optional: true
   belongs_to :contact
   belongs_to :contact_inbox
+  has_one :marcosx_ai_conversation_state, class_name: 'MarcosxAi::ConversationState', dependent: :destroy, inverse_of: :conversation
+  has_many :marcosx_ai_logs, class_name: 'MarcosxAi::Log', dependent: :delete_all, inverse_of: :conversation
   belongs_to :team, optional: true
   belongs_to :campaign, optional: true
   belongs_to :conversation_pipeline, optional: true
@@ -265,6 +267,18 @@ class Conversation < ApplicationRecord
 
   def dispatch_conversation_updated_event(previous_changes = nil)
     dispatcher_dispatch(CONVERSATION_UPDATED, previous_changes)
+  end
+
+  def marcosx_ai_state_data
+    state = marcosx_ai_conversation_state
+    state&.public_data
+  end
+
+  def marcosx_ai_assistant
+    state = marcosx_ai_conversation_state
+    return state.assistant if state&.metadata&.dig('conversation_override')
+
+    inbox.marcosx_ai_assistant
   end
 
   def pipeline_push_data

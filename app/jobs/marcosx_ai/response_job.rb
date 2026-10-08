@@ -1,27 +1,21 @@
 class MarcosxAi::ResponseJob < ApplicationJob
+  # Scheduled AI replies must survive process restarts, including installs using async for UI jobs.
+  self.queue_adapter = :sidekiq unless Rails.env.test?
   queue_as :default
+  discard_on ActiveRecord::RecordNotFound
 
-  def perform(conversation_id, assistant_id, trigger_message_id)
+  def perform(conversation_id, assistant_id, trigger_message_id, token = nil)
     conversation = Conversation.find(conversation_id)
     assistant = MarcosxAi::Assistant.find(assistant_id)
     trigger_message = conversation.messages.find_by(id: trigger_message_id)
 
-    return if trigger_message.blank? || !trigger_message.incoming?
-    return if human_replied_after?(conversation, trigger_message)
+    return if trigger_message.blank? || token.blank?
 
     MarcosxAi::ConversationResponderService.new(
       conversation: conversation,
       assistant: assistant,
-      trigger_message: trigger_message
+      trigger_message: trigger_message,
+      token: token
     ).perform
-  end
-
-  private
-
-  def human_replied_after?(conversation, trigger_message)
-    conversation.messages
-                .where('created_at > ?', trigger_message.created_at)
-                .where(message_type: :outgoing, private: false, sender_type: 'User')
-                .exists?
   end
 end

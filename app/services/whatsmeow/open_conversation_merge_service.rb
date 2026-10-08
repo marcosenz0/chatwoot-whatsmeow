@@ -36,6 +36,7 @@ class Whatsmeow::OpenConversationMergeService
     source.messages.update_all(conversation_id: target.id)
     # rubocop:enable Rails/SkipsModelValidations
     source.csat_survey_response&.update!(conversation: target)
+    MarcosxAi::ConversationMergeService.new(source: source, target: target).perform
     update_activity(target, source)
     source.destroy!
   end

@@ -188,7 +188,8 @@ class Inbox < ApplicationRecord
   end
 
   def marcosx_ai_active?
-    marcosx_ai_assistant&.auto_response_enabled? || false
+    assistant = marcosx_ai_assistant
+    assistant&.auto_response_enabled? && assistant.feature_enabled?(:auto_start) || false
   end
 
   def inbox_type

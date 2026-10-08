@@ -183,6 +183,13 @@ const isCaptainMessage = computed(() => {
   return senderType === SENDER_TYPES.CAPTAIN_ASSISTANT;
 });
 
+const isMarcoxMessage = computed(
+  () =>
+    (props.sender?.type ?? props.senderType) ===
+      SENDER_TYPES.MARCOX_ASSISTANT ||
+    props.additionalAttributes?.marcosxAi === true
+);
+
 /**
  * Computes the message variant based on props
  * @type {import('vue').ComputedRef<'user'|'agent'|'activity'|'private'|'bot'|'template'>}
@@ -247,9 +254,11 @@ const isBotOrAgentMessage = computed(() => {
   }
 
   if (
-    [SENDER_TYPES.AGENT_BOT, SENDER_TYPES.CAPTAIN_ASSISTANT].includes(
-      senderType
-    )
+    [
+      SENDER_TYPES.AGENT_BOT,
+      SENDER_TYPES.CAPTAIN_ASSISTANT,
+      SENDER_TYPES.MARCOX_ASSISTANT,
+    ].includes(senderType)
   ) {
     return true;
   }
@@ -916,6 +925,7 @@ provideMessageContext({
   variant,
   orientation,
   isBotOrAgentMessage,
+  isMarcoxMessage,
   shouldGroupWithNext,
 });
 </script>
