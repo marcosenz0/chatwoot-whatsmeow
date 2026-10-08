@@ -41,7 +41,8 @@ RSpec.describe 'WhatsApp connected profile API', type: :request do
     expect(response).to have_http_status(:ok)
     expect(client).not_to receive(:update_profile)
     patch endpoint, params: { name: 'Changed' }, headers: agent.create_new_auth_token, as: :json
-    expect(response).to have_http_status(:forbidden)
+    expect(response).to have_http_status(:unauthorized)
+    expect(response.parsed_body['error']).to eq('You are not authorized to do this action')
   end
 
   it 'uploads the cropped JPEG to the connected WhatsApp account' do

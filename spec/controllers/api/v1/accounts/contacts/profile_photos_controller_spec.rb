@@ -38,7 +38,8 @@ RSpec.describe 'Contact full profile photo API', type: :request do
   it 'denies an inbox the agent cannot access' do
     other = create(:channel_whatsmeow, account: account).inbox
     get endpoint, params: { inbox_id: other.id }, headers: agent.create_new_auth_token
-    expect(response).to have_http_status(:forbidden)
+    expect(response).to have_http_status(:unauthorized)
+    expect(response.parsed_body['error']).to eq('You are not authorized to do this action')
   end
 
   it 'does not use a contact identity belonging to another inbox' do
