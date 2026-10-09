@@ -55,7 +55,7 @@ export function useMarcosxAiDraft() {
 
   function sendFollowUp(instruction) {
     if (!instruction.trim()) return;
-    execute('refine', generatedContent.value, instruction);
+    return execute('refine', generatedContent.value, instruction);
   }
 
   return {

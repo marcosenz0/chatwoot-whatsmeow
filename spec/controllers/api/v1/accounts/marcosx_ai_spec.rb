@@ -291,7 +291,8 @@ RSpec.describe 'MarcoXIA API', type: :request do
   it 'generates a composer draft with the selected agent and leaves the conversation unchanged' do
     assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
     service = instance_double(MarcosxAi::ComposerDraftService, perform: { content: 'Review me' })
-    allow(MarcosxAi::ComposerDraftService).to receive(:new).with(conversation: conversation, action: 'reply_suggestion').and_return(service)
+    allow(MarcosxAi::ComposerDraftService).to receive(:new).with(conversation: conversation, action: 'reply_suggestion',
+                                                               content: nil, instruction: nil).and_return(service)
     post "#{endpoint}/conversations/#{conversation.display_id}/draft", params: { draft: { action: 'reply_suggestion' } }, headers: admin.create_new_auth_token
     expect(response).to have_http_status(:ok)
     expect(response.parsed_body['content']).to eq('Review me')
