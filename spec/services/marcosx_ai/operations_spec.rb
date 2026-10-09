@@ -71,9 +71,10 @@ RSpec.describe 'MarcoXIA memory and human assistance' do
     build_context.call.messages
     expect(state.reload.metadata['summary_messages_count']).to eq(3)
     rows.first.update!(content_attributes: { deleted: true })
+    expect(MarcosxAi::ConversationContext.public_history(conversation).count).to eq(4), rows.first.reload.content_attributes.to_json
     expect(MarcosxAi::ConversationContext.stale?(state)).to be(true)
-    build_context.call.messages
-    expect(state.reload.metadata['summary_messages_count']).to eq(2)
+    rebuilt = build_context.call.messages
+    expect(state.reload.metadata['summary_messages_count']).to eq(2), { metadata: state.metadata, messages: rebuilt }.to_json
     create(:message, account: account, inbox: inbox, conversation: conversation, content: 'Imported old decision',
                      created_at: 1.day.ago, content_attributes: { historical: true })
     messages = build_context.call.messages
@@ -159,6 +160,8 @@ RSpec.describe 'MarcoXIA memory and human assistance' do
   end
 
   it 'creates separate operational deliveries for multiple WhatsApp recipients without AI loops' do
+    allow(ENV).to receive(:fetch).and_call_original
+    allow(ENV).to receive(:fetch).with('FRONTEND_URL').and_return('https://chat.example.test')
     direct_inbox = create(:channel_whatsmeow, account: account).inbox
     target = create(:conversation, account: account, inbox: direct_inbox)
     assistant.update!(config: assistant.config.merge(notifications: {
@@ -170,7 +173,7 @@ RSpec.describe 'MarcoXIA memory and human assistance' do
     allow(Whatsmeow::DirectConversationBuilder).to receive(:new).and_return(instance_double(Whatsmeow::DirectConversationBuilder, perform: target))
     deliveries.each do |delivery|
       2.times { MarcosxAi::AlertDeliveryJob.perform_now(delivery.id) }
-      expect(delivery.reload.status).to eq('queued')
+      expect(delivery.reload.status).to eq('queued'), delivery.error
       expect(delivery.message.additional_attributes['marcosx_ai_operational']).to be(true)
     end
     expect(target.messages.count).to eq(2)
