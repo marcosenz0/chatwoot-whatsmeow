@@ -229,7 +229,7 @@
       "DRAFT": "Resposta para revisar",
       "PART": "Mensagem {number}",
       "SEND": "Enviar resposta",
-      "SENT": "Resposta encaminhada para envio. A IA continua ligada nesta conversa.",
+      "SENT": "Resposta encaminhada para envio.",
       "CLOSE": "Fechar",
       "CONTEXT_LABEL": "Mensagens no contexto",
       "CONTEXT_ALL": "Todas ({count})",

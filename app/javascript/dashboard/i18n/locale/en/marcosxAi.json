@@ -229,7 +229,7 @@
       "DRAFT": "Reply to review",
       "PART": "Message {number}",
       "SEND": "Send reply",
-      "SENT": "Reply queued for delivery. AI stays on in this conversation.",
+      "SENT": "Reply queued for delivery.",
       "CLOSE": "Close",
       "CONTEXT_LABEL": "Messages in context",
       "CONTEXT_ALL": "All ({count})",
