@@ -53,6 +53,7 @@ jobs:
           app/javascript/dashboard/components/widgets/conversation/MoreActions.vue
           app/javascript/dashboard/components-next/sidebar/Sidebar.vue
           app/javascript/dashboard/api/marcosxAi.js
+          app/javascript/dashboard/routes/dashboard/inbox/helpers/InboxViewHelpers.js
           app/javascript/dashboard/composables/useMarcosxAiDraft.js
           app/javascript/dashboard/components/widgets/WootWriter/Editor.vue
           app/javascript/dashboard/components/widgets/WootWriter/ReplyTopPanel.vue

@@ -28,6 +28,7 @@
       "SLA_MISSED_RESOLUTION": "A resolução da meta de SLA foi perdida na conversa"
     },
     "TYPES_NEXT": {
+      "MARCOSX_AI_ATTENTION": "MarcoXIA precisa de atenção",
       "CONVERSATION_MENTION": "Mencionado",
       "CONVERSATION_ASSIGNMENT": "Atribuídas a você",
       "CONVERSATION_CREATION": "Nova conversa",
