@@ -34,6 +34,18 @@ const emit = defineEmits([
 ]);
 const { t } = useI18n();
 const form = ref({});
+const timezoneOptions = computed(() => [
+  { value: '', label: t('MARCOX_AI.EDITOR.TIMEZONE_INBOX') },
+  ...[
+    ...new Set([
+      form.value.config.timezone,
+      'UTC',
+      ...Intl.supportedValuesOf('timeZone'),
+    ]),
+  ]
+    .filter(Boolean)
+    .map(value => ({ value, label: value })),
+]);
 const hasUnsavedChanges = computed(
   () => JSON.stringify(form.value) !== JSON.stringify(props.agent)
 );
@@ -529,6 +541,21 @@ const channelLabel = inbox =>
                 >
               </label>
             </div>
+            <label class="block text-sm font-medium text-n-slate-12">
+              {{ t('MARCOX_AI.EDITOR.TIMEZONE') }}
+              <AiSelect
+                :model-value="form.config.timezone || ''"
+                :options="timezoneOptions"
+                :label="t('MARCOX_AI.EDITOR.TIMEZONE')"
+                :disabled="!canEdit"
+                class="mt-2"
+                @update:model-value="form.config.timezone = $event"
+              />
+              <span
+                class="mt-1 block text-xs font-normal leading-5 text-n-slate-11"
+                >{{ t('MARCOX_AI.EDITOR.TIMEZONE_HINT') }}</span
+              >
+            </label>
             <label class="block text-sm font-medium text-n-slate-12">
               {{ t('MARCOX_AI.EDITOR.HUMAN_PAUSE') }}
               <AiSelect

@@ -116,7 +116,10 @@ const newAgent = () =>
       description: '',
       instructions: preferences.value.default_prompt || '',
       inbox_ids: [],
-      config: { ...preferences.value.agent_defaults },
+      config: {
+        ...preferences.value.agent_defaults,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
       response_guidelines: [],
       guardrails: [],
     };

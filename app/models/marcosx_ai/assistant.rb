@@ -8,6 +8,7 @@ class MarcosxAi::Assistant < ApplicationRecord
     reasoning_effort: 'medium',
     response_delay_seconds: 8,
     history_limit: 80,
+    timezone: nil,
     human_pause_minutes: 0,
     auto_response_enabled: false,
     auto_start: true,
@@ -158,6 +159,8 @@ class MarcosxAi::Assistant < ApplicationRecord
     errors.add(:config, 'has an invalid provider') unless MarcosxAi::Credential::PROVIDERS.key?(provider)
     errors.add(:config, 'requires a model') if model.blank?
     errors.add(:config, 'has an invalid reasoning effort') unless %w[low medium high].include?(reasoning_effort)
+    timezone = resolved_config[:timezone]
+    errors.add(:config, 'has an invalid timezone') if timezone.present? && ActiveSupport::TimeZone[timezone].nil?
     return unless auto_response_enabled?
 
     errors.add(:config, I18n.t('marcosx_ai.errors.credential_missing')) unless available?

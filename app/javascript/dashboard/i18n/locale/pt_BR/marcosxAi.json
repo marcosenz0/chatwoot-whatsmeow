@@ -63,6 +63,9 @@
       "SECONDS": "segundos",
       "HISTORY": "Mensagens recentes no contexto",
       "HISTORY_HINT": "As mensagens anteriores viram uma memória resumida da conversa.",
+      "TIMEZONE": "Fuso horário do atendimento",
+      "TIMEZONE_INBOX": "Usar o fuso da caixa de entrada",
+      "TIMEZONE_HINT": "Ajuda o agente a entender o dia e a hora das mensagens em todas as caixas que atende.",
       "HUMAN_PAUSE": "Depois de uma resposta humana",
       "PAUSE_FOREVER": "Manter desligado até eu ativar",
       "PAUSE_15": "Retomar depois de 15 minutos",
@@ -204,11 +207,13 @@
       "PANEL_TITLE": "IA nesta conversa",
       "PANEL_HINT": "Escolha quem atende este contato e controle o atendimento desta conversa.",
       "SELECT_AGENT": "Agente desta conversa",
-      "FUTURE_ONLY": "Ligar a IA responde às próximas mensagens somente nesta conversa, mesmo com o atendimento geral desligado. Para continuar uma conversa existente, analise o histórico e revise a resposta abaixo."
+      "FUTURE_ONLY": "Ligar a IA responde às próximas mensagens somente nesta conversa, mesmo com o atendimento geral desligado. Para continuar uma conversa existente, analise o histórico e revise a resposta abaixo.",
+      "GENERATE_REPLY": "Gerar resposta com IA",
+      "PANEL_CONTACT": "Atendimento de {name}. Revise a resposta antes de enviar."
     },
     "ANALYSIS": {
       "TITLE": "Analisar o histórico e preparar uma resposta",
-      "HINT": "Usa o histórico público completo, com memória resumida para conversas longas. A IA fica desligada durante a revisão.",
+      "HINT": "Analisa as mensagens escolhidas, com datas e horários. A resposta só é enviada após sua revisão.",
       "ANALYZE": "Analisar conversa",
       "PROCESSING": "Lendo o histórico e preparando uma resposta…",
       "OUTDATED": "A conversa ou o agente mudou. Analise novamente antes de enviar.",
@@ -219,8 +224,13 @@
       "DRAFT": "Resposta para revisar",
       "PART": "Mensagem {number}",
       "SEND": "Enviar resposta",
-      "SENT": "Resposta encaminhada para envio. A IA continua desligada nesta conversa.",
-      "CLOSE": "Fechar"
+      "SENT": "Resposta encaminhada para envio. A IA continua ligada nesta conversa.",
+      "CLOSE": "Fechar",
+      "CONTEXT_LABEL": "Mensagens no contexto",
+      "CONTEXT_ALL": "Todas ({count})",
+      "CONTEXT_RECENT": "Últimas {count}",
+      "CONTEXT_HINT": "Arraste para escolher o histórico. Essa seleção também será usada nas próximas respostas desta conversa.",
+      "CONTEXT_CHANGED": "O contexto mudou. Analise novamente antes de enviar."
     }
   }
 }

@@ -228,6 +228,49 @@ RSpec.describe 'MarcoXIA API', type: :request do
     expect(MarcosxAi::ConversationState.find_by(conversation: conversation)).to be_nil
   end
 
+  it 'saves a timezone for the agent without changing its other settings' do
+    put "#{endpoint}/assistants/#{assistant.id}",
+        params: { assistant: { config: { timezone: 'America/Araguaina' } } }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok)
+    expect(assistant.reload.resolved_config).to include('timezone' => 'America/Araguaina', 'auto_response_enabled' => false)
+  end
+
+  it 'rejects an unknown timezone without changing the saved agent' do
+    put "#{endpoint}/assistants/#{assistant.id}",
+        params: { assistant: { config: { timezone: 'Unknown/Place' } } }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(assistant.reload.resolved_config[:timezone]).to be_nil
+  end
+
+  it 'keeps the same manually enabled agent active while starting a limited analysis' do
+    create(:message, account: account, inbox: inbox, conversation: conversation)
+    state = MarcosxAi::ConversationState.choose_for_conversation!(conversation, assistant: assistant)
+    state.resume!(manual: true)
+    post "#{endpoint}/conversations/#{conversation.display_id}/analysis",
+         params: { analysis: { assistant_id: assistant.id, messages_limit: 1 } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:accepted)
+    expect(state.reload.public_data).to include(status: 'active', manual_activation: true, enabled: true)
+    expect(response.parsed_body['analysis']).to include('messages_count' => 1, 'messages_limit' => 1)
+    get "#{endpoint}/conversations/#{conversation.display_id}/analysis", headers: admin.create_new_auth_token
+    expect(response.parsed_body['context']).to include('total_messages_count' => 1, 'messages_limit' => 1)
+  end
+
+  it 'rejects an invalid context limit before assigning an agent' do
+    post "#{endpoint}/conversations/#{conversation.display_id}/analysis",
+         params: { analysis: { assistant_id: assistant.id, messages_limit: -1 } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(MarcosxAi::ConversationState.find_by(conversation: conversation)).to be_nil
+  end
+
+  it 'shows the available public message count before selecting an agent' do
+    create(:message, account: account, inbox: inbox, conversation: conversation)
+    create(:message, account: account, inbox: inbox, conversation: conversation, private: true)
+    get "#{endpoint}/conversations/#{conversation.display_id}/analysis", headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body).to include('analysis' => { 'status' => 'idle' },
+                                          'context' => { 'total_messages_count' => 1, 'messages_limit' => nil })
+  end
+
   it 'tests attachments without creating messages or keeping temporary files' do
     client = instance_double(MarcosxAi::ProviderClient, usage: {})
     plan = { messages: ['That is an image'], reaction: nil, reaction_message_id: nil, handoff: false, handoff_reason: nil }

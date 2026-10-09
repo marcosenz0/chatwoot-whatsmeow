@@ -190,6 +190,22 @@ describe('MarcoXIA agent configuration', () => {
     });
     wrapper.unmount();
   });
+  it('saves a timezone without altering the general switch or supplied profile', async () => {
+    const wrapper = shallowMount(AgentEditor, { props });
+    wrapper
+      .findAllComponents(AiSelect)
+      .find(item => item.props('label') === 'MARCOX_AI.EDITOR.TIMEZONE')
+      .vm.$emit('update:modelValue', 'America/Araguaina');
+    await flushPromises();
+    await wrapper.get('form').trigger('submit');
+    expect(wrapper.emitted('save')[0][0].config).toMatchObject({
+      timezone: 'America/Araguaina',
+      auto_response_enabled: false,
+      model: 'gpt-6.1-sol',
+    });
+    expect(agent.config.timezone).toBeUndefined();
+    wrapper.unmount();
+  });
 });
 
 describe('MarcoXIA private test conversation', () => {

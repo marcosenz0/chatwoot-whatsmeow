@@ -1,4 +1,5 @@
 import { describe } from 'vitest';
+import { emitter } from 'shared/helpers/mitt';
 import types from '../../../mutation-types';
 import { mutations } from '../../conversations';
 
@@ -9,8 +10,6 @@ vi.mock('shared/helpers/mitt', () => ({
     off: vi.fn(),
   },
 }));
-
-import { emitter } from 'shared/helpers/mitt';
 
 describe('#mutations', () => {
   describe('#EMPTY_ALL_CONVERSATION', () => {
@@ -588,7 +587,7 @@ describe('#mutations', () => {
         teamId: 1,
         conversationType: 'mention',
       };
-      const state = { conversationFilters: conversationFilters };
+      const state = { conversationFilters };
       mutations[types.SET_CHAT_LIST_FILTERS](state, conversationFilters);
       expect(state.conversationFilters).toEqual(conversationFilters);
     });
@@ -606,7 +605,7 @@ describe('#mutations', () => {
         teamId: 1,
         conversationType: 'mention',
       };
-      const state = { conversationFilters: conversationFilters };
+      const state = { conversationFilters };
       mutations[types.UPDATE_CHAT_LIST_FILTERS](state, {
         inboxId: 2,
         updatedWithin: 20,
@@ -901,6 +900,51 @@ describe('#mutations', () => {
   });
 
   describe('#UPDATE_CONVERSATION', () => {
+    it('keeps newer AI activation while applying a newer conversation event', () => {
+      const ai = { status: 'active', updated_at: '2026-10-08T23:25:56.908Z' };
+      const state = {
+        allConversations: [
+          { id: 1, status: 'open', updated_at: 100, marcosx_ai: ai },
+        ],
+      };
+      mutations[types.UPDATE_CONVERSATION](state, {
+        id: 1,
+        status: 'pending',
+        updated_at: 200,
+        marcosx_ai: {
+          status: 'paused_by_agent',
+          updated_at: '2026-10-08T23:24:00.000Z',
+        },
+      });
+      expect(state.allConversations[0].status).toBe('pending');
+      expect(state.allConversations[0].marcosx_ai).toEqual(ai);
+    });
+
+    it('applies newer AI activation even when the conversation event is older', () => {
+      const ai = { status: 'active', updated_at: '2026-10-08T23:25:56.908Z' };
+      const state = {
+        allConversations: [
+          {
+            id: 1,
+            status: 'open',
+            updated_at: 200,
+            marcosx_ai: {
+              status: 'paused_by_agent',
+              updated_at: '2026-10-08T23:24:00.000Z',
+            },
+          },
+        ],
+      };
+      mutations[types.UPDATE_CONVERSATION](state, {
+        id: 1,
+        status: 'pending',
+        updated_at: 100,
+        marcosx_ai: ai,
+      });
+      expect(state.allConversations[0].status).toBe('open');
+      expect(state.allConversations[0].marcosx_ai).toEqual(ai);
+    });
+
     it('should update existing conversation', () => {
       const state = {
         allConversations: [

@@ -2,18 +2,19 @@
 import { computed, useTemplateRef } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { getLastMessage } from 'dashboard/helper/conversationHelper';
-import CardAvatar from './CardAvatar.vue';
-import CardContent from './CardContent.vue';
-import CardLabels from './CardLabelsV5.vue';
-import CardPriorityIcon from './CardPriorityIcon.vue';
 import InboxName from 'dashboard/components-next/Conversation/InboxName.vue';
 import Avatar from 'next/avatar/Avatar.vue';
 import TimeAgo from 'dashboard/components/ui/TimeAgo.vue';
 import SLACardLabel from 'dashboard/components-next/Conversation/Sla/SLACardLabel.vue';
-import CardStatusIcon from './CardStatusIcon.vue';
 import Checkbox from 'dashboard/components-next/checkbox/Checkbox.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import ConversationAiStatus from 'dashboard/components/widgets/conversation/ConversationAiStatus.vue';
 import { getTypingUsersText } from 'dashboard/helper/commons';
+import CardStatusIcon from './CardStatusIcon.vue';
+import CardPriorityIcon from './CardPriorityIcon.vue';
+import CardLabels from './CardLabelsV5.vue';
+import CardContent from './CardContent.vue';
+import CardAvatar from './CardAvatar.vue';
 
 const props = defineProps({
   chat: { type: Object, required: true },
@@ -165,9 +166,10 @@ const selectedModel = computed({
       />
 
       <h4
-        class="text-heading-3 my-0 capitalize truncate text-n-slate-12 font-medium w-32 flex-shrink-0"
+        class="text-heading-3 my-0 capitalize flex items-center gap-1.5 text-n-slate-12 font-medium w-48 flex-shrink-0"
       >
-        {{ currentContact.name }}
+        <span class="truncate">{{ currentContact.name }}</span>
+        <ConversationAiStatus :chat="chat" />
         <span
           v-if="isPinned"
           v-tooltip.top="$t('CONVERSATION.CARD_CONTEXT_MENU.PINNED')"

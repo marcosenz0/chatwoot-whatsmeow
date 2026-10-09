@@ -45,7 +45,7 @@ RSpec.describe MarcosxAi::ConversationAnalysisService do
     expect(conversation.messages.outgoing).to be_empty
   end
 
-  it 'sends the reviewed reply once while keeping automatic responses paused' do
+  it 'sends the reviewed reply once and keeps individual support active' do
     service.start!
     token = service.report['id']
     service.perform(token)
@@ -53,7 +53,8 @@ RSpec.describe MarcosxAi::ConversationAnalysisService do
     run = state.reload.metadata['run_token']
     MarcosxAi::DeliveryJob.perform_now(conversation.id, run, 0)
     expect(conversation.messages.outgoing.where(private: false).pluck(:content)).to eq(['Edited reply'])
-    expect(state.reload.status).to eq('paused_by_agent')
+    expect(state.reload.status).to eq('active')
+    expect(state.metadata['manual_activation']).to be(true)
     expect(state.metadata['approved_draft']).to be_nil
     expect { service.send!(token: token, messages: ['Duplicate']) }.to raise_error(CustomExceptions::MarcosxAi)
   end
@@ -66,9 +67,9 @@ RSpec.describe MarcosxAi::ConversationAnalysisService do
     service.send!(token: token, messages: ['Reviewed individual reply'])
     MarcosxAi::DeliveryJob.perform_now(conversation.id, state.reload.metadata['run_token'], 0)
     expect(conversation.messages.outgoing.where(private: false).pluck(:content)).to eq(['Reviewed individual reply'])
-    expect(state.reload.status).to eq('paused_by_agent')
+    expect(state.reload.status).to eq('active')
     expect(assistant.reload.auto_response_enabled?).to be(false)
-    expect(state.metadata['manual_activation']).not_to be(true)
+    expect(state.metadata['manual_activation']).to be(true)
   end
 
   it 'invalidates a ready reply when another message arrives' do
@@ -90,7 +91,7 @@ RSpec.describe MarcosxAi::ConversationAnalysisService do
     create(:message, account: account, inbox: inbox, conversation: conversation, content: 'Wait')
     MarcosxAi::DeliveryJob.perform_now(conversation.id, run, 0)
     expect(conversation.messages.outgoing).to be_empty
-    expect(state.reload.status).to eq('paused_by_agent')
+    expect(state.reload.status).to eq('active')
   end
 
   it 'does not accept a reply prepared with an older agent configuration' do
@@ -100,6 +101,44 @@ RSpec.describe MarcosxAi::ConversationAnalysisService do
     assistant.update!(instructions: 'Changed instructions')
     expect(service.report['status']).to eq('outdated')
     expect { service.send!(token: token, messages: ['Old reply']) }.to raise_error(CustomExceptions::MarcosxAi)
+  end
+
+  it 'preserves manual activation during review and cancels an older delivery' do
+    state.resume!(manual: true)
+    state.update!(metadata: state.metadata.merge('run_token' => 'old', 'pending_response' => { 'messages' => ['Old reply'] }))
+    service.start!
+    expect(state.reload.status).to eq('active')
+    expect(state.metadata['manual_activation']).to be(true)
+    expect(state.current_run?('old')).to be(false)
+    expect(state.metadata['pending_response']).to be_nil
+    expect(conversation.messages.outgoing).to be_empty
+  end
+
+  it 'analyzes only the chosen recent messages and saves that context for continuation' do
+    create(:message, account: account, inbox: inbox, conversation: conversation, content: 'New question')
+    service.start!(messages_limit: 1)
+    service.perform(service.report['id'])
+    expect(service.report).to include('status' => 'ready', 'messages_count' => 1, 'messages_limit' => 1)
+    expect(state.reload.metadata['context_messages_limit']).to eq(1)
+    expect(client).to have_received(:chat) do |messages:, schema:|
+      expect(messages.last[:content]).to include('New question')
+      expect(messages.to_json).not_to include('Keep it short')
+      expect(schema).to be_present
+    end
+  end
+
+  it 'continues the next incoming message after sending a review while general support is off' do
+    assistant.update!(config: assistant.resolved_config.merge(auto_response_enabled: false))
+    service.start!
+    token = service.report['id']
+    service.perform(token)
+    service.send!(token: token, messages: ['Reviewed reply'])
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, state.reload.metadata['run_token'], 0)
+    next_message = create(:message, account: account, inbox: inbox, conversation: conversation, content: 'Another question')
+    expect { MarcosxAi::ResponseScheduler.perform(message: next_message) }.to have_enqueued_job(MarcosxAi::ResponseJob)
+    expect(state.reload.status).to eq('active')
+    expect(state.metadata['approved_draft']).to be_nil
+    expect(assistant.reload.auto_response_enabled?).to be(false)
   end
 
   it 'discards a provider response when the conversation changes during analysis' do

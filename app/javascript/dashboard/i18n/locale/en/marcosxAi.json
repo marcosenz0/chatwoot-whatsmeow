@@ -63,6 +63,9 @@
       "SECONDS": "seconds",
       "HISTORY": "Recent messages in context",
       "HISTORY_HINT": "Older messages are summarized into conversation memory.",
+      "TIMEZONE": "Conversation timezone",
+      "TIMEZONE_INBOX": "Use the inbox timezone",
+      "TIMEZONE_HINT": "Helps the agent understand message dates and times across the inboxes it handles.",
       "HUMAN_PAUSE": "After a human replies",
       "PAUSE_FOREVER": "Stay paused until I enable it",
       "PAUSE_15": "Resume after 15 minutes",
@@ -204,11 +207,13 @@
       "PANEL_TITLE": "AI in this conversation",
       "PANEL_HINT": "Choose who assists this contact and control AI for this conversation.",
       "SELECT_AGENT": "Conversation agent",
-      "FUTURE_ONLY": "Enabling AI responds to new messages only in this conversation, even when general support is off. To continue an existing conversation, analyze its history and review the reply below."
+      "FUTURE_ONLY": "Enabling AI responds to new messages only in this conversation, even when general support is off. To continue an existing conversation, analyze its history and review the reply below.",
+      "GENERATE_REPLY": "Generate AI reply",
+      "PANEL_CONTACT": "Support for {name}. Review the reply before sending."
     },
     "ANALYSIS": {
       "TITLE": "Analyze history and prepare a reply",
-      "HINT": "Uses the complete public history, with summarized memory for long conversations. AI is paused during review.",
+      "HINT": "Analyzes the selected messages, including dates and times. Replies are only sent after your review.",
       "ANALYZE": "Analyze conversation",
       "PROCESSING": "Reading history and preparing a reply…",
       "OUTDATED": "The conversation or agent changed. Analyze again before sending.",
@@ -219,8 +224,13 @@
       "DRAFT": "Reply to review",
       "PART": "Message {number}",
       "SEND": "Send reply",
-      "SENT": "Reply queued for delivery. AI remains paused in this conversation.",
-      "CLOSE": "Close"
+      "SENT": "Reply queued for delivery. AI stays on in this conversation.",
+      "CLOSE": "Close",
+      "CONTEXT_LABEL": "Messages in context",
+      "CONTEXT_ALL": "All ({count})",
+      "CONTEXT_RECENT": "Latest {count}",
+      "CONTEXT_HINT": "Drag to choose the history. This selection also applies to future replies in this conversation.",
+      "CONTEXT_CHANGED": "The context changed. Analyze again before sending."
     }
   }
 }

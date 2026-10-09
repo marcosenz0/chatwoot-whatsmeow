@@ -21,6 +21,34 @@ RSpec.describe MarcosxAi::ReplyPlan do
     expect(described_class.parse(plan.to_json, assistant: assistant)['messages']).to eq(['Hello'])
   end
 
+  it 'splits a long paragraph into separate messages at complete sentence boundaries' do
+    sentences = [
+      'Entendi seu pedido e posso ajudar a conferir as informações que você já enviou.',
+      'Vou considerar os detalhes dessa conversa para te orientar com mais clareza e sem repetir perguntas.',
+      'Você prefere começar pelo orçamento ou pelos próximos passos?'
+    ]
+    plan[:messages] = [sentences.join(' ')]
+    expect(described_class.parse(plan.to_json, assistant: assistant)['messages']).to eq(sentences)
+  end
+
+  it 'preserves links, numbers, abbreviations and complete lists when splitting' do
+    parts = [
+      'Fale com o Dr. Ricardo para confirmar os detalhes desse atendimento e o prazo que você precisa combinar com a equipe.',
+      'O valor informado é R$ 150,00 e o telefone é +55 63 9264-5568.',
+      "1. Abra https://example.com/a?price=1.50\n2. Confira o valor de 150.00\n3. Confirme os dados"
+    ]
+    plan[:messages] = [parts.first(2).join(' '), parts.last]
+    expect(described_class.parse(plan.to_json, assistant: assistant)['messages']).to eq(parts)
+  end
+
+  it 'keeps paragraphs separate up to the configured maximum without dropping text' do
+    assistant.config = { max_message_parts: 2 }
+    plan[:messages] = ["Primeira ideia\n\nSegunda ideia\n\nTerceira ideia"]
+    expect(described_class.parse(plan.to_json, assistant: assistant)['messages']).to eq(
+      ['Primeira ideia', "Segunda ideia\n\nTerceira ideia"]
+    )
+  end
+
   it 'accepts a contextual reaction without a text message' do
     plan.merge!(messages: [], reaction: '👍', reaction_message_id: 12)
     expect(described_class.parse(plan.to_json, assistant: assistant)['reaction_message_id']).to eq(12)

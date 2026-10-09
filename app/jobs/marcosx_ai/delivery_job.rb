@@ -60,7 +60,7 @@ class MarcosxAi::DeliveryJob < ApplicationJob
       'processing' => false, 'last_processed_trigger_id' => @state.metadata['trigger_message_id']
     ))
     if plan['handoff']
-      @state.handoff!(reason: plan['handoff_reason'])
+      @state.handoff!(reason: plan['handoff_reason']) unless @state.metadata['manual_activation'] == true
       @state.conversation.bot_handoff! if @state.conversation.pending?
       @state.conversation.messages.create!(
         account: @state.account, inbox: @state.inbox, sender: @state.assistant, message_type: :outgoing, private: true,

@@ -8,12 +8,12 @@ import {
   getAgentsByUpdatedPresence,
 } from 'dashboard/helper/agentHelper.js';
 import { picoSearch } from '@chatwoot/pico-search';
-import MenuItem from './menuItem.vue';
-import MenuItemWithSubmenu from './menuItemWithSubmenu.vue';
 import wootConstants from 'dashboard/constants/globals';
-import AgentLoadingPlaceholder from './agentLoadingPlaceholder.vue';
 import NextInput from 'dashboard/components-next/input/Input.vue';
 import Icon from 'dashboard/components-next/icon/Icon.vue';
+import MenuItem from './menuItem.vue';
+import MenuItemWithSubmenu from './menuItemWithSubmenu.vue';
+import AgentLoadingPlaceholder from './agentLoadingPlaceholder.vue';
 
 const MENU = {
   MARK_AS_READ: 'mark-as-read',
@@ -28,6 +28,7 @@ const MENU = {
   OPEN_NEW_TAB: 'open-new-tab',
   COPY_LINK: 'copy-link',
   PIN: 'pin',
+  AI_REPLY: 'ai-reply',
 };
 
 export default {
@@ -39,6 +40,7 @@ export default {
     Icon,
   },
   props: {
+    enableAiReply: { type: Boolean, default: false },
     chatId: {
       type: Number,
       default: null,
@@ -88,6 +90,7 @@ export default {
     'deleteConversation',
     'close',
     'togglePin',
+    'generateAiReply',
   ],
   setup() {
     const { isAdmin } = useAdmin();
@@ -98,6 +101,10 @@ export default {
   data() {
     return {
       MENU,
+      aiReplyOption: {
+        label: this.$t('MARCOX_AI.CONVERSATION.GENERATE_REPLY'),
+        icon: 'i-lucide-bot',
+      },
       labelSearchQuery: '',
       STATUS_TYPE: wootConstants.STATUS_TYPE,
       readOption: {
@@ -335,6 +342,12 @@ export default {
       />
       <hr class="m-1 rounded border-b border-n-weak dark:border-n-weak" />
     </template>
+    <MenuItem
+      v-if="enableAiReply && isAllowed([MENU.AI_REPLY])"
+      :option="aiReplyOption"
+      variant="icon"
+      @click.stop="$emit('generateAiReply')"
+    />
     <template v-if="isAllowed([MENU.STATUS, MENU.SNOOZE])">
       <template v-for="option in statusMenuConfig">
         <MenuItem

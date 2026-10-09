@@ -107,9 +107,9 @@ class MarcosxAiAPI extends ApiClient {
     );
   }
 
-  analyzeConversation(conversationId, assistantId) {
+  analyzeConversation(conversationId, assistantId, messagesLimit = null) {
     return axios.post(`${this.url}/conversations/${conversationId}/analysis`, {
-      analysis: { assistant_id: assistantId },
+      analysis: { assistant_id: assistantId, messages_limit: messagesLimit },
     });
   }
 
