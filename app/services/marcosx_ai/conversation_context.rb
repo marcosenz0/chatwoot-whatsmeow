@@ -65,7 +65,7 @@ class MarcosxAi::ConversationContext
   private
 
   def history
-    scope = self.class.public_history(@conversation).where('id <= ?', @trigger_message.id)
+    scope = self.class.public_history(@conversation).where('id <= ? OR created_at < ?', @trigger_message.id, @trigger_message.created_at)
     scope.includes(attachments: { file_attachment: :blob }).order(:created_at, :id)
   end
 
