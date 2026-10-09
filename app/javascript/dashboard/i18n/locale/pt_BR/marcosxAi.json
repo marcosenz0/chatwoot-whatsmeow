@@ -99,7 +99,8 @@
         "IDENTITY": "Escolha o nome, o modelo e a conexão que este agente vai usar.",
         "PROMPT": "Defina como este agente atende, o que sabe e quando deve passar para alguém.",
         "INBOXES": "Escolha onde este agente inicia o atendimento. Você também pode escolhê-lo em uma conversa específica.",
-        "BEHAVIOR": "Ajuste o contexto, o ritmo das mensagens e os tipos de mídia que o agente entende."
+        "BEHAVIOR": "Ajuste o contexto, o ritmo das mensagens e os tipos de mídia que o agente entende.",
+        "NOTIFICATIONS": "Escolha quem recebe os avisos, quando pausar o atendimento e como retomar a conversa."
       },
       "SHOW_TYPING": "Mostrar digitando no WhatsApp",
       "SHOW_TYPING_HINT": "Mostra digitando enquanto o agente prepara a resposta. Ative também o indicador de digitação da caixa de entrada.",

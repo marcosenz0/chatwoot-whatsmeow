@@ -99,7 +99,8 @@
         "IDENTITY": "Choose the name, model and connection this agent will use.",
         "PROMPT": "Define how this agent responds, what it knows and when it should hand over.",
         "INBOXES": "Choose where this agent starts responding. You can also select it for an individual conversation.",
-        "BEHAVIOR": "Adjust context, message pacing and the media the agent can understand."
+        "BEHAVIOR": "Adjust context, message pacing and the media the agent can understand.",
+        "NOTIFICATIONS": "Choose who receives alerts, when to pause support and how to resume the conversation."
       },
       "SHOW_TYPING": "Show typing on WhatsApp",
       "SHOW_TYPING_HINT": "Shows typing while the agent prepares a reply. The inbox typing setting must also be enabled.",
