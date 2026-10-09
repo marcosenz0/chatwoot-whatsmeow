@@ -1,7 +1,7 @@
 <script setup>
 import { ref, inject } from 'vue';
 import CopilotEditor from 'dashboard/components/widgets/WootWriter/CopilotEditor.vue';
-import CaptainLoader from 'dashboard/components/widgets/conversation/copilot/CaptainLoader.vue';
+import Spinner from 'next/spinner/Spinner.vue';
 
 const props = defineProps({
   showCopilotEditor: {
@@ -75,7 +75,7 @@ const onSend = () => {
         v-model="copilotEditorContent"
         class="copilot-editor"
         :generated-content="generatedContent"
-        :placeholder="placeholder"
+        :placeholder="placeholder || $t('MARCOX_AI.COMPOSER.REFINE')"
         :min-height="4"
         :enabled-menu-options="[]"
         @focus="onFocus"
@@ -89,12 +89,12 @@ const onSend = () => {
         class="resizable-editor-body flex flex-col justify-end mb-3"
       >
         <div
-          class="bg-n-iris-5 rounded min-h-[4.75rem] w-full p-4 flex items-start"
+          class="bg-n-blue-3 rounded min-h-[4.75rem] w-full p-4 flex items-start"
         >
           <div class="flex items-center gap-2">
-            <CaptainLoader class="text-n-iris-10 size-4" />
-            <span class="text-sm text-n-iris-10">
-              {{ $t('CONVERSATION.REPLYBOX.COPILOT_THINKING') }}
+            <Spinner class="text-n-blue-11 size-4" />
+            <span class="text-sm text-n-blue-11">
+              {{ $t('MARCOX_AI.COMPOSER.THINKING') }}
             </span>
           </div>
         </div>

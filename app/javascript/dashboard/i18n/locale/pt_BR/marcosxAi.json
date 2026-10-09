@@ -100,7 +100,11 @@
         "PROMPT": "Defina como este agente atende, o que sabe e quando deve passar para alguém.",
         "INBOXES": "Escolha onde este agente inicia o atendimento. Você também pode escolhê-lo em uma conversa específica.",
         "BEHAVIOR": "Ajuste o contexto, o ritmo das mensagens e os tipos de mídia que o agente entende."
-      }
+      },
+      "SHOW_TYPING": "Mostrar digitando no WhatsApp",
+      "SHOW_TYPING_HINT": "Mostra digitando enquanto o agente prepara a resposta. Ative também o indicador de digitação da caixa de entrada.",
+      "SHOW_RECORDING": "Mostrar gravando áudio no WhatsApp",
+      "SHOW_RECORDING_HINT": "Mostra gravando áudio enquanto um atendente usa o microfone. O agente atualmente responde em texto."
     },
     "PROVIDERS": {
       "TITLE": "Conecte a inteligência dos seus agentes",
@@ -231,6 +235,10 @@
       "CONTEXT_RECENT": "Últimas {count}",
       "CONTEXT_HINT": "Arraste para escolher o histórico. Essa seleção também será usada nas próximas respostas desta conversa.",
       "CONTEXT_CHANGED": "O contexto mudou. Analise novamente antes de enviar."
+    },
+    "COMPOSER": {
+      "THINKING": "A MarcoXIA está preparando seu rascunho…",
+      "REFINE": "Peça à MarcoXIA para ajustar este rascunho…"
     }
   }
 }

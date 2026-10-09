@@ -275,8 +275,8 @@ const selectContext = event => {
           type="button"
           icon="i-lucide-scan-text"
           class="shrink-0"
-          variant="outline"
-          color="slate"
+          variant="solid"
+          color="blue"
           :label="t('MARCOX_AI.ANALYSIS.ANALYZE')"
           :is-loading="working || processing"
           :disabled="working || processing || !available"
@@ -286,7 +286,7 @@ const selectContext = event => {
       <div v-if="totalMessages" class="space-y-2">
         <label
           :for="`ai-context-${chat.id}`"
-          class="flex items-center justify-between gap-3 text-xs font-medium text-n-slate-12"
+          class="flex max-w-sm items-center justify-between gap-3 text-xs font-medium text-n-slate-12"
         >
           <span>{{ t('MARCOX_AI.ANALYSIS.CONTEXT_LABEL') }}</span>
           <span class="text-n-slate-11">
@@ -308,7 +308,7 @@ const selectContext = event => {
           :max="totalMessages"
           :value="selectedMessages"
           :disabled="working || processing"
-          class="reset-base !mb-0 w-full cursor-pointer accent-n-teal-9"
+          class="reset-base !mb-0 !h-4 w-full max-w-sm cursor-pointer accent-n-blue-9"
           @input="selectContext"
         />
         <p class="m-0 text-xs leading-5 text-n-slate-11">
@@ -395,8 +395,8 @@ const selectContext = event => {
       >
         <Button
           type="button"
-          variant="ghost"
-          color="slate"
+          variant="outline"
+          color="blue"
           icon="i-lucide-hand"
           :label="t('MARCOX_AI.CONVERSATION.HUMAN')"
           :disabled="working || !state?.assistant_id"
@@ -405,8 +405,9 @@ const selectContext = event => {
         <div class="flex items-center gap-2">
           <Button
             type="button"
-            variant="outline"
+            variant="faded"
             color="slate"
+            icon="i-lucide-x"
             :label="t('MARCOX_AI.ANALYSIS.CLOSE')"
             @click="dialog.close()"
           />

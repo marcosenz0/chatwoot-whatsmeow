@@ -90,6 +90,14 @@ class MarcosxAiAPI extends ApiClient {
     return axios.post(`${this.url}/assistants/${assistantId}/playground`, data);
   }
 
+  generateDraft(conversationId, draft, options = {}) {
+    return axios.post(
+      `${this.url}/conversations/${conversationId}/draft`,
+      { draft },
+      options
+    );
+  }
+
   getConversationState(conversationId) {
     return axios.get(`${this.url}/conversations/${conversationId}/state`);
   }

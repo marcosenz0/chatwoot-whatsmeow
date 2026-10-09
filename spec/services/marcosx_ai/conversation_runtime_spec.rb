@@ -16,6 +16,7 @@ RSpec.describe 'MarcoXIA conversation runtime' do
   let(:plan) { { messages: ['Hello', 'How can I help?'], reaction: nil, reaction_message_id: nil, handoff: false, handoff_reason: nil } }
 
   before do
+    allow(Whatsmeow::TypingStatusService).to receive(:new).and_return(instance_double(Whatsmeow::TypingStatusService, perform: nil))
     assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
     allow(MarcosxAi::ProviderClient).to receive(:new).and_return(client)
     allow(client).to receive(:chat) { plan.to_json }

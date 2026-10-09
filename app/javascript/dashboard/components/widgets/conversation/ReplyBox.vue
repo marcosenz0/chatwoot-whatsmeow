@@ -40,7 +40,7 @@ import {
   getAgentVariables,
   getContactVariables,
 } from 'dashboard/helper/editorHelper';
-import { useCopilotReply } from 'dashboard/composables/useCopilotReply';
+import { useMarcosxAiDraft } from 'dashboard/composables/useMarcosxAiDraft';
 import { useMacroExecution } from 'dashboard/composables/useMacroExecution';
 import ConversationResolveAttributesModal from 'dashboard/components-next/ConversationWorkflow/ConversationResolveAttributesModal.vue';
 import { useKbd } from 'dashboard/composables/utils/useKbd';
@@ -106,7 +106,7 @@ export default {
     } = useUISettings();
 
     const messageEditor = useTemplateRef('messageEditor');
-    const copilot = useCopilotReply();
+    const copilot = useMarcosxAiDraft();
     const macroExecution = useMacroExecution();
     const shortcutKey = useKbd(['$mod', '+', 'enter']);
 
@@ -166,6 +166,7 @@ export default {
       showEmojiPicker: false,
       attachedFiles: [],
       isRecordingAudio: false,
+      lastRecordingPresenceAt: 0,
       recordingAudioState: '',
       recordingAudioDurationText: '',
       replyType: REPLY_EDITOR_MODES.REPLY,
@@ -1201,8 +1202,9 @@ export default {
     },
     toggleAudioRecorder() {
       this.isRecordingAudio = !this.isRecordingAudio;
-      if (this.isAWhatsmeowChannel) {
-        this.toggleTyping(this.isRecordingAudio ? 'on' : 'off', 'audio');
+      this.lastRecordingPresenceAt = 0;
+      if (this.isAWhatsmeowChannel && !this.isRecordingAudio) {
+        this.toggleTyping('off', 'audio');
       }
       if (!this.isRecordingAudio) {
         this.resetAudioRecorderInput();
@@ -1236,6 +1238,13 @@ export default {
     },
     onRecordProgressChanged(duration) {
       this.recordingAudioDurationText = duration;
+      if (
+        this.isAWhatsmeowChannel &&
+        Date.now() - this.lastRecordingPresenceAt >= 8000
+      ) {
+        this.lastRecordingPresenceAt = Date.now();
+        this.toggleTyping('on', 'audio');
+      }
     },
     onFinishRecorder(file) {
       if (this.isAWhatsmeowChannel) {
@@ -1616,7 +1625,7 @@ export default {
           :show-copilot-editor="copilot.showEditor.value"
           :is-generating-content="copilot.isGenerating.value"
           :generated-content="copilot.generatedContent.value"
-          :placeholder="$t('CONVERSATION.FOOTER.COPILOT_MSG_INPUT')"
+          :placeholder="$t('MARCOX_AI.COMPOSER.REFINE')"
           @focus="onFocus"
           @blur="onBlur"
           @clear-selection="clearEditorSelection"

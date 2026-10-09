@@ -288,5 +288,23 @@ RSpec.describe 'MarcoXIA API', type: :request do
     expect(response.parsed_body['user_context']).to include('A red box')
     expect(ActiveStorage::Blob.count).to eq(baseline)
   end
+  it 'generates a composer draft with the selected agent and leaves the conversation unchanged' do
+    assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
+    service = instance_double(MarcosxAi::ComposerDraftService, perform: { content: 'Review me' })
+    allow(MarcosxAi::ComposerDraftService).to receive(:new).with(conversation: conversation, action: 'reply_suggestion',
+                                                               content: nil, instruction: nil).and_return(service)
+    post "#{endpoint}/conversations/#{conversation.display_id}/draft", params: { draft: { action: 'reply_suggestion' } }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body['content']).to eq('Review me')
+    expect(conversation.messages.outgoing).to be_empty
+    expect(conversation.reload.marcosx_ai_conversation_state).to be_nil
+  end
+
+  it 'protects composer drafts outside the operator inboxes' do
+    expect(MarcosxAi::ComposerDraftService).not_to receive(:new)
+    post "#{endpoint}/conversations/#{conversation.display_id}/draft", params: { draft: { action: 'reply_suggestion' } }, headers: agent.create_new_auth_token
+    expect(response).to have_http_status(:unauthorized)
+  end
+
 end
 

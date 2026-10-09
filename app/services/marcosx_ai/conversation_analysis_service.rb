@@ -116,6 +116,7 @@ class MarcosxAi::ConversationAnalysisService
         'pending_response' => plan.merge('next_part' => 0), 'analysis' => analysis.merge('status' => 'sent')
       ))
     end
+    MarcosxAi::TypingPresenceJob.perform_now(@conversation.id, run_token) if @assistant.feature_enabled?(:show_typing)
     MarcosxAi::DeliveryJob.perform_later(@conversation.id, run_token, 0)
   end
 
