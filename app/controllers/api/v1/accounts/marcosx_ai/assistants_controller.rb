@@ -137,7 +137,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
         :auto_response_enabled,
         :fallback_message,
         :handoff_message,
-        :split_messages, :max_message_parts, :message_interval_seconds, :allow_reactions,
+        :show_typing, :show_recording, :split_messages, :max_message_parts, :message_interval_seconds, :allow_reactions,
         :process_images, :process_audio, :process_files, :process_video, :respond_to_groups, :auto_start
       ],
       response_guidelines: [],

@@ -11,21 +11,12 @@ import {
   nextTick,
 } from 'vue';
 
-import CannedResponse from '../conversation/CannedResponse.vue';
-import KeyboardEmojiSelector from './keyboardEmojiSelector.vue';
-import TagAgents from '../conversation/TagAgents.vue';
-import VariableList from '../conversation/VariableList.vue';
-import MacroList from '../conversation/MacroList.vue';
-import TagTools from '../conversation/TagTools.vue';
-import CopilotMenuBar from './CopilotMenuBar.vue';
-
 import { useEmitter } from 'dashboard/composables/emitter';
 import { useI18n } from 'vue-i18n';
 import { useCaptain } from 'dashboard/composables/useCaptain';
 import { useKeyboardEvents } from 'dashboard/composables/useKeyboardEvents';
-import { useTrack } from 'dashboard/composables';
+import { useTrack, useAlert } from 'dashboard/composables';
 import { useUISettings } from 'dashboard/composables/useUISettings';
-import { useAlert } from 'dashboard/composables';
 import { vOnClickOutside } from '@vueuse/components';
 
 import { BUS_EVENTS } from 'shared/constants/busEvents';
@@ -74,6 +65,13 @@ import { createTypingIndicator } from '@chatwoot/utils';
 import { checkFileSizeLimit } from 'shared/helpers/FileHelper';
 import { uploadFile } from 'dashboard/helper/uploadHelper';
 import { INBOX_TYPES } from 'dashboard/helper/inbox';
+import CopilotMenuBar from './CopilotMenuBar.vue';
+import TagTools from '../conversation/TagTools.vue';
+import MacroList from '../conversation/MacroList.vue';
+import VariableList from '../conversation/VariableList.vue';
+import TagAgents from '../conversation/TagAgents.vue';
+import KeyboardEmojiSelector from './keyboardEmojiSelector.vue';
+import CannedResponse from '../conversation/CannedResponse.vue';
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -148,7 +146,7 @@ const editorSchema = computed(() => {
     : effectiveChannelType.value;
   const formatting = getFormattingForEditor(
     formatType,
-    captainTasksEnabled.value
+    Boolean(props.conversationId) || captainTasksEnabled.value
   );
   return buildMessageSchema(formatting.marks, formatting.nodes);
 });
@@ -159,7 +157,7 @@ const editorMenuOptions = computed(() => {
     : effectiveChannelType.value || DEFAULT_FORMATTING;
   const formatting = getFormattingForEditor(
     formatType,
-    captainTasksEnabled.value
+    Boolean(props.conversationId) || captainTasksEnabled.value
   );
 
   return formatting.menu;
@@ -249,27 +247,24 @@ const handleCopilotAction = actionKey => {
   showSelectionMenu.value = false;
 };
 
-const contentFromEditor = () => {
-  return MessageMarkdownSerializer.serialize(editorView.state.doc);
-};
+const contentFromEditor = () =>
+  MessageMarkdownSerializer.serialize(editorView.state.doc);
 
-const shouldShowVariables = computed(() => {
-  return props.enableVariables && showVariables.value && !props.isPrivate;
-});
+const shouldShowVariables = computed(
+  () => props.enableVariables && showVariables.value && !props.isPrivate
+);
 
-const shouldShowCannedResponses = computed(() => {
-  return (
-    props.enableCannedResponses && showCannedMenu.value && !props.isPrivate
-  );
-});
+const shouldShowCannedResponses = computed(
+  () => props.enableCannedResponses && showCannedMenu.value && !props.isPrivate
+);
 
-const shouldShowMacros = computed(() => {
-  return props.enableMacros && showMacroMenu.value;
-});
+const shouldShowMacros = computed(
+  () => props.enableMacros && showMacroMenu.value
+);
 
-const shouldShowUserMentions = computed(() => {
-  return showUserMentions.value && props.isPrivate;
-});
+const shouldShowUserMentions = computed(
+  () => showUserMentions.value && props.isPrivate
+);
 
 // The picker owns the search field, so it takes focus while open. Dismissing it hands
 // focus back; selecting one does so through the insert itself. The suggestion stays
@@ -330,9 +325,8 @@ function createSuggestionPlugin({
       showMenu.value = false;
       return false;
     },
-    onKeyDown: ({ event }) => {
-      return event.keyCode === 13 && showMenu.value && interceptEnter;
-    },
+    onKeyDown: ({ event }) =>
+      event.keyCode === 13 && showMenu.value && interceptEnter,
   });
 }
 
@@ -748,7 +742,7 @@ function insertContentIntoEditor(content, defaultFrom = 0) {
   // Strip unsupported formatting before parsing to ensure content can be inserted
   // into channels that don't support certain markdown features (e.g., API channels)
   const sanitizedContent = stripUnsupportedFormatting(content, currentSchema);
-  let node = new MessageMarkdownTransformer(currentSchema).parse(
+  const node = new MessageMarkdownTransformer(currentSchema).parse(
     sanitizedContent
   );
 
@@ -765,7 +759,7 @@ function insertSpecialContent(type, content) {
     return;
   }
 
-  let { node, from, to } = getContentNode(
+  const { node, from, to } = getContentNode(
     editorView,
     type,
     content,
@@ -814,7 +808,7 @@ function onKeydown(event) {
 
 function createEditorView() {
   editorView = new EditorView(editor.value, {
-    state: state,
+    state,
     editable: () => !props.disabled,
     attributes: { class: 'resizable-editor-body' },
     nodeViews: {

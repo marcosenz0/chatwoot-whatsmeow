@@ -11,6 +11,7 @@ class MarcosxAi::ConversationState < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   # The unique database index makes create_or_find_by! safe under concurrent arrivals.
   validates :conversation_id, presence: true
+  after_commit :clear_typing_presence, on: :update
   after_commit :broadcast_state, on: [:create, :update]
 
   def self.for_conversation!(conversation, assistant: nil)
@@ -122,6 +123,14 @@ class MarcosxAi::ConversationState < ApplicationRecord
 
   def cancelled_metadata
     metadata.except('pending_response', 'pending_since_message_id', 'approved_draft').merge('run_token' => SecureRandom.uuid, 'processing' => false)
+  end
+
+  def clear_typing_presence
+    previous = saved_change_to_metadata&.first
+    return unless previous && previous['processing']
+    return if metadata['processing'] && metadata['run_token'] == previous['run_token']
+
+    Whatsmeow::TypingStatusService.new(conversation: conversation, status: 'off').perform
   end
 
   def broadcast_state

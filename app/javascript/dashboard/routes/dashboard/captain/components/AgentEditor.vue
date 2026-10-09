@@ -571,6 +571,20 @@ const channelLabel = inbox =>
                 class="mt-2"
               />
             </label>
+            <div
+              class="divide-y divide-n-weak rounded-xl border border-n-weak px-4"
+            >
+              <AiToggleRow
+                v-model="form.config.show_typing"
+                :label="t('MARCOX_AI.EDITOR.SHOW_TYPING')"
+                :description="t('MARCOX_AI.EDITOR.SHOW_TYPING_HINT')"
+              />
+              <AiToggleRow
+                v-model="form.config.show_recording"
+                :label="t('MARCOX_AI.EDITOR.SHOW_RECORDING')"
+                :description="t('MARCOX_AI.EDITOR.SHOW_RECORDING_HINT')"
+              />
+            </div>
             <div class="rounded-xl border border-n-weak px-4">
               <AiToggleRow
                 v-model="form.config.split_messages"

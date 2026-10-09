@@ -52,7 +52,11 @@ class Whatsmeow::TypingStatusService
     return false unless conversation&.inbox&.channel_type == 'Channel::Whatsmeow'
     return false unless %w[on off].include?(status)
 
-    conversation.inbox.channel.typing_enabled?
+    return true if status == 'off'
+    return false unless conversation.inbox.channel.typing_enabled?
+
+    assistant = conversation.marcosx_ai_assistant
+    typing_media != 'audio' || !assistant || assistant.feature_enabled?(:show_recording)
   end
 
   def incoming_typing_enabled?

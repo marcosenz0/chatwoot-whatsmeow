@@ -126,3 +126,15 @@ describe('Conversation AI control', () => {
     );
   });
 });
+
+describe('Analysis animation', () => {
+  it('spins during generation while keeping the pause control available', async () => {
+    MarcosxAiAPI.getConversationState.mockResolvedValue({
+      data: { state: { ...active, processing: true } },
+    });
+    const wrapper = mount(ConversationAiButton, { props });
+    await flushPromises();
+    expect(wrapper.find('.animate-spin').exists()).toBe(true);
+    expect(wrapper.find('button').attributes('disabled')).toBeUndefined();
+  });
+});

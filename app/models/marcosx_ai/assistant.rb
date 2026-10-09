@@ -12,6 +12,8 @@ class MarcosxAi::Assistant < ApplicationRecord
     human_pause_minutes: 0,
     auto_response_enabled: false,
     auto_start: true,
+    show_typing: true,
+    show_recording: true,
     split_messages: true,
     max_message_parts: 3,
     message_interval_seconds: 2,

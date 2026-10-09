@@ -128,6 +128,7 @@ Rails.application.routes.draw do
             end
             resources :conversations, only: [] do
               resource :state, only: [:show, :update], controller: 'conversation_states'
+              resource :draft, only: [:create], controller: 'conversation_drafts'
               resource :analysis, only: [:show, :create], controller: 'conversation_analyses' do
                 post :send_reply
               end

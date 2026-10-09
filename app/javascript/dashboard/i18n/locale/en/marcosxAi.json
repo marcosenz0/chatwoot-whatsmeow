@@ -100,7 +100,11 @@
         "PROMPT": "Define how this agent responds, what it knows and when it should hand over.",
         "INBOXES": "Choose where this agent starts responding. You can also select it for an individual conversation.",
         "BEHAVIOR": "Adjust context, message pacing and the media the agent can understand."
-      }
+      },
+      "SHOW_TYPING": "Show typing on WhatsApp",
+      "SHOW_TYPING_HINT": "Shows typing while the agent prepares a reply. The inbox typing setting must also be enabled.",
+      "SHOW_RECORDING": "Show audio recording on WhatsApp",
+      "SHOW_RECORDING_HINT": "Shows recording while an operator records using the microphone. The agent currently replies in text."
     },
     "PROVIDERS": {
       "TITLE": "Connect the intelligence behind your agents",
@@ -231,6 +235,10 @@
       "CONTEXT_RECENT": "Latest {count}",
       "CONTEXT_HINT": "Drag to choose the history. This selection also applies to future replies in this conversation.",
       "CONTEXT_CHANGED": "The context changed. Analyze again before sending."
+    },
+    "COMPOSER": {
+      "THINKING": "MarcoXIA is preparing your draft…",
+      "REFINE": "Ask MarcoXIA to adjust this draft…"
     }
   }
 }

@@ -117,7 +117,9 @@ const toggle = async () => {
       variant="faded"
       :color="active ? 'teal' : 'slate'"
       :icon="
-        state?.processing && active ? 'i-lucide-loader-circle' : 'i-lucide-bot'
+        state?.processing && active
+          ? 'i-lucide-loader-circle animate-spin'
+          : 'i-lucide-bot'
       "
       :label="label"
       :is-loading="busy"

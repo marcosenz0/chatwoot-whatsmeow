@@ -34,3 +34,36 @@ describe('ReplyBox recorded audio payload', () => {
     expect(payloads[1]).toMatchObject({ message: 'Separate caption' });
   });
 });
+
+describe('Audio recording presence', () => {
+  it('renews during actual recording at most every eight seconds', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(10000);
+    const context = {
+      isAWhatsmeowChannel: true,
+      lastRecordingPresenceAt: 0,
+      toggleTyping: vi.fn(),
+    };
+    ReplyBox.methods.onRecordProgressChanged.call(context, '00:01');
+    ReplyBox.methods.onRecordProgressChanged.call(context, '00:02');
+    expect(context.toggleTyping).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(8000);
+    ReplyBox.methods.onRecordProgressChanged.call(context, '00:09');
+    expect(context.toggleTyping).toHaveBeenCalledTimes(2);
+    expect(context.toggleTyping).toHaveBeenLastCalledWith('on', 'audio');
+    vi.useRealTimers();
+  });
+
+  it('does not advertise recording before the microphone starts', () => {
+    const context = {
+      isAWhatsmeowChannel: true,
+      isRecordingAudio: false,
+      toggleTyping: vi.fn(),
+      resetAudioRecorderInput: vi.fn(),
+    };
+    ReplyBox.methods.toggleAudioRecorder.call(context);
+    expect(context.toggleTyping).not.toHaveBeenCalled();
+    ReplyBox.methods.toggleAudioRecorder.call(context);
+    expect(context.toggleTyping).toHaveBeenCalledWith('off', 'audio');
+  });
+});

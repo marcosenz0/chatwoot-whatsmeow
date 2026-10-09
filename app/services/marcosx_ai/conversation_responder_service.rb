@@ -10,6 +10,8 @@ class MarcosxAi::ConversationResponderService
   def perform
     return unless @state.reload.current_run?(@token)
 
+    MarcosxAi::TypingPresenceJob.perform_now(@conversation.id, @token) if @assistant.feature_enabled?(:show_typing)
+
     client = MarcosxAi::ProviderClient.new(account: @conversation.account, provider: @assistant.provider, model: @assistant.model,
                                            temperature: @assistant.temperature, reasoning_effort: @assistant.reasoning_effort)
     history = MarcosxAi::ConversationContext.new(conversation: @conversation, assistant: @assistant, state: @state, client: client,
