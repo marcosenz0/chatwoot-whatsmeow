@@ -46,8 +46,8 @@ class MarcosxAi::ComposerDraftService
            'Use the conversation language. Return the draft in messages, with reaction null and handoff false.'
     messages = [*prompts, { role: 'system', content: task }, *history]
     if @content.present?
-      messages << { role: 'user', content: { draft_to_edit: @content.to_s.truncate(15_000),
-                                           operator_request: @instruction.to_s.truncate(2000) }.to_json }
+      draft = { draft_to_edit: @content.to_s.truncate(15_000), operator_request: @instruction.to_s.truncate(2000) }
+      messages << { role: 'user', content: draft.to_json }
     end
     plan = MarcosxAi::ReplyPlan.parse(client.chat(messages: messages, schema: MarcosxAi::ReplyPlan::SCHEMA), assistant: assistant)
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response') if plan['messages'].empty?
