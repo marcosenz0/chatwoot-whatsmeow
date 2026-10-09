@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
+ActiveRecord::Schema[7.2].define(version: 2026_10_09_090000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -505,8 +505,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
     t.integer "status", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["account_id"], name: "index_captain_faq_suggestions_on_account_id"
     t.index ["account_id", "assistant_id", "status", "language"], name: "idx_cap_faq_suggestions_on_account_assistant_status_language"
+    t.index ["account_id"], name: "index_captain_faq_suggestions_on_account_id"
     t.index ["assistant_id"], name: "index_captain_faq_suggestions_on_assistant_id"
     t.index ["embedding"], name: "vector_idx_captain_faq_suggestions_embedding", opclass: :vector_cosine_ops, using: :ivfflat
   end
@@ -765,8 +765,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
     t.jsonb "phone_number_health", default: {}, null: false
     t.datetime "phone_number_health_checked_at"
     t.string "phone_number_health_error", limit: 500
-    t.index ["phone_number_health_checked_at"], name: "index_channel_whatsapp_on_phone_number_health_checked_at"
     t.index ["phone_number"], name: "index_channel_whatsapp_on_phone_number", unique: true
+    t.index ["phone_number_health_checked_at"], name: "index_channel_whatsapp_on_phone_number_health_checked_at"
   end
 
   create_table "channel_whatsmeow", force: :cascade do |t|
@@ -968,14 +968,14 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
     t.bigint "conversation_pipeline_id"
     t.bigint "conversation_pipeline_stage_id"
     t.datetime "pipeline_stage_entered_at"
-    t.index ["account_id", "conversation_pipeline_id"], name: "idx_conversations_on_account_pipeline"
-    t.index ["account_id", "conversation_pipeline_stage_id", "status", "last_activity_at"], name: "idx_conversations_on_account_stage_status_activity"
     t.string "ai_assignee_type"
     t.datetime "status_changed_at"
+    t.index ["account_id", "conversation_pipeline_id"], name: "idx_conversations_on_account_pipeline"
+    t.index ["account_id", "conversation_pipeline_stage_id", "status", "last_activity_at"], name: "idx_conversations_on_account_stage_status_activity"
     t.index ["account_id", "display_id"], name: "index_conversations_on_account_id_and_display_id", unique: true
     t.index ["account_id", "id"], name: "index_conversations_on_id_and_account_id"
-    t.index ["account_id", "inbox_id", "status", "last_activity_at"], name: "index_conversations_on_inbox_status_activity", order: { last_activity_at: :desc }
     t.index ["account_id", "inbox_id", "status", "assignee_id"], name: "conv_acid_inbid_stat_asgnid_idx"
+    t.index ["account_id", "inbox_id", "status", "last_activity_at"], name: "index_conversations_on_inbox_status_activity", order: { last_activity_at: :desc }
     t.index ["account_id", "status", "created_at"], name: "index_conversations_on_account_id_status_created_at"
     t.index ["account_id"], name: "index_conversations_on_account_id"
     t.index ["assignee_id", "account_id"], name: "index_conversations_on_assignee_id_and_account_id"
@@ -1177,10 +1177,10 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "inbox_id"
-    t.index ["account_id", "name", "template_type", "locale"], name: "index_email_templates_on_account_scope", unique: true, where: "(account_id IS NOT NULL) AND (inbox_id IS NULL)"
+    t.index ["account_id", "name", "template_type", "locale"], name: "index_email_templates_on_account_scope", unique: true, where: "((account_id IS NOT NULL) AND (inbox_id IS NULL))"
     t.index ["inbox_id", "name", "template_type", "locale"], name: "index_email_templates_on_inbox_scope", unique: true, where: "(inbox_id IS NOT NULL)"
     t.index ["inbox_id"], name: "index_email_templates_on_inbox_id"
-    t.index ["name", "template_type", "locale"], name: "index_email_templates_on_installation_scope", unique: true, where: "(account_id IS NULL) AND (inbox_id IS NULL)"
+    t.index ["name", "template_type", "locale"], name: "index_email_templates_on_installation_scope", unique: true, where: "((account_id IS NULL) AND (inbox_id IS NULL))"
   end
 
   create_table "folders", force: :cascade do |t|
@@ -1311,6 +1311,45 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["account_id"], name: "index_macros_on_account_id"
+  end
+
+  create_table "marcosx_ai_alert_deliveries", force: :cascade do |t|
+    t.bigint "alert_id", null: false
+    t.string "kind", null: false
+    t.string "recipient", null: false
+    t.string "status", default: "pending", null: false
+    t.text "error"
+    t.integer "attempts", default: 0, null: false
+    t.datetime "last_attempt_at"
+    t.bigint "message_id"
+    t.bigint "notification_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["alert_id", "kind", "recipient"], name: "marcosx_ai_unique_delivery", unique: true
+    t.index ["alert_id"], name: "index_marcosx_ai_alert_deliveries_on_alert_id"
+    t.index ["message_id"], name: "index_marcosx_ai_alert_deliveries_on_message_id"
+    t.index ["notification_id"], name: "index_marcosx_ai_alert_deliveries_on_notification_id"
+  end
+
+  create_table "marcosx_ai_alerts", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "conversation_id", null: false
+    t.bigint "assistant_id"
+    t.string "rule_id", null: false
+    t.string "name", null: false
+    t.string "action", null: false
+    t.string "status", default: "open", null: false
+    t.text "reason"
+    t.jsonb "configuration", default: {}, null: false
+    t.bigint "resolved_by_id"
+    t.datetime "resolved_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_marcosx_ai_alerts_on_account_id"
+    t.index ["assistant_id"], name: "index_marcosx_ai_alerts_on_assistant_id"
+    t.index ["conversation_id", "rule_id"], name: "marcosx_ai_open_alert", unique: true, where: "((status)::text = 'open'::text)"
+    t.index ["conversation_id"], name: "index_marcosx_ai_alerts_on_conversation_id"
+    t.index ["resolved_by_id"], name: "index_marcosx_ai_alerts_on_resolved_by_id"
   end
 
   create_table "marcosx_ai_assistants", force: :cascade do |t|
@@ -1783,7 +1822,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
     t.integer "status", default: 0, null: false
     t.string "trigger_type", default: "keyword", null: false
     t.jsonb "trigger_config", default: {}, null: false
-    t.jsonb "definition", default: { "nodes" => [], "edges" => [] }, null: false
+    t.jsonb "definition", default: {"edges" => [], "nodes" => []}, null: false
     t.datetime "published_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -1821,6 +1860,34 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
     t.index ["contact_id"], name: "index_whatsapp_campaign_deliveries_on_contact_id"
     t.index ["message_id"], name: "index_whatsapp_campaign_deliveries_on_message_id"
     t.index ["source_id"], name: "index_whatsapp_campaign_deliveries_on_source_id"
+  end
+
+  create_table "whatsmeow_calls", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "inbox_id", null: false
+    t.bigint "contact_id"
+    t.bigint "conversation_id"
+    t.bigint "agent_id"
+    t.string "source_id", null: false
+    t.string "peer_jid", null: false
+    t.string "direction", null: false
+    t.string "status", default: "ringing", null: false
+    t.boolean "video", default: false, null: false
+    t.datetime "started_at", null: false
+    t.datetime "connected_at"
+    t.datetime "ended_at"
+    t.string "end_reason"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "ai_processed_at"
+    t.index ["account_id", "started_at"], name: "index_whatsmeow_calls_on_account_id_and_started_at"
+    t.index ["account_id"], name: "index_whatsmeow_calls_on_account_id"
+    t.index ["agent_id"], name: "index_whatsmeow_calls_on_agent_id"
+    t.index ["contact_id"], name: "index_whatsmeow_calls_on_contact_id"
+    t.index ["conversation_id"], name: "index_whatsmeow_calls_on_conversation_id"
+    t.index ["inbox_id", "peer_jid", "started_at"], name: "index_whatsmeow_calls_on_inbox_id_and_peer_jid_and_started_at"
+    t.index ["inbox_id", "source_id"], name: "index_whatsmeow_calls_on_inbox_id_and_source_id", unique: true
+    t.index ["inbox_id"], name: "index_whatsmeow_calls_on_inbox_id"
   end
 
   create_table "whatsmeow_history_chats", force: :cascade do |t|
@@ -1866,19 +1933,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
     t.index ["message_id"], name: "index_whatsmeow_message_stars_on_message_id"
   end
 
-  create_table "whatsmeow_stickers", force: :cascade do |t|
-    t.bigint "account_id", null: false
-    t.bigint "user_id", null: false
-    t.bigint "attachment_id", null: false
-    t.jsonb "metadata", default: {}, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["account_id", "user_id", "attachment_id"], name: "idx_whatsmeow_stickers_on_account_user_attachment", unique: true
-    t.index ["account_id"], name: "index_whatsmeow_stickers_on_account_id"
-    t.index ["attachment_id"], name: "index_whatsmeow_stickers_on_attachment_id"
-    t.index ["user_id"], name: "index_whatsmeow_stickers_on_user_id"
-  end
-
   create_table "whatsmeow_status_viewers", force: :cascade do |t|
     t.bigint "whatsmeow_status_id", null: false
     t.bigint "contact_id"
@@ -1903,33 +1957,6 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
     t.index ["user_id"], name: "index_whatsmeow_status_views_on_user_id"
     t.index ["whatsmeow_status_id", "user_id"], name: "idx_whatsmeow_status_views_on_status_user", unique: true
     t.index ["whatsmeow_status_id"], name: "index_whatsmeow_status_views_on_whatsmeow_status_id"
-  end
-
-  create_table "whatsmeow_calls", force: :cascade do |t|
-    t.bigint "account_id", null: false
-    t.bigint "inbox_id", null: false
-    t.bigint "contact_id"
-    t.bigint "conversation_id"
-    t.bigint "agent_id"
-    t.string "source_id", null: false
-    t.string "peer_jid", null: false
-    t.string "direction", null: false
-    t.string "status", default: "ringing", null: false
-    t.boolean "video", default: false, null: false
-    t.datetime "started_at", null: false
-    t.datetime "connected_at"
-    t.datetime "ended_at"
-    t.string "end_reason"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["account_id", "started_at"], name: "index_whatsmeow_calls_on_account_id_and_started_at"
-    t.index ["account_id"], name: "index_whatsmeow_calls_on_account_id"
-    t.index ["agent_id"], name: "index_whatsmeow_calls_on_agent_id"
-    t.index ["contact_id"], name: "index_whatsmeow_calls_on_contact_id"
-    t.index ["conversation_id"], name: "index_whatsmeow_calls_on_conversation_id"
-    t.index ["inbox_id", "peer_jid", "started_at"], name: "index_whatsmeow_calls_on_inbox_id_and_peer_jid_and_started_at"
-    t.index ["inbox_id", "source_id"], name: "index_whatsmeow_calls_on_inbox_id_and_source_id", unique: true
-    t.index ["inbox_id"], name: "index_whatsmeow_calls_on_inbox_id"
   end
 
   create_table "whatsmeow_statuses", force: :cascade do |t|
@@ -1957,8 +1984,8 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
     t.integer "publish_attempts", default: 0, null: false
     t.text "last_error"
     t.datetime "next_attempt_at"
-    t.index ["account_id"], name: "index_whatsmeow_statuses_on_account_id"
     t.index ["account_id", "publication_id", "publication_position"], name: "idx_whatsmeow_statuses_on_publication"
+    t.index ["account_id"], name: "index_whatsmeow_statuses_on_account_id"
     t.index ["contact_id"], name: "index_whatsmeow_statuses_on_contact_id"
     t.index ["created_by_id"], name: "index_whatsmeow_statuses_on_created_by_id"
     t.index ["expires_at"], name: "index_whatsmeow_statuses_on_expires_at"
@@ -1968,6 +1995,19 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
     t.index ["inbox_id"], name: "index_whatsmeow_statuses_on_inbox_id"
     t.index ["publication_id", "inbox_id"], name: "idx_whatsmeow_statuses_on_publication_inbox", unique: true, where: "(publication_id IS NOT NULL)"
     t.index ["publication_state", "next_attempt_at"], name: "idx_whatsmeow_statuses_on_publish_state"
+  end
+
+  create_table "whatsmeow_stickers", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "user_id", null: false
+    t.bigint "attachment_id", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "user_id", "attachment_id"], name: "idx_whatsmeow_stickers_on_account_user_attachment", unique: true
+    t.index ["account_id"], name: "index_whatsmeow_stickers_on_account_id"
+    t.index ["attachment_id"], name: "index_whatsmeow_stickers_on_attachment_id"
+    t.index ["user_id"], name: "index_whatsmeow_stickers_on_user_id"
   end
 
   create_table "working_hours", force: :cascade do |t|
@@ -1988,17 +2028,24 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "campaign_recipients", "accounts", on_delete: :cascade
+  add_foreign_key "campaign_recipients", "campaigns", on_delete: :cascade
+  add_foreign_key "campaign_recipients", "contacts", on_delete: :cascade
+  add_foreign_key "campaign_recipients", "inboxes", on_delete: :cascade
   add_foreign_key "channel_telegram_personal", "accounts"
   add_foreign_key "conversation_pipeline_stages", "accounts"
   add_foreign_key "conversation_pipeline_stages", "conversation_pipelines"
   add_foreign_key "conversation_pipelines", "accounts"
   add_foreign_key "conversations", "conversation_pipeline_stages"
   add_foreign_key "conversations", "conversation_pipelines"
-  add_foreign_key "campaign_recipients", "accounts", on_delete: :cascade
-  add_foreign_key "campaign_recipients", "campaigns", on_delete: :cascade
-  add_foreign_key "campaign_recipients", "contacts", on_delete: :cascade
-  add_foreign_key "campaign_recipients", "inboxes", on_delete: :cascade
   add_foreign_key "inboxes", "portals"
+  add_foreign_key "marcosx_ai_alert_deliveries", "marcosx_ai_alerts", column: "alert_id", on_delete: :cascade
+  add_foreign_key "marcosx_ai_alert_deliveries", "messages", on_delete: :nullify
+  add_foreign_key "marcosx_ai_alert_deliveries", "notifications", on_delete: :nullify
+  add_foreign_key "marcosx_ai_alerts", "accounts", on_delete: :cascade
+  add_foreign_key "marcosx_ai_alerts", "conversations", on_delete: :cascade
+  add_foreign_key "marcosx_ai_alerts", "marcosx_ai_assistants", column: "assistant_id", on_delete: :nullify
+  add_foreign_key "marcosx_ai_alerts", "users", column: "resolved_by_id", on_delete: :nullify
   add_foreign_key "marcosx_ai_assistants", "accounts"
   add_foreign_key "marcosx_ai_conversation_states", "accounts"
   add_foreign_key "marcosx_ai_conversation_states", "conversations"
@@ -2012,6 +2059,7 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
   add_foreign_key "marcosx_ai_logs", "accounts"
   add_foreign_key "marcosx_ai_logs", "conversations"
   add_foreign_key "marcosx_ai_logs", "marcosx_ai_assistants", column: "assistant_id"
+  add_foreign_key "user_sessions", "users"
   add_foreign_key "whatsapp_automation_runs", "accounts"
   add_foreign_key "whatsapp_automation_runs", "contacts"
   add_foreign_key "whatsapp_automation_runs", "conversations"
@@ -2022,27 +2070,26 @@ ActiveRecord::Schema[7.1].define(version: 2026_10_05_120000) do
   add_foreign_key "whatsapp_campaign_deliveries", "campaigns"
   add_foreign_key "whatsapp_campaign_deliveries", "contacts"
   add_foreign_key "whatsapp_campaign_deliveries", "messages"
+  add_foreign_key "whatsmeow_calls", "accounts"
+  add_foreign_key "whatsmeow_calls", "contacts"
+  add_foreign_key "whatsmeow_calls", "conversations"
+  add_foreign_key "whatsmeow_calls", "inboxes"
+  add_foreign_key "whatsmeow_calls", "users", column: "agent_id"
   add_foreign_key "whatsmeow_history_chats", "inboxes", on_delete: :cascade
   add_foreign_key "whatsmeow_history_messages", "inboxes", on_delete: :cascade
   add_foreign_key "whatsmeow_message_stars", "inboxes", on_delete: :cascade
   add_foreign_key "whatsmeow_message_stars", "messages", on_delete: :nullify
-  add_foreign_key "whatsmeow_stickers", "accounts"
-  add_foreign_key "whatsmeow_stickers", "attachments"
-  add_foreign_key "whatsmeow_stickers", "users"
-  add_foreign_key "user_sessions", "users"
   add_foreign_key "whatsmeow_status_viewers", "contacts", on_delete: :nullify
   add_foreign_key "whatsmeow_status_viewers", "whatsmeow_statuses"
   add_foreign_key "whatsmeow_status_views", "users"
   add_foreign_key "whatsmeow_status_views", "whatsmeow_statuses"
-  add_foreign_key "whatsmeow_calls", "accounts"
-  add_foreign_key "whatsmeow_calls", "inboxes"
-  add_foreign_key "whatsmeow_calls", "contacts"
-  add_foreign_key "whatsmeow_calls", "conversations"
-  add_foreign_key "whatsmeow_calls", "users", column: "agent_id"
   add_foreign_key "whatsmeow_statuses", "accounts"
   add_foreign_key "whatsmeow_statuses", "contacts"
   add_foreign_key "whatsmeow_statuses", "inboxes"
   add_foreign_key "whatsmeow_statuses", "users", column: "created_by_id"
+  add_foreign_key "whatsmeow_stickers", "accounts"
+  add_foreign_key "whatsmeow_stickers", "attachments"
+  add_foreign_key "whatsmeow_stickers", "users"
   create_trigger("accounts_after_insert_row_tr", :generated => true, :compatibility => 1).
       on("accounts").
       after(:insert).
