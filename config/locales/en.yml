@@ -31,6 +31,9 @@
 
 en:
   marcosx_ai:
+    human_attention: Human assistance requested
+    operational: operational notice
+    notification_test: Notification test
     default_prompt: >-
       You are the customer service assistant for this inbox. Be warm, attentive and clear.
       Read the entire conversation before replying. Match the customer's language and tone without exaggerating intimacy.

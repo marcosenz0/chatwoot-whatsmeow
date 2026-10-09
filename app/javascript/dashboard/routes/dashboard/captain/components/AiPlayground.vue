@@ -22,6 +22,7 @@ const input = ref(null);
 const thread = ref(null);
 const sending = ref(false);
 const error = ref('');
+const eventType = ref('message');
 let generation = 0;
 const reset = () => {
   generation += 1;
@@ -77,6 +78,7 @@ const send = async () => {
   try {
     const body = new FormData();
     body.append('assistant[message]', content);
+    body.append('assistant[event]', eventType.value);
     history.forEach(item => {
       body.append(`assistant[history][][role]`, item.role);
       body.append(`assistant[history][][content]`, item.content);
@@ -90,6 +92,7 @@ const send = async () => {
       content: data.response,
       plan: data.plan,
       name: agent.value.name,
+      simulation: data.simulation,
     });
   } catch (failure) {
     if (currentGeneration === generation)
@@ -124,6 +127,16 @@ const send = async () => {
       <p class="mt-2 text-sm text-n-slate-11">
         {{ t('MARCOX_AI.PLAYGROUND.BODY') }}
       </p>
+      <AiSelect
+        v-model="eventType"
+        :options="
+          ['message', 'missed_call'].map(value => ({
+            value,
+            label: t(`MARCOX_AI.AUTOMATION.EVENT_${value.toUpperCase()}`),
+          }))
+        "
+        :label="t('MARCOX_AI.AUTOMATION.SIMULATE_EVENT')"
+      />
       <label v-if="!embedded" class="mt-4 block text-sm text-n-slate-12">
         {{ t('MARCOX_AI.PLAYGROUND.SELECT') }}
         <AiSelect
@@ -193,6 +206,24 @@ const send = async () => {
             {{
               t('MARCOX_AI.PLAYGROUND.REACTION', { emoji: item.plan.reaction })
             }}
+          </p>
+          <p
+            v-for="alert in item.simulation?.alerts || []"
+            :key="alert.id"
+            class="text-xs text-n-slate-11"
+          >
+            {{
+              t('MARCOX_AI.AUTOMATION.SIMULATED_ALERT', { name: alert.name })
+            }}
+          </p>
+          <p v-if="item.simulation?.paused" class="text-xs text-n-amber-11">
+            {{ t('MARCOX_AI.AUTOMATION.SIMULATED_PAUSE') }}
+          </p>
+          <p
+            v-if="item.simulation?.recall_requested"
+            class="text-xs text-n-slate-11"
+          >
+            {{ t('MARCOX_AI.AUTOMATION.SIMULATED_RECALL') }}
           </p>
           <p
             v-if="item.plan?.handoff"

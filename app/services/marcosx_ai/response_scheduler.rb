@@ -1,7 +1,8 @@
 class MarcosxAi::ResponseScheduler
   def self.perform(message:, manual: false)
     return if message.private? || message.historical? || message.content_attributes['deleted'] || message.content_attributes['is_unsupported'] ||
-              message.content_type == 'voice_call'
+              message.content_type == 'voice_call' || message.additional_attributes['marcosx_ai_operational'] ||
+              message.content.to_s.start_with?(MarcosxAi::AlertService::NOTICE_PREFIX)
     return unless manual || message.incoming?
 
     conversation = message.conversation

@@ -2,6 +2,8 @@
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Button from 'dashboard/components-next/button/Button.vue';
+import MarcosxAiAPI from 'dashboard/api/marcosxAi';
+import { useAlert } from 'dashboard/composables';
 import AiToggleRow from './AiToggleRow.vue';
 import AiModelSelect from './AiModelSelect.vue';
 import AiSelect from './AiSelect.vue';
@@ -9,6 +11,8 @@ import AgentConnection from './AgentConnection.vue';
 import AiPlayground from './AiPlayground.vue';
 import AgentAttendance from './AgentAttendance.vue';
 import AgentActivity from './AgentActivity.vue';
+import AgentNotifications from './AgentNotifications.vue';
+import AgentAlertList from './AgentAlertList.vue';
 
 const props = defineProps({
   agent: { type: Object, required: true },
@@ -34,6 +38,23 @@ const emit = defineEmits([
 ]);
 const { t } = useI18n();
 const form = ref({});
+const initialForm = ref('');
+const effectivePrompt = ref(null);
+const showPrompt = async () => {
+  try {
+    const { data } = await MarcosxAiAPI.getEffectivePrompt(form.value.id);
+    effectivePrompt.value = data;
+  } catch (error) {
+    useAlert(error.response?.data?.error || t('MARCOX_AI.CONVERSATION.ERROR'));
+  }
+};
+const supportsCalls = computed(() =>
+  props.inboxes.some(
+    inbox =>
+      form.value.inbox_ids.includes(inbox.id) &&
+      inbox.channel_type === 'Channel::Whatsmeow'
+  )
+);
 const timezoneOptions = computed(() => [
   { value: '', label: t('MARCOX_AI.EDITOR.TIMEZONE_INBOX') },
   ...[
@@ -47,7 +68,7 @@ const timezoneOptions = computed(() => [
     .map(value => ({ value, label: value })),
 ]);
 const hasUnsavedChanges = computed(
-  () => JSON.stringify(form.value) !== JSON.stringify(props.agent)
+  () => JSON.stringify(form.value) !== initialForm.value
 );
 const section = ref(props.initialSection);
 const inboxSearch = ref('');
@@ -76,6 +97,11 @@ const sections = computed(() => [
   ...(props.canEdit
     ? [
         {
+          id: 'notifications',
+          icon: 'i-lucide-bell',
+          label: t('MARCOX_AI.AUTOMATION.NOTIFICATIONS'),
+        },
+        {
           id: 'attendance',
           icon: 'i-lucide-messages-square',
           label: t('MARCOX_AI.COVERAGE.TITLE'),
@@ -92,6 +118,23 @@ watch(
   () => props.agent,
   (agent, previous) => {
     form.value = JSON.parse(JSON.stringify(agent));
+    form.value.config = {
+      memory_mode: 'legacy',
+      editorial_instructions: agent.editorial_instructions || '',
+      reply_to_missed_calls: false,
+      missed_call_instructions: '',
+      notifications: { user_ids: [], whatsapp_numbers: [], inbox_id: null },
+      alert_rules: [],
+      resume_mode: 'manual',
+      resume_after_minutes: 60,
+      pause_on_handoff: false,
+      pause_acknowledgement: true,
+      ...form.value.config,
+    };
+    form.value.config.editorial_instructions ??=
+      agent.editorial_instructions || '';
+    initialForm.value = JSON.stringify(form.value);
+    effectivePrompt.value = null;
     if (agent.id !== previous?.id)
       section.value = agent.id ? props.initialSection : 'identity';
   },
@@ -404,6 +447,14 @@ const channelLabel = inbox =>
             </div>
           </div>
           <div v-show="section === 'prompt'" class="space-y-4">
+            <label class="block text-sm font-semibold">
+              {{ t('MARCOX_AI.AUTOMATION.EDITORIAL') }}
+              <textarea
+                v-model="form.config.editorial_instructions"
+                rows="8"
+                class="reset-base mt-2 w-full rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6"
+              />
+            </label>
             <div>
               <label
                 for="ai-system-prompt"
@@ -419,6 +470,30 @@ const channelLabel = inbox =>
                 :placeholder="t('MARCOX_AI.EDITOR.PROMPT_PLACEHOLDER')"
                 class="!mb-0 min-h-[22rem] w-full resize-y rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6 text-n-slate-12"
               />
+            </div>
+            <Button
+              v-if="form.id"
+              size="sm"
+              variant="outline"
+              :label="t('MARCOX_AI.AUTOMATION.EFFECTIVE_PROMPT')"
+              @click="showPrompt"
+            />
+            <div
+              v-if="effectivePrompt"
+              class="space-y-3 rounded-xl border border-n-weak p-4"
+            >
+              <p class="text-xs text-n-slate-11">
+                {{ t('MARCOX_AI.AUTOMATION.PROMPT_SAVED_HINT') }}
+              </p>
+              <details v-for="kind in ['editable', 'technical']" :key="kind">
+                <summary class="cursor-pointer text-sm font-semibold">
+                  {{ t(`MARCOX_AI.AUTOMATION.PROMPT_${kind.toUpperCase()}`) }}
+                </summary>
+                <pre
+                  class="mt-2 whitespace-pre-wrap break-words text-xs text-n-slate-11"
+                  >{{ effectivePrompt[kind] }}</pre
+                >
+              </details>
             </div>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <Button
@@ -506,6 +581,38 @@ const channelLabel = inbox =>
             </div>
           </div>
           <div v-show="section === 'behavior'" class="space-y-5">
+            <label class="block text-sm font-medium">
+              {{ t('MARCOX_AI.AUTOMATION.MEMORY_MODE') }}
+              <AiSelect
+                v-model="form.config.memory_mode"
+                class="mt-2"
+                :options="
+                  ['legacy', 'summary_recent', 'selected_only'].map(value => ({
+                    value,
+                    label: t(
+                      `MARCOX_AI.AUTOMATION.MEMORY_${value.toUpperCase()}`
+                    ),
+                  }))
+                "
+                :label="t('MARCOX_AI.AUTOMATION.MEMORY_MODE')"
+              />
+            </label>
+            <div
+              v-if="supportsCalls"
+              class="space-y-3 rounded-xl border border-n-weak p-4"
+            >
+              <AiToggleRow
+                v-model="form.config.reply_to_missed_calls"
+                :label="t('MARCOX_AI.AUTOMATION.CALLS')"
+                :description="t('MARCOX_AI.AUTOMATION.CALLS_HINT')"
+              />
+              <textarea
+                v-model="form.config.missed_call_instructions"
+                rows="4"
+                :aria-label="t('MARCOX_AI.AUTOMATION.CALL_PROMPT')"
+                class="reset-base w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+              />
+            </div>
             <AiToggleRow
               v-model="form.config.auto_start"
               :label="t('MARCOX_AI.EDITOR.AUTO_START')"
@@ -648,8 +755,19 @@ const channelLabel = inbox =>
               :description="t('MARCOX_AI.EDITOR.GROUPS_HINT')"
             />
           </div>
+          <AgentNotifications
+            v-if="section === 'notifications' && canEdit"
+            v-model="form.config"
+            :agent-id="form.id"
+          />
         </fieldset>
       </form>
+      <div
+        v-if="section === 'notifications' && form.id && canEdit"
+        class="px-6 pb-6"
+      >
+        <AgentAlertList :agent-id="form.id" />
+      </div>
       <AiPlayground
         v-if="section === 'test' && form.id"
         :agents="[agent]"

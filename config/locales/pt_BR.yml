@@ -18,6 +18,9 @@
 #available at https://guides.rubyonrails.org/i18n.html.
 pt_BR:
   marcosx_ai:
+    human_attention: Atendimento humano solicitado
+    operational: aviso operacional
+    notification_test: Teste de notificação
     default_prompt: >-
       Você é o assistente de atendimento desta caixa de entrada. Seja acolhedor, atento e claro.
       Leia toda a conversa antes de responder. Adapte-se ao idioma e ao tom do cliente sem exagerar na intimidade.

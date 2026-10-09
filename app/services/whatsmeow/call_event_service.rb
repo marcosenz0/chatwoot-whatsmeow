@@ -6,7 +6,12 @@ class Whatsmeow::CallEventService
     update_call(call)
     apply_event(call)
     call.save!
+    newly_ended = call.saved_change_to_ended_at?
     Whatsmeow::CallMessageService.new(call: call).perform if call.ended_at
+    if newly_ended && call.direction == 'incoming' && call.status.in?(%w[missed declined]) &&
+       !params['historical'] && call.ended_at > 5.minutes.ago
+      MarcosxAi::MissedCallJob.perform_later(call.id)
+    end
   end
 
   private

@@ -7,17 +7,22 @@ class MarcosxAi::ReplyPlan
       reaction: { type: ['string', 'null'], enum: [*REACTIONS, nil] },
       reaction_message_id: { type: ['integer', 'null'] },
       handoff: { type: 'boolean' },
-      handoff_reason: { type: ['string', 'null'] }
+      handoff_reason: { type: ['string', 'null'] },
+      alert_rule_ids: { type: 'array', items: { type: 'string' } },
+      recall_context: { type: 'boolean' }
     },
-    required: %w[messages reaction reaction_message_id handoff handoff_reason]
+    required: %w[messages reaction reaction_message_id handoff handoff_reason alert_rule_ids recall_context]
   }.freeze
 
   def self.parse(text, assistant:)
     plan = JSON.parse(text)
+    plan = { 'alert_rule_ids' => [], 'recall_context' => false }.merge(plan) if plan.is_a?(Hash)
     unless plan.is_a?(Hash) && plan['messages'].is_a?(Array) && plan['messages'].all? { |part| part.is_a?(String) } &&
            [true, false].include?(plan['handoff']) && SCHEMA[:required].all? { |key| plan.key?(key) } &&
            [*REACTIONS, nil].include?(plan['reaction']) && (plan['reaction_message_id'].nil? || plan['reaction_message_id'].is_a?(Integer)) &&
-           (plan['handoff_reason'].nil? || plan['handoff_reason'].is_a?(String))
+           (plan['handoff_reason'].nil? || plan['handoff_reason'].is_a?(String)) &&
+           plan['alert_rule_ids'].is_a?(Array) && plan['alert_rule_ids'].all? { |id| id.is_a?(String) } &&
+           [true, false].include?(plan['recall_context'])
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_response')
     end
 

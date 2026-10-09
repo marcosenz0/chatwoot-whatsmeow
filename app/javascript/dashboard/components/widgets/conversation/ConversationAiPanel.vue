@@ -8,6 +8,8 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import AiSelect from 'dashboard/routes/dashboard/captain/components/AiSelect.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
+import ConversationMemory from 'dashboard/routes/dashboard/captain/components/ConversationMemory.vue';
+import AgentAlertList from 'dashboard/routes/dashboard/captain/components/AgentAlertList.vue';
 
 const props = defineProps({
   chat: { type: Object, required: true },
@@ -249,6 +251,18 @@ const selectContext = event => {
       <p v-if="!assistants.length" class="text-sm text-n-slate-11">
         {{ t('MARCOX_AI.CONVERSATION.NO_AGENT') }}
       </p>
+      <p
+        v-if="state?.status === 'awaiting_human'"
+        class="rounded-lg bg-n-amber-2 p-3 text-sm text-n-amber-11"
+      >
+        {{ t('MARCOX_AI.AUTOMATION.AWAITING_HUMAN') }}
+      </p>
+      <ConversationMemory
+        v-if="visible && state?.id"
+        :conversation-id="chat.id"
+        @updated="fetchReport"
+      />
+      <AgentAlertList v-if="visible && state?.id" :conversation-id="chat.id" />
       <p
         v-else-if="selected && !selected.available"
         class="text-sm text-n-amber-11"

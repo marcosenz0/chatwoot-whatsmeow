@@ -56,11 +56,12 @@ class MarcosxAi::DeliveryJob < ApplicationJob
   end
 
   def finish(plan)
-    @state.update!(metadata: @state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft').merge(
+    metadata = @state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'pause_ack', 'call_event')
+    @state.update!(metadata: metadata.merge(
       'processing' => false, 'last_processed_trigger_id' => @state.metadata['trigger_message_id']
     ))
     if plan['handoff']
-      @state.handoff!(reason: plan['handoff_reason']) unless @state.metadata['manual_activation'] == true
+      @state.handoff!(reason: plan['handoff_reason']) unless @state.metadata['manual_activation'] == true || @state.status == 'awaiting_human'
       @state.conversation.bot_handoff! if @state.conversation.pending?
       @state.conversation.messages.create!(
         account: @state.account, inbox: @state.inbox, sender: @state.assistant, message_type: :outgoing, private: true,
