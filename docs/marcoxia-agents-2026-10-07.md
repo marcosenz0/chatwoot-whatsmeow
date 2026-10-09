@@ -1,5 +1,7 @@
 # MarcoXIA agents — October 7–8, 2026
 
+> Current continuity behavior and deployed image are recorded in [MarcoXIA conversation continuity — October 8, 2026](marcoxia-continuity-2026-10-08.md). Reviewed replies now continue individual attendance, with selectable context and timezone. Deployment pins and paused-after-send evidence below describe earlier revisions.
+
 The Captain overview is a dedicated MarcoXIA workspace. The selected agent fills the remaining workspace, with its connection, searchable model selection, instructions, inboxes, conversation behavior, private test area, attendance and activity inside that profile. An agent can cover one or many inboxes; an inbox has one default agent to prevent competing replies. A conversation can select a different agent without changing that inbox default. Existing Whatsmeow, personal Telegram and PDF features are preserved. There is no n8n integration, RAG, clinic tool or scheduling tool.
 
 ## General support and individual attendance — October 8, 2026
