@@ -125,14 +125,15 @@ class MarcosxAi::ConversationState < ApplicationRecord
   private
 
   def superseded?
+    attributes_sql = MarcosxAi::ConversationContext::CONTENT_ATTRIBUTES_SQL
     newer = conversation.messages.where(private: false).where('id > ?', metadata.fetch('trigger_message_id'))
     newer = newer.where("COALESCE(additional_attributes ->> 'marcosx_ai_operational', 'false') != 'true'")
-    newer = newer.where("COALESCE(content_attributes ->> 'historical', 'false') != 'true'")
+    newer = newer.where("COALESCE(#{attributes_sql} ->> 'historical', 'false') != 'true'")
                  .where.not(content_type: Message.content_types[:voice_call])
-    incoming = newer.incoming.where("COALESCE(content_attributes ->> 'deleted', 'false') != 'true'")
-                    .where("COALESCE(content_attributes ->> 'is_unsupported', 'false') != 'true'")
-    human = newer.outgoing.where("sender_type = 'User' OR content_attributes ->> 'external_echo' = 'true'")
-                 .where("content_attributes ->> 'automation_rule_id' IS NULL AND additional_attributes ->> 'campaign_id' IS NULL")
+    incoming = newer.incoming.where("COALESCE(#{attributes_sql} ->> 'deleted', 'false') != 'true'")
+                    .where("COALESCE(#{attributes_sql} ->> 'is_unsupported', 'false') != 'true'")
+    human = newer.outgoing.where("sender_type = 'User' OR #{attributes_sql} ->> 'external_echo' = 'true'")
+                 .where("#{attributes_sql} ->> 'automation_rule_id' IS NULL AND additional_attributes ->> 'campaign_id' IS NULL")
     incoming.exists? || human.exists?
   end
 

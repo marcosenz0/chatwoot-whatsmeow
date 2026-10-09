@@ -1,4 +1,7 @@
 class MarcosxAi::ConversationContext
+  # Message.store can persist a JSON string inside the native JSON column. Imports also use JSON objects.
+  CONTENT_ATTRIBUTES_SQL = "(CASE WHEN jsonb_typeof(messages.content_attributes::jsonb) = 'string' " \
+                           "THEN (messages.content_attributes #>> '{}')::jsonb ELSE messages.content_attributes::jsonb END)".freeze
   MEMORY_PROMPT = <<~PROMPT.freeze
     Atualize uma memória factual e compacta desta conversa. Preserve identidade, preferências, valores, pedidos,
     compromissos, objeções e pontos ainda sem resposta. Distingua o que foi dito do que foi confirmado.
@@ -9,8 +12,8 @@ class MarcosxAi::ConversationContext
   def self.public_history(conversation)
     conversation.messages.where(message_type: [:incoming, :outgoing], private: false)
                 .where.not(content_type: Message.content_types[:voice_call])
-                .where("COALESCE(content_attributes ->> 'deleted', 'false') != 'true'")
-                .where("COALESCE(content_attributes ->> 'whatsmeow_deleted', 'false') != 'true'")
+                .where("COALESCE(#{CONTENT_ATTRIBUTES_SQL} ->> 'deleted', 'false') != 'true'")
+                .where("COALESCE(#{CONTENT_ATTRIBUTES_SQL} ->> 'whatsmeow_deleted', 'false') != 'true'")
                 .where("COALESCE(additional_attributes ->> 'marcosx_ai_operational', 'false') != 'true'")
                 .where('COALESCE(content, ?) NOT LIKE ?', '', "#{MarcosxAi::AlertService::NOTICE_PREFIX}%")
   end

@@ -23,7 +23,7 @@ class MarcosxAi::MissedCallJob < ApplicationJob
 
         subsequent = MarcosxAi::ConversationContext.public_history(conversation).where('created_at >= ?', call.ended_at)
         return if subsequent.incoming.exists? || subsequent.outgoing.where(
-          "sender_type = 'User' OR content_attributes ->> 'external_echo' = 'true'"
+          "sender_type = 'User' OR #{MarcosxAi::ConversationContext::CONTENT_ATTRIBUTES_SQL} ->> 'external_echo' = 'true'"
         ).exists?
 
         trigger = conversation.messages.find_by!(source_id: "whatsmeow-call:#{call.source_id}")
