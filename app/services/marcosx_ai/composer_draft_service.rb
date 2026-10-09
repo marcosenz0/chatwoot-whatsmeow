@@ -12,6 +12,12 @@ class MarcosxAi::ComposerDraftService
     'refine' => 'Adjust the supplied draft according to the operator request, without inventing facts.'
   }.freeze
 
+  SCHEMA = MarcosxAi::ReplyPlan::SCHEMA.merge(
+    properties: MarcosxAi::ReplyPlan::SCHEMA[:properties].merge(
+      messages: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 } }
+    )
+  ).freeze
+
   def initialize(conversation:, action:, content: nil, instruction: nil)
     @conversation = conversation
     @action = action
@@ -43,13 +49,14 @@ class MarcosxAi::ComposerDraftService
                                                 context: MarcosxAi::PromptBuilder.context_for(@conversation, assistant: assistant),
                                                 reactions: false, proactive: true)
     task = "Operator draft only. Do not send messages or execute actions. #{TASKS.fetch(@action)} " \
-           'Use the conversation language. Return the draft in messages, with reaction null and handoff false.'
+           'Use the conversation language. Return a nonempty draft in messages, with reaction null and handoff false. ' \
+           'The operator explicitly requested a draft, even if the latest history message already received a reply. Do not choose silence.'
     messages = [*prompts, { role: 'system', content: task }, *history]
     if @content.present?
       draft = { draft_to_edit: @content.to_s.truncate(15_000), operator_request: @instruction.to_s.truncate(2000) }
       messages << { role: 'user', content: draft.to_json }
     end
-    plan = MarcosxAi::ReplyPlan.parse(client.chat(messages: messages, schema: MarcosxAi::ReplyPlan::SCHEMA), assistant: assistant)
+    plan = MarcosxAi::ReplyPlan.parse(client.chat(messages: messages, schema: SCHEMA), assistant: assistant)
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response') if plan['messages'].empty?
 
     latest = MarcosxAi::ConversationContext.public_history(@conversation).order(:created_at, :id).last

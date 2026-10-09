@@ -26,7 +26,8 @@ RSpec.describe MarcosxAi::ComposerDraftService do
     expect(client).to have_received(:chat) do |messages:, schema:|
       expect(messages.to_json).to include('Never invent prices', 'Question yesterday', 'sent_at', '-03:00')
       expect(messages.to_json).not_to include('Private secret')
-      expect(schema).to eq(MarcosxAi::ReplyPlan::SCHEMA)
+      expect(schema.dig(:properties, :messages)).to include(minItems: 1)
+      expect(messages.to_json).to include('Do not choose silence')
     end
   end
 
