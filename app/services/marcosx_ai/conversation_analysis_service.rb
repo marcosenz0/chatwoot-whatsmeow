@@ -43,7 +43,8 @@ class MarcosxAi::ConversationAnalysisService
     context = MarcosxAi::ConversationContext.new(
       conversation: @conversation, assistant: @assistant, state: @state, client: client,
       trigger_message: history.find(analysis.fetch('trigger_message_id')), token: token,
-      persist_memory: @assistant.memory_mode == 'summary_recent', messages_limit: analysis['messages_limit'], valid_run: -> { current?(token) }
+      persist_memory: (@state.metadata['memory_mode'] || @assistant.memory_mode) == 'summary_recent',
+      messages_limit: analysis['messages_limit'], valid_run: -> { current?(token) }
     ).messages
     return invalidate(token) unless current?(token)
 
@@ -105,7 +106,7 @@ class MarcosxAi::ConversationAnalysisService
       end
 
       plan = MarcosxAi::ReplyPlan.parse(analysis.fetch('plan').merge('messages' => messages).to_json, assistant: @assistant)
-      if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff']
+      if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff'] && plan['alert_rule_ids'].empty?
         raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response')
       end
 

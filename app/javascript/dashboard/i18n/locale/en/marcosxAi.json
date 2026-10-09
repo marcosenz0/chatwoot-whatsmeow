@@ -299,6 +299,7 @@
       "RECENT_LIMIT": "Recent messages used in each response",
       "SAVE_MEMORY": "Save context selection",
       "SUMMARY_INFO": "{count} summarized · {recent} recent · updated {date}",
+      "SUMMARY_STALE": "Earlier messages changed. The summary will be rebuilt on the next response; you can also rebuild it now.",
       "EMPTY_SUMMARY": "No previous summary yet.",
       "REBUILD": "Rebuild memory",
       "REBUILD_PROCESSING": "Rebuilding memory…",

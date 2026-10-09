@@ -48,13 +48,18 @@ class Api::V1::Accounts::MarcosxAi::MemoriesController < Api::V1::Accounts::Marc
     @state.with_lock do
       links = @state.metadata.fetch('approved_context_links', []).reject { |entry| entry['conversation_id'] == source.id }
       links << { 'conversation_id' => source.id, 'approved_by' => Current.user.id, 'approved_at' => Time.current.iso8601 }
-      @state.update!(metadata: @state.metadata.merge('approved_context_links' => links))
+      @state.update!(metadata: @state.metadata.merge('approved_context_links' => links,
+                                                     'run_token' => SecureRandom.uuid, 'processing' => false)
+                                    .except('pending_response', 'analysis', 'approved_draft'))
     end
     render json: { memory: memory_data }
   end
 
   def unlink
-    @state.with_lock { @state.update!(metadata: @state.metadata.except('approved_context_links')) }
+    @state.with_lock do
+      @state.update!(metadata: @state.metadata.except('approved_context_links', 'pending_response', 'analysis', 'approved_draft')
+                                     .merge('run_token' => SecureRandom.uuid, 'processing' => false))
+    end
     render json: { memory: memory_data }
   end
 
@@ -74,6 +79,6 @@ class Api::V1::Accounts::MarcosxAi::MemoriesController < Api::V1::Accounts::Marc
       stale: MarcosxAi::ConversationContext.stale?(@state),
       summarized_count: @state.metadata.fetch('summary_messages_count', 0), rebuild: @state.metadata['memory_rebuild'],
       links: Current.account.conversations.where(id: @state.metadata.fetch('approved_context_links', []).map { |entry| entry['conversation_id'] })
-                    .map { |conversation| { id: conversation.display_id, inbox: conversation.inbox.name } } }
+                    .filter_map { |conversation| { id: conversation.display_id, inbox: conversation.inbox.name } if policy(conversation).show? } }
   end
 end

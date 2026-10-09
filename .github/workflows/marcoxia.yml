@@ -93,11 +93,16 @@ jobs:
           -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 \
           install -y --no-install-recommends ffmpeg libvips42
       - run: bundle exec rake db:create db:schema:load db:migrate
+      - uses: actions/upload-artifact@v4
+        with:
+          name: marcoxia-schema
+          path: db/schema.rb
       - name: Validate AI runtime, isolation and media
         run: >-
           bundle exec rspec
           spec/services/marcosx_ai
           spec/controllers/api/v1/accounts/marcosx_ai_spec.rb
+          spec/controllers/api/v1/accounts/marcosx_ai_operations_spec.rb
           spec/models/attachment_spec.rb
           spec/services/whatsmeow
           spec/services/telegram_personal

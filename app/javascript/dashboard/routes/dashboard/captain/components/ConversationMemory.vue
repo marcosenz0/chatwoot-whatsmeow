@@ -108,6 +108,9 @@ const perform = async action => {
         })
       }}
     </p>
+    <p v-if="memory.stale" class="text-xs text-n-amber-11">
+      {{ t('MARCOX_AI.AUTOMATION.SUMMARY_STALE') }}
+    </p>
     <p
       class="max-h-48 overflow-y-auto whitespace-pre-wrap text-sm text-n-slate-11"
     >

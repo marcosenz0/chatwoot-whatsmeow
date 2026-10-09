@@ -5,7 +5,7 @@ class MarcosxAi::AlertService
     rules = state.assistant.alert_rules.select { |rule| plan.fetch('alert_rule_ids', []).include?(rule[:id]) }
     if plan['handoff'] && state.assistant.feature_enabled?(:pause_on_handoff)
       rules << { id: 'human_handoff', name: I18n.t('marcosx_ai.human_attention'), action: 'pause',
-                 description: plan['handoff_reason'], message: '{contact} · {inbox}\n{reason}\n{url}' }.with_indifferent_access
+                 description: plan['handoff_reason'], message: "{contact} · {inbox}\n{reason}\n{url}" }.with_indifferent_access
     end
     rules.each do |rule|
       alert = MarcosxAi::Alert.create_or_find_by!(conversation: state.conversation, rule_id: rule[:id], status: 'open') do |record|
@@ -36,7 +36,7 @@ class MarcosxAi::AlertService
     conversation = alert.conversation
     values = { 'contact' => conversation.contact.name, 'inbox' => conversation.inbox.name, 'reason' => alert.reason,
                'url' => "#{ENV.fetch('FRONTEND_URL')}/app/accounts/#{alert.account_id}/conversations/#{conversation.display_id}" }
-    template = alert.configuration['message'].presence || '{contact} · {inbox}\n{reason}\n{url}'
+    template = alert.configuration['message'].presence || "{contact} · {inbox}\n{reason}\n{url}"
     "#{NOTICE_PREFIX} #{I18n.t('marcosx_ai.operational')}\n#{template.gsub(/\{(contact|inbox|reason|url)\}/) {
       values.fetch(Regexp.last_match(1)).to_s
     }}"

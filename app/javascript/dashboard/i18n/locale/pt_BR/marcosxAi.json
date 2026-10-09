@@ -299,6 +299,7 @@
       "RECENT_LIMIT": "Mensagens recentes utilizadas em cada resposta",
       "SAVE_MEMORY": "Salvar seleção de contexto",
       "SUMMARY_INFO": "{count} resumidas · {recent} recentes · atualização {date}",
+      "SUMMARY_STALE": "Mensagens anteriores mudaram. O resumo será reconstruído na próxima resposta; você também pode reconstruí-lo agora.",
       "EMPTY_SUMMARY": "Ainda não há resumo anterior.",
       "REBUILD": "Reconstruir memória",
       "REBUILD_PROCESSING": "Reconstruindo memória…",

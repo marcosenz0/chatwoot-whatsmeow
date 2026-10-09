@@ -23,7 +23,7 @@ class Whatsmeow::CallEventService
   def update_call(call)
     call.assign_attributes(account: inbox.account, peer_jid: params.fetch('peer_jid'), direction: params.fetch('direction')) if call.new_record?
     call.started_at = [call.started_at, event_time].compact.min
-    call.video ||= ActiveModel::Type::Boolean.new.cast(params['video'])
+    call.video ||= ActiveModel::Type::Boolean.new.cast(params['video']) == true
     call.agent_id ||= params['agent_id'].presence
     attach_contact(call)
   end
