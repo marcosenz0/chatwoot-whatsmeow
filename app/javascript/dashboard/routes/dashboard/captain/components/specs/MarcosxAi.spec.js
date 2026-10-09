@@ -7,7 +7,12 @@ import AiPlayground from '../AiPlayground.vue';
 import AiSelect from '../AiSelect.vue';
 
 vi.mock('dashboard/api/marcosxAi', () => ({
-  default: { runPlayground: vi.fn() },
+  default: {
+    runPlayground: vi.fn(),
+    getEffectivePrompt: vi.fn(),
+    getNotificationOptions: vi.fn(),
+    testNotification: vi.fn(),
+  },
 }));
 const agent = {
   id: 1,
@@ -52,6 +57,68 @@ const props = {
 };
 
 describe('MarcoXIA agent configuration', () => {
+  it('previews saved instructions without submitting unsaved agent edits', async () => {
+    MarcosxAiAPI.getEffectivePrompt.mockResolvedValue({
+      data: {
+        editable: 'Saved instructions',
+        technical: 'Saved technical rules',
+      },
+    });
+    const wrapper = mount(AgentEditor, {
+      attachTo: document.body,
+      props: { ...props, initialSection: 'prompt' },
+    });
+    await wrapper.get('#ai-system-prompt').setValue('Unsaved instructions');
+    wrapper
+      .findAll('button')
+      .find(button => button.text().includes('EFFECTIVE_PROMPT'))
+      .element.click();
+    await flushPromises();
+    expect(MarcosxAiAPI.getEffectivePrompt).toHaveBeenCalledWith(1);
+    expect(wrapper.emitted('save')).toBeUndefined();
+    expect(wrapper.text()).toContain('Saved technical rules');
+    expect(wrapper.get('#ai-system-prompt').element.value).toBe(
+      'Unsaved instructions'
+    );
+    wrapper.unmount();
+  });
+
+  it('edits alert rules and tests saved notifications without submitting the agent form', async () => {
+    MarcosxAiAPI.getNotificationOptions.mockResolvedValue({
+      data: { users: [], inboxes: [] },
+    });
+    MarcosxAiAPI.testNotification.mockResolvedValue({ data: {} });
+    const wrapper = mount(AgentEditor, {
+      attachTo: document.body,
+      props: { ...props, initialSection: 'notifications' },
+      global: { stubs: { AgentAlertList: true } },
+    });
+    await flushPromises();
+    wrapper
+      .findAll('button')
+      .find(button => button.text().includes('ADD_RULE'))
+      .element.click();
+    await flushPromises();
+    expect(wrapper.text()).toContain('RULE_NAME');
+    wrapper
+      .findAll('button')
+      .find(button => button.text().includes('REMOVE_RULE'))
+      .element.click();
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('RULE_NAME');
+    await wrapper
+      .get('input[placeholder="MARCOX_AI.AUTOMATION.TEST_CONVERSATION"]')
+      .setValue(92);
+    wrapper
+      .findAll('button')
+      .find(button => button.text().includes('TEST_NOTIFICATION'))
+      .element.click();
+    await flushPromises();
+    expect(MarcosxAiAPI.testNotification).toHaveBeenCalledWith(1, 92);
+    expect(wrapper.emitted('save')).toBeUndefined();
+    wrapper.unmount();
+  });
+
   it('offers a searchable app menu and emits the selected model identifier', async () => {
     const wrapper = mount(AiModelSelect, {
       props: { modelValue: 'gpt-6.1-sol', models: catalogs.openai.models },

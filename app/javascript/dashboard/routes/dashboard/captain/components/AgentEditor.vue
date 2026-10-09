@@ -473,6 +473,7 @@ const channelLabel = inbox =>
             </div>
             <Button
               v-if="form.id"
+              type="button"
               size="sm"
               variant="outline"
               :label="t('MARCOX_AI.AUTOMATION.EFFECTIVE_PROMPT')"
@@ -497,6 +498,7 @@ const channelLabel = inbox =>
             </div>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <Button
+                type="button"
                 variant="link"
                 size="sm"
                 :label="t('MARCOX_AI.EDITOR.PROMPT_STARTER')"
@@ -522,6 +524,7 @@ const channelLabel = inbox =>
                 class="!mb-0 !h-10 min-w-40 flex-1 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
               />
               <Button
+                type="button"
                 variant="link"
                 size="sm"
                 :label="t('MARCOX_AI.ALL_INBOXES')"

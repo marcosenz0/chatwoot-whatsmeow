@@ -133,6 +133,7 @@ const testNotification = async () => {
         :inboxes="options.inboxes"
       />
       <Button
+        type="button"
         size="sm"
         variant="link"
         color="ruby"
@@ -141,6 +142,7 @@ const testNotification = async () => {
       />
     </div>
     <Button
+      type="button"
       size="sm"
       variant="outline"
       icon="i-lucide-plus"
@@ -159,6 +161,7 @@ const testNotification = async () => {
         :placeholder="t('MARCOX_AI.AUTOMATION.TEST_CONVERSATION')"
       />
       <Button
+        type="button"
         size="sm"
         :disabled="!testConversation || testing"
         :is-loading="testing"
