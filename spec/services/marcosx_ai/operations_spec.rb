@@ -141,21 +141,20 @@ RSpec.describe 'MarcoXIA memory and human assistance' do
     human = create(:message, account: account, inbox: inbox, conversation: conversation, message_type: :outgoing, sender: user)
     state.pause_by_human!(message: human, minutes: 0)
     old_due = state.paused_until.iso8601(6)
-    travel 10.minutes do
+    freeze_time do
+      travel 10.minutes
       latest = create(:message, account: account, inbox: inbox, conversation: conversation, message_type: :outgoing, sender: user)
       state.pause_by_human!(message: latest, minutes: 0)
       new_due = state.paused_until.iso8601(6)
-      travel 6.minutes do
-        MarcosxAi::ResumeJob.perform_now(state.id, human.id, old_due)
-        expect(state.reload.status).to eq('paused_by_human')
-        MarcosxAi::ResumeJob.perform_now(state.id, latest.id, new_due)
-        expect(state.reload.status).to eq('paused_by_human')
-        travel 10.minutes do
-          MarcosxAi::ResumeJob.perform_now(state.id, latest.id, new_due)
-          expect(state.reload.status).to eq('active')
-          expect(state.metadata).not_to have_key('human_wait')
-        end
-      end
+      travel 6.minutes
+      MarcosxAi::ResumeJob.perform_now(state.id, human.id, old_due)
+      expect(state.reload.status).to eq('paused_by_human')
+      MarcosxAi::ResumeJob.perform_now(state.id, latest.id, new_due)
+      expect(state.reload.status).to eq('paused_by_human')
+      travel 10.minutes
+      MarcosxAi::ResumeJob.perform_now(state.id, latest.id, new_due)
+      expect(state.reload.status).to eq('active')
+      expect(state.metadata).not_to have_key('human_wait')
     end
   end
 
