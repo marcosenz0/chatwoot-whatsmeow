@@ -39,6 +39,7 @@ export function useMarcosxAiDraft() {
       if (!response || currentGeneration !== generation) return;
       generatedContent.value = response.data.content;
       showEditor.value = true;
+      isContentReady.value = true;
     } catch (error) {
       if (currentGeneration !== generation) return;
       useAlert(

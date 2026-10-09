@@ -35,7 +35,6 @@ describe('MarcoXIA composer draft', () => {
       { signal: expect.any(AbortSignal) }
     );
     expect(draft.generatedContent.value).toBe('Review this reply');
-    draft.setContentReady();
     expect(draft.isButtonDisabled.value).toBe(false);
     expect(draft.accept()).toBe('Review this reply');
     expect(draft.isActive.value).toBe(false);
