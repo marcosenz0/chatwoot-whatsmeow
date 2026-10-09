@@ -1,8 +1,8 @@
 name: MarcoXIA validation and image
 on:
   push:
-    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence]
-    paths: ['app/**', 'spec/**', 'config/**', 'lib/**', 'Dockerfile', '.github/workflows/marcoxia.yml']
+    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human]
+    paths: ['app/**', 'spec/**', 'db/**', 'config/**', 'lib/**', 'Dockerfile', '.github/workflows/marcoxia.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -53,6 +53,7 @@ jobs:
           app/javascript/dashboard/components/widgets/conversation/MoreActions.vue
           app/javascript/dashboard/components-next/sidebar/Sidebar.vue
           app/javascript/dashboard/api/marcosxAi.js
+          app/javascript/dashboard/routes/dashboard/inbox/helpers/InboxViewHelpers.js
           app/javascript/dashboard/composables/useMarcosxAiDraft.js
           app/javascript/dashboard/components/widgets/WootWriter/Editor.vue
           app/javascript/dashboard/components/widgets/WootWriter/ReplyTopPanel.vue
@@ -93,11 +94,16 @@ jobs:
           -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 \
           install -y --no-install-recommends ffmpeg libvips42
       - run: bundle exec rake db:create db:schema:load db:migrate
+      - uses: actions/upload-artifact@v4
+        with:
+          name: marcoxia-schema
+          path: db/schema.rb
       - name: Validate AI runtime, isolation and media
         run: >-
           bundle exec rspec
           spec/services/marcosx_ai
           spec/controllers/api/v1/accounts/marcosx_ai_spec.rb
+          spec/controllers/api/v1/accounts/marcosx_ai_operations_spec.rb
           spec/models/attachment_spec.rb
           spec/services/whatsmeow
           spec/services/telegram_personal
@@ -113,6 +119,10 @@ jobs:
           app/jobs/marcosx_ai
           app/listeners/marcosx_ai_listener.rb
           app/services/whatsmeow/typing_status_service.rb
+          app/services/whatsmeow/call_event_service.rb
+          app/models/notification.rb
+          app/jobs/notification/remove_duplicate_notification_job.rb
+          db/migrate/20261009090000_create_marcosx_ai_alerts.rb
           lib/custom_exceptions/marcosx_ai.rb
   publish:
     needs: [frontend, rails]

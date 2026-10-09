@@ -1,11 +1,30 @@
 class MarcosxAiListener < BaseListener
   def message_created(event)
     message = extract_message_and_account(event)[0]
+    return if message.additional_attributes['marcosx_ai_operational'] || message.content.to_s.start_with?(MarcosxAi::AlertService::NOTICE_PREFIX)
 
     if message.incoming?
       schedule_ai_response(message)
     elsif human_response?(message)
       pause_conversation_for_human(message)
+    end
+  end
+
+  def message_updated(event)
+    message = extract_message_and_account(event)[0]
+    return unless message.additional_attributes['marcosx_ai_operational']
+
+    delivery = MarcosxAi::AlertDelivery.find_by(message_id: message.id)
+    return unless delivery
+
+    delivery.with_lock do
+      return if delivery.status == message.status
+
+      delivery.update!(status: message.status, error: message.content_attributes['external_error'])
+      if message.failed?
+        MarcosxAi::Log.create!(account: delivery.alert.account, assistant: delivery.alert.assistant, conversation: delivery.alert.conversation,
+                               event: 'notification_failed', response: { delivery_id: delivery.id })
+      end
     end
   end
 

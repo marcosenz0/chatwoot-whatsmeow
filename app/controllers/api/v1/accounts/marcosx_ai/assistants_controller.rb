@@ -1,6 +1,6 @@
 class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::MarcosxAi::BaseController
   before_action :ensure_admin!, except: [:index, :show, :playground]
-  before_action :set_assistant, only: [:show, :update, :destroy, :playground, :coverage]
+  before_action :set_assistant, only: [:show, :update, :destroy, :playground, :coverage, :prompt, :test_notification]
 
   def index
     render json: { assistants: Current.account.marcosx_ai_assistants.ordered.map { |assistant| serialize(assistant) } }
@@ -36,6 +36,36 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
     head :no_content
   end
 
+  def notification_options
+    render json: { users: Current.account.users.map { |user| { id: user.id, name: user.name } },
+                   inboxes: Current.account.inboxes.where(channel_type: 'Channel::Whatsmeow').map { |inbox| { id: inbox.id, name: inbox.name } } }
+  end
+
+  def prompt
+    messages = MarcosxAi::PromptBuilder.messages(assistant: @assistant, context: { runtime: 'contact, inbox, channel, timezone, now' },
+                                                 reactions: @assistant.feature_enabled?(:allow_reactions))
+    render json: { technical: messages.first[:content], editable: messages.last[:content] }
+  end
+
+  def test_notification
+    id = params[:conversation_id]
+    return render json: { error: 'Invalid conversation' }, status: :unprocessable_entity unless id.is_a?(Integer) && id.positive?
+
+    conversation = Current.account.conversations.find_by!(display_id: id)
+    authorize conversation, :show?
+    configuration = @assistant.resolved_config[:notifications]
+    if configuration[:user_ids].empty? && configuration[:whatsapp_numbers].empty?
+      return render json: { error: 'Configure recipients first' }, status: :unprocessable_entity
+    end
+
+    alert = MarcosxAi::Alert.create!(account: Current.account, conversation: conversation, assistant: @assistant,
+                                     rule_id: "test_#{SecureRandom.hex(8)}", name: I18n.t('marcosx_ai.notification_test'), action: 'notify',
+                                     reason: I18n.t('marcosx_ai.notification_test'), configuration: configuration, status: 'resolved',
+                                     resolved_by: Current.user, resolved_at: Time.current)
+    MarcosxAi::AlertService.queue(alert)
+    render json: { alert: alert.public_data }, status: :accepted
+  end
+
   def coverage
     if @assistant.auto_response_enabled? && @assistant.feature_enabled?(:auto_start) && @assistant.inboxes.exists?
       return render json: { mode: 'automatic', conversations: [], total: nil }
@@ -62,6 +92,10 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
     client = MarcosxAi::ProviderClient.new(account: Current.account, provider: @assistant.provider, model: @assistant.model,
                                            temperature: @assistant.temperature, reasoning_effort: @assistant.reasoning_effort)
     prompts = MarcosxAi::PromptBuilder.messages(assistant: @assistant, reactions: @assistant.feature_enabled?(:allow_reactions))
+    if playground_params[:event] == 'missed_call'
+      prompts << { role: 'developer', content: @assistant.resolved_config[:missed_call_instructions] }
+      prompts << { role: 'user', content: 'Simulação: chamada recebida encerrada sem atendimento.' }
+    end
     history = playground_params.fetch(:history, []).last(@assistant.history_limit).map { |item| { role: item[:role], content: item[:content] } }
     return render json: { error: 'Invalid history' }, status: :unprocessable_entity unless history.all? { |item|
       %w[user assistant].include?(item[:role])
@@ -85,7 +119,12 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
     end
     plan = MarcosxAi::ReplyPlan.parse(client.chat(messages: [*prompts, *history, { role: 'user', content: parts }],
                                                   schema: MarcosxAi::ReplyPlan::SCHEMA), assistant: @assistant)
+    rules = @assistant.alert_rules.select { |rule| plan['alert_rule_ids'].include?(rule[:id]) }
     render json: { response: plan['messages'].join("\n\n"), plan: plan, usage: client.usage,
+                   simulation: { alerts: rules.map { |rule| rule.slice(:id, :name, :action) },
+                                 paused: rules.any? { |rule| rule[:action] == 'pause' } ||
+                                         (plan['handoff'] && @assistant.feature_enabled?(:pause_on_handoff)),
+                                 recall_requested: plan['recall_context'] },
                    user_context: parts.map { |part| part[:text] }.join("\n") }
   rescue StandardError => e
     render json: { error: e.message }, status: :unprocessable_entity
@@ -134,21 +173,27 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
         :history_limit,
         :timezone,
         :human_pause_minutes,
+        :memory_mode, :editorial_instructions, :reply_to_missed_calls, :missed_call_instructions,
+        :resume_mode, :resume_after_minutes, :pause_on_handoff, :pause_acknowledgement,
         :auto_response_enabled,
         :fallback_message,
         :handoff_message,
         :show_typing, :show_recording, :split_messages, :max_message_parts, :message_interval_seconds, :allow_reactions,
-        :process_images, :process_audio, :process_files, :process_video, :respond_to_groups, :auto_start
+        :process_images, :process_audio, :process_files, :process_video, :respond_to_groups, :auto_start,
+        { notifications: [:inbox_id, { user_ids: [], whatsapp_numbers: [] }],
+          alert_rules: [:id, :name, :description, :message, :action, :inbox_id, { user_ids: [], whatsapp_numbers: [] }] }
       ],
       response_guidelines: [],
       guardrails: []
     )
-    permitted[:config] = (@assistant&.resolved_config || MarcosxAi::Assistant::DEFAULT_CONFIG).merge(permitted[:config] || {})
+    config = (@assistant&.resolved_config || MarcosxAi::Assistant::DEFAULT_CONFIG).merge((permitted[:config] || {}).to_h)
+    MarcosxAi::ConfigurationValidator.validate!(config, account: Current.account)
+    permitted[:config] = config
     permitted
   end
 
   def playground_params
-    params.require(:assistant).permit(:message, history: [:role, :content])
+    params.require(:assistant).permit(:message, :event, history: [:role, :content])
   end
 
   def serialize(assistant)
@@ -157,6 +202,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
       name: assistant.name,
       description: assistant.description,
       instructions: assistant.instructions,
+      editorial_instructions: assistant.resolved_config[:editorial_instructions] || MarcosxAi::PromptBuilder::EDITORIAL_INSTRUCTIONS,
       config: assistant.resolved_config,
       response_guidelines: assistant.response_guidelines || [],
       guardrails: assistant.guardrails || [],

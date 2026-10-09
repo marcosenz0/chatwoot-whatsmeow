@@ -121,13 +121,21 @@ Rails.application.routes.draw do
               get :models, on: :collection
             end
             resources :logs, only: [:index]
+            resources :alerts, only: [:index, :update]
             resources :assistants do
               post :playground, on: :member
               get :coverage, on: :member
+              get :prompt, on: :member
+              post :test_notification, on: :member
+              get :notification_options, on: :collection
               resources :inboxes, only: [:index, :create, :destroy], param: :inbox_id
             end
             resources :conversations, only: [] do
               resource :state, only: [:show, :update], controller: 'conversation_states'
+              resource :memory, only: [:show, :update, :create], controller: 'memories' do
+                post :link
+                delete :unlink
+              end
               resource :draft, only: [:create], controller: 'conversation_drafts'
               resource :analysis, only: [:show, :create], controller: 'conversation_analyses' do
                 post :send_reply

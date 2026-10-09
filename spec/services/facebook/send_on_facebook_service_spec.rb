@@ -101,6 +101,8 @@ describe Facebook::SendOnFacebookService do
 
       it 'sends with HUMAN_AGENT tag when ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT is enabled' do
         with_modified_env ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT: 'true' do
+          InstallationConfig.find_or_initialize_by(name: 'ENABLE_MESSENGER_CHANNEL_HUMAN_AGENT').update!(value: true, locked: false)
+          GlobalConfig.clear_cache
           message = create(:message, message_type: 'outgoing', inbox: facebook_inbox, account: account, conversation: conversation)
           described_class.new(message: message).perform
           expect(bot).to have_received(:deliver).with(
@@ -108,6 +110,7 @@ describe Facebook::SendOnFacebookService do
             { page_id: facebook_channel.page_id }
           )
         end
+        GlobalConfig.clear_cache
       end
 
       it 'if message is sent with multiple attachments' do

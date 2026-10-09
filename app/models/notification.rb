@@ -43,7 +43,8 @@ class Notification < ApplicationRecord
     participating_conversation_new_message: 5,
     sla_missed_first_response: 6,
     sla_missed_next_response: 7,
-    sla_missed_resolution: 8
+    sla_missed_resolution: 8,
+    marcosx_ai_attention: 9
   }.freeze
 
   enum notification_type: NOTIFICATION_TYPES
@@ -88,6 +89,8 @@ class Notification < ApplicationRecord
 
   # rubocop:disable Metrics/MethodLength
   def push_message_title
+    return I18n.t('marcosx_ai.human_attention') if marcosx_ai_attention?
+
     notification_title_map = {
       'conversation_creation' => 'notifications.notification_title.conversation_creation',
       'conversation_assignment' => 'notifications.notification_title.conversation_assignment',
@@ -114,6 +117,8 @@ class Notification < ApplicationRecord
   # rubocop:enable Metrics/MethodLength
 
   def push_message_body
+    return meta&.dig('reason').to_s if marcosx_ai_attention?
+
     case notification_type
     when 'conversation_creation', 'sla_missed_first_response'
       message_body(conversation.messages.first)
@@ -167,6 +172,7 @@ class Notification < ApplicationRecord
   def user_subscribed_to_notification?(delivery_type)
     notification_setting = user.notification_settings.find_by(account_id: account.id)
     return false if notification_setting.blank?
+    return delivery_type == 'push' && notification_setting.push_conversation_mention? if marcosx_ai_attention?
 
     # Check if the user has subscribed to the specified type of notification
     notification_setting.public_send("#{delivery_type}_#{notification_type}?")

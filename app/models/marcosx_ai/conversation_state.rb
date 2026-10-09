@@ -1,7 +1,7 @@
 class MarcosxAi::ConversationState < ApplicationRecord
   self.table_name = 'marcosx_ai_conversation_states'
 
-  STATUSES = %w[active paused_by_human paused_by_agent handoff error].freeze
+  STATUSES = %w[active paused_by_human paused_by_agent awaiting_human handoff error].freeze
 
   belongs_to :account
   belongs_to :assistant, class_name: 'MarcosxAi::Assistant', optional: true
@@ -38,10 +38,11 @@ class MarcosxAi::ConversationState < ApplicationRecord
   def active_for_ai?
     return true if status == 'active'
     return false unless status == 'paused_by_human'
+    return false if metadata['human_wait'] && assistant.resolved_config[:resume_mode] != 'after_human'
     return false if paused_until.blank?
     return false if paused_until.future?
 
-    update!(status: 'active', paused_until: nil)
+    resume!
     true
   end
 
@@ -62,24 +63,31 @@ class MarcosxAi::ConversationState < ApplicationRecord
   end
 
   def pause_by_human!(message:, minutes:)
+    return if status == 'paused_by_agent'
+
+    waiting = metadata['human_wait'] == true
+    if waiting
+      minutes = assistant.resolved_config[:resume_mode] == 'after_human' ? assistant.resolved_config[:resume_after_minutes].to_i : 0
+    end
     update!(
-      status: 'paused_by_human',
+      status: waiting && minutes.zero? ? 'awaiting_human' : 'paused_by_human',
       paused_until: minutes.positive? ? Time.current + minutes.minutes : nil,
       last_human_message_id: message.id,
       metadata: cancelled_metadata.merge('paused_reason' => 'human_response')
     )
+    MarcosxAi::ResumeJob.set(wait_until: paused_until).perform_later(id, message.id, paused_until.iso8601(6)) if waiting && paused_until
   end
 
   def pause_by_agent!(reason: nil)
     update!(
       status: 'paused_by_agent',
       paused_until: nil,
-      metadata: cancelled_metadata.merge('paused_reason' => reason.presence || 'agent_paused')
+      metadata: cancelled_metadata.except('human_wait', 'pause_ack').merge('paused_reason' => reason.presence || 'agent_paused')
     )
   end
 
   def resume!(manual: false)
-    data = cancelled_metadata.except('last_error', 'paused_reason', 'handoff_reason')
+    data = cancelled_metadata.except('last_error', 'paused_reason', 'handoff_reason', 'human_wait', 'pause_ack')
     data.merge!('manual_activation' => true, 'conversation_override' => true) if manual
     update!(status: 'active', paused_until: nil, metadata: data)
   end
@@ -92,6 +100,11 @@ class MarcosxAi::ConversationState < ApplicationRecord
     )
   end
 
+  def wait_for_human!(reason:)
+    update!(status: 'awaiting_human', paused_until: nil,
+            metadata: cancelled_metadata.merge('human_wait' => true, 'handoff_reason' => reason))
+  end
+
   def public_data
     {
       id: id, assistant_id: assistant_id, assistant_name: assistant&.name, status: status, paused_until: paused_until,
@@ -102,7 +115,8 @@ class MarcosxAi::ConversationState < ApplicationRecord
   end
 
   def current_run?(token)
-    (status == 'active' || (status == 'paused_by_agent' && metadata['approved_draft'])) &&
+    (status == 'active' || (status == 'awaiting_human' && metadata['pause_ack']) ||
+      (status == 'paused_by_agent' && metadata['approved_draft'])) &&
       metadata['run_token'] == token && assistant&.available? && (enabled_for_ai? || metadata['approved_draft'] == true) &&
       conversation.marcosx_ai_assistant&.id == assistant_id && assistant.accepts_conversation?(conversation) &&
       !conversation.resolved? && !conversation.snoozed? && metadata['assistant_version'] == assistant.updated_at.iso8601(6) && !superseded?
@@ -111,18 +125,21 @@ class MarcosxAi::ConversationState < ApplicationRecord
   private
 
   def superseded?
+    attributes_sql = MarcosxAi::ConversationContext::CONTENT_ATTRIBUTES_SQL
     newer = conversation.messages.where(private: false).where('id > ?', metadata.fetch('trigger_message_id'))
-    newer = newer.where("COALESCE(content_attributes ->> 'historical', 'false') != 'true'")
+    newer = newer.where("COALESCE(additional_attributes ->> 'marcosx_ai_operational', 'false') != 'true'")
+    newer = newer.where("COALESCE(#{attributes_sql} ->> 'historical', 'false') != 'true'")
                  .where.not(content_type: Message.content_types[:voice_call])
-    incoming = newer.incoming.where("COALESCE(content_attributes ->> 'deleted', 'false') != 'true'")
-                    .where("COALESCE(content_attributes ->> 'is_unsupported', 'false') != 'true'")
-    human = newer.outgoing.where("sender_type = 'User' OR content_attributes ->> 'external_echo' = 'true'")
-                 .where("content_attributes ->> 'automation_rule_id' IS NULL AND additional_attributes ->> 'campaign_id' IS NULL")
+    incoming = newer.incoming.where("COALESCE(#{attributes_sql} ->> 'deleted', 'false') != 'true'")
+                    .where("COALESCE(#{attributes_sql} ->> 'is_unsupported', 'false') != 'true'")
+    human = newer.outgoing.where("sender_type = 'User' OR #{attributes_sql} ->> 'external_echo' = 'true'")
+                 .where("#{attributes_sql} ->> 'automation_rule_id' IS NULL AND additional_attributes ->> 'campaign_id' IS NULL")
     incoming.exists? || human.exists?
   end
 
   def cancelled_metadata
-    metadata.except('pending_response', 'pending_since_message_id', 'approved_draft').merge('run_token' => SecureRandom.uuid, 'processing' => false)
+    metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'pause_ack', 'call_event')
+            .merge('run_token' => SecureRandom.uuid, 'processing' => false)
   end
 
   def clear_typing_presence

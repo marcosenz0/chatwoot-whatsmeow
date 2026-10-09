@@ -19,7 +19,7 @@ class MarcosxAi::ConversationAnalysisService
     token = SecureRandom.uuid
     @state.with_lock do
       metadata = @state.metadata.except(
-        'pending_response', 'pending_since_message_id', 'approved_draft', 'conversation_summary', 'summary_cursor', 'context_messages_limit'
+        'pending_response', 'pending_since_message_id', 'approved_draft', 'context_messages_limit'
       )
       analysis = {
         'id' => token, 'status' => 'processing', 'trigger_message_id' => latest.id,
@@ -43,7 +43,8 @@ class MarcosxAi::ConversationAnalysisService
     context = MarcosxAi::ConversationContext.new(
       conversation: @conversation, assistant: @assistant, state: @state, client: client,
       trigger_message: history.find(analysis.fetch('trigger_message_id')), token: token,
-      persist_memory: false, messages_limit: analysis['messages_limit'], valid_run: -> { current?(token) }
+      persist_memory: (@state.metadata['memory_mode'] || @assistant.memory_mode) == 'summary_recent',
+      messages_limit: analysis['messages_limit'], valid_run: -> { current?(token) }
     ).messages
     return invalidate(token) unless current?(token)
 
@@ -105,7 +106,7 @@ class MarcosxAi::ConversationAnalysisService
       end
 
       plan = MarcosxAi::ReplyPlan.parse(analysis.fetch('plan').merge('messages' => messages).to_json, assistant: @assistant)
-      if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff']
+      if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff'] && plan['alert_rule_ids'].empty?
         raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response')
       end
 
@@ -115,6 +116,10 @@ class MarcosxAi::ConversationAnalysisService
         'assistant_version' => @assistant.updated_at.iso8601(6), 'approved_draft' => true, 'processing' => true,
         'pending_response' => plan.merge('next_part' => 0), 'analysis' => analysis.merge('status' => 'sent')
       ))
+      plan = MarcosxAi::AlertService.prepare_delivery(state: @state, plan: plan, token: run_token)
+      return unless plan
+
+      @state.update!(metadata: @state.metadata.merge('pending_response' => plan.merge('next_part' => 0)))
     end
     MarcosxAi::TypingPresenceJob.perform_now(@conversation.id, run_token) if @assistant.feature_enabled?(:show_typing)
     MarcosxAi::DeliveryJob.perform_later(@conversation.id, run_token, 0)

@@ -51,6 +51,58 @@ class MarcosxAiAPI extends ApiClient {
     return axios.get(`${this.url}/assistants`);
   }
 
+  getEffectivePrompt(id) {
+    return axios.get(`${this.url}/assistants/${id}/prompt`);
+  }
+
+  getNotificationOptions() {
+    return axios.get(`${this.url}/assistants/notification_options`);
+  }
+
+  testNotification(id, conversationId) {
+    return axios.post(`${this.url}/assistants/${id}/test_notification`, {
+      conversation_id: conversationId,
+    });
+  }
+
+  getAlerts(assistantId, conversationId, options = {}) {
+    return axios.get(`${this.url}/alerts`, {
+      ...options,
+      params: { assistant_id: assistantId, conversation_id: conversationId },
+    });
+  }
+
+  resolveAlert(id) {
+    return axios.put(`${this.url}/alerts/${id}`);
+  }
+
+  getMemory(conversationId) {
+    return axios.get(`${this.url}/conversations/${conversationId}/memory`);
+  }
+
+  updateMemory(conversationId, memory) {
+    return axios.put(`${this.url}/conversations/${conversationId}/memory`, {
+      memory,
+    });
+  }
+
+  rebuildMemory(conversationId) {
+    return axios.post(`${this.url}/conversations/${conversationId}/memory`);
+  }
+
+  linkMemory(conversationId, sourceId) {
+    return axios.post(
+      `${this.url}/conversations/${conversationId}/memory/link`,
+      { memory: { conversation_id: sourceId } }
+    );
+  }
+
+  unlinkMemory(conversationId) {
+    return axios.delete(
+      `${this.url}/conversations/${conversationId}/memory/unlink`
+    );
+  }
+
   getAssistantCoverage(assistantId, page = 1, options = {}) {
     return axios.get(`${this.url}/assistants/${assistantId}/coverage`, {
       ...options,

@@ -10,6 +10,16 @@ class MarcosxAi::Assistant < ApplicationRecord
     history_limit: 80,
     timezone: nil,
     human_pause_minutes: 0,
+    memory_mode: 'legacy',
+    editorial_instructions: nil,
+    reply_to_missed_calls: false,
+    missed_call_instructions: 'Responda brevemente por texto à ligação não atendida e continue o assunto da conversa.',
+    notifications: { user_ids: [], whatsapp_numbers: [], inbox_id: nil },
+    alert_rules: [],
+    resume_mode: 'manual',
+    resume_after_minutes: 60,
+    pause_on_handoff: false,
+    pause_acknowledgement: true,
     auto_response_enabled: false,
     auto_start: true,
     show_typing: true,
@@ -37,6 +47,7 @@ class MarcosxAi::Assistant < ApplicationRecord
   has_many :messages, as: :sender, dependent: :nullify
   has_many :conversation_states, class_name: 'MarcosxAi::ConversationState', dependent: :nullify, inverse_of: :assistant
   has_many :logs, class_name: 'MarcosxAi::Log', dependent: :nullify, inverse_of: :assistant
+  has_many :alerts, class_name: 'MarcosxAi::Alert', dependent: :nullify, inverse_of: :assistant
 
   validates :name, presence: true
   validates :account_id, presence: true
@@ -71,6 +82,14 @@ class MarcosxAi::Assistant < ApplicationRecord
 
   def human_pause_minutes
     resolved_config[:human_pause_minutes].to_i.clamp(0, 10_080)
+  end
+
+  def memory_mode
+    resolved_config[:memory_mode]
+  end
+
+  def alert_rules
+    resolved_config[:alert_rules].map(&:with_indifferent_access)
   end
 
   def auto_response_enabled?
