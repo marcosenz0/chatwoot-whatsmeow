@@ -13,6 +13,18 @@ class MarcosxAi::ConversationContext
                 .where('COALESCE(content, ?) NOT LIKE ?', '', "#{MarcosxAi::AlertService::NOTICE_PREFIX}%")
   end
 
+  def self.signature(scope)
+    scope.except(:includes, :order).pick(Arel.sql('COUNT(*)'), Arel.sql('MAX(updated_at)'), Arel.sql('COALESCE(SUM(id), 0)')).to_json
+  end
+
+  def self.stale?(state)
+    cursor = state.metadata['summary_cursor']
+    return false unless cursor && cursor['created_at']
+
+    scope = public_history(state.conversation).where('(created_at, id) <= (?, ?)', cursor['created_at'], cursor['id'])
+    state.metadata['summary_signature'] != signature(scope)
+  end
+
   def initialize(conversation:, assistant:, state:, client:, trigger_message:, token:, persist_memory: true, valid_run: nil,
                  messages_limit: state.metadata['context_messages_limit'], process_current_media: true)
     @conversation = conversation
@@ -53,7 +65,7 @@ class MarcosxAi::ConversationContext
   end
 
   def signature(scope)
-    scope.except(:includes, :order).pick(Arel.sql('COUNT(*)'), Arel.sql('MAX(updated_at)'), Arel.sql('COALESCE(SUM(id), 0)')).to_json
+    self.class.signature(scope)
   end
 
   def processed_scope(cursor)

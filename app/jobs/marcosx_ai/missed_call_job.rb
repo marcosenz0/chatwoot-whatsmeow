@@ -14,6 +14,9 @@ class MarcosxAi::MissedCallJob < ApplicationJob
       return unless assistant&.feature_enabled?(:reply_to_missed_calls) && assistant.accepts_conversation?(conversation)
       return if conversation.resolved? || conversation.snoozed?
 
+      existing = conversation.marcosx_ai_conversation_state
+      return unless assistant.auto_response_enabled? || (existing&.assistant_id == assistant.id && existing.metadata['manual_activation'] == true)
+
       state = MarcosxAi::ConversationState.for_conversation!(conversation, assistant: assistant)
       state.with_lock do
         return unless state.enabled_for_ai? && state.active_for_ai?

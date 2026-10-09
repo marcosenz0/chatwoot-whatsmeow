@@ -38,10 +38,11 @@ class MarcosxAi::ConversationState < ApplicationRecord
   def active_for_ai?
     return true if status == 'active'
     return false unless status == 'paused_by_human'
+    return false if metadata['human_wait'] && assistant.resolved_config[:resume_mode] != 'after_human'
     return false if paused_until.blank?
     return false if paused_until.future?
 
-    update!(status: 'active', paused_until: nil)
+    resume!
     true
   end
 

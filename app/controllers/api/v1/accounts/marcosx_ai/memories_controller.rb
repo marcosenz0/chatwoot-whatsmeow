@@ -25,6 +25,9 @@ class Api::V1::Accounts::MarcosxAi::MemoriesController < Api::V1::Accounts::Marc
   def create
     raise ArgumentError, I18n.t('marcosx_ai.errors.credential_missing') unless @state.assistant.available?
 
+    mode = @state.metadata['memory_mode'] || @state.assistant.memory_mode
+    raise ArgumentError, 'Select summary memory first' unless mode == 'summary_recent'
+
     token = SecureRandom.uuid
     @state.with_lock do
       @state.update!(metadata: @state.metadata.except('conversation_summary', 'summary_cursor', 'summary_signature', 'summary_messages_count')
@@ -68,6 +71,7 @@ class Api::V1::Accounts::MarcosxAi::MemoriesController < Api::V1::Accounts::Marc
     { mode: @state.metadata['memory_mode'] || @state.assistant.memory_mode,
       recent_limit: @state.metadata['context_messages_limit'] || @state.assistant.history_limit,
       summary: @state.metadata['conversation_summary'], updated_at: @state.metadata['summary_updated_at'],
+      stale: MarcosxAi::ConversationContext.stale?(@state),
       summarized_count: @state.metadata.fetch('summary_messages_count', 0), rebuild: @state.metadata['memory_rebuild'],
       links: Current.account.conversations.where(id: @state.metadata.fetch('approved_context_links', []).map { |entry| entry['conversation_id'] })
                     .map { |conversation| { id: conversation.display_id, inbox: conversation.inbox.name } } }

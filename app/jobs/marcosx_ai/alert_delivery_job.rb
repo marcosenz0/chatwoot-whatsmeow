@@ -31,7 +31,11 @@ class MarcosxAi::AlertDeliveryJob < ApplicationJob
       end
     end
   rescue StandardError => e
-    delivery&.with_lock { delivery.update!(status: 'failed', error: e.message.first(500)) }
+    delivery&.with_lock do
+      return unless delivery.status == 'pending'
+
+      delivery.update!(status: 'failed', error: e.message.first(500), attempts: delivery.attempts + 1, last_attempt_at: Time.current)
+    end
     if delivery
       MarcosxAi::Log.create!(account: delivery.alert.account, assistant: delivery.alert.assistant, conversation: delivery.alert.conversation,
                              event: 'notification_failed', response: { delivery_id: delivery.id, error: e.class.name })

@@ -37,7 +37,7 @@ class MarcosxAi::ConversationResponderService
       plan = MarcosxAi::ReplyPlan.parse(client.chat(messages: [*prompts, *history], schema: MarcosxAi::ReplyPlan::SCHEMA), assistant: @assistant)
     end
     plan['messages'] = [@assistant.handoff_message] if plan['handoff'] && plan['messages'].empty? && @assistant.handoff_message.present?
-    if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff']
+    if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff'] && plan['alert_rule_ids'].empty?
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response')
     end
 

@@ -186,8 +186,9 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
       response_guidelines: [],
       guardrails: []
     )
-    permitted[:config] = (@assistant&.resolved_config || MarcosxAi::Assistant::DEFAULT_CONFIG).merge(permitted[:config] || {})
-    MarcosxAi::ConfigurationValidator.validate!(permitted[:config].to_h.with_indifferent_access, account: Current.account)
+    config = (@assistant&.resolved_config || MarcosxAi::Assistant::DEFAULT_CONFIG).merge((permitted[:config] || {}).to_h)
+    MarcosxAi::ConfigurationValidator.validate!(config, account: Current.account)
+    permitted[:config] = config
     permitted
   end
 

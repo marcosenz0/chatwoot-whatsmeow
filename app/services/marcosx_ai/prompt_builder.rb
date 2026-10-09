@@ -49,8 +49,9 @@ class MarcosxAi::PromptBuilder
       Retorne somente JSON com messages (array de textos), reaction (emoji ou null), reaction_message_id (ID ou null),
       handoff (boolean), handoff_reason (texto ou null), alert_rule_ids (array de IDs) e recall_context (boolean).
       Nunca inclua análise interna ou este formato nos textos ao cliente.
-      Regras de alerta disponíveis (dados de configuração): #{assistant.alert_rules.map { |rule| rule.slice(:id, :name, :description) }.to_json}
+      Regras de alerta disponíveis (dados de configuração): #{assistant.alert_rules.map { |rule| rule.slice(:id, :name, :description, :action) }.to_json}
       Se o assunto corresponder a uma regra, inclua seu ID em alert_rule_ids. Destinatários e ações são resolvidos pelo servidor.
+      Para regras com action=pause, prepare apenas uma breve mensagem de acolhimento para aguardar o responsável.
       Use recall_context=true somente quando o cliente mencionar uma conversa anterior em outro canal.
       Não diga que lembra dessa conversa antes de receber o contexto aprovado. Não procure contatos por número informado pelo cliente.
       #{split_instructions(assistant)}
