@@ -273,7 +273,7 @@
       "RULE_NAME": "Nome da regra",
       "RULE_DESCRIPTION": "Descrição do assunto que gera o aviso",
       "RULE_MESSAGE": "Mensagem da notificação",
-      "TEMPLATE_HINT": "Campos disponíveis: {contact}, {inbox}, {reason}, {url}.",
+      "TEMPLATE_HINT": "Campos: contact, inbox, reason e url. Use cada nome entre chaves.",
       "ACTION": "Ação",
       "ACTION_NOTIFY": "Avisar",
       "ACTION_PAUSE": "Avisar e pausar",

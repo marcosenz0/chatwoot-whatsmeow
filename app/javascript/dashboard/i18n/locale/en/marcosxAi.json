@@ -273,7 +273,7 @@
       "RULE_NAME": "Rule name",
       "RULE_DESCRIPTION": "Topic that triggers the alert",
       "RULE_MESSAGE": "Notification message",
-      "TEMPLATE_HINT": "Available placeholders: {contact}, {inbox}, {reason}, {url}.",
+      "TEMPLATE_HINT": "Fields: contact, inbox, reason and url. Put each name inside braces.",
       "ACTION": "Action",
       "ACTION_NOTIFY": "Notify",
       "ACTION_PAUSE": "Notify and pause",
