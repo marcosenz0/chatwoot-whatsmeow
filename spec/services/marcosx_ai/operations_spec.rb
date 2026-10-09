@@ -57,6 +57,32 @@ RSpec.describe 'MarcoXIA memory and human assistance' do
     expect(messages.to_json).not_to include('Secret', 'Operational', 'Old secret')
   end
 
+  it 'invalidates deleted history and imported older messages while preserving the recent window' do
+    rows = 5.times.map do |index|
+      create(:message, account: account, inbox: inbox, conversation: conversation, content: "Fact #{index}",
+                       created_at: 10.minutes.ago + index.seconds)
+    end
+    state.update!(metadata: { memory_mode: 'summary_recent', context_messages_limit: 2 })
+    allow(client).to receive(:chat).and_return('Previous facts')
+    build_context = -> {
+      MarcosxAi::ConversationContext.new(conversation: conversation, assistant: assistant, state: state, client: client,
+                                         trigger_message: conversation.messages.order(:id).last, token: 'test', valid_run: -> { true })
+    }
+    build_context.call.messages
+    expect(state.reload.metadata['summary_messages_count']).to eq(3)
+    rows.first.update!(content_attributes: { deleted: true })
+    expect(MarcosxAi::ConversationContext.stale?(state)).to be(true)
+    build_context.call.messages
+    expect(state.reload.metadata['summary_messages_count']).to eq(2)
+    create(:message, account: account, inbox: inbox, conversation: conversation, content: 'Imported old decision',
+                     created_at: 1.day.ago, content_attributes: { historical: true })
+    messages = build_context.call.messages
+    expect(messages.size).to eq(3)
+    expect(state.reload.metadata['summary_messages_count']).to eq(3)
+    expect(client).to have_received(:chat).exactly(3).times
+    expect(messages.to_json).not_to include('Fact 0')
+  end
+
   it 'opens one alert per pending rule, pauses before delivery and keeps the assignee' do
     assistant.update!(config: assistant.config.merge(alert_rules: [rule]))
     plan = { 'alert_rule_ids' => ['help'], 'handoff' => false }
@@ -107,6 +133,50 @@ RSpec.describe 'MarcoXIA memory and human assistance' do
     normal = Notification.create!(account: account, user: user, primary_actor: conversation, notification_type: :conversation_assignment)
     Notification::RemoveDuplicateNotificationJob.perform_now(normal)
     expect(Notification.exists?(alert.id)).to be true
+  end
+
+  it 'restarts the timer after the latest human reply and resumes only when that interval expires' do
+    assistant.update!(config: assistant.config.merge(resume_mode: 'after_human', resume_after_minutes: 15))
+    state.wait_for_human!(reason: 'Help')
+    human = create(:message, account: account, inbox: inbox, conversation: conversation, message_type: :outgoing, sender: user)
+    state.pause_by_human!(message: human, minutes: 0)
+    old_due = state.paused_until.iso8601(6)
+    travel 10.minutes do
+      latest = create(:message, account: account, inbox: inbox, conversation: conversation, message_type: :outgoing, sender: user)
+      state.pause_by_human!(message: latest, minutes: 0)
+      new_due = state.paused_until.iso8601(6)
+      travel 6.minutes do
+        MarcosxAi::ResumeJob.perform_now(state.id, human.id, old_due)
+        expect(state.reload.status).to eq('paused_by_human')
+        MarcosxAi::ResumeJob.perform_now(state.id, latest.id, new_due)
+        expect(state.reload.status).to eq('paused_by_human')
+        travel 10.minutes do
+          MarcosxAi::ResumeJob.perform_now(state.id, latest.id, new_due)
+          expect(state.reload.status).to eq('active')
+          expect(state.metadata).not_to have_key('human_wait')
+        end
+      end
+    end
+  end
+
+  it 'creates separate operational deliveries for multiple WhatsApp recipients without AI loops' do
+    direct_inbox = create(:channel_whatsmeow, account: account).inbox
+    target = create(:conversation, account: account, inbox: direct_inbox)
+    assistant.update!(config: assistant.config.merge(notifications: {
+      user_ids: [user.id], whatsapp_numbers: ['+15555550101', '+15555550102'], inbox_id: direct_inbox.id
+    }, alert_rules: [rule.merge(action: 'notify')]))
+    state.with_lock { MarcosxAi::AlertService.perform(state: state, plan: { 'alert_rule_ids' => ['help'] }) }
+    deliveries = MarcosxAi::AlertDelivery.where(kind: 'whatsapp')
+    expect(deliveries.count).to eq(2)
+    allow(Whatsmeow::DirectConversationBuilder).to receive(:new).and_return(instance_double(Whatsmeow::DirectConversationBuilder, perform: target))
+    deliveries.each do |delivery|
+      2.times { MarcosxAi::AlertDeliveryJob.perform_now(delivery.id) }
+      expect(delivery.reload.status).to eq('queued')
+      expect(delivery.message.additional_attributes['marcosx_ai_operational']).to be(true)
+    end
+    expect(target.messages.count).to eq(2)
+    expect(MarcosxAi::ConversationContext.public_history(target)).to be_empty
+    expect(target.reload.marcosx_ai_conversation_state).to be_nil
   end
 
   it 'does not disclose another account through approved context metadata' do

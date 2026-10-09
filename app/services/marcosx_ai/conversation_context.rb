@@ -9,6 +9,8 @@ class MarcosxAi::ConversationContext
   def self.public_history(conversation)
     conversation.messages.where(message_type: [:incoming, :outgoing], private: false)
                 .where.not(content_type: Message.content_types[:voice_call])
+                .where("COALESCE(content_attributes ->> 'deleted', 'false') != 'true'")
+                .where("COALESCE(content_attributes ->> 'whatsmeow_deleted', 'false') != 'true'")
                 .where("COALESCE(additional_attributes ->> 'marcosx_ai_operational', 'false') != 'true'")
                 .where('COALESCE(content, ?) NOT LIKE ?', '', "#{MarcosxAi::AlertService::NOTICE_PREFIX}%")
   end
