@@ -53,6 +53,11 @@ export function useMarcosxAiDraft() {
     return content;
   }
 
+  function sendFollowUp(instruction) {
+    if (!instruction.trim()) return;
+    execute('refine', generatedContent.value, instruction);
+  }
+
   return {
     showEditor,
     isGenerating: request.isPending,
@@ -73,8 +78,7 @@ export function useMarcosxAiDraft() {
       isContentReady.value = true;
     },
     execute,
-    sendFollowUp: instruction =>
-      execute('refine', generatedContent.value, instruction),
+    sendFollowUp,
     accept,
   };
 }

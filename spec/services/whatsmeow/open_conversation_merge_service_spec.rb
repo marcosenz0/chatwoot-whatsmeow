@@ -16,12 +16,15 @@ RSpec.describe Whatsmeow::OpenConversationMergeService do
   let(:target_state) { MarcosxAi::ConversationState.for_conversation!(target, assistant: assistant) }
 
   it 'preserves AI activity and state when the alias conversation is merged' do
+    typing = instance_double(Whatsmeow::TypingStatusService, perform: nil)
+    allow(Whatsmeow::TypingStatusService).to receive(:new).and_return(typing)
     message = create(:message, account: account, inbox: inbox, conversation: source, sender: contact, source_id: 'real-message-id')
     log = MarcosxAi::Log.create!(account: account, assistant: assistant, conversation: source, event: 'response_sent')
     source_state.update!(metadata: { 'run_token' => 'obsolete', 'processing' => true, 'pending_response' => { 'messages' => ['Old reply'] },
                                     'conversation_summary' => 'Old summary', 'summary_cursor' => { 'id' => message.id } })
 
     expect { service.perform }.not_to raise_error
+    expect(typing).to have_received(:perform)
 
     expect(Conversation.exists?(source.id)).to be(false)
     expect(message.reload.conversation_id).to eq(target.id)

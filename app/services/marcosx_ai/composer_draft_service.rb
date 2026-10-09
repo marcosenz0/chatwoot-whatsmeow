@@ -51,6 +51,7 @@ class MarcosxAi::ComposerDraftService
     end
     plan = MarcosxAi::ReplyPlan.parse(client.chat(messages: messages, schema: MarcosxAi::ReplyPlan::SCHEMA), assistant: assistant)
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response') if plan['messages'].empty?
+
     latest = MarcosxAi::ConversationContext.public_history(@conversation).order(:created_at, :id).last
     if assistant.reload.updated_at != version || latest&.id != trigger.id
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.analysis_outdated')
