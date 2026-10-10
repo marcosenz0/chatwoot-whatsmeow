@@ -29,6 +29,7 @@ const MENU = {
   COPY_LINK: 'copy-link',
   PIN: 'pin',
   AI_REPLY: 'ai-reply',
+  CONTACT_MEMORY: 'contact-memory',
 };
 
 export default {
@@ -350,7 +351,7 @@ export default {
       @click.stop="$emit('generateAiReply')"
     />
     <MenuItem
-      v-if="isAdmin"
+      v-if="isAdmin && isAllowed([MENU.CONTACT_MEMORY])"
       :option="{
         label: $t('MARCOX_AI.WORKSPACE.VIEW_MEMORY'),
         icon: 'i-lucide-brain',
