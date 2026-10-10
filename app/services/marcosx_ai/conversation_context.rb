@@ -10,6 +10,10 @@ class MarcosxAi::ConversationContext
   PROMPT
 
   def self.public_history(conversation)
+    MarcosxAi::ContactMemory.apply(raw_public_history(conversation), conversation)
+  end
+
+  def self.raw_public_history(conversation)
     conversation.messages.where(message_type: [:incoming, :outgoing], private: false)
                 .where.not(content_type: Message.content_types[:voice_call])
                 .where("COALESCE(#{CONTENT_ATTRIBUTES_SQL} ->> 'deleted', 'false') != 'true'")
@@ -53,6 +57,7 @@ class MarcosxAi::ConversationContext
     @cursor = nil
     limit = @messages_limit || @assistant.history_limit
     recent = history.reorder(created_at: :desc, id: :desc).limit(limit).to_a.reverse
+    @summary = @state.metadata['conversation_summary'] if @uses_memory && recent.empty? && @state.metadata['summary_manually_edited']
     prepare_memory(recent.first) if @uses_memory && recent.present?
     summarize_older_messages(recent.first) if @uses_memory && recent.present?
     memory = @summary
@@ -79,7 +84,10 @@ class MarcosxAi::ConversationContext
 
   def prepare_memory(first_recent)
     cursor = @state.metadata['summary_cursor']
-    return unless cursor && cursor['created_at']
+    unless cursor && cursor['created_at']
+      @summary = @state.metadata['conversation_summary'] if @state.metadata['summary_manually_edited']
+      return
+    end
 
     cursor_time = Time.iso8601(cursor.fetch('created_at'))
     overlaps = cursor_time > first_recent.created_at || (cursor_time == first_recent.created_at && cursor['id'] >= first_recent.id)
@@ -89,7 +97,8 @@ class MarcosxAi::ConversationContext
       @state.with_lock do
         return unless valid_run?
 
-        @state.update!(metadata: @state.metadata.except('conversation_summary', 'summary_cursor', 'summary_signature', 'summary_messages_count'))
+        @state.update!(metadata: @state.metadata.except('conversation_summary', 'summary_cursor', 'summary_signature', 'summary_messages_count',
+                                                        'summary_manually_edited', 'summary_updated_at'))
       end
     else
       @summary = @state.metadata['conversation_summary']

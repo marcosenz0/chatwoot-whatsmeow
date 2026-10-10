@@ -1,7 +1,7 @@
 name: MarcoXIA validation and image
 on:
   push:
-    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human]
+    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice]
     paths: ['app/**', 'spec/**', 'db/**', 'config/**', 'lib/**', 'Dockerfile', '.github/workflows/marcoxia.yml']
   workflow_dispatch:
 permissions:
@@ -123,6 +123,7 @@ jobs:
           app/models/notification.rb
           app/jobs/notification/remove_duplicate_notification_job.rb
           db/migrate/20261009090000_create_marcosx_ai_alerts.rb
+          db/migrate/20261009190000_create_marcosx_ai_workspace.rb
           lib/custom_exceptions/marcosx_ai.rb
   publish:
     needs: [frontend, rails]

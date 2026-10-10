@@ -86,8 +86,15 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
 
   def playground
     blobs = []
+    session = nil
+    turn_token = nil
     message = playground_params[:message]
     return render json: { error: 'A message is required' }, status: :unprocessable_entity if message.blank?
+
+    files = params.fetch(:files, [])
+    raise ArgumentError, I18n.t('marcosx_ai.errors.file_limit') if files.size > 3 || files.any? { |file|
+      file.size > MarcosxAi::MediaContext::MAX_BYTES
+    }
 
     client = MarcosxAi::ProviderClient.new(account: Current.account, provider: @assistant.provider, model: @assistant.model,
                                            temperature: @assistant.temperature, reasoning_effort: @assistant.reasoning_effort)
@@ -96,15 +103,17 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
       prompts << { role: 'developer', content: @assistant.resolved_config[:missed_call_instructions] }
       prompts << { role: 'user', content: 'Simulação: chamada recebida encerrada sem atendimento.' }
     end
-    history = playground_params.fetch(:history, []).last(@assistant.history_limit).map { |item| { role: item[:role], content: item[:content] } }
+    if playground_params[:session_id].present?
+      session = MarcosxAi::TestSession.where(account: Current.account, assistant: @assistant, user: Current.user)
+                                      .find(playground_params[:session_id])
+      history, turn_token = session.begin_turn!(content: message, files: files.map(&:original_filename), event: playground_params[:event])
+    else
+      history = playground_params.fetch(:history, []).map { |item| { role: item[:role], content: item[:content] } }
+    end
+    history = history.last(@assistant.history_limit)
     return render json: { error: 'Invalid history' }, status: :unprocessable_entity unless history.all? { |item|
       %w[user assistant].include?(item[:role])
     }
-
-    files = params.fetch(:files, [])
-    if files.size > 3 || files.any? { |file| file.size > MarcosxAi::MediaContext::MAX_BYTES }
-      return render json: { error: I18n.t('marcosx_ai.errors.file_limit') }, status: :unprocessable_entity
-    end
 
     parts = [{ type: 'input_text', text: message }]
     files.each do |file|
@@ -120,13 +129,16 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
     plan = MarcosxAi::ReplyPlan.parse(client.chat(messages: [*prompts, *history, { role: 'user', content: parts }],
                                                   schema: MarcosxAi::ReplyPlan::SCHEMA), assistant: @assistant)
     rules = @assistant.alert_rules.select { |rule| plan['alert_rule_ids'].include?(rule[:id]) }
-    render json: { response: plan['messages'].join("\n\n"), plan: plan, usage: client.usage,
-                   simulation: { alerts: rules.map { |rule| rule.slice(:id, :name, :action) },
-                                 paused: rules.any? { |rule| rule[:action] == 'pause' } ||
-                                         (plan['handoff'] && @assistant.feature_enabled?(:pause_on_handoff)),
-                                 recall_requested: plan['recall_context'] },
-                   user_context: parts.map { |part| part[:text] }.join("\n") }
+    result = { response: plan['messages'].join("\n\n"), plan: plan, usage: client.usage,
+               simulation: { alerts: rules.map { |rule| rule.slice(:id, :name, :action) },
+                             paused: rules.any? { |rule| rule[:action] == 'pause' } ||
+                                     (plan['handoff'] && @assistant.feature_enabled?(:pause_on_handoff)),
+                             recall_requested: plan['recall_context'] },
+               user_context: parts.map { |part| part[:text] }.join("\n") }
+    session&.complete_turn!(result, token: turn_token)
+    render json: result.merge(session: session&.public_data(detail: true))
   rescue StandardError => e
+    session&.fail_turn!(e.message, token: turn_token) if turn_token
     render json: { error: e.message }, status: :unprocessable_entity
   ensure
     blobs&.each(&:purge)
@@ -193,7 +205,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
   end
 
   def playground_params
-    params.require(:assistant).permit(:message, :event, history: [:role, :content])
+    params.require(:assistant).permit(:message, :event, :session_id, history: [:role, :content])
   end
 
   def serialize(assistant)

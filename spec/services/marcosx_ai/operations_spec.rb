@@ -10,6 +10,34 @@ RSpec.describe 'MarcoXIA memory and human assistance' do
   let(:client) { instance_double(MarcosxAi::ProviderClient) }
   let(:rule) { { id: 'help', name: 'Help', description: 'Needs a person', action: 'pause', message: '{reason}', user_ids: [user.id] } }
 
+  it 'rejects parallel test turns and prevents an expired turn from overwriting its replacement' do
+    session = MarcosxAi::TestSession.create!(account: account, assistant: assistant, user: user)
+    _, old_token = session.begin_turn!(content: 'First question')
+    expect { session.begin_turn!(content: 'Concurrent question') }.to raise_error(ArgumentError)
+    session.update_column(:processing_started_at, 6.minutes.ago)
+    history, new_token = session.begin_turn!(content: 'Replacement question')
+    expect(history.first[:content]).to eq('First question')
+    result = { user_context: 'Replacement question', response: 'New answer', plan: { messages: ['New answer'] }, simulation: {} }
+    expect(session.complete_turn!(result, token: old_token)).to be(false)
+    session.fail_turn!('Obsolete error', token: old_token)
+    expect(session.reload.processing?).to be(true)
+    expect(session.last_error).to be_nil
+    expect(session.complete_turn!(result, token: new_token)).to be(true)
+    expect(session.reload.messages.last['content']).to eq('New answer')
+    expect(session.processing?).to be(false)
+  end
+
+  it 'revokes forgotten approved context without removing unrelated approvals' do
+    source = create(:conversation, account: account, inbox: inbox)
+    unrelated = create(:conversation, account: account, inbox: inbox)
+    state.update!(metadata: { approved_context_links: [{ conversation_id: source.id }, { conversation_id: unrelated.id }],
+                              pending_response: { messages: ['Old approved context'] } })
+    memory = MarcosxAi::ContactMemory.create!(account: account, contact: source.contact)
+    memory.forget!
+    expect(state.reload.metadata['approved_context_links'].pluck('conversation_id')).to eq([unrelated.id])
+    expect(state.metadata).not_to have_key('pending_response')
+  end
+
   it 'summarizes 480 messages, retains 20 recent and incrementally processes messages leaving the window' do
     now = Time.current
     rows = 500.times.map do |index|

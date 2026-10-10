@@ -4,7 +4,11 @@ import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import MarcosxAiPage from '../../pages/MarcosxAiPage.vue';
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { accountId: 2, navigationPath: 'overview' } }),
+  useRoute: () => ({
+    params: { accountId: 2, navigationPath: 'overview' },
+    query: {},
+  }),
+  useRouter: () => ({ replace: vi.fn() }),
 }));
 vi.mock('dashboard/composables', () => ({ useAlert: vi.fn() }));
 vi.mock('dashboard/api/marcosxAi', () => ({
@@ -64,11 +68,9 @@ describe('MarcoXIA agent workspace', () => {
       },
     });
   });
-  it('quickly switches general support without overwriting unsaved profile instructions', async () => {
+  it('switches general support from the agent list and opens a full-width editor', async () => {
     const wrapper = mount(MarcosxAiPage, { global: { plugins: [store] } });
     await flushPromises();
-    await wrapper.get('input[maxlength="120"]').setValue('My secretary');
-    await wrapper.get('#ai-system-prompt').setValue('My pending instructions');
     const toggle = wrapper.get('main > aside [role="switch"]');
     await toggle.trigger('click');
     await flushPromises();
@@ -76,6 +78,14 @@ describe('MarcoXIA agent workspace', () => {
       assistant: { config: { auto_response_enabled: false } },
     });
     expect(toggle.attributes('aria-checked')).toBe('false');
+    await wrapper
+      .findAll('main > aside button')
+      .find(button => button.text().includes('Felipe'))
+      .trigger('click');
+    await flushPromises();
+    expect(wrapper.find('main > aside').exists()).toBe(false);
+    await wrapper.get('input[maxlength="120"]').setValue('My secretary');
+    await wrapper.get('#ai-system-prompt').setValue('My pending instructions');
     expect(wrapper.get('input[maxlength="120"]').element.value).toBe(
       'My secretary'
     );

@@ -1,8 +1,10 @@
 <script setup>
 import { computed, nextTick, ref, watch } from 'vue';
+import { useIntervalFn } from '@vueuse/core';
 import { useI18n } from 'vue-i18n';
 import Button from 'dashboard/components-next/button/Button.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import AiSelect from './AiSelect.vue';
 
 const props = defineProps({
@@ -23,6 +25,13 @@ const thread = ref(null);
 const sending = ref(false);
 const error = ref('');
 const eventType = ref('message');
+const sessionId = ref(null);
+const sessions = ref([]);
+const historyPage = ref(1);
+const historyTotal = ref(0);
+const historyLoading = ref(false);
+const historyDialog = ref(null);
+const loading = ref(false);
 let generation = 0;
 const reset = () => {
   generation += 1;
@@ -30,8 +39,108 @@ const reset = () => {
   files.value = [];
   error.value = '';
   sending.value = false;
+  message.value = '';
+  sessionId.value = null;
 };
-watch(selectedId, reset);
+const scrollToEnd = async () => {
+  await nextTick();
+  if (thread.value) thread.value.scrollTop = thread.value.scrollHeight;
+};
+const loadSession = async id => {
+  reset();
+  const currentGeneration = generation;
+  loading.value = true;
+  try {
+    const { data } = await MarcosxAiAPI.getTestSession(selectedId.value, id);
+    if (currentGeneration !== generation) return;
+    sessionId.value = data.session.id;
+    messages.value = data.session.messages;
+    sending.value = data.session.processing;
+    error.value = data.session.error || '';
+    historyDialog.value?.close();
+    await scrollToEnd();
+  } catch (failure) {
+    if (currentGeneration === generation)
+      error.value =
+        failure.response?.data?.error || t('MARCOX_AI.PLAYGROUND.ERROR');
+  } finally {
+    if (currentGeneration === generation) loading.value = false;
+  }
+};
+const listSessions = async () => {
+  const id = selectedId.value;
+  const page = historyPage.value;
+  historyLoading.value = true;
+  try {
+    const { data } = await MarcosxAiAPI.getTestSessions(id, page);
+    if (id !== selectedId.value || page !== historyPage.value) return;
+    sessions.value = data.sessions;
+    historyTotal.value = data.total;
+  } finally {
+    if (id === selectedId.value && page === historyPage.value)
+      historyLoading.value = false;
+  }
+};
+const showHistory = async () => {
+  try {
+    historyPage.value = 1;
+    await listSessions();
+    historyDialog.value.open();
+  } catch (failure) {
+    error.value =
+      failure.response?.data?.error || t('MARCOX_AI.PLAYGROUND.ERROR');
+  }
+};
+watch(
+  selectedId,
+  async () => {
+    reset();
+    sessions.value = [];
+    historyPage.value = 1;
+    loading.value = true;
+    const currentGeneration = generation;
+    if (!selectedId.value) {
+      loading.value = false;
+      return;
+    }
+    try {
+      await listSessions();
+      if (currentGeneration === generation && sessions.value.length)
+        await loadSession(sessions.value[0].id);
+    } catch (failure) {
+      if (currentGeneration === generation)
+        error.value =
+          failure.response?.data?.error || t('MARCOX_AI.PLAYGROUND.ERROR');
+    } finally {
+      if (currentGeneration === generation) loading.value = false;
+    }
+  },
+  { immediate: true }
+);
+const changeHistoryPage = async step => {
+  historyPage.value += step;
+  try {
+    await listSessions();
+  } catch (failure) {
+    error.value =
+      failure.response?.data?.error || t('MARCOX_AI.PLAYGROUND.ERROR');
+  }
+};
+useIntervalFn(async () => {
+  if (!sending.value || !sessionId.value) return;
+  const id = sessionId.value;
+  const currentGeneration = generation;
+  try {
+    const { data } = await MarcosxAiAPI.getTestSession(selectedId.value, id);
+    if (currentGeneration !== generation || id !== sessionId.value) return;
+    messages.value = data.session.messages;
+    sending.value = data.session.processing;
+    error.value = data.session.error || '';
+    await scrollToEnd();
+  } catch {
+    /* Keep the in-flight response; the request or next poll reports its outcome. */
+  }
+}, 5000);
 watch(
   () => props.agentId,
   id => {
@@ -54,16 +163,13 @@ const attach = event => {
 const send = async () => {
   if (
     sending.value ||
+    loading.value ||
     !agent.value ||
     (!message.value.trim() && !files.value.length)
   )
     return;
   const currentGeneration = generation;
   const agentId = agent.value.id;
-  const history = messages.value.map(item => ({
-    role: item.role,
-    content: item.context || item.content,
-  }));
   const content = message.value.trim() || t('MARCOX_AI.PLAYGROUND.ATTACH');
   const attachments = [...files.value];
   messages.value.push({
@@ -76,32 +182,26 @@ const send = async () => {
   sending.value = true;
   error.value = '';
   try {
+    if (!sessionId.value) {
+      const { data } = await MarcosxAiAPI.createTestSession(agentId);
+      if (currentGeneration !== generation) return;
+      sessionId.value = data.session.id;
+    }
     const body = new FormData();
     body.append('assistant[message]', content);
     body.append('assistant[event]', eventType.value);
-    history.forEach(item => {
-      body.append(`assistant[history][][role]`, item.role);
-      body.append(`assistant[history][][content]`, item.content);
-    });
+    body.append('assistant[session_id]', sessionId.value);
     attachments.forEach(file => body.append('files[]', file));
     const { data } = await MarcosxAiAPI.runPlayground(agentId, body);
     if (currentGeneration !== generation) return;
-    messages.value[messages.value.length - 1].context = data.user_context;
-    messages.value.push({
-      role: 'assistant',
-      content: data.response,
-      plan: data.plan,
-      name: agent.value.name,
-      simulation: data.simulation,
-    });
+    messages.value = data.session.messages;
   } catch (failure) {
     if (currentGeneration === generation)
       error.value =
         failure.response?.data?.error || t('MARCOX_AI.PLAYGROUND.ERROR');
   } finally {
     if (currentGeneration === generation) sending.value = false;
-    await nextTick();
-    if (thread.value) thread.value.scrollTop = thread.value.scrollHeight;
+    await scrollToEnd();
   }
 };
 </script>
@@ -116,13 +216,25 @@ const send = async () => {
         <h2 class="text-lg font-semibold text-n-slate-12">
           {{ t('MARCOX_AI.PLAYGROUND.TITLE') }}
         </h2>
-        <Button
-          variant="ghost"
-          color="slate"
-          icon="i-lucide-rotate-ccw"
-          :label="t('MARCOX_AI.PLAYGROUND.RESET')"
-          @click="reset"
-        />
+        <div class="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            color="slate"
+            icon="i-lucide-messages-square"
+            :label="t('MARCOX_AI.WORKSPACE.TEST_CHATS')"
+            @click="showHistory"
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            color="slate"
+            icon="i-lucide-rotate-ccw"
+            :label="t('MARCOX_AI.PLAYGROUND.RESET')"
+            :disabled="loading"
+            @click="reset"
+          />
+        </div>
       </div>
       <p class="mt-2 text-sm text-n-slate-11">
         {{ t('MARCOX_AI.PLAYGROUND.BODY') }}
@@ -161,7 +273,7 @@ const send = async () => {
       class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5"
     >
       <div
-        v-if="!messages.length"
+        v-if="!messages.length && !loading"
         class="flex h-full min-h-44 flex-col items-center justify-center gap-4 text-center text-n-slate-11"
       >
         <span class="i-lucide-messages-square size-10 text-n-blue-9" />
@@ -251,6 +363,7 @@ const send = async () => {
       >
         <span>{{ files.map(file => file.name).join(', ') }}</span
         ><Button
+          type="button"
           icon="i-lucide-x"
           variant="ghost"
           color="slate"
@@ -263,7 +376,7 @@ const send = async () => {
         v-model="message"
         rows="2"
         :placeholder="t('MARCOX_AI.PLAYGROUND.PLACEHOLDER')"
-        :disabled="sending || !agent"
+        :disabled="sending || loading || !agent"
         class="!mb-0 w-full resize-none rounded-lg border border-n-weak bg-n-solid-2 px-3 py-2 text-sm"
         @keydown.enter.exact.prevent="send"
       />
@@ -276,6 +389,7 @@ const send = async () => {
           class="hidden"
           @change="attach"
         /><Button
+          type="button"
           icon="i-lucide-paperclip"
           variant="ghost"
           color="slate"
@@ -287,9 +401,60 @@ const send = async () => {
           icon="i-lucide-send"
           :label="t('MARCOX_AI.PLAYGROUND.SEND')"
           :is-loading="sending"
-          :disabled="sending || !agent || (!message.trim() && !files.length)"
+          :disabled="
+            sending || loading || !agent || (!message.trim() && !files.length)
+          "
         />
       </div>
     </form>
+    <Dialog
+      ref="historyDialog"
+      :title="t('MARCOX_AI.WORKSPACE.TEST_CHATS')"
+      :show-confirm-button="false"
+      :cancel-button-label="t('MARCOX_AI.WORKSPACE.CLOSE')"
+      width="2xl"
+    >
+      <div class="max-h-[60vh] space-y-2 overflow-y-auto">
+        <p v-if="!sessions.length" class="text-sm text-n-slate-11">
+          {{ t('MARCOX_AI.WORKSPACE.NO_CHATS') }}
+        </p>
+        <button
+          v-for="chat in sessions"
+          :key="chat.id"
+          type="button"
+          class="flex w-full items-center justify-between gap-3 rounded-xl border border-n-weak p-4 text-start hover:bg-n-alpha-2"
+          @click="loadSession(chat.id)"
+        >
+          <span class="truncate text-sm text-n-slate-12">{{
+            chat.title || t('MARCOX_AI.PLAYGROUND.RESET')
+          }}</span>
+          <span class="shrink-0 text-xs text-n-slate-11"
+            >{{ chat.count }} ·
+            {{ new Date(chat.updated_at).toLocaleDateString() }}</span
+          >
+        </button>
+      </div>
+      <div v-if="historyTotal > 25" class="flex items-center justify-end gap-3">
+        <Button
+          type="button"
+          variant="ghost"
+          icon="i-lucide-chevron-left"
+          :disabled="historyLoading || historyPage === 1"
+          :aria-label="t('MARCOX_AI.WORKSPACE.PREVIOUS')"
+          @click="changeHistoryPage(-1)"
+        />
+        <span class="text-sm text-n-slate-11"
+          >{{ historyPage }} / {{ Math.ceil(historyTotal / 25) }}</span
+        >
+        <Button
+          type="button"
+          variant="ghost"
+          icon="i-lucide-chevron-right"
+          :disabled="historyLoading || historyPage * 25 >= historyTotal"
+          :aria-label="t('MARCOX_AI.WORKSPACE.NEXT')"
+          @click="changeHistoryPage(1)"
+        />
+      </div>
+    </Dialog>
   </section>
 </template>

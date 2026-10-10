@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_10_09_090000) do
+ActiveRecord::Schema[7.2].define(version: 2026_10_09_190000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1365,6 +1365,19 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_09_090000) do
     t.index ["account_id"], name: "index_marcosx_ai_assistants_on_account_id"
   end
 
+  create_table "marcosx_ai_contact_memories", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "contact_id", null: false
+    t.datetime "forgotten_at"
+    t.bigint "cutoff_message_id"
+    t.jsonb "excluded_message_ids", default: [], null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "contact_id"], name: "idx_marcosx_ai_contact_memory", unique: true
+    t.index ["account_id"], name: "index_marcosx_ai_contact_memories_on_account_id"
+    t.index ["contact_id"], name: "index_marcosx_ai_contact_memories_on_contact_id"
+  end
+
   create_table "marcosx_ai_conversation_states", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "assistant_id"
@@ -1437,6 +1450,23 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_09_090000) do
     t.index ["account_id"], name: "index_marcosx_ai_logs_on_account_id"
     t.index ["assistant_id"], name: "index_marcosx_ai_logs_on_assistant_id"
     t.index ["conversation_id"], name: "index_marcosx_ai_logs_on_conversation_id"
+  end
+
+  create_table "marcosx_ai_test_sessions", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "assistant_id", null: false
+    t.bigint "user_id", null: false
+    t.string "title", default: "", null: false
+    t.jsonb "messages", default: [], null: false
+    t.datetime "processing_started_at"
+    t.string "turn_token"
+    t.text "last_error"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id", "assistant_id", "user_id", "updated_at"], name: "idx_marcosx_ai_test_sessions_owner"
+    t.index ["account_id"], name: "index_marcosx_ai_test_sessions_on_account_id"
+    t.index ["assistant_id"], name: "index_marcosx_ai_test_sessions_on_assistant_id"
+    t.index ["user_id"], name: "index_marcosx_ai_test_sessions_on_user_id"
   end
 
   create_table "mentions", force: :cascade do |t|
@@ -2047,6 +2077,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_09_090000) do
   add_foreign_key "marcosx_ai_alerts", "marcosx_ai_assistants", column: "assistant_id", on_delete: :nullify
   add_foreign_key "marcosx_ai_alerts", "users", column: "resolved_by_id", on_delete: :nullify
   add_foreign_key "marcosx_ai_assistants", "accounts"
+  add_foreign_key "marcosx_ai_contact_memories", "accounts", on_delete: :cascade
+  add_foreign_key "marcosx_ai_contact_memories", "contacts", on_delete: :cascade
   add_foreign_key "marcosx_ai_conversation_states", "accounts"
   add_foreign_key "marcosx_ai_conversation_states", "conversations"
   add_foreign_key "marcosx_ai_conversation_states", "inboxes"
@@ -2059,6 +2091,9 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_09_090000) do
   add_foreign_key "marcosx_ai_logs", "accounts"
   add_foreign_key "marcosx_ai_logs", "conversations"
   add_foreign_key "marcosx_ai_logs", "marcosx_ai_assistants", column: "assistant_id"
+  add_foreign_key "marcosx_ai_test_sessions", "accounts", on_delete: :cascade
+  add_foreign_key "marcosx_ai_test_sessions", "marcosx_ai_assistants", column: "assistant_id", on_delete: :cascade
+  add_foreign_key "marcosx_ai_test_sessions", "users", on_delete: :cascade
   add_foreign_key "user_sessions", "users"
   add_foreign_key "whatsapp_automation_runs", "accounts"
   add_foreign_key "whatsapp_automation_runs", "contacts"

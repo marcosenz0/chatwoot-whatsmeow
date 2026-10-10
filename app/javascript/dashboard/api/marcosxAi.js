@@ -142,6 +142,38 @@ class MarcosxAiAPI extends ApiClient {
     return axios.post(`${this.url}/assistants/${assistantId}/playground`, data);
   }
 
+  getTestSessions(assistantId, page = 1) {
+    return axios.get(`${this.url}/assistants/${assistantId}/test_sessions`, {
+      params: { page },
+    });
+  }
+
+  getTestSession(assistantId, id) {
+    return axios.get(
+      `${this.url}/assistants/${assistantId}/test_sessions/${id}`
+    );
+  }
+
+  createTestSession(assistantId) {
+    return axios.post(`${this.url}/assistants/${assistantId}/test_sessions`);
+  }
+
+  getContactMemories(params = {}) {
+    return axios.get(`${this.url}/contact_memories`, { params });
+  }
+
+  getContactMemory(contactId, params = {}) {
+    return axios.get(`${this.url}/contact_memories/${contactId}`, { params });
+  }
+
+  updateContactMemory(contactId, memory) {
+    return axios.put(`${this.url}/contact_memories/${contactId}`, { memory });
+  }
+
+  forgetContactMemory(contactId) {
+    return axios.post(`${this.url}/contact_memories/${contactId}/forget`);
+  }
+
   generateDraft(conversationId, draft, options = {}) {
     return axios.post(
       `${this.url}/conversations/${conversationId}/draft`,

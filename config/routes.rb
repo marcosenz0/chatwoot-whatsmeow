@@ -122,6 +122,9 @@ Rails.application.routes.draw do
             end
             resources :logs, only: [:index]
             resources :alerts, only: [:index, :update]
+            resources :contact_memories, only: [:index, :show, :update] do
+              post :forget, on: :member
+            end
             resources :assistants do
               post :playground, on: :member
               get :coverage, on: :member
@@ -129,6 +132,7 @@ Rails.application.routes.draw do
               post :test_notification, on: :member
               get :notification_options, on: :collection
               resources :inboxes, only: [:index, :create, :destroy], param: :inbox_id
+              resources :test_sessions, only: [:index, :show, :create, :destroy]
             end
             resources :conversations, only: [] do
               resource :state, only: [:show, :update], controller: 'conversation_states'
