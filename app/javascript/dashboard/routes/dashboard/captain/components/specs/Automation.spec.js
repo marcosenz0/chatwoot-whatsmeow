@@ -24,8 +24,17 @@ describe('MarcoXIA automation controls', () => {
         inboxes: [{ id: 8, name: 'WhatsApp' }],
       },
     });
-    await wrapper.get('textarea').setValue('+5563999999999\n+5563888888888');
-    await wrapper.get('input').setChecked();
+    await wrapper.get('input[type="tel"]').setValue('+5563999999999');
+    await wrapper
+      .findAll('button')
+      .find(button => button.text().includes('ADD_NUMBER'))
+      .trigger('click');
+    await wrapper.get('input[type="tel"]').setValue('+55 (63) 88888-8888');
+    await wrapper
+      .findAll('button')
+      .find(button => button.text().includes('ADD_NUMBER'))
+      .trigger('click');
+    await wrapper.get('input[type="checkbox"]').setChecked();
     expect(settings.whatsapp_numbers).toEqual([
       '+5563999999999',
       '+5563888888888',

@@ -12,8 +12,20 @@ vi.mock('dashboard/api/marcosxAi', () => ({
     getEffectivePrompt: vi.fn(),
     getNotificationOptions: vi.fn(),
     testNotification: vi.fn(),
+    getTestSessions: vi.fn(),
+    getTestSession: vi.fn(),
+    createTestSession: vi.fn(),
   },
 }));
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: {} }),
+  useRouter: () => ({ replace: vi.fn() }),
+}));
+vi.mock('dashboard/components-next/TeleportWithDirection.vue', () => ({
+  default: { template: '<slot />' },
+}));
+HTMLDialogElement.prototype.showModal = vi.fn();
+HTMLDialogElement.prototype.close = vi.fn();
 const agent = {
   id: 1,
   name: 'Support',
@@ -278,16 +290,56 @@ describe('MarcoXIA agent configuration', () => {
 describe('MarcoXIA private test conversation', () => {
   const plan = { messages: ['Hello'], reaction: null, handoff: false };
   beforeEach(() => {
-    MarcosxAiAPI.runPlayground.mockResolvedValue({
+    MarcosxAiAPI.getTestSessions.mockResolvedValue({
+      data: { sessions: [], total: 0 },
+    });
+    MarcosxAiAPI.createTestSession.mockResolvedValue({
+      data: { session: { id: 10, messages: [] } },
+    });
+    MarcosxAiAPI.runPlayground.mockImplementation(async (_id, body) => ({
       data: {
-        response: 'Hello',
-        plan,
-        user_context: 'First question with image details',
+        session: {
+          id: 10,
+          messages: [
+            { role: 'user', content: body.get('assistant[message]') },
+            { role: 'assistant', content: 'Hello', plan, name: 'Support' },
+          ],
+        },
       },
+    }));
+    MarcosxAiAPI.getTestSession.mockResolvedValue({
+      data: { session: { id: 10, messages: [], processing: false } },
     });
   });
-  it('sends multi-turn history to the selected saved agent', async () => {
+  it('reopens the server-saved test chat after navigating away', async () => {
+    MarcosxAiAPI.getTestSessions.mockResolvedValue({
+      data: { sessions: [{ id: 10 }], total: 1 },
+    });
+    MarcosxAiAPI.getTestSession.mockResolvedValue({
+      data: {
+        session: {
+          id: 10,
+          messages: [
+            { role: 'user', content: 'Saved question' },
+            { role: 'assistant', content: 'Saved answer', name: 'Support' },
+          ],
+          processing: false,
+        },
+      },
+    });
+    let wrapper = mount(AiPlayground, { props: { agents: [agent] } });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Saved answer');
+    wrapper.unmount();
+    wrapper = mount(AiPlayground, { props: { agents: [agent] } });
+    await flushPromises();
+    expect(wrapper.text()).toContain('Saved question');
+    expect(wrapper.text()).toContain('Saved answer');
+    wrapper.unmount();
+  });
+  it('sends later turns to the same persisted session and saved agent', async () => {
     const wrapper = mount(AiPlayground, { props: { agents: [agent] } });
+    await flushPromises();
     await wrapper.find('textarea').setValue('First question');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
@@ -296,23 +348,33 @@ describe('MarcoXIA private test conversation', () => {
     await flushPromises();
     const [id, body] = MarcosxAiAPI.runPlayground.mock.calls[1];
     expect(id).toBe(1);
-    expect(body.getAll('assistant[history][][role]')).toEqual([
-      'user',
-      'assistant',
-    ]);
-    expect(body.getAll('assistant[history][][content]')).toEqual([
-      'First question with image details',
-      'Hello',
-    ]);
+    expect(body.get('assistant[session_id]')).toBe('10');
+    expect(body.get('assistant[message]')).toBe('Follow up');
+    expect(MarcosxAiAPI.createTestSession).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
   });
   it('displays each reply part and a reaction separately', async () => {
     MarcosxAiAPI.runPlayground.mockResolvedValue({
       data: {
-        response: 'Hello\nMore',
-        plan: { messages: ['Hello', 'More'], reaction: '👍', handoff: false },
+        session: {
+          id: 10,
+          messages: [
+            {
+              role: 'assistant',
+              content: 'Hello\nMore',
+              name: 'Support',
+              plan: {
+                messages: ['Hello', 'More'],
+                reaction: '👍',
+                handoff: false,
+              },
+            },
+          ],
+        },
       },
     });
     const wrapper = mount(AiPlayground, { props: { agents: [agent] } });
+    await flushPromises();
     await wrapper.find('textarea').setValue('Hi');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
@@ -321,6 +383,7 @@ describe('MarcoXIA private test conversation', () => {
   });
   it('rejects oversized attachments before invoking the provider', async () => {
     const wrapper = mount(AiPlayground, { props: { agents: [agent] } });
+    await flushPromises();
     Object.defineProperty(wrapper.find('input[type="file"]').element, 'files', {
       value: [{ name: 'large.pdf', size: 26 * 1024 * 1024 }],
     });

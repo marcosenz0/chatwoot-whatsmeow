@@ -91,6 +91,7 @@ export default {
     'close',
     'togglePin',
     'generateAiReply',
+    'viewMemories',
   ],
   setup() {
     const { isAdmin } = useAdmin();
@@ -347,6 +348,15 @@ export default {
       :option="aiReplyOption"
       variant="icon"
       @click.stop="$emit('generateAiReply')"
+    />
+    <MenuItem
+      v-if="isAdmin"
+      :option="{
+        label: $t('MARCOX_AI.WORKSPACE.VIEW_MEMORY'),
+        icon: 'i-lucide-brain',
+      }"
+      variant="icon"
+      @click.stop="$emit('viewMemories')"
     />
     <template v-if="isAllowed([MENU.STATUS, MENU.SNOOZE])">
       <template v-for="option in statusMenuConfig">

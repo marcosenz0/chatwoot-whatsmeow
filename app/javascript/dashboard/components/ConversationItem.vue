@@ -9,6 +9,7 @@ import ConversationCardExpanded from 'dashboard/components-next/Conversation/Con
 import ContextMenu from 'dashboard/components/ui/ContextMenu.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import mutationTypes from 'dashboard/store/mutation-types';
+import ContactMemoryDialog from 'dashboard/routes/dashboard/captain/components/ContactMemoryDialog.vue';
 import ConversationContextMenu from './widgets/conversation/contextMenu/Index.vue';
 import ConversationAiPanel from './widgets/conversation/ConversationAiPanel.vue';
 import ConversationCard from './widgets/conversation/ConversationCard.vue';
@@ -27,6 +28,8 @@ const router = useRouter();
 const store = useStore();
 const { t } = useI18n();
 const aiPanel = ref(null);
+const memoryDialog = ref(null);
+const memoryDialogVisible = ref(false);
 const aiPanelVisible = ref(false);
 const aiState = ref(null);
 const aiAssistants = ref([]);
@@ -203,6 +206,14 @@ const onTogglePin = () => {
   toggleConversationPin(props.source.id);
   closeContextMenu();
 };
+const openMemory = async () => {
+  closeContextMenu();
+  const id = currentContact.value?.id;
+  if (!id) return;
+  memoryDialogVisible.value = true;
+  await nextTick();
+  memoryDialog.value.open(id, props.source.id);
+};
 const updateAiState = state => {
   aiState.value = state;
   store.commit(mutationTypes.UPDATE_CONVERSATION, {
@@ -302,6 +313,7 @@ watch(
       :conversation-url="conversationPath"
       enable-ai-reply
       @generate-ai-reply="openAiPanel"
+      @view-memories="openMemory"
       @update-conversation="onUpdateConversation"
       @assign-agent="onAssignAgent"
       @assign-label="onAssignLabel"
@@ -323,4 +335,5 @@ watch(
     :assistants="aiAssistants"
     @updated="updateAiState"
   />
+  <ContactMemoryDialog v-if="memoryDialogVisible" ref="memoryDialog" />
 </template>

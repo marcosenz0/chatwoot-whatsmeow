@@ -1,9 +1,11 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useRoute, useRouter } from 'vue-router';
 import Button from 'dashboard/components-next/button/Button.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import { useAlert } from 'dashboard/composables';
+import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import AiToggleRow from './AiToggleRow.vue';
 import AiModelSelect from './AiModelSelect.vue';
 import AiSelect from './AiSelect.vue';
@@ -13,6 +15,7 @@ import AgentAttendance from './AgentAttendance.vue';
 import AgentActivity from './AgentActivity.vue';
 import AgentNotifications from './AgentNotifications.vue';
 import AgentAlertList from './AgentAlertList.vue';
+import AgentMemories from './AgentMemories.vue';
 
 const props = defineProps({
   agent: { type: Object, required: true },
@@ -35,11 +38,15 @@ const emit = defineEmits([
   'saveConnection',
   'testConnection',
   'refreshModels',
+  'back',
 ]);
 const { t } = useI18n();
+const route = useRoute();
+const router = useRouter();
 const form = ref({});
 const initialForm = ref('');
 const effectivePrompt = ref(null);
+const alertsDialog = ref(null);
 const showPrompt = async () => {
   try {
     const { data } = await MarcosxAiAPI.getEffectivePrompt(form.value.id);
@@ -102,6 +109,11 @@ const sections = computed(() => [
           label: t('MARCOX_AI.AUTOMATION.NOTIFICATIONS'),
         },
         {
+          id: 'memories',
+          icon: 'i-lucide-brain',
+          label: t('MARCOX_AI.WORKSPACE.MEMORIES'),
+        },
+        {
           id: 'attendance',
           icon: 'i-lucide-messages-square',
           label: t('MARCOX_AI.COVERAGE.TITLE'),
@@ -114,6 +126,20 @@ const sections = computed(() => [
       ]
     : []),
 ]);
+watch(section, value => {
+  if (form.value.id)
+    router.replace({
+      query: { ...route.query, agent: form.value.id, section: value },
+    });
+});
+watch(
+  () => props.initialSection,
+  value => {
+    section.value = sections.value.some(item => item.id === value)
+      ? value
+      : 'identity';
+  }
+);
 watch(
   () => props.agent,
   (agent, previous) => {
@@ -136,7 +162,11 @@ watch(
     initialForm.value = JSON.stringify(form.value);
     effectivePrompt.value = null;
     if (agent.id !== previous?.id)
-      section.value = agent.id ? props.initialSection : 'identity';
+      section.value =
+        agent.id &&
+        sections.value.some(item => item.id === props.initialSection)
+          ? props.initialSection
+          : 'identity';
   },
   { immediate: true }
 );
@@ -243,10 +273,23 @@ const channelLabel = inbox =>
     <div
       class="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-n-weak bg-n-solid-1 px-6 py-4"
     >
-      <div>
-        <p class="m-0 text-xs text-n-slate-11">
-          {{ t('MARCOX_AI.EDITOR.TITLE') }}
-        </p>
+      <div class="min-w-0">
+        <div class="flex items-center gap-2 text-xs text-n-slate-11">
+          <Button
+            type="button"
+            variant="link"
+            color="slate"
+            icon="i-lucide-arrow-left"
+            :label="t('MARCOX_AI.TABS.AGENTS')"
+            @click="emit('back')"
+          />
+          <span>/</span
+          ><span class="truncate">{{
+            form.name || t('MARCOX_AI.EDITOR.NEW')
+          }}</span>
+          <span>/</span
+          ><span>{{ sections.find(item => item.id === section)?.label }}</span>
+        </div>
         <h2 class="m-0 mt-1 text-lg font-semibold text-n-slate-12">
           {{ form.name || t('MARCOX_AI.EDITOR.NEW') }}
         </h2>
@@ -257,7 +300,6 @@ const channelLabel = inbox =>
           icon="i-lucide-trash-2"
           variant="ghost"
           color="ruby"
-          class="lg:hidden"
           :aria-label="t('MARCOX_AI.DELETE')"
           @click="emit('delete', form.id)"
         />
@@ -284,12 +326,10 @@ const channelLabel = inbox =>
         />
       </div>
     </div>
-    <div class="flex min-h-0 flex-1 flex-col lg:flex-row">
-      <aside
-        class="flex shrink-0 flex-col border-b border-n-weak bg-n-solid-1 lg:w-56 lg:border-b-0 lg:border-e"
-      >
+    <div class="flex min-h-0 flex-1 flex-col">
+      <aside class="shrink-0 border-b border-n-weak bg-n-solid-1">
         <nav
-          class="flex gap-1 overflow-x-auto p-3 lg:flex-col"
+          class="flex gap-1 overflow-x-auto px-6 py-2"
           role="tablist"
           :aria-label="t('MARCOX_AI.EDITOR.TITLE')"
         >
@@ -301,7 +341,8 @@ const channelLabel = inbox =>
             :aria-selected="section === item.id"
             :disabled="
               (item.id === 'test' && (!form.id || hasUnsavedChanges)) ||
-              (['attendance', 'activity'].includes(item.id) && !form.id)
+              (['attendance', 'activity', 'memories'].includes(item.id) &&
+                !form.id)
             "
             class="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2.5 text-start text-sm font-medium disabled:opacity-40"
             :class="
@@ -314,22 +355,11 @@ const channelLabel = inbox =>
             <span :class="item.icon" class="size-4 shrink-0" />{{ item.label }}
           </button>
         </nav>
-        <div
-          v-if="form.id && canEdit"
-          class="hidden border-t border-n-weak p-3 lg:mt-auto lg:block"
-        >
-          <Button
-            icon="i-lucide-trash-2"
-            :label="t('MARCOX_AI.DELETE')"
-            variant="ghost"
-            color="ruby"
-            size="sm"
-            @click="emit('delete', form.id)"
-          />
-        </div>
       </aside>
       <form
-        v-show="!['test', 'attendance', 'activity'].includes(section)"
+        v-show="
+          !['test', 'attendance', 'activity', 'memories'].includes(section)
+        "
         id="marcosx-agent-editor"
         class="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-6 xl:px-10"
         @submit.prevent="emit('save', form)"
@@ -762,15 +792,14 @@ const channelLabel = inbox =>
             v-if="section === 'notifications' && canEdit"
             v-model="form.config"
             :agent-id="form.id"
+            @show-alerts="alertsDialog.open()"
           />
         </fieldset>
       </form>
-      <div
-        v-if="section === 'notifications' && form.id && canEdit"
-        class="px-6 pb-6"
-      >
-        <AgentAlertList :agent-id="form.id" />
-      </div>
+      <AgentMemories
+        v-if="section === 'memories' && form.id && canEdit"
+        :agent-id="form.id"
+      />
       <AiPlayground
         v-if="section === 'test' && form.id"
         :agents="[agent]"
@@ -787,5 +816,16 @@ const channelLabel = inbox =>
         :agent-id="form.id"
       />
     </div>
+    <Dialog
+      ref="alertsDialog"
+      width="3xl"
+      :title="t('MARCOX_AI.AUTOMATION.PENDING')"
+      :show-confirm-button="false"
+      :cancel-button-label="t('MARCOX_AI.WORKSPACE.CLOSE')"
+    >
+      <div class="max-h-[65vh] overflow-y-auto">
+        <AgentAlertList v-if="form.id" :agent-id="form.id" />
+      </div>
+    </Dialog>
   </div>
 </template>

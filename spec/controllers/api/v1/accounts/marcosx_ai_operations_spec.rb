@@ -11,6 +11,81 @@ RSpec.describe 'MarcoXIA operations API', type: :request do
   let(:endpoint) { "/api/v1/accounts/#{account.id}/marcosx_ai" }
   let(:memory_endpoint) { "#{endpoint}/conversations/#{conversation.display_id}/memory" }
 
+  it 'resets all contact context without deleting history and rejects later imports of old messages' do
+    old = create(:message, conversation: conversation, account: account, inbox: inbox, content: 'Previous context')
+    state.update!(metadata: { conversation_summary: 'Previous context', run_token: 'old', processing: true,
+                              pending_response: { messages: ['Obsolete reply'] } })
+    post "#{endpoint}/contact_memories/#{conversation.contact_id}/forget", headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok), response.body
+    expect(conversation.messages.exists?(old.id)).to be(true)
+    expect(MarcosxAi::ConversationContext.public_history(conversation)).to be_empty
+    expect(state.reload.metadata).not_to have_key('conversation_summary')
+    expect(state.metadata).not_to have_key('pending_response')
+    expect(state.metadata['run_token']).not_to eq('old')
+    imported = create(:message, conversation: conversation, account: account, inbox: inbox, content: 'Imported old message',
+                                created_at: 1.day.ago)
+    fresh = create(:message, conversation: conversation, account: account, inbox: inbox, content: 'New context')
+    expect(MarcosxAi::ConversationContext.public_history(conversation).pluck(:id)).to eq([fresh.id])
+    expect(conversation.messages.exists?(imported.id)).to be(true)
+  end
+
+  it 'excludes and restores individual messages and invalidates summaries and pending replies' do
+    message = create(:message, conversation: conversation, account: account, inbox: inbox, content: 'Context detail')
+    state.update!(metadata: { conversation_summary: 'Context detail', pending_response: { messages: ['Old detail'] }, run_token: 'old' })
+    put "#{endpoint}/contact_memories/#{conversation.contact_id}", params: { memory: { message_id: message.id, excluded: true } },
+                                                                  headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:ok), response.body
+    expect(response.parsed_body['messages'].first['excluded']).to be(true)
+    expect(MarcosxAi::ConversationContext.public_history(conversation)).to be_empty
+    expect(state.reload.metadata).not_to have_key('conversation_summary')
+    expect(state.metadata).not_to have_key('pending_response')
+    put "#{endpoint}/contact_memories/#{conversation.contact_id}", params: { memory: { message_id: message.id, excluded: false } },
+                                                                  headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:ok), response.body
+    expect(MarcosxAi::ConversationContext.public_history(conversation).pluck(:id)).to eq([message.id])
+  end
+
+  it 'saves a manually edited summary with the existing recent window' do
+    state.update!(metadata: { context_messages_limit: 2, pending_response: { messages: ['Old summary'] } })
+    3.times do |index|
+      create(:message, conversation: conversation, account: account, inbox: inbox, content: "Message #{index}", created_at: index.minutes.ago)
+    end
+    put "#{endpoint}/contact_memories/#{conversation.contact_id}",
+        params: { memory: { conversation_id: conversation.display_id, summary: 'Operator correction' } },
+        headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:ok), response.body
+    expect(state.reload.metadata['conversation_summary']).to eq('Operator correction')
+    expect(state.metadata['summary_messages_count']).to eq(1)
+    expect(state.metadata['summary_manually_edited']).to be(true)
+    expect(state.metadata['context_messages_limit']).to eq(2)
+    expect(state.metadata).not_to have_key('pending_response')
+  end
+
+  it 'isolates contact memory by account and restricts memory editing to administrators' do
+    state
+    get "#{endpoint}/contact_memories/#{conversation.contact_id}", headers: agent.create_new_auth_token
+    expect(response).to have_http_status(:unauthorized)
+    other = create(:contact)
+    get "#{endpoint}/contact_memories/#{other.id}", headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'persists test chats privately for the current user and saved assistant' do
+    sessions_endpoint = "#{endpoint}/assistants/#{assistant.id}/test_sessions"
+    post sessions_endpoint, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:created), response.body
+    id = response.parsed_body.dig('session', 'id')
+    session = MarcosxAi::TestSession.find(id)
+    _, token = session.begin_turn!(content: 'Saved question')
+    session.complete_turn!({ user_context: 'Saved question', response: 'Saved answer', plan: { messages: ['Saved answer'] }, simulation: {} }, token: token)
+    get "#{sessions_endpoint}/#{id}", headers: admin.create_new_auth_token
+    expect(response.parsed_body.dig('session', 'messages').pluck('content')).to eq(['Saved question', 'Saved answer'])
+    get "#{sessions_endpoint}/#{id}", headers: agent.create_new_auth_token
+    expect(response).to have_http_status(:not_found)
+    get sessions_endpoint, headers: agent.create_new_auth_token
+    expect(response.parsed_body['sessions']).to eq([])
+  end
+
   it 'saves editable instructions and generic alert rules without enabling general support' do
     settings = { editorial_instructions: 'Speak warmly', memory_mode: 'summary_recent',
                  notifications: { user_ids: [admin.id], whatsapp_numbers: [], inbox_id: nil },

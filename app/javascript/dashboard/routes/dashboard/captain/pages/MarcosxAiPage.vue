@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
@@ -12,6 +12,7 @@ import AgentEditor from '../components/AgentEditor.vue';
 
 const store = useStore();
 const route = useRoute();
+const router = useRouter();
 const { t } = useI18n();
 const canEdit = computed(
   () => store.getters.getCurrentRole === 'administrator'
@@ -46,7 +47,18 @@ const discardChanges = () => {
 const selectAgent = agent =>
   reviewNavigation(() => {
     editing.value = agent;
+    router.replace({
+      query: { ...route.query, agent: agent.id, section: undefined },
+    });
     dirty.value = false;
+  });
+const backToAgents = () =>
+  reviewNavigation(() => {
+    editing.value = null;
+    dirty.value = false;
+    router.replace({
+      query: { ...route.query, agent: undefined, section: undefined },
+    });
   });
 const cancelAgent = () => {
   const saved =
@@ -60,7 +72,9 @@ const initialSection = computed(
   () =>
     ({ activity: canEdit.value ? 'activity' : 'identity', playground: 'test' })[
       route.params.navigationPath
-    ] || 'identity'
+    ] ||
+    route.query.section ||
+    'identity'
 );
 const visibleAgents = computed(() =>
   agents.value.filter(item =>
@@ -92,7 +106,7 @@ const refresh = async () => {
     agents.value = profiles.data.assistants;
     editing.value =
       agents.value.find(agent => agent.id === editing.value?.id) ||
-      agents.value[0] ||
+      agents.value.find(agent => agent.id === Number(route.query.agent)) ||
       null;
     if (canEdit.value) {
       await Promise.all(
@@ -157,6 +171,7 @@ const saveAgent = async form => {
       ...agents.value.filter(item => item.id !== id),
     ];
     editing.value = data.assistant;
+    router.replace({ query: { ...route.query, agent: data.assistant.id } });
     dirty.value = false;
     useAlert(t('MARCOX_AI.SAVED'));
   } catch (error) {
@@ -207,8 +222,11 @@ const confirmDelete = async () => {
   try {
     await MarcosxAiAPI.deleteAssistant(deletingId.value);
     agents.value = agents.value.filter(item => item.id !== deletingId.value);
-    editing.value = agents.value[0] || null;
+    editing.value = null;
     dirty.value = false;
+    router.replace({
+      query: { ...route.query, agent: undefined, section: undefined },
+    });
     deleteDialog.value.close();
   } catch (error) {
     notifyError(error);
@@ -257,9 +275,10 @@ const testConnection = async provider => {
     </div>
     <main v-else class="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
       <aside
-        class="flex shrink-0 flex-col border-b border-n-weak bg-n-solid-1 md:w-64 md:border-b-0 md:border-e"
+        v-if="!editing && agents.length"
+        class="flex min-w-0 w-full flex-col overflow-y-auto bg-n-solid-1"
       >
-        <div class="space-y-3 border-b border-n-weak p-4">
+        <div class="space-y-3 border-b border-n-weak px-6 py-5">
           <div class="flex items-center justify-between gap-3">
             <h2 class="m-0 text-sm font-semibold text-n-slate-12">
               {{ t('MARCOX_AI.TABS.AGENTS') }}
@@ -391,9 +410,10 @@ const testConnection = async provider => {
         @save-connection="saveConnection"
         @test-connection="testConnection"
         @refresh-models="provider => loadModels(provider, true)"
+        @back="backToAgents"
       />
       <div
-        v-else
+        v-else-if="!agents.length"
         class="flex flex-1 flex-col items-center justify-center p-8 text-center"
       >
         <span
