@@ -22,6 +22,7 @@ RSpec.describe MarcosxAi::ReplyPlan do
   end
 
   it 'splits a long paragraph into separate messages at complete sentence boundaries' do
+    assistant.config = { message_target_characters: 100 }
     sentences = [
       'Entendi seu pedido e posso ajudar a conferir as informações que você já enviou.',
       'Vou considerar os detalhes dessa conversa para te orientar com mais clareza e sem repetir perguntas.',
@@ -29,6 +30,43 @@ RSpec.describe MarcosxAi::ReplyPlan do
     ]
     plan[:messages] = [sentences.join(' ')]
     expect(described_class.parse(plan.to_json, assistant: assistant)['messages']).to eq(sentences)
+  end
+
+  it 'separates a short greeting while retaining complete sentences' do
+    plan[:messages] = ['Oi, Marcos! Como você tá?']
+    expect(described_class.parse(plan.to_json, assistant: assistant)['messages']).to eq(['Oi, Marcos!', 'Como você tá?'])
+    assistant.config = { separate_greeting: false }
+    expect(described_class.parse(plan.to_json, assistant: assistant)['messages']).to eq(plan[:messages])
+  end
+
+  it 'groups short sentences using the configured target without splitting words' do
+    plan[:messages] = ['Entendi seu pedido. Vou conferir as informações. Você quer acrescentar algo?']
+    assistant.config = { message_target_characters: 40 }
+    expect(described_class.parse(plan.to_json, assistant: assistant)['messages']).to eq(
+      ['Entendi seu pedido.', 'Vou conferir as informações.', 'Você quer acrescentar algo?']
+    )
+    assistant.config = { message_target_characters: 160 }
+    expect(described_class.parse(plan.to_json, assistant: assistant)['messages']).to eq(plan[:messages])
+  end
+
+  it 'does not split a long sentence just to meet the target' do
+    assistant.config = { message_target_characters: 40 }
+    plan[:messages] = ['Uma frase completa com muitas palavras que deve continuar inteira mesmo acima do tamanho desejado']
+    expect(described_class.parse(plan.to_json, assistant: assistant)['messages']).to eq(plan[:messages])
+  end
+
+  it 'removes repeated emojis from recent outgoing responses and keeps no more than one occasional emoji' do
+    plan[:messages] = ['Oi, Marcos! 😊 Como você tá? 😊']
+    result = described_class.parse(plan.to_json, assistant: assistant, recent_messages: ['Tudo bem 😊'])
+    expect(result['messages']).to eq(['Oi, Marcos!', 'Como você tá?'])
+    plan[:messages] = ['Tudo bem 😊 Obrigada ❤️']
+    expect(described_class.parse(plan.to_json, assistant: assistant)['messages']).to eq(['Tudo bem 😊 Obrigada'])
+  end
+
+  it 'supports disabling emojis and preserves numbers and links' do
+    assistant.config = { emoji_usage: 'none', split_messages: false }
+    plan[:messages] = ['😊 R$ 150,00 em https://example.com/23 ❤️']
+    expect(described_class.parse(plan.to_json, assistant: assistant)['messages']).to eq(['R$ 150,00 em https://example.com/23'])
   end
 
   it 'preserves links, numbers, abbreviations and complete lists when splitting' do

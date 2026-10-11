@@ -27,14 +27,16 @@ class MarcosxAi::ConversationResponderService
       prompts << { role: 'developer', content: @assistant.resolved_config[:missed_call_instructions] }
       history << { role: 'user', content: "Evento de ligação encerrada sem atendimento (dados): #{@state.metadata['call_event'].to_json}" }
     end
-    plan = MarcosxAi::ReplyPlan.parse(client.chat(messages: [*prompts, *history], schema: MarcosxAi::ReplyPlan::SCHEMA), assistant: @assistant)
+    response = client.chat(messages: [*prompts, *history], schema: MarcosxAi::ReplyPlan::SCHEMA)
+    plan = MarcosxAi::ReplyPlan.parse(response, assistant: @assistant, recent_messages: MarcosxAi::ReplyStyle.recent_text(history))
     if plan['recall_context']
       return unless @state.reload.current_run?(@token)
 
       recalled = MarcosxAi::LinkedContext.new(state: @state).messages(client: client)
       history.concat(recalled.presence || [{ role: 'user',
                                              content: 'Nenhum histórico de outro canal está aprovado. Peça confirmação ao responsável.' }])
-      plan = MarcosxAi::ReplyPlan.parse(client.chat(messages: [*prompts, *history], schema: MarcosxAi::ReplyPlan::SCHEMA), assistant: @assistant)
+      response = client.chat(messages: [*prompts, *history], schema: MarcosxAi::ReplyPlan::SCHEMA)
+      plan = MarcosxAi::ReplyPlan.parse(response, assistant: @assistant, recent_messages: MarcosxAi::ReplyStyle.recent_text(history))
     end
     plan['messages'] = [@assistant.handoff_message] if plan['handoff'] && plan['messages'].empty? && @assistant.handoff_message.present?
     if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff'] && plan['alert_rule_ids'].empty?

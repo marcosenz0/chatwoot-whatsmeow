@@ -314,6 +314,15 @@ const send = async () => {
           >
             <span class="i-lucide-paperclip size-3" />{{ file }}
           </p>
+          <div
+            v-if="item.plan?.voice_text"
+            class="rounded-lg border border-n-weak p-3 text-sm"
+          >
+            <p class="text-xs text-n-slate-11">
+              {{ t('MARCOX_AI.VOICE.SIMULATED') }}
+            </p>
+            <p>{{ item.plan.voice_text }}</p>
+          </div>
           <p v-if="item.plan?.reaction" class="text-xs text-n-slate-11">
             {{
               t('MARCOX_AI.PLAYGROUND.REACTION', { emoji: item.plan.reaction })

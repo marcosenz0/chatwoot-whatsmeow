@@ -61,7 +61,8 @@ class MarcosxAi::ConversationAnalysisService
       PROMPT
     }
     result = JSON.parse(client.chat(messages: [*prompts, *context], schema: SCHEMA))
-    plan = MarcosxAi::ReplyPlan.parse(result.to_json, assistant: @assistant)
+    recent = MarcosxAi::ReplyStyle.recent_text(context)
+    plan = MarcosxAi::ReplyPlan.parse(result.to_json, assistant: @assistant, recent_messages: recent)
     unless result['summary'].is_a?(String) && result['next_step'].is_a?(String)
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_response')
     end
@@ -105,7 +106,7 @@ class MarcosxAi::ConversationAnalysisService
         raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.conversation_unavailable')
       end
 
-      plan = MarcosxAi::ReplyPlan.parse(analysis.fetch('plan').merge('messages' => messages).to_json, assistant: @assistant)
+      plan = MarcosxAi::ReplyPlan.parse(analysis.fetch('plan').merge('messages' => messages, 'voice_text' => nil).to_json, assistant: @assistant)
       if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff'] && plan['alert_rule_ids'].empty?
         raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response')
       end

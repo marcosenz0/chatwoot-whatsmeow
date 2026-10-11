@@ -25,7 +25,17 @@ class MarcosxAi::Assistant < ApplicationRecord
     show_typing: true,
     show_recording: true,
     split_messages: true,
+    emoji_usage: 'occasional',
+    voice: {
+      enabled: false, provider: 'minimax', mode: 'requested', send_text: false, max_characters: 1500,
+      instructions: 'Use português brasileiro e frases curtas. Escreva números, datas e horários por extenso.',
+      pronunciation: '',
+      minimax: { voice_id: '', model: 'speech-2.8-hd', speed: 1.0, volume: 1.0, pitch: 0 },
+      elevenlabs: { voice_id: '', model: 'eleven_multilingual_v2', speed: 1.0, stability: 0.5, similarity_boost: 0.75, style: 0.0 }
+    },
     max_message_parts: 3,
+    message_target_characters: 160,
+    separate_greeting: true,
     message_interval_seconds: 2,
     allow_reactions: true,
     process_images: true,
@@ -48,6 +58,7 @@ class MarcosxAi::Assistant < ApplicationRecord
   has_many :conversation_states, class_name: 'MarcosxAi::ConversationState', dependent: :nullify, inverse_of: :assistant
   has_many :logs, class_name: 'MarcosxAi::Log', dependent: :nullify, inverse_of: :assistant
   has_many :alerts, class_name: 'MarcosxAi::Alert', dependent: :nullify, inverse_of: :assistant
+  has_many :voice_credentials, class_name: 'MarcosxAi::VoiceCredential', dependent: :destroy, inverse_of: :assistant
 
   validates :name, presence: true
   validates :account_id, presence: true
@@ -57,7 +68,15 @@ class MarcosxAi::Assistant < ApplicationRecord
   scope :ordered, -> { order(created_at: :desc) }
 
   def resolved_config
-    DEFAULT_CONFIG.merge(config || {}).with_indifferent_access
+    settings = DEFAULT_CONFIG.merge(config || {}).with_indifferent_access
+    settings[:voice] = DEFAULT_CONFIG[:voice].deep_merge(settings[:voice] || {})
+    settings
+  end
+
+  def voice_ready?
+    settings = resolved_config[:voice]
+    (settings[:enabled] == true && settings.dig(settings[:provider], :voice_id).present? &&
+      voice_credentials.find_by(provider: settings[:provider])&.configured?) || false
   end
 
   def provider

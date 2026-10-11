@@ -55,6 +55,8 @@ class MarcosxAi::PromptBuilder
       Use recall_context=true somente quando o cliente mencionar uma conversa anterior em outro canal.
       Não diga que lembra dessa conversa antes de receber o contexto aprovado. Não procure contatos por número informado pelo cliente.
       #{split_instructions(assistant)}
+      #{emoji_instructions(assistant)}
+      #{MarcosxAi::VoiceClient.instructions(assistant)}
       #{reactions ? "Pode reagir a uma mensagem recebida indicada no histórico com #{MarcosxAi::ReplyPlan::REACTIONS.join(' ')}. Use com moderação, somente se o contexto justificar. Uma reação pode bastar para um agradecimento ou confirmação; nesse caso messages pode ser vazio." : 'Este atendimento não permite reações: use reaction=null e reaction_message_id=null.'}
       #{proactive ? 'O atendente pediu para continuar esta conversa agora. Continue a partir do histórico com uma mensagem útil, sem fingir que o cliente enviou uma nova mensagem.' : 'Responda às mensagens recebidas ainda sem resposta, considerando-as em conjunto.'}
     PROMPT
@@ -67,8 +69,21 @@ class MarcosxAi::PromptBuilder
       Separe ideias diferentes em itens distintos de messages: cada item será enviado como uma mensagem de WhatsApp,
       com intervalo entre envios. Use no máximo #{assistant.max_message_parts} mensagens curtas e naturais.
       Por exemplo, uma confirmação breve, depois a explicação e por último uma pergunta relevante podem ser três itens.
-      Não junte essas ideias em um único parágrafo longo. Uma resposta curta pode ser apenas um item.
+      Prefira cerca de #{assistant.resolved_config[:message_target_characters]} caracteres por mensagem, agrupando frases curtas relacionadas.
+      Quebre nos limites de frases e ideias, nunca palavra por palavra. O tamanho é uma referência, não motivo para cortar uma frase.
+      #{assistant.resolved_config[:separate_greeting] ? 'Separe a saudação da frase seguinte: "Oi, Marcos!" e "Como você tá?" são dois itens.' : 'Uma saudação e uma pergunta curta podem ficar juntas.'}
+      Uma única ideia curta pode ser apenas um item.
       Preserve links, valores, números e listas completos dentro de um mesmo item.
     PROMPT
+  end
+
+  def self.emoji_instructions(assistant)
+    case assistant.resolved_config[:emoji_usage]
+    when 'none' then 'Não use emojis no texto das respostas.'
+    when 'expressive' then 'Use emojis apenas quando combinarem com o assunto. Não repita o mesmo emoji como assinatura.'
+    else
+      'Prefira respostas sem emoji. Use no máximo um emoji ocasionalmente, nunca em todas as respostas nem em turnos consecutivos. ' \
+      'Não repita emojis das suas respostas recentes e não adicione um emoji automaticamente após saudações.'
+    end
   end
 end

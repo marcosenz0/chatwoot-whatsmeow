@@ -133,6 +133,9 @@ Rails.application.routes.draw do
               get :notification_options, on: :collection
               resources :inboxes, only: [:index, :create, :destroy], param: :inbox_id
               resources :test_sessions, only: [:index, :show, :create, :destroy]
+              resource :voice, only: [:show, :update, :destroy], controller: 'voices' do
+                post :preview
+              end
             end
             resources :conversations, only: [] do
               resource :state, only: [:show, :update], controller: 'conversation_states'

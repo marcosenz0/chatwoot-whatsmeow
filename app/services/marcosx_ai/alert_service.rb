@@ -47,6 +47,6 @@ class MarcosxAi::AlertService
     return unless state.assistant.feature_enabled?(:pause_acknowledgement)
 
     state.update!(metadata: state.metadata.merge('run_token' => token, 'pause_ack' => true, 'processing' => true))
-    plan.merge('messages' => plan['messages'].first(1), 'reaction' => nil)
+    plan.merge('messages' => plan['messages'].first(1), 'reaction' => nil, 'voice_text' => nil)
   end
 end
