@@ -100,12 +100,13 @@
         "PROMPT": "Defina como este agente atende, o que sabe e quando deve passar para alguém.",
         "INBOXES": "Escolha onde este agente inicia o atendimento. Você também pode escolhê-lo em uma conversa específica.",
         "BEHAVIOR": "Ajuste o contexto, o ritmo das mensagens e os tipos de mídia que o agente entende.",
-        "NOTIFICATIONS": "Escolha quem recebe os avisos, quando pausar o atendimento e como retomar a conversa."
+        "NOTIFICATIONS": "Escolha quem recebe os avisos, quando pausar o atendimento e como retomar a conversa.",
+        "VOICE": "Configure a voz, as credenciais e uma prévia privada."
       },
       "SHOW_TYPING": "Mostrar digitando no WhatsApp",
       "SHOW_TYPING_HINT": "Mostra digitando enquanto o agente prepara a resposta. Ative também o indicador de digitação da caixa de entrada.",
       "SHOW_RECORDING": "Mostrar gravando áudio no WhatsApp",
-      "SHOW_RECORDING_HINT": "Mostra gravando áudio enquanto um atendente usa o microfone. O agente atualmente responde em texto."
+      "SHOW_RECORDING_HINT": "Mostra gravando áudio enquanto um atendente usa o microfone. Configure o envio de voz do agente em Voz e áudio."
     },
     "PROVIDERS": {
       "TITLE": "Conecte a inteligência dos seus agentes",
@@ -353,6 +354,54 @@
       "NUMBER_PLACEHOLDER": "+55 código do país e número",
       "VIEW_MEMORY": "Ver memórias",
       "NUMBER_HINT": "Adicione um destinatário por vez, com o código do país. Nenhum dígito será acrescentado automaticamente."
+    },
+    "VOICE": {
+      "TITLE": "Voz e áudio",
+      "HINT": "Configure a voz do agente. Sem chave e ID da voz, as respostas continuam por texto. Áudio está disponível nos canais de mensagens compatíveis.",
+      "ENABLED": "Permitir respostas por áudio",
+      "ENABLED_HINT": "Ative após configurar e conferir a prévia. Não altera a ativação do atendimento.",
+      "PROVIDER": "Provedor de voz",
+      "MODE": "Quando enviar áudio",
+      "MODE_REQUESTED": "Somente quando pedirem áudio",
+      "MODE_CONTEXTUAL": "Quando pedirem ou conforme o contexto",
+      "CREDENTIAL": "Chave da API de voz",
+      "KEY_HINT": "A chave é salva separadamente, com criptografia, e não aparece no prompt. Criar uma chave não garante saldo para gerar áudio.",
+      "CONFIGURED": "Chave salva",
+      "MISSING": "Chave não configurada",
+      "SAVE_FIRST": "Salve o agente e suas alterações antes de testar.",
+      "ENCRYPTION": "O servidor precisa de armazenamento criptografado para salvar a chave.",
+      "SAVE_KEY": "Salvar chave",
+      "DELETE_KEY": "Remover chave salva",
+      "VOICE_ID": "ID da voz",
+      "ID_HINT": "Use o identificador da API. O nome exibido, como Alice 03, pode ser diferente do ID.",
+      "MODEL": "Modelo de voz",
+      "SPEED": "Velocidade",
+      "VOLUME": "Volume",
+      "PITCH": "Tom",
+      "STABILITY": "Estabilidade",
+      "SIMILARITY_BOOST": "Semelhança da voz",
+      "STYLE": "Expressividade",
+      "MAX_CHARACTERS": "Limite de caracteres por áudio",
+      "SEND_TEXT": "Enviar também a resposta por texto",
+      "SEND_TEXT_HINT": "Quando desligado, envie o áudio e mantenha os links em texto. Em caso de falha na síntese, envie a resposta por texto.",
+      "INSTRUCTIONS": "Orientações para a fala",
+      "PRONUNCIATION": "Ajustes de pronúncia",
+      "PRONUNCIATION_HINT": "Uma substituição por linha: termo=como deve ser falado",
+      "PREVIEW": "Prévia da voz",
+      "PREVIEW_HINT": "Gera um áudio privado, sem enviar ao contato. Usa a configuração salva e pode consumir saldo do provedor e créditos de normalização do texto.",
+      "GENERATE": "Gerar prévia",
+      "ERROR": "Não foi possível concluir. Confira as configurações salvas, a chave, o saldo e o ID da voz.",
+      "SIMULATED": "Áudio proposto na simulação — nenhum áudio gerado ou enviado"
+    },
+    "SPLITTING": {
+      "TARGET": "Tamanho desejado por mensagem (caracteres)",
+      "HINT": "Agrupa frases curtas e quebra em pontuação natural. Preserva frases, links, números e listas. O tamanho é aproximado; o máximo de mensagens pode reunir o restante na última bolha.",
+      "GREETING": "Separar saudação da frase seguinte",
+      "GREETING_HINT": "Exemplo: “Oi, Marcos!” e depois “Como você tá?”.",
+      "EMOJI": "Emojis no texto",
+      "EMOJI_NONE": "Sem emojis",
+      "EMOJI_OCCASIONAL": "Ocasionais, sem repetir em respostas seguidas",
+      "EMOJI_EXPRESSIVE": "Mais expressivos"
     }
   }
 }

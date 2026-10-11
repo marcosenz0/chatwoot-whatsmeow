@@ -5,6 +5,8 @@ import AgentEditor from '../AgentEditor.vue';
 import AiModelSelect from '../AiModelSelect.vue';
 import AiPlayground from '../AiPlayground.vue';
 import AiSelect from '../AiSelect.vue';
+import AgentVoice from '../AgentVoice.vue';
+import { voiceDefaults } from '../agentVoiceDefaults';
 
 vi.mock('dashboard/api/marcosxAi', () => ({
   default: {
@@ -15,6 +17,10 @@ vi.mock('dashboard/api/marcosxAi', () => ({
     getTestSessions: vi.fn(),
     getTestSession: vi.fn(),
     createTestSession: vi.fn(),
+    getVoice: vi.fn(),
+    saveVoiceKey: vi.fn(),
+    deleteVoiceKey: vi.fn(),
+    previewVoice: vi.fn(),
   },
 }));
 vi.mock('vue-router', () => ({
@@ -69,6 +75,60 @@ const props = {
 };
 
 describe('MarcoXIA agent configuration', () => {
+  it('edits the splitting target and greeting separation from the conversation settings', async () => {
+    const wrapper = mount(AgentEditor, {
+      props: { ...props, initialSection: 'behavior' },
+    });
+    const field = wrapper
+      .findAll('label')
+      .find(label => label.text().includes('SPLITTING.TARGET'));
+    await field.get('input').setValue('240');
+    const greeting = wrapper.get(
+      'button[aria-label="MARCOX_AI.SPLITTING.GREETING"]'
+    );
+    await greeting.trigger('click');
+    await wrapper.get('form').trigger('submit.prevent');
+    expect(wrapper.emitted('save')[0][0].config).toMatchObject({
+      message_target_characters: 240,
+      separate_greeting: false,
+    });
+    wrapper.unmount();
+  });
+
+  it('keeps voice preview disabled without a key and saves the key separately from the agent config', async () => {
+    MarcosxAiAPI.getVoice.mockResolvedValue({
+      data: {
+        credentials: [],
+        models: { minimax: ['speech-2.8-hd'] },
+        encryption_ready: true,
+      },
+    });
+    MarcosxAiAPI.saveVoiceKey.mockResolvedValue({ data: {} });
+    const settings = JSON.parse(JSON.stringify(voiceDefaults));
+    const wrapper = mount(AgentVoice, {
+      props: { modelValue: settings, assistantId: 1 },
+    });
+    await flushPromises();
+    const preview = wrapper
+      .findAll('button')
+      .find(button => button.text().includes('VOICE.GENERATE'));
+    expect(preview.element.disabled).toBe(true);
+    await wrapper.get('input[type="password"]').setValue('private-test-key');
+    await wrapper
+      .findAll('button')
+      .find(button => button.text().includes('VOICE.SAVE_KEY'))
+      .trigger('click');
+    await flushPromises();
+    expect(MarcosxAiAPI.saveVoiceKey).toHaveBeenCalledWith(
+      1,
+      'minimax',
+      'private-test-key'
+    );
+    expect(wrapper.get('input[type="password"]').element.value).toBe('');
+    expect(JSON.stringify(settings)).not.toContain('private-test-key');
+    expect(MarcosxAiAPI.previewVoice).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
   it('previews saved instructions without submitting unsaved agent edits', async () => {
     MarcosxAiAPI.getEffectivePrompt.mockResolvedValue({
       data: {

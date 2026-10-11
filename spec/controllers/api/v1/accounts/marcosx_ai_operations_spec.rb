@@ -11,6 +11,33 @@ RSpec.describe 'MarcoXIA operations API', type: :request do
   let(:endpoint) { "/api/v1/accounts/#{account.id}/marcosx_ai" }
   let(:memory_endpoint) { "#{endpoint}/conversations/#{conversation.display_id}/memory" }
 
+  it 'offers a voice setup without a key and restricts credentials to administrators of the account' do
+    url = "#{endpoint}/assistants/#{assistant.id}/voice"
+    get url, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok)
+    expect(response.parsed_body['credentials']).to eq([])
+    expect(response.parsed_body['models'].keys).to match_array(%w[minimax elevenlabs])
+    get url, headers: agent.create_new_auth_token
+    expect(response).to have_http_status(:unauthorized)
+    other = create(:account).marcosx_ai_assistants.create!(name: 'Other')
+    get "#{endpoint}/assistants/#{other.id}/voice", headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'stores and removes a voice credential without exposing the key or changing agent activation' do
+    skip 'CI provides encryption keys' unless Chatwoot.encryption_configured?
+    url = "#{endpoint}/assistants/#{assistant.id}/voice"
+    put url, params: { provider: 'minimax', api_key: 'voice-test-key' }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:ok), response.body
+    expect(response.body).not_to include('voice-test-key')
+    expect(response.parsed_body['credential']).to eq('provider' => 'minimax', 'configured' => true)
+    expect(assistant.reload.voice_ready?).to be(false)
+    expect(assistant.auto_response_enabled?).to be(false)
+    delete url, params: { provider: 'minimax' }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:no_content)
+    expect(assistant.voice_credentials).to be_empty
+  end
+
   it 'resets all contact context without deleting history and rejects later imports of old messages' do
     old = create(:message, conversation: conversation, account: account, inbox: inbox, content: 'Previous context')
     state.update!(metadata: { conversation_summary: 'Previous context', run_token: 'old', processing: true,

@@ -1,5 +1,12 @@
 class MarcosxAi::ConfigurationValidator
   def self.validate!(config, account:)
+    unless config[:message_target_characters].is_a?(Integer) && config[:message_target_characters].between?(40, 1500) &&
+           [true, false].include?(config[:separate_greeting])
+      raise ArgumentError, 'Invalid message splitting settings'
+    end
+    raise ArgumentError, 'Invalid emoji usage' unless %w[none occasional expressive].include?(config[:emoji_usage])
+
+    validate_voice!(config[:voice])
     raise ArgumentError, 'Invalid memory mode' unless %w[legacy summary_recent selected_only].include?(config[:memory_mode])
     raise ArgumentError, 'Invalid resume mode' unless %w[manual after_human].include?(config[:resume_mode])
 
@@ -21,6 +28,37 @@ class MarcosxAi::ConfigurationValidator
       end
 
       validate_destinations!(config[:notifications].merge(rule), account)
+    end
+  end
+
+  def self.validate_voice!(settings)
+    unless settings.is_a?(Hash) && [true, false].include?(settings[:enabled]) &&
+           MarcosxAi::VoiceCredential::PROVIDERS.include?(settings[:provider]) && %w[requested contextual].include?(settings[:mode]) &&
+           [true, false].include?(settings[:send_text]) && settings[:max_characters].is_a?(Integer) &&
+           settings[:max_characters].between?(100, 3000) && settings[:instructions].is_a?(String) &&
+           settings[:instructions].length <= 4000 && settings[:pronunciation].is_a?(String) && settings[:pronunciation].length <= 4000
+      raise ArgumentError, 'Invalid voice settings'
+    end
+
+    MarcosxAi::VoiceCredential::PROVIDERS.each do |provider|
+      options = settings[provider]
+      unless options.is_a?(Hash) && options[:voice_id].is_a?(String) &&
+             (options[:voice_id].empty? || options[:voice_id].match?(/\A[a-zA-Z0-9_-]{1,120}\z/)) &&
+             MarcosxAi::VoiceClient::MODELS.fetch(provider).include?(options[:model])
+        raise ArgumentError, 'Invalid voice provider settings'
+      end
+
+      range = provider == 'minimax' ? (0.5..2.0) : (0.7..1.2)
+      unless options[:speed].is_a?(Numeric) && range.cover?(options[:speed])
+        raise ArgumentError, 'Invalid voice speed'
+      end
+
+      fields = provider == 'minimax' ? { volume: 0.1..10.0, pitch: -12..12 } :
+        { stability: 0.0..1.0, similarity_boost: 0.0..1.0, style: 0.0..1.0 }
+      fields.each do |field, allowed|
+        raise ArgumentError, 'Invalid voice parameter' unless options[field].is_a?(Numeric) && allowed.cover?(options[field])
+      end
+      raise ArgumentError, 'Invalid voice pitch' if provider == 'minimax' && !options[:pitch].is_a?(Integer)
     end
   end
 

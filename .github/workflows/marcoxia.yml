@@ -1,7 +1,7 @@
 name: MarcoXIA validation and image
 on:
   push:
-    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice]
+    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice]
     paths: ['app/**', 'spec/**', 'db/**', 'config/**', 'lib/**', 'Dockerfile', '.github/workflows/marcoxia.yml']
   workflow_dispatch:
 permissions:
@@ -69,6 +69,9 @@ jobs:
       POSTGRES_HOST: localhost
       POSTGRES_USERNAME: postgres
       REDIS_URL: redis://localhost:6379
+      ACTIVE_RECORD_ENCRYPTION_PRIMARY_KEY: marcoxia-ci-primary-key-000000000
+      ACTIVE_RECORD_ENCRYPTION_DETERMINISTIC_KEY: marcoxia-ci-deterministic-key-000
+      ACTIVE_RECORD_ENCRYPTION_KEY_DERIVATION_SALT: marcoxia-ci-key-derivation-salt-0
     services:
       postgres:
         image: pgvector/pgvector:pg16
@@ -124,6 +127,7 @@ jobs:
           app/jobs/notification/remove_duplicate_notification_job.rb
           db/migrate/20261009090000_create_marcosx_ai_alerts.rb
           db/migrate/20261009190000_create_marcosx_ai_workspace.rb
+          db/migrate/20261011000000_create_marcosx_ai_voice_credentials.rb
           lib/custom_exceptions/marcosx_ai.rb
   publish:
     needs: [frontend, rails]

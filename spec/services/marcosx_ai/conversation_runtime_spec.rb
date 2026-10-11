@@ -175,6 +175,58 @@ RSpec.describe 'MarcoXIA conversation runtime' do
     expect(conversation.messages.outgoing.where(private: false).count).to eq(1)
   end
 
+  it 'sends requested audio with a stored transcript and retains links as separate text without duplicate sends' do
+    allow_any_instance_of(MarcosxAi::Assistant).to receive(:voice_ready?).and_return(true)
+    voice_client = instance_double(MarcosxAi::VoiceClient, synthesize: 'ID3')
+    allow(MarcosxAi::VoiceClient).to receive(:new).and_return(voice_client)
+    plan.merge!(messages: ['Olá, tudo bem?', 'Abra https://example.com'], voice_text: 'Olá, tudo bem?')
+    MarcosxAi::ResponseScheduler.perform(message: message)
+    token = state.reload.metadata['run_token']
+    MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, message.id, token)
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
+    audio = conversation.messages.outgoing.where(private: false).first
+    expect(audio.attachments.first.file_type).to eq('audio')
+    expect(audio.attachments.first.file.download).to eq('ID3')
+    expect(audio.content_attributes['marcosx_ai_voice_transcript']).to eq('Olá, tudo bem?')
+    expect(voice_client).to have_received(:synthesize).once
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 1)
+    expect(conversation.messages.outgoing.where(private: false).order(:id).pluck(:content)).to eq([nil, 'Abra https://example.com'])
+    expect(state.reload.metadata['processing']).to be(false)
+  end
+
+  it 'falls back to the full text response when voice synthesis fails' do
+    allow_any_instance_of(MarcosxAi::Assistant).to receive(:voice_ready?).and_return(true)
+    voice_client = instance_double(MarcosxAi::VoiceClient)
+    allow(MarcosxAi::VoiceClient).to receive(:new).and_return(voice_client)
+    allow(voice_client).to receive(:synthesize).and_raise(MarcosxAi::VoiceClient::Error, 'Unavailable')
+    plan[:voice_text] = 'Olá, tudo bem?'
+    MarcosxAi::ResponseScheduler.perform(message: message)
+    token = state.reload.metadata['run_token']
+    MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, message.id, token)
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 1)
+    expect(conversation.messages.outgoing.where(private: false).order(:id).pluck(:content)).to eq(plan[:messages])
+    expect(conversation.messages.outgoing.joins(:attachments)).to be_empty
+    expect(assistant.logs.where(event: 'voice_failed')).to exist
+  end
+
+  it 'does not send synthesized audio after the operator pauses the agent during synthesis' do
+    allow_any_instance_of(MarcosxAi::Assistant).to receive(:voice_ready?).and_return(true)
+    voice_client = instance_double(MarcosxAi::VoiceClient)
+    allow(MarcosxAi::VoiceClient).to receive(:new).and_return(voice_client)
+    allow(voice_client).to receive(:synthesize) do
+      state.pause_by_agent!
+      'ID3'
+    end
+    plan[:voice_text] = 'Olá'
+    MarcosxAi::ResponseScheduler.perform(message: message)
+    token = state.reload.metadata['run_token']
+    MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, message.id, token)
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
+    expect(conversation.messages.outgoing.where(private: false)).to be_empty
+  end
+
   it 'cancels a pending response when its agent configuration changes' do
     MarcosxAi::ResponseScheduler.perform(message: message)
     token = state.reload.metadata['run_token']

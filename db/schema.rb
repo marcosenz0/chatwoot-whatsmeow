@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_10_09_190000) do
+ActiveRecord::Schema[7.2].define(version: 2026_10_11_000000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1469,6 +1469,18 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_09_190000) do
     t.index ["user_id"], name: "index_marcosx_ai_test_sessions_on_user_id"
   end
 
+  create_table "marcosx_ai_voice_credentials", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "assistant_id", null: false
+    t.string "provider", null: false
+    t.text "api_key"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_marcosx_ai_voice_credentials_on_account_id"
+    t.index ["assistant_id", "provider"], name: "idx_on_assistant_id_provider_eb204e7080", unique: true
+    t.index ["assistant_id"], name: "index_marcosx_ai_voice_credentials_on_assistant_id"
+  end
+
   create_table "mentions", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "conversation_id", null: false
@@ -2094,6 +2106,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_09_190000) do
   add_foreign_key "marcosx_ai_test_sessions", "accounts", on_delete: :cascade
   add_foreign_key "marcosx_ai_test_sessions", "marcosx_ai_assistants", column: "assistant_id", on_delete: :cascade
   add_foreign_key "marcosx_ai_test_sessions", "users", on_delete: :cascade
+  add_foreign_key "marcosx_ai_voice_credentials", "accounts", on_delete: :cascade
+  add_foreign_key "marcosx_ai_voice_credentials", "marcosx_ai_assistants", column: "assistant_id", on_delete: :cascade
   add_foreign_key "user_sessions", "users"
   add_foreign_key "whatsapp_automation_runs", "accounts"
   add_foreign_key "whatsapp_automation_runs", "contacts"

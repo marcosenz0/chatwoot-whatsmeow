@@ -16,6 +16,8 @@ import AgentActivity from './AgentActivity.vue';
 import AgentNotifications from './AgentNotifications.vue';
 import AgentAlertList from './AgentAlertList.vue';
 import AgentMemories from './AgentMemories.vue';
+import AgentVoice from './AgentVoice.vue';
+import { voiceDefaults } from './agentVoiceDefaults';
 
 const props = defineProps({
   agent: { type: Object, required: true },
@@ -104,6 +106,11 @@ const sections = computed(() => [
   ...(props.canEdit
     ? [
         {
+          id: 'voice',
+          icon: 'i-lucide-audio-lines',
+          label: t('MARCOX_AI.VOICE.TITLE'),
+        },
+        {
           id: 'notifications',
           icon: 'i-lucide-bell',
           label: t('MARCOX_AI.AUTOMATION.NOTIFICATIONS'),
@@ -146,6 +153,9 @@ watch(
     form.value = JSON.parse(JSON.stringify(agent));
     form.value.config = {
       memory_mode: 'legacy',
+      emoji_usage: 'occasional',
+      message_target_characters: 160,
+      separate_greeting: true,
       editorial_instructions: agent.editorial_instructions || '',
       reply_to_missed_calls: false,
       missed_call_instructions: '',
@@ -159,6 +169,13 @@ watch(
     };
     form.value.config.editorial_instructions ??=
       agent.editorial_instructions || '';
+    const savedVoice = form.value.config.voice || {};
+    form.value.config.voice = {
+      ...voiceDefaults,
+      ...savedVoice,
+      minimax: { ...voiceDefaults.minimax, ...savedVoice.minimax },
+      elevenlabs: { ...voiceDefaults.elevenlabs, ...savedVoice.elevenlabs },
+    };
     initialForm.value = JSON.stringify(form.value);
     effectivePrompt.value = null;
     if (agent.id !== previous?.id)
@@ -754,6 +771,47 @@ const channelLabel = inbox =>
                     class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
                 /></label>
               </div>
+              <div
+                v-if="form.config.split_messages"
+                class="space-y-3 border-t border-n-weak py-3"
+              >
+                <label class="block text-sm font-medium">
+                  {{ t('MARCOX_AI.SPLITTING.TARGET') }}
+                  <input
+                    v-model.number="form.config.message_target_characters"
+                    type="number"
+                    min="40"
+                    max="1500"
+                    class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+                  />
+                  <span
+                    class="mt-1 block text-xs font-normal text-n-slate-11"
+                    >{{ t('MARCOX_AI.SPLITTING.HINT') }}</span
+                  >
+                </label>
+                <AiToggleRow
+                  v-model="form.config.separate_greeting"
+                  :label="t('MARCOX_AI.SPLITTING.GREETING')"
+                  :description="t('MARCOX_AI.SPLITTING.GREETING_HINT')"
+                />
+              </div>
+              <div class="border-t border-n-weak py-3">
+                <label class="block text-sm font-medium">
+                  {{ t('MARCOX_AI.SPLITTING.EMOJI') }}
+                  <AiSelect
+                    v-model="form.config.emoji_usage"
+                    :options="
+                      ['none', 'occasional', 'expressive'].map(value => ({
+                        value,
+                        label: t(
+                          `MARCOX_AI.SPLITTING.EMOJI_${value.toUpperCase()}`
+                        ),
+                      }))
+                    "
+                    :label="t('MARCOX_AI.SPLITTING.EMOJI')"
+                  />
+                </label>
+              </div>
               <div class="border-t border-n-weak">
                 <AiToggleRow
                   v-model="form.config.allow_reactions"
@@ -788,6 +846,12 @@ const channelLabel = inbox =>
               :description="t('MARCOX_AI.EDITOR.GROUPS_HINT')"
             />
           </div>
+          <AgentVoice
+            v-if="section === 'voice' && canEdit"
+            v-model="form.config.voice"
+            :assistant-id="form.id"
+            :unsaved="hasUnsavedChanges"
+          />
           <AgentNotifications
             v-if="section === 'notifications' && canEdit"
             v-model="form.config"

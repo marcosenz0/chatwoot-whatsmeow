@@ -126,8 +126,8 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
       attachment.file.attach(blob)
       parts << { type: 'input_text', text: MarcosxAi::MediaContext.new(attachment: attachment, assistant: @assistant, client: client).describe }
     end
-    plan = MarcosxAi::ReplyPlan.parse(client.chat(messages: [*prompts, *history, { role: 'user', content: parts }],
-                                                  schema: MarcosxAi::ReplyPlan::SCHEMA), assistant: @assistant)
+    response = client.chat(messages: [*prompts, *history, { role: 'user', content: parts }], schema: MarcosxAi::ReplyPlan::SCHEMA)
+    plan = MarcosxAi::ReplyPlan.parse(response, assistant: @assistant, recent_messages: MarcosxAi::ReplyStyle.recent_text(history))
     rules = @assistant.alert_rules.select { |rule| plan['alert_rule_ids'].include?(rule[:id]) }
     result = { response: plan['messages'].join("\n\n"), plan: plan, usage: client.usage,
                simulation: { alerts: rules.map { |rule| rule.slice(:id, :name, :action) },
@@ -190,15 +190,19 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
         :auto_response_enabled,
         :fallback_message,
         :handoff_message,
-        :show_typing, :show_recording, :split_messages, :max_message_parts, :message_interval_seconds, :allow_reactions,
+        :show_typing, :show_recording, :split_messages, :max_message_parts, :message_interval_seconds, :allow_reactions, :emoji_usage,
+        :message_target_characters, :separate_greeting,
         :process_images, :process_audio, :process_files, :process_video, :respond_to_groups, :auto_start,
-        { notifications: [:inbox_id, { user_ids: [], whatsapp_numbers: [] }],
+        { voice: [:enabled, :provider, :mode, :send_text, :max_characters, :instructions, :pronunciation,
+                  { minimax: [:voice_id, :model, :speed, :volume, :pitch],
+                    elevenlabs: [:voice_id, :model, :speed, :stability, :similarity_boost, :style] }],
+          notifications: [:inbox_id, { user_ids: [], whatsapp_numbers: [] }],
           alert_rules: [:id, :name, :description, :message, :action, :inbox_id, { user_ids: [], whatsapp_numbers: [] }] }
       ],
       response_guidelines: [],
       guardrails: []
     )
-    config = (@assistant&.resolved_config || MarcosxAi::Assistant::DEFAULT_CONFIG).merge((permitted[:config] || {}).to_h)
+    config = (@assistant&.resolved_config || MarcosxAi::Assistant::DEFAULT_CONFIG).deep_merge((permitted[:config] || {}).to_h)
     MarcosxAi::ConfigurationValidator.validate!(config, account: Current.account)
     permitted[:config] = config
     permitted

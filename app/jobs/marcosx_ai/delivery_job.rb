@@ -6,16 +6,37 @@ class MarcosxAi::DeliveryJob < ApplicationJob
 
   def perform(conversation_id, token, part_index)
     @state = MarcosxAi::ConversationState.find_by!(conversation_id: conversation_id)
+    return unless @state.current_run?(token)
+
+    pending = @state.metadata['pending_response']
+    return unless pending && pending['next_part'] == part_index
+
+    prepare_audio(pending) if part_index.zero?
     @state.with_lock do
       return unless @state.current_run?(token)
 
       plan = @state.metadata['pending_response']
       return unless plan && plan['next_part'] == part_index
 
-      react(plan) if part_index.zero?
-      message = create_message(plan['messages'][part_index]) if part_index < plan['messages'].size
+      if part_index.zero?
+        if @audio
+          plan['reaction'] = nil
+          plan['messages'] = plan['messages'].select { |text|
+            text.match?(%r{https?://|www\.}i)
+          } unless @state.assistant.resolved_config.dig(:voice, :send_text)
+        else
+          plan = plan.merge('voice_text' => nil)
+        end
+        react(plan)
+      end
+      audio_count = plan['voice_text'].present? ? 1 : 0
+      message = if part_index.zero? && @audio
+                  create_audio_message(plan['voice_text'])
+                elsif part_index - audio_count < plan['messages'].size
+                  create_message(plan['messages'][part_index - audio_count])
+                end
       @state.update!(last_ai_message_id: message.id) if message
-      if part_index + 1 >= plan['messages'].size
+      if part_index + 1 >= plan['messages'].size + audio_count
         finish(plan)
       else
         @state.update!(metadata: @state.metadata.merge('pending_response' => plan.merge('next_part' => part_index + 1)))
@@ -27,6 +48,34 @@ class MarcosxAi::DeliveryJob < ApplicationJob
   end
 
   private
+
+  def prepare_audio(plan)
+    return if plan['voice_text'].blank? || plan['handoff']
+    return unless @state.assistant.voice_ready? && MarcosxAi::VoiceClient::CHANNELS.include?(@state.inbox.channel_type)
+
+    @audio = MarcosxAi::VoiceClient.new(assistant: @state.assistant).synthesize(plan['voice_text'])
+  rescue StandardError
+    MarcosxAi::Log.create!(account: @state.account, assistant: @state.assistant, conversation: @state.conversation,
+                           event: 'voice_failed', status: 'error', error: 'Voice synthesis failed; continuing with text.')
+    @audio = nil
+  end
+
+  def create_audio_message(transcript)
+    executed_by = Current.executed_by
+    Current.executed_by = @state.assistant
+    message = @state.conversation.messages.new(
+      message_type: :outgoing, account: @state.account, inbox: @state.inbox, sender: @state.assistant,
+      content_attributes: { whatsmeow_recorded_audio: true, marcosx_ai_voice_transcript: transcript },
+      additional_attributes: { marcosx_ai: true, assistant_name: @state.assistant.name,
+                               trigger_message_id: @state.metadata['trigger_message_id'] }
+    )
+    attachment = message.attachments.build(account: @state.account, file_type: :audio, meta: { is_voice_message: true })
+    attachment.file.attach(io: StringIO.new(@audio), filename: 'agent-voice.mp3', content_type: 'audio/mpeg')
+    message.save!
+    message
+  ensure
+    Current.executed_by = executed_by
+  end
 
   def react(plan)
     return unless @state.assistant.feature_enabled?(:allow_reactions) && @state.inbox.channel_type == 'Channel::Whatsmeow'
@@ -71,6 +120,6 @@ class MarcosxAi::DeliveryJob < ApplicationJob
     end
     MarcosxAi::Log.create!(account: @state.account, assistant: @state.assistant, conversation: @state.conversation,
                            event: plan['handoff'] ? 'handoff' : 'response_sent',
-                           response: { parts: plan['messages'].size, reaction: plan['reaction'] })
+                           response: { parts: plan['messages'].size, audio: plan['voice_text'].present?, reaction: plan['reaction'] })
   end
 end

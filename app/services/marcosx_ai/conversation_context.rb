@@ -112,7 +112,7 @@ class MarcosxAi::ConversationContext
 
   def serialize(message, process_media: false)
     attributes = message.content_attributes
-    text = message.processed_message_content.presence || message.content
+    text = attributes['marcosx_ai_voice_transcript'].presence || message.processed_message_content.presence || message.content
     data = {
       message_id: message.id,
       sent_at: message.created_at.in_time_zone(MarcosxAi::PromptBuilder.timezone_for(@conversation, assistant: @assistant)).iso8601,

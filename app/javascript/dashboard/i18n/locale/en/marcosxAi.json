@@ -100,12 +100,13 @@
         "PROMPT": "Define how this agent responds, what it knows and when it should hand over.",
         "INBOXES": "Choose where this agent starts responding. You can also select it for an individual conversation.",
         "BEHAVIOR": "Adjust context, message pacing and the media the agent can understand.",
-        "NOTIFICATIONS": "Choose who receives alerts, when to pause support and how to resume the conversation."
+        "NOTIFICATIONS": "Choose who receives alerts, when to pause support and how to resume the conversation.",
+        "VOICE": "Configure voice, credentials and a private preview."
       },
       "SHOW_TYPING": "Show typing on WhatsApp",
       "SHOW_TYPING_HINT": "Shows typing while the agent prepares a reply. The inbox typing setting must also be enabled.",
       "SHOW_RECORDING": "Show audio recording on WhatsApp",
-      "SHOW_RECORDING_HINT": "Shows recording while an operator records using the microphone. The agent currently replies in text."
+      "SHOW_RECORDING_HINT": "Shows recording while an operator uses the microphone. Configure the agent's voice replies in Voice and audio."
     },
     "PROVIDERS": {
       "TITLE": "Connect the intelligence behind your agents",
@@ -353,6 +354,54 @@
       "NUMBER_PLACEHOLDER": "+55 country code and number",
       "VIEW_MEMORY": "View memories",
       "NUMBER_HINT": "Add one recipient at a time, with the country code. No digits will be added automatically."
+    },
+    "VOICE": {
+      "TITLE": "Voice and audio",
+      "HINT": "Configure the agent voice. Replies stay in text without a key and voice ID. Audio is available on compatible messaging channels.",
+      "ENABLED": "Allow audio replies",
+      "ENABLED_HINT": "Enable after configuring and reviewing the preview. Does not change support activation.",
+      "PROVIDER": "Voice provider",
+      "MODE": "When to send audio",
+      "MODE_REQUESTED": "Only when audio is requested",
+      "MODE_CONTEXTUAL": "When requested or appropriate in context",
+      "CREDENTIAL": "Voice API key",
+      "KEY_HINT": "The key is stored separately with encryption and never included in the prompt. An API key does not guarantee synthesis credits.",
+      "CONFIGURED": "Key saved",
+      "MISSING": "Key not configured",
+      "SAVE_FIRST": "Save the agent and changes before testing.",
+      "ENCRYPTION": "Encrypted server storage is required to save the key.",
+      "SAVE_KEY": "Save key",
+      "DELETE_KEY": "Remove saved key",
+      "VOICE_ID": "Voice ID",
+      "ID_HINT": "Use the API identifier. A display name such as Alice 03 may differ from the ID.",
+      "MODEL": "Voice model",
+      "SPEED": "Speed",
+      "VOLUME": "Volume",
+      "PITCH": "Pitch",
+      "STABILITY": "Stability",
+      "SIMILARITY_BOOST": "Voice similarity",
+      "STYLE": "Style",
+      "MAX_CHARACTERS": "Character limit per audio",
+      "SEND_TEXT": "Also send the text response",
+      "SEND_TEXT_HINT": "When off, send audio and retain links in text. Send the text response if synthesis fails.",
+      "INSTRUCTIONS": "Speech instructions",
+      "PRONUNCIATION": "Pronunciation substitutions",
+      "PRONUNCIATION_HINT": "One replacement per line: term=spoken form",
+      "PREVIEW": "Voice preview",
+      "PREVIEW_HINT": "Generates private audio without sending it to a contact. Uses saved settings and may consume voice and text-normalization credits.",
+      "GENERATE": "Generate preview",
+      "ERROR": "Unable to complete. Check saved settings, key, balance and voice ID.",
+      "SIMULATED": "Proposed audio in simulation — no audio generated or sent"
+    },
+    "SPLITTING": {
+      "TARGET": "Desired message length (characters)",
+      "HINT": "Groups short sentences and splits at natural punctuation. Preserves sentences, links, numbers and lists. Length is approximate; the message limit may join the remainder in the last bubble.",
+      "GREETING": "Separate greeting from the next sentence",
+      "GREETING_HINT": "Example: “Hi, Marcos!” followed by “How are you?”.",
+      "EMOJI": "Text emojis",
+      "EMOJI_NONE": "No emojis",
+      "EMOJI_OCCASIONAL": "Occasional, without consecutive repeats",
+      "EMOJI_EXPRESSIVE": "More expressive"
     }
   }
 }
