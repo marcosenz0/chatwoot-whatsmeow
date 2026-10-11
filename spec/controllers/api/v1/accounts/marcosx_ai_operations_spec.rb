@@ -18,7 +18,7 @@ RSpec.describe 'MarcoXIA operations API', type: :request do
     expect(response.parsed_body['credentials']).to eq([])
     expect(response.parsed_body['models'].keys).to match_array(%w[minimax elevenlabs])
     get url, headers: agent.create_new_auth_token
-    expect(response).to have_http_status(:forbidden)
+    expect(response).to have_http_status(:unauthorized)
     other = create(:account).marcosx_ai_assistants.create!(name: 'Other')
     get "#{endpoint}/assistants/#{other.id}/voice", headers: admin.create_new_auth_token
     expect(response).to have_http_status(:not_found)
