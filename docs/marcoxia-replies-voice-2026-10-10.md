@@ -20,7 +20,13 @@ The former voice attempt never shipped; this request implements a fresh integrat
 
 Local checks so far: 27 agent UI tests passed, production build passed, scoped Ruby Lint/Layout/Security passed (native Windows line endings excluded only locally). Regression coverage includes configurable short greetings/size, complete sentences, links/lists, repeated emoji suppression, voice key encryption/access/account isolation, provider contracts, numeric normalization, separate audio/link delivery, text fallback, duplicate jobs and cancellation during synthesis.
 
-Linux gate, publication and live validation are pending. No key was obtained or purchased, no synthesis API was called, and no customer message was sent.
+The final Linux gate [38102265099](https://github.com/marcosenz0/chatwoot-whatsmeow/actions/runs/38102265099) passed 627 targeted tests (334 Vue and 293 Rails), scoped lint, production build and image publication. The first gate found only a new authorization test expecting 403 while the existing account API returns 401; the test was aligned. The generated schema was included before the final gate. The generic fork CI has unrelated failures; the directed delivery gate is green.
+
+Published on October 11 to principal, MX and MD, web and workers, using `fork-cf8b285f425a7b3986ab6ca8085949244346fa9f`. Principal was validated before the other targets. A transactional live probe confirmed separate greeting, suppression of a recent emoji, configurable grouping, missing-key text behavior, real encrypted key round trip and rollback with no activation change. Its temporary fake credential never called a provider and was rolled back.
+
+All three health endpoints return 200. The 12 custom Chatwoot/bridge service settings were preserved except the six authorized app image pins; the six bridge container/image identities and connected sessions are unchanged. Fresh activation snapshots were taken on resumption rather than restoring the earlier snapshot: all 59 current states and saved assistant attributes match after rollout. General support remains off; principal #2170 remains paused and MD #92 remains individually active with 20 recent messages. The project snapshot also shows a change to the unrelated painel-modelos environment since the older snapshot; this delivery did not modify that service.
+
+The live principal and MD interfaces show the new conversation controls and the Voice and audio tab. Missing credentials disable voice preview. The current MD name Atendente HOT 1 is preserved. No real provider key was obtained or purchased, no synthesis API was called, and no customer message was sent. Actual voice quality and playback await the user's provider key and API voice ID.
 
 ## Provider references
 
