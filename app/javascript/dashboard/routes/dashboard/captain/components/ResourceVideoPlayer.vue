@@ -10,13 +10,11 @@ defineProps({
 });
 const { t } = useI18n();
 const video = ref(null);
-const container = ref(null);
 const playing = ref(false);
 const muted = ref(true);
 const currentTime = ref(0);
 const duration = ref(0);
 const failed = ref(false);
-const fullscreenAvailable = document.fullscreenEnabled;
 const togglePlayback = async () => {
   if (playing.value) video.value.pause();
   else {
@@ -31,18 +29,10 @@ const seek = event => {
   video.value.currentTime = Number(event.target.value);
   currentTime.value = video.value.currentTime;
 };
-const fullscreen = async () => {
-  if (document.fullscreenElement === container.value)
-    await document.exitFullscreen();
-  else await container.value.requestFullscreen();
-};
 </script>
 
 <template>
-  <div
-    ref="container"
-    class="overflow-hidden rounded-xl border border-n-weak bg-n-solid-2 [&:fullscreen]:flex [&:fullscreen]:flex-col [&:fullscreen>video]:aspect-auto [&:fullscreen>video]:min-h-0 [&:fullscreen>video]:max-h-none [&:fullscreen>video]:flex-1"
-  >
+  <div class="overflow-hidden rounded-xl border border-n-weak bg-n-solid-2">
     <video
       ref="video"
       :src="`${src}#t=0.001`"
@@ -104,16 +94,6 @@ const fullscreen = async () => {
           )
         "
         @click="muted = !muted"
-      />
-      <Button
-        v-if="fullscreenAvailable"
-        type="button"
-        variant="ghost"
-        color="slate"
-        size="sm"
-        icon="i-lucide-maximize"
-        :aria-label="t('MARCOX_AI.RESOURCES.EXPAND_VIDEO')"
-        @click="fullscreen"
       />
     </div>
     <p v-if="failed" role="alert" class="m-0 px-3 pb-3 text-xs text-n-ruby-11">

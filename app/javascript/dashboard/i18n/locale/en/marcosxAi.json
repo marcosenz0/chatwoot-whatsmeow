@@ -513,7 +513,6 @@
       "VIDEO_POSITION": "Video position",
       "MUTE_VIDEO": "Mute video",
       "UNMUTE_VIDEO": "Unmute video",
-      "EXPAND_VIDEO": "Expand video",
       "VIDEO_ERROR": "This video could not be played in the browser."
     }
   }

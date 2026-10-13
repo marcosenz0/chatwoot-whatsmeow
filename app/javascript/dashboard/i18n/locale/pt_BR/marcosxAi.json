@@ -513,7 +513,6 @@
       "VIDEO_POSITION": "Posição do vídeo",
       "MUTE_VIDEO": "Silenciar vídeo",
       "UNMUTE_VIDEO": "Ativar som do vídeo",
-      "EXPAND_VIDEO": "Ampliar vídeo",
       "VIDEO_ERROR": "Não foi possível reproduzir este vídeo no navegador."
     }
   }
