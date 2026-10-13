@@ -259,7 +259,10 @@ describe('MarcoXIA agent configuration', () => {
     expect(wrapper.emitted('save')[0][0].inbox_ids).toEqual([1, 2]);
   });
   it('keeps the supplied profile untouched until it is saved', async () => {
-    const wrapper = shallowMount(AgentEditor, { props });
+    const wrapper = shallowMount(AgentEditor, {
+      props,
+      global: { stubs: { AgentSection: false } },
+    });
     await wrapper.find('input[maxlength="120"]').setValue('Edited support');
     expect(agent.name).toBe('Support');
     await wrapper.find('form').trigger('submit');
@@ -272,7 +275,10 @@ describe('MarcoXIA agent configuration', () => {
     expect(wrapper.find('fieldset').attributes()).toHaveProperty('disabled');
   });
   it('preserves a different agent model and enabled state when switching profiles', async () => {
-    const wrapper = shallowMount(AgentEditor, { props });
+    const wrapper = shallowMount(AgentEditor, {
+      props,
+      global: { stubs: { AgentSection: false } },
+    });
     await wrapper.setProps({
       agent: {
         ...agent,
@@ -296,6 +302,7 @@ describe('MarcoXIA agent configuration', () => {
   });
   it('changes the provider only from the provider selector and keeps reasoning independent', async () => {
     const wrapper = shallowMount(AgentEditor, {
+      global: { stubs: { AgentSection: false } },
       props: {
         ...props,
         catalogs: { ...catalogs, groq: { models: [{ id: 'groq-model' }] } },
@@ -315,7 +322,10 @@ describe('MarcoXIA agent configuration', () => {
     wrapper.unmount();
   });
   it('updates reasoning without changing the provider or model', async () => {
-    const wrapper = shallowMount(AgentEditor, { props });
+    const wrapper = shallowMount(AgentEditor, {
+      props,
+      global: { stubs: { AgentSection: false } },
+    });
     wrapper
       .findAllComponents(AiSelect)
       .find(item => item.props('label') === 'MARCOX_AI.EDITOR.REASONING')
@@ -330,7 +340,10 @@ describe('MarcoXIA agent configuration', () => {
     wrapper.unmount();
   });
   it('saves a timezone without altering the general switch or supplied profile', async () => {
-    const wrapper = shallowMount(AgentEditor, { props });
+    const wrapper = shallowMount(AgentEditor, {
+      props,
+      global: { stubs: { AgentSection: false } },
+    });
     wrapper
       .findAllComponents(AiSelect)
       .find(item => item.props('label') === 'MARCOX_AI.EDITOR.TIMEZONE')

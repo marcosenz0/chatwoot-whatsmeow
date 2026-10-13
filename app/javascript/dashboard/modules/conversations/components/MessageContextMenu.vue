@@ -9,6 +9,7 @@ import { copyTextToClipboard } from 'shared/helpers/clipboard';
 import { parseAPIErrorResponse } from 'dashboard/store/utils/api';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import MessageAPI from 'dashboard/api/inbox/message';
+import AiDecisionDialog from 'dashboard/routes/dashboard/captain/components/AiDecisionDialog.vue';
 import { conversationUrl, frontendURL } from '../../../helper/URLHelper';
 import {
   ACCOUNT_EVENTS,
@@ -36,6 +37,7 @@ export default {
     ContextMenu,
     NextButton,
     ReportCaptainMessageDialog,
+    AiDecisionDialog,
   },
   props: {
     message: {
@@ -77,6 +79,7 @@ export default {
   data() {
     return {
       isCannedResponseModalOpen: false,
+      decisionOpen: false,
       showDeleteModal: false,
       showPermanentDeleteModal: false,
       showDeleteForEveryoneModal: false,
@@ -98,9 +101,18 @@ export default {
       getAccount: 'accounts/getAccount',
       currentAccountId: 'getCurrentAccountId',
       getUISettings: 'getUISettings',
+      currentRole: 'getCurrentRole',
     }),
     plainTextContent() {
       return this.getPlainText(this.messageContent);
+    },
+    canReviewAiDecision() {
+      const attributes = this.message.additional_attributes || {};
+      return (
+        this.currentRole === 'administrator' &&
+        this.message.private &&
+        (attributes.marcosx_ai === true || attributes.marcosxAi === true)
+      );
     },
     conversationId() {
       return this.message.conversation_id ?? this.message.conversationId;
@@ -181,6 +193,10 @@ export default {
     },
   },
   methods: {
+    reviewAiDecision() {
+      this.handleClose();
+      this.decisionOpen = true;
+    },
     async toggleStar() {
       this.handleClose();
       try {
@@ -399,6 +415,12 @@ export default {
 </script>
 
 <template>
+  <AiDecisionDialog
+    v-if="decisionOpen"
+    :conversation-id="conversationId"
+    :message-id="messageId"
+    @close="decisionOpen = false"
+  />
   <div class="context-menu">
     <!-- Add To Canned Responses -->
     <woot-modal
@@ -538,6 +560,16 @@ export default {
       @close="handleClose"
     >
       <div class="menu-container">
+        <MenuItem
+          v-if="canReviewAiDecision"
+          :option="{
+            icon: 'i-lucide-file-search',
+            label: $t('MARCOX_AI.DECISION.REVIEW'),
+          }"
+          variant="icon"
+          @click.stop="reviewAiDecision"
+        />
+        <hr v-if="canReviewAiDecision" />
         <div
           v-if="enabledOptions['reaction']"
           class="flex items-center gap-1 px-1 py-1"

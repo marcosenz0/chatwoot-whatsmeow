@@ -44,11 +44,11 @@ const discardChanges = () => {
   pendingNavigation = null;
   discardDialog.value.close();
 };
-const selectAgent = agent =>
+const selectAgent = (agent, section = undefined) =>
   reviewNavigation(() => {
     editing.value = agent;
     router.replace({
-      query: { ...route.query, agent: agent.id, section: undefined },
+      query: { ...route.query, agent: agent.id, section },
     });
     dirty.value = false;
   });
@@ -82,6 +82,12 @@ const visibleAgents = computed(() =>
       .toLowerCase()
       .includes(search.value.toLowerCase())
   )
+);
+const assignedInboxCount = computed(
+  () => new Set(agents.value.flatMap(agent => agent.inbox_ids)).size
+);
+const enabledAgentCount = computed(
+  () => agents.value.filter(agent => agent.config.auto_response_enabled).length
 );
 const notifyError = error =>
   useAlert(error.response?.data?.error || t('MARCOX_AI.ERROR'));
@@ -276,116 +282,219 @@ const testConnection = async provider => {
     <main v-else class="flex min-h-0 min-w-0 flex-1 flex-col md:flex-row">
       <aside
         v-if="!editing && agents.length"
-        class="flex min-w-0 w-full flex-col overflow-y-auto bg-n-solid-1"
+        class="min-w-0 w-full overflow-y-auto p-4 sm:p-6"
       >
-        <div class="space-y-3 border-b border-n-weak px-6 py-5">
-          <div class="flex items-center justify-between gap-3">
-            <h2 class="m-0 text-sm font-semibold text-n-slate-12">
-              {{ t('MARCOX_AI.TABS.AGENTS') }}
-              <span class="ms-1 text-xs text-n-slate-11">{{
-                agents.length
-              }}</span>
-            </h2>
+        <div class="mx-auto w-full max-w-6xl space-y-6">
+          <header class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 class="m-0 text-xl font-semibold text-n-slate-12">
+                {{ t('MARCOX_AI.TITLE') }}
+              </h2>
+              <p class="mb-0 mt-2 text-sm leading-6 text-n-slate-11">
+                {{ t('MARCOX_AI.DESIGN.BODY') }}
+              </p>
+            </div>
             <Button
               v-if="canEdit"
               icon="i-lucide-plus"
-              variant="ghost"
-              color="slate"
-              size="sm"
-              :aria-label="t('MARCOX_AI.NEW_AGENT')"
+              :label="t('MARCOX_AI.NEW_AGENT')"
               @click="newAgent"
             />
+          </header>
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div
+              v-for="metric in [
+                {
+                  label: t('MARCOX_AI.TABS.AGENTS'),
+                  value: agents.length,
+                  icon: 'i-lucide-bot',
+                },
+                {
+                  label: t('MARCOX_AI.DESIGN.OVERVIEW_INBOXES'),
+                  value: assignedInboxCount,
+                  icon: 'i-lucide-inbox',
+                },
+                {
+                  label: t('MARCOX_AI.DESIGN.OVERVIEW_ENABLED'),
+                  value: enabledAgentCount,
+                  icon: 'i-lucide-messages-square',
+                },
+              ]"
+              :key="metric.label"
+              class="flex items-center gap-3 rounded-xl border border-n-weak bg-n-solid-2 p-4"
+            >
+              <div
+                class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-n-alpha-2 text-n-slate-11"
+              >
+                <span :class="metric.icon" class="size-5" />
+              </div>
+              <div class="min-w-0">
+                <p class="m-0 text-xs text-n-slate-11">{{ metric.label }}</p>
+                <p class="mb-0 mt-1 text-xl font-semibold text-n-slate-12">
+                  {{ metric.value }}
+                </p>
+              </div>
+            </div>
           </div>
-          <label class="relative block">
-            <span
-              class="i-lucide-search absolute start-3 top-2.5 size-4 text-n-slate-11"
-            />
-            <input
-              v-model="search"
-              :aria-label="t('MARCOX_AI.SEARCH_AGENTS')"
-              :placeholder="t('MARCOX_AI.SEARCH_AGENTS')"
-              class="reset-base !mb-0 h-9 w-full rounded-lg border border-n-weak bg-n-solid-2 !ps-9 !pe-3 text-sm"
-            />
-          </label>
-        </div>
-        <div
-          class="flex max-h-52 min-h-0 gap-1 overflow-auto p-2 md:max-h-none md:flex-1 md:flex-col"
-        >
           <div
-            v-for="agent in visibleAgents"
-            :key="agent.id"
-            class="flex min-w-48 shrink-0 items-start gap-2 rounded-lg p-3 transition-colors md:min-w-0"
-            :class="
-              editing?.id === agent.id ? 'bg-n-alpha-2' : 'hover:bg-n-alpha-1'
-            "
+            class="flex flex-wrap items-center justify-between gap-3 border-b border-n-weak pb-4"
           >
-            <button
-              type="button"
-              class="flex min-w-0 flex-1 items-start gap-3 text-start"
-              @click="selectAgent(agent)"
-            >
+            <h3 class="m-0 text-base font-semibold text-n-slate-12">
+              {{ t('MARCOX_AI.TABS.AGENTS') }}
+              <span class="ms-1 text-sm font-normal text-n-slate-11">{{
+                agents.length
+              }}</span>
+            </h3>
+            <label class="relative block w-full sm:w-72">
               <span
-                class="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-n-blue-3 text-n-blue-11"
-                ><span class="i-lucide-bot size-4"
-              /></span>
-              <span class="min-w-0 flex-1">
-                <span
-                  class="block truncate text-sm font-semibold text-n-slate-12"
-                >
-                  {{ agent.name }}
-                </span>
-                <span class="mt-1 block truncate text-xs text-n-slate-11">{{
-                  agent.config.model
-                }}</span>
-                <span class="mt-1.5 block text-xs text-n-slate-10">{{
-                  t(
-                    agent.inboxes_count
-                      ? 'MARCOX_AI.INBOX_COUNT'
-                      : 'MARCOX_AI.NO_INBOX',
-                    { count: agent.inboxes_count }
-                  )
-                }}</span>
-              </span>
-            </button>
-            <button
-              v-if="canEdit"
-              type="button"
-              role="switch"
-              :aria-checked="agent.config.auto_response_enabled"
-              :aria-label="t('MARCOX_AI.COVERAGE.TOGGLE', { name: agent.name })"
-              :title="t('MARCOX_AI.COVERAGE.TOGGLE_HINT')"
-              :disabled="
-                saving ||
-                togglingId !== null ||
-                (!agent.config.auto_response_enabled && !connectionReady(agent))
-              "
-              class="relative mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full !p-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-blue-9 disabled:opacity-40"
-              :class="
-                agent.config.auto_response_enabled
-                  ? 'bg-n-blue-9'
-                  : 'bg-n-slate-6'
-              "
-              @click="toggleAgent(agent)"
-            >
-              <span
-                class="size-4 rounded-full bg-white shadow transition-transform"
-                :class="
-                  agent.config.auto_response_enabled
-                    ? 'translate-x-[18px]'
-                    : 'translate-x-0.5'
-                "
+                class="i-lucide-search absolute start-3 top-2.5 size-4 text-n-slate-11"
               />
-            </button>
+              <input
+                v-model="search"
+                :placeholder="t('MARCOX_AI.SEARCH_AGENTS')"
+                :aria-label="t('MARCOX_AI.SEARCH_AGENTS')"
+                class="reset-base !mb-0 h-9 w-full rounded-lg border border-n-weak bg-n-background !ps-9 !pe-3 text-sm"
+              />
+            </label>
           </div>
-          <Button
-            v-if="canEdit"
-            class="mt-2 !justify-start"
-            variant="ghost"
-            color="slate"
-            icon="i-lucide-plus"
-            :label="t('MARCOX_AI.NEW_AGENT')"
-            @click="newAgent"
-          />
+          <div class="grid items-start gap-4 md:grid-cols-2 2xl:grid-cols-3">
+            <article
+              v-for="agent in visibleAgents"
+              :key="agent.id"
+              class="min-w-0 rounded-xl border border-n-weak bg-n-solid-2"
+            >
+              <div class="flex items-start gap-3 p-5">
+                <button
+                  type="button"
+                  class="flex min-w-0 flex-1 items-start gap-3 text-start"
+                  @click="selectAgent(agent)"
+                >
+                  <span
+                    class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-n-blue-3 text-n-blue-11"
+                    ><span class="i-lucide-bot size-5"
+                  /></span>
+                  <span class="min-w-0 flex-1">
+                    <span
+                      class="block truncate text-sm font-semibold text-n-slate-12"
+                      >{{ agent.name }}</span
+                    >
+                    <span class="mt-1 block truncate text-xs text-n-slate-11">{{
+                      agent.config.model
+                    }}</span>
+                  </span>
+                </button>
+                <button
+                  v-if="canEdit"
+                  type="button"
+                  role="switch"
+                  :aria-checked="agent.config.auto_response_enabled"
+                  :aria-label="
+                    t('MARCOX_AI.COVERAGE.TOGGLE', { name: agent.name })
+                  "
+                  :title="t('MARCOX_AI.COVERAGE.TOGGLE_HINT')"
+                  :disabled="
+                    saving ||
+                    togglingId !== null ||
+                    (!agent.config.auto_response_enabled &&
+                      !connectionReady(agent))
+                  "
+                  class="relative mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full !p-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-n-blue-9 disabled:opacity-40"
+                  :class="
+                    agent.config.auto_response_enabled
+                      ? 'bg-n-blue-9'
+                      : 'bg-n-slate-6'
+                  "
+                  @click="toggleAgent(agent)"
+                >
+                  <span
+                    class="size-4 rounded-full bg-white shadow transition-transform"
+                    :class="
+                      agent.config.auto_response_enabled
+                        ? 'translate-x-[18px]'
+                        : 'translate-x-0.5'
+                    "
+                  />
+                </button>
+              </div>
+              <div class="space-y-3 px-5 pb-5">
+                <p
+                  v-if="agent.description"
+                  class="m-0 line-clamp-2 text-sm leading-6 text-n-slate-11"
+                >
+                  {{ agent.description }}
+                </p>
+                <p class="m-0 flex items-center gap-2 text-xs text-n-slate-11">
+                  <span class="i-lucide-inbox size-3.5" />{{
+                    t(
+                      agent.inboxes_count
+                        ? 'MARCOX_AI.INBOX_COUNT'
+                        : 'MARCOX_AI.NO_INBOX',
+                      { count: agent.inboxes_count }
+                    )
+                  }}
+                </p>
+                <p
+                  class="m-0 flex items-center gap-2 text-xs"
+                  :class="
+                    agent.config.auto_response_enabled
+                      ? 'text-n-teal-11'
+                      : 'text-n-slate-11'
+                  "
+                >
+                  <span
+                    class="size-1.5 rounded-full"
+                    :class="
+                      agent.config.auto_response_enabled
+                        ? 'bg-n-teal-9'
+                        : 'bg-n-slate-7'
+                    "
+                  />{{
+                    t(
+                      agent.config.auto_response_enabled
+                        ? 'MARCOX_AI.DESIGN.GENERAL_ON'
+                        : 'MARCOX_AI.DESIGN.GENERAL_OFF'
+                    )
+                  }}
+                </p>
+              </div>
+              <div
+                class="flex flex-wrap items-center gap-2 border-t border-n-weak px-4 py-3"
+              >
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  color="slate"
+                  icon="i-lucide-settings-2"
+                  :label="t('MARCOX_AI.DESIGN.CONFIGURE')"
+                  @click="selectAgent(agent)"
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  color="slate"
+                  icon="i-lucide-flask-conical"
+                  :aria-label="t('MARCOX_AI.EDITOR.TEST')"
+                  :title="t('MARCOX_AI.EDITOR.TEST')"
+                  @click="selectAgent(agent, 'test')"
+                />
+                <Button
+                  v-if="canEdit"
+                  size="sm"
+                  variant="ghost"
+                  color="slate"
+                  icon="i-lucide-brain"
+                  :aria-label="t('MARCOX_AI.WORKSPACE.MEMORIES')"
+                  @click="selectAgent(agent, 'memories')"
+                />
+              </div>
+            </article>
+          </div>
+          <p
+            v-if="!visibleAgents.length"
+            class="rounded-xl border border-n-weak p-8 text-center text-sm text-n-slate-11"
+          >
+            {{ t('COMBOBOX.EMPTY_STATE') }}
+          </p>
         </div>
       </aside>
       <AgentEditor

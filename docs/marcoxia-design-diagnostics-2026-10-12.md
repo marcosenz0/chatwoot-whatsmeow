@@ -1,0 +1,17 @@
+# MarcoXIA workspace, memory and decision review — October 12, 2026
+
+## Behavior
+
+The agent workspace uses bounded content, native cards, a desktop navigation rail and responsive columns. The overview shows real agent/inbox/general-support counts and compact configuration, test and memory shortcuts. Existing editable settings and private test chats remain available.
+
+Memory lists return 50 contacts per page, sorted globally by trimmed lowercased person name with Portuguese accents normalized and ID as a stable tie breaker. Native contact avatars are eagerly associated on the server and lazily loaded by the browser; missing or inaccessible pictures use the native initial fallback. The contact memory dialog has a native in-dialog conversation selector, separate summary and message columns, one scroll body and a fixed footer.
+
+Administrators can right-click a private MarcoXIA note and choose **Revisar decisão da IA**, using the native SVG icon system. New human-help events record the reported reason, selected alert rules, assistant version, automatic-pause policy and state. The review distinguishes this record from current editable sources and later configuration changes. Older notes explicitly lack a historical record. Matching text excerpts are review candidates, never a claim of exact causal attribution or hidden model reasoning. Source shortcuts open the selected agent and field and select the excerpt; excerpt text travels in browser history state, not the URL. Full sources and a local text search remain available. The account/conversation-scoped endpoint is admin-only and accepts only private notes actually authored by that account’s MarcoXIA assistant.
+
+The conversation panel has **Pausar automaticamente ao pedir atendimento humano**, defaulting to enabled. Disabling it keeps future model handoffs and pause rules from interrupting that conversation while preserving human notifications, private decision notes, manual pauses and errors. Changing the policy does not resume an already paused state. Updated rules use their current action rather than the action retained in an older open alert. Platform capability/identity instructions remain intact; disabling a pause does not authorize external actions or unconfirmed commitments.
+
+**Ligar IA** enables future incoming messages. **Responder agora** explicitly resumes this conversation and schedules the same response job/context/provider/prompt/delivery path used for incoming messages. **Analisar conversa** prepares a summary and editable response, sent only after operator review. The native composer already uses `useMarcosxAiDraft` and `ComposerDraftService`, dynamically resolving the conversation’s selected agent; its menu now names MarcoXIA and the agent and explains that suggestions/summaries do not send messages. No legacy provider fallback is used.
+
+## Validation and rollout
+
+Implementation and local visual checks are in progress. Local focused Vue suites passed; Linux Rails, full gate, image publication and principal-first rollout are pending. No production prompt, credential, activation or customer message has been changed during preparation. Fresh private configuration/runtime/activation snapshots were collected. Keep existing user tabs with unsaved settings intact. The previous deployed pin remains `fork-cf8b285f425a7b3986ab6ca8085949244346fa9f` until the new gate and live checks pass.

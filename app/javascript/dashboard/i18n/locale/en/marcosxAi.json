@@ -213,9 +213,15 @@
       "PANEL_TITLE": "AI in this conversation",
       "PANEL_HINT": "Choose who assists this contact and control AI for this conversation.",
       "SELECT_AGENT": "Conversation agent",
-      "FUTURE_ONLY": "Enabling AI responds to new messages only in this conversation, even when general support is off. To continue an existing conversation, analyze its history and review the reply below.",
+      "FUTURE_ONLY": "Turning on AI enables future messages only in this conversation, even when general support is off.",
       "GENERATE_REPLY": "Generate AI reply",
-      "PANEL_CONTACT": "Support for {name}. Review the reply before sending."
+      "PANEL_CONTACT": "Support for {name}. Control the agent and prepare replies.",
+      "AUTO_PAUSE": "Pause automatically when requesting human help",
+      "AUTO_PAUSE_HINT": "When off, AI can notify the team and keep talking according to its instructions. It does not resume an already paused AI; manual pause remains available.",
+      "AUTO_PAUSE_SAVED": "Automatic pause updated for this conversation.",
+      "REPLY_NOW": "Reply now",
+      "REPLY_NOW_OK": "The agent is preparing a reply to send in this conversation.",
+      "REPLY_NOW_HINT": "Generates and sends a reply to the current history using the selected agent, even if AI was off. To review before sending, use Analyze conversation below."
     },
     "ANALYSIS": {
       "TITLE": "Analyze history and prepare a reply",
@@ -402,6 +408,53 @@
       "EMOJI_NONE": "No emojis",
       "EMOJI_OCCASIONAL": "Occasional, without consecutive repeats",
       "EMOJI_EXPRESSIVE": "More expressive"
+    },
+    "DESIGN": {
+      "BODY": "Manage your agents, inboxes and conversation context.",
+      "CONFIGURATION": "Configuration",
+      "OVERVIEW_INBOXES": "Assigned inboxes",
+      "OVERVIEW_ENABLED": "General support enabled",
+      "CONFIGURE": "Configure",
+      "GENERAL_OFF": "General support off",
+      "GENERAL_ON": "General support on",
+      "AGENT_IDENTITY": "Agent identity",
+      "MODEL_CONNECTION": "Model and connection",
+      "CONTEXT_SUPPORT": "Context and support",
+      "MESSAGE_STYLE": "Message rhythm and style",
+      "MEDIA_CHANNELS": "Media and groups",
+      "VOICE_SETTINGS": "Voice settings",
+      "SPOKEN_TEXT": "Spoken text and pronunciation",
+      "MEMORY_CONTACT": "Contact context"
+    },
+    "DECISION": {
+      "REVIEW": "Review AI decision",
+      "HINT": "See the recorded reason and find related instructions and controls.",
+      "LOADING": "Loading information…",
+      "RECORDED": "The record shows the request and rules triggered by the agent. It does not identify an exact prompt sentence as the cause.",
+      "LEGACY": "This older comment has no decision record. The sources below show current configuration to help with review.",
+      "CHANGED": "The agent configuration changed after this record.",
+      "REASON": "Reported reason",
+      "PAUSE_RECORDED": "Automatic pause at that time",
+      "ON": "On",
+      "OFF": "Off",
+      "NOTIFICATIONS": "Human help rules and controls",
+      "OPEN": "Open settings",
+      "SOURCES_HINT": "Review the current sources below. Shortcuts open the corresponding agent field for you to edit and save.",
+      "EDIT_SOURCE": "Go to this instruction",
+      "PLATFORM_HINT": "Platform guidance: the AI has no calendar or external actions. The pause switch controls conversation interruption without adding these capabilities.",
+      "SOURCES": {
+        "SYSTEM": "Agent prompt",
+        "EDITORIAL": "Conversation instructions",
+        "GUIDELINES": "Response guidelines",
+        "GUARDRAILS": "Support boundaries",
+        "PLATFORM": "Platform guidance"
+      },
+      "COMPOSER": "MarcoXIA · {name}",
+      "COMPOSER_HINT": "Uses this conversation agent’s prompt and context. Suggestions are drafts; summaries are for you. These options do not send messages.",
+      "SEARCH": "Search instructions (human, confirm, team…)",
+      "EXCERPTS": "Excerpts to review: text matches, without attributing an exact cause.",
+      "GO_EXCERPT": "Go to this excerpt",
+      "FULL_SOURCE": "View full instruction"
     }
   }
 }

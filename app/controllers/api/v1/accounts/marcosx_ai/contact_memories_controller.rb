@@ -1,4 +1,8 @@
 class Api::V1::Accounts::MarcosxAi::ContactMemoriesController < Api::V1::Accounts::MarcosxAi::BaseController
+  PAGE_SIZE = 50
+  NAME_ORDER = Arel.sql(
+    "TRANSLATE(LOWER(TRIM(contacts.name)), 'áàâãäéèêëíìîïóòôõöúùûüç', 'aaaaaeeeeiiiiooooouuuuc') COLLATE \"C\" ASC"
+  ).freeze
   before_action :ensure_admin!
   before_action :set_contact, except: :index
   rescue_from ArgumentError do |error|
@@ -14,9 +18,9 @@ class Api::V1::Accounts::MarcosxAi::ContactMemoriesController < Api::V1::Account
                                                        ))
     scope = scope.where('name ILIKE ?', "%#{Contact.sanitize_sql_like(params[:q].to_s)}%") if params[:q].present?
     page = params[:page].to_i.clamp(1, 100_000)
-    contacts = scope.order(:name, :id).offset((page - 1) * 25).limit(25)
+    contacts = scope.with_attached_avatar.order(NAME_ORDER, :id).offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)
     render json: { contacts: contacts.map { |contact| { id: contact.id, name: contact.name, avatar_url: contact.avatar_url } },
-                   total: scope.count, page: page }
+                   total: scope.count, page: page, per_page: PAGE_SIZE }
   end
 
   def show
@@ -88,7 +92,7 @@ class Api::V1::Accounts::MarcosxAi::ContactMemoriesController < Api::V1::Account
     messages = selected ? MarcosxAi::ConversationContext.raw_public_history(selected) : Message.none
     messages = messages.where('messages.id > ? AND messages.created_at > ?', record.cutoff_message_id, record.forgotten_at) if record&.forgotten_at
     messages = messages.where('messages.id < ?', params[:before_id].to_i) if params[:before_id].present?
-    { contact: { id: @contact.id, name: @contact.name, forgotten_at: record&.forgotten_at },
+    { contact: { id: @contact.id, name: @contact.name, avatar_url: @contact.avatar_url, forgotten_at: record&.forgotten_at },
       conversations: conversations.map { |conversation|
         state = conversation.marcosx_ai_conversation_state
         { id: conversation.display_id, inbox: conversation.inbox.name, assistant: state&.assistant&.name,

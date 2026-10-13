@@ -3,10 +3,12 @@ import { computed, ref, watch } from 'vue';
 import { useIntervalFn } from '@vueuse/core';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
+import { useAdmin } from 'dashboard/composables/useAdmin';
 import { useAbortableRequest } from 'dashboard/composables/useAbortableRequest';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import AiSelect from 'dashboard/routes/dashboard/captain/components/AiSelect.vue';
+import AiToggleRow from 'dashboard/routes/dashboard/captain/components/AiToggleRow.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import ConversationMemory from 'dashboard/routes/dashboard/captain/components/ConversationMemory.vue';
 import AgentAlertList from 'dashboard/routes/dashboard/captain/components/AgentAlertList.vue';
@@ -18,6 +20,7 @@ const props = defineProps({
 });
 const emit = defineEmits(['updated']);
 const { t } = useI18n();
+const { isAdmin } = useAdmin();
 const dialog = ref(null);
 const visible = ref(false);
 const working = ref(false);
@@ -134,13 +137,12 @@ const act = async action => {
     if (id !== props.chat.id) return;
     emit('updated', data.state);
     if (action === 'select') setReport({ status: 'idle' });
-    useAlert(
-      t(
-        action === 'resume'
-          ? 'MARCOX_AI.CONVERSATION.RESUMED_OK'
-          : 'MARCOX_AI.CONVERSATION.PAUSED_OK'
-      )
-    );
+    const label =
+      {
+        reply_now: 'MARCOX_AI.CONVERSATION.REPLY_NOW_OK',
+        resume: 'MARCOX_AI.CONVERSATION.RESUMED_OK',
+      }[action] || 'MARCOX_AI.CONVERSATION.PAUSED_OK';
+    useAlert(t(label));
   } catch (error) {
     if (id === props.chat.id) notifyError(error);
   } finally {
@@ -150,6 +152,24 @@ const act = async action => {
 const selectAssistant = id => {
   assistantId.value = id;
   act('select');
+};
+const setAutoPause = async enabled => {
+  const { id } = props.chat;
+  working.value = true;
+  try {
+    const { data } = await MarcosxAiAPI.updateConversationState(id, {
+      action: 'set_auto_pause',
+      automatic_handoff_enabled: enabled,
+    });
+    if (id === props.chat.id) {
+      emit('updated', data.state);
+      useAlert(t('MARCOX_AI.CONVERSATION.AUTO_PAUSE_SAVED'));
+    }
+  } catch (error) {
+    if (id === props.chat.id) notifyError(error);
+  } finally {
+    if (id === props.chat.id) working.value = false;
+  }
 };
 const analyze = async () => {
   const { id } = props.chat;
@@ -247,6 +267,31 @@ const selectContext = event => {
           :disabled="working || processing || !available"
           @click="act(active ? 'pause' : 'resume')"
         />
+      </div>
+      <div class="rounded-lg border border-n-weak p-4">
+        <AiToggleRow
+          v-if="isAdmin && state?.id"
+          :model-value="state.automatic_handoff_enabled ?? true"
+          :label="t('MARCOX_AI.CONVERSATION.AUTO_PAUSE')"
+          :description="t('MARCOX_AI.CONVERSATION.AUTO_PAUSE_HINT')"
+          :disabled="working || processing"
+          @update:model-value="setAutoPause"
+        />
+        <div
+          class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p class="m-0 text-xs leading-5 text-n-slate-11">
+            {{ t('MARCOX_AI.CONVERSATION.REPLY_NOW_HINT') }}
+          </p>
+          <Button
+            icon="i-lucide-send"
+            color="blue"
+            class="shrink-0"
+            :label="t('MARCOX_AI.CONVERSATION.REPLY_NOW')"
+            :disabled="working || processing || state?.processing || !available"
+            @click="act('reply_now')"
+          />
+        </div>
       </div>
       <p v-if="!assistants.length" class="text-sm text-n-slate-11">
         {{ t('MARCOX_AI.CONVERSATION.NO_AGENT') }}

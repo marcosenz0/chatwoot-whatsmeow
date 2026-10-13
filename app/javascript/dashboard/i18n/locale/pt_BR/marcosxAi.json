@@ -213,9 +213,15 @@
       "PANEL_TITLE": "IA nesta conversa",
       "PANEL_HINT": "Escolha quem atende este contato e controle o atendimento desta conversa.",
       "SELECT_AGENT": "Agente desta conversa",
-      "FUTURE_ONLY": "Ligar a IA responde às próximas mensagens somente nesta conversa, mesmo com o atendimento geral desligado. Para continuar uma conversa existente, analise o histórico e revise a resposta abaixo.",
+      "FUTURE_ONLY": "Ligar a IA habilita as próximas mensagens somente nesta conversa, mesmo com o atendimento geral desligado.",
       "GENERATE_REPLY": "Gerar resposta com IA",
-      "PANEL_CONTACT": "Atendimento de {name}. Revise a resposta antes de enviar."
+      "PANEL_CONTACT": "Atendimento de {name}. Controle o agente e prepare respostas.",
+      "AUTO_PAUSE": "Pausar automaticamente ao pedir atendimento humano",
+      "AUTO_PAUSE_HINT": "Desligada, a IA pode avisar a equipe e continuar conversando conforme suas instruções. Não reativa uma IA já pausada; a pausa manual continua disponível.",
+      "AUTO_PAUSE_SAVED": "Pausa automática atualizada para esta conversa.",
+      "REPLY_NOW": "Responder agora",
+      "REPLY_NOW_OK": "O agente está preparando a resposta para enviar nesta conversa.",
+      "REPLY_NOW_HINT": "Gera e envia uma resposta ao histórico atual com o agente selecionado, mesmo se a IA estava desligada. Para revisar antes de enviar, use Analisar conversa abaixo."
     },
     "ANALYSIS": {
       "TITLE": "Analisar o histórico e preparar uma resposta",
@@ -402,6 +408,53 @@
       "EMOJI_NONE": "Sem emojis",
       "EMOJI_OCCASIONAL": "Ocasionais, sem repetir em respostas seguidas",
       "EMOJI_EXPRESSIVE": "Mais expressivos"
+    },
+    "DESIGN": {
+      "BODY": "Organize seus agentes, caixas de entrada e contexto das conversas.",
+      "CONFIGURATION": "Configurações",
+      "OVERVIEW_INBOXES": "Caixas atribuídas",
+      "OVERVIEW_ENABLED": "Atendimento geral ligado",
+      "CONFIGURE": "Configurar",
+      "GENERAL_OFF": "Atendimento geral desligado",
+      "GENERAL_ON": "Atendimento geral ligado",
+      "AGENT_IDENTITY": "Identidade do agente",
+      "MODEL_CONNECTION": "Modelo e conexão",
+      "CONTEXT_SUPPORT": "Contexto e atendimento",
+      "MESSAGE_STYLE": "Ritmo e estilo das mensagens",
+      "MEDIA_CHANNELS": "Mídias e grupos",
+      "VOICE_SETTINGS": "Configurações da voz",
+      "SPOKEN_TEXT": "Texto falado e pronúncia",
+      "MEMORY_CONTACT": "Contexto do contato"
+    },
+    "DECISION": {
+      "REVIEW": "Revisar decisão da IA",
+      "HINT": "Veja o motivo registrado e encontre as instruções e controles relacionados.",
+      "LOADING": "Carregando informações…",
+      "RECORDED": "O registro mostra o pedido e as regras acionadas pelo agente. Ele não identifica uma frase exata do prompt como causa.",
+      "LEGACY": "Este comentário antigo não tem um registro da decisão. As fontes abaixo mostram a configuração atual, para ajudar na revisão.",
+      "CHANGED": "A configuração do agente foi alterada depois desse registro.",
+      "REASON": "Motivo informado",
+      "PAUSE_RECORDED": "Pausa automática naquele momento",
+      "ON": "Ligada",
+      "OFF": "Desligada",
+      "NOTIFICATIONS": "Regras e controles de atendimento humano",
+      "OPEN": "Abrir configurações",
+      "SOURCES_HINT": "Revise as fontes atuais abaixo. Os atalhos abrem o campo correspondente do agente para você editar e salvar.",
+      "EDIT_SOURCE": "Ir para esta instrução",
+      "PLATFORM_HINT": "Orientação da plataforma: a IA não tem agenda nem executa ações externas. A chave de pausa controla a interrupção da conversa, sem dar essas capacidades ao agente.",
+      "SOURCES": {
+        "SYSTEM": "Prompt do agente",
+        "EDITORIAL": "Instruções de conversa",
+        "GUIDELINES": "Diretrizes de resposta",
+        "GUARDRAILS": "Limites do atendimento",
+        "PLATFORM": "Orientação da plataforma"
+      },
+      "COMPOSER": "MarcoXIA · {name}",
+      "COMPOSER_HINT": "Usa o prompt e o contexto do agente desta conversa. A sugestão é um rascunho; o resumo é para você. Nenhuma mensagem é enviada por estas opções.",
+      "SEARCH": "Buscar nas instruções (humano, confirmar, equipe…)",
+      "EXCERPTS": "Trechos para revisar: correspondências de texto, sem atribuição de causa exata.",
+      "GO_EXCERPT": "Ir para este trecho",
+      "FULL_SOURCE": "Ver instrução completa"
     }
   }
 }

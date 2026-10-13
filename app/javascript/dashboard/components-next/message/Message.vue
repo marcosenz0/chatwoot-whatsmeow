@@ -467,6 +467,7 @@ const payloadForContextMenu = computed(() => ({
   source_id: props.sourceId,
   inbox_id: props.inboxId,
   private: props.private,
+  additional_attributes: props.additionalAttributes,
   message_type: props.messageType,
 }));
 

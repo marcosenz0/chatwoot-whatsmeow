@@ -50,6 +50,10 @@ class MarcosxAi::ConversationState < ApplicationRecord
     assistant.present? && (assistant.auto_response_enabled? || metadata['manual_activation'] == true)
   end
 
+  def automatic_handoff_enabled?
+    metadata.fetch('automatic_handoff_enabled', true) == true
+  end
+
   def self.choose_for_conversation!(conversation, assistant:)
     transaction do
       state = for_conversation!(conversation, assistant: assistant)
@@ -110,6 +114,7 @@ class MarcosxAi::ConversationState < ApplicationRecord
       id: id, assistant_id: assistant_id, assistant_name: assistant&.name, status: status, paused_until: paused_until,
       enabled: enabled_for_ai?, available: assistant&.available? || false, manual_activation: metadata['manual_activation'] == true,
       processing: metadata['processing'] == true,
+      automatic_handoff_enabled: automatic_handoff_enabled?,
       reason: metadata['last_error'] || metadata['handoff_reason'] || metadata['paused_reason'], updated_at: updated_at
     }
   end

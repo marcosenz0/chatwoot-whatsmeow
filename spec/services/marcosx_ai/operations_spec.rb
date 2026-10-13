@@ -10,6 +10,27 @@ RSpec.describe 'MarcoXIA memory and human assistance' do
   let(:client) { instance_double(MarcosxAi::ProviderClient) }
   let(:rule) { { id: 'help', name: 'Help', description: 'Needs a person', action: 'pause', message: '{reason}', user_ids: [user.id] } }
 
+  it 'turns pause rules into notifications for a conversation with automatic pause disabled' do
+    assistant.update!(config: assistant.config.merge(alert_rules: [rule]))
+    state.update!(metadata: { automatic_handoff_enabled: false })
+    state.with_lock { MarcosxAi::AlertService.perform(state: state, plan: { 'alert_rule_ids' => ['help'], 'handoff' => false }) }
+    expect(state.reload.status).to eq('active')
+    expect(MarcosxAi::AlertDelivery.last.recipient).to eq(user.id.to_s)
+    expect(conversation.messages.where(private: true).last.additional_attributes.dig('marcosx_ai_decision', 'rules', 0, 'id')).to eq('help')
+  end
+
+  it 'uses the edited rule action rather than the action of an older open alert' do
+    assistant.update!(config: assistant.config.merge(alert_rules: [rule]))
+    plan = { 'alert_rule_ids' => ['help'], 'handoff' => false }
+    state.with_lock { MarcosxAi::AlertService.perform(state: state, plan: plan) }
+    expect(state.reload.status).to eq('awaiting_human')
+    assistant.update!(config: assistant.config.merge(alert_rules: [rule.merge(action: 'notify')]))
+    state.resume!(manual: true)
+    state.with_lock { MarcosxAi::AlertService.perform(state: state, plan: plan) }
+    expect(state.reload.status).to eq('active')
+    expect(MarcosxAi::Alert.where(conversation: conversation).count).to eq(1)
+  end
+
   it 'rejects parallel test turns and prevents an expired turn from overwriting its replacement' do
     session = MarcosxAi::TestSession.create!(account: account, assistant: assistant, user: user)
     _, old_token = session.begin_turn!(content: 'First question')
