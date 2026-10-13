@@ -21,13 +21,14 @@ class MarcosxAi::DecisionTrace
     assistant = message.sender
     trace = message.additional_attributes['marcosx_ai_decision']
     config = assistant.resolved_config
+    automatic_handoff_enabled = message.conversation.marcosx_ai_conversation_state&.automatic_handoff_enabled? != false
     sources = [
       { field: 'system', text: assistant.instructions.presence || I18n.t('marcosx_ai.default_prompt'), section: 'prompt', editable: true },
       { field: 'editorial', text: config[:editorial_instructions] || MarcosxAi::PromptBuilder::EDITORIAL_INSTRUCTIONS,
         section: 'prompt', editable: true },
       { field: 'guidelines', text: assistant.response_guidelines.join("\n"), section: 'prompt', editable: true },
       { field: 'guardrails', text: assistant.guardrails.join("\n"), section: 'prompt', editable: true },
-      { field: 'platform', text: MarcosxAi::PromptBuilder.platform_instructions(assistant, false, false)
+      { field: 'platform', text: MarcosxAi::PromptBuilder.platform_instructions(assistant, false, false, automatic_handoff_enabled)
                                                          .lines.grep(/externa|fora|humano|action=pause/).join, editable: false }
     ].reject { |source| source[:text].blank? }
     {
@@ -35,7 +36,7 @@ class MarcosxAi::DecisionTrace
       configuration_changed: trace.present? && trace['assistant_version'] != assistant.updated_at.iso8601(6),
       sources: sources, rules: assistant.alert_rules.map { |rule| rule.slice(:id, :name, :description, :action) },
       pause_on_handoff: assistant.feature_enabled?(:pause_on_handoff),
-      automatic_handoff_enabled: message.conversation.marcosx_ai_conversation_state&.automatic_handoff_enabled?
+      automatic_handoff_enabled: automatic_handoff_enabled
     }
   end
 end
