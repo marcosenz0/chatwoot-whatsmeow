@@ -4,7 +4,8 @@ import { useI18n } from 'vue-i18n';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
-import AiSelect from './AiSelect.vue';
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
+import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 
 const { t } = useI18n();
 const dialog = ref(null);
@@ -95,152 +96,187 @@ defineExpose({ open });
   <Dialog
     ref="dialog"
     width="3xl"
-    :title="
-      t('MARCOX_AI.WORKSPACE.CONTACT_MEMORY', {
-        name: data?.contact.name || '',
-      })
-    "
+    :title="t('MARCOX_AI.WORKSPACE.MEMORIES')"
     :show-confirm-button="false"
     :cancel-button-label="t('MARCOX_AI.WORKSPACE.CLOSE')"
     @close="generation += 1"
   >
-    <div class="max-h-[65vh] space-y-5 overflow-y-auto">
+    <template #description>
+      <div v-if="data" class="flex min-w-0 items-center gap-3">
+        <Avatar
+          :src="data.contact.avatar_url || ''"
+          :name="data.contact.name || ''"
+          :size="40"
+        />
+        <div class="min-w-0 flex-1">
+          <p class="m-0 truncate text-sm font-semibold text-n-slate-12">
+            {{ data.contact.name }}
+          </p>
+          <p class="mb-0 mt-1 text-xs leading-5 text-n-slate-11">
+            {{ t('MARCOX_AI.WORKSPACE.MEMORY_HINT') }}
+          </p>
+        </div>
+      </div>
+    </template>
+    <div
+      class="max-h-[calc(100dvh-16rem)] min-h-0 min-w-0 space-y-5 overflow-y-auto pe-2"
+    >
+      <div v-if="busy && !data" class="flex justify-center py-10">
+        <Spinner />
+      </div>
       <p v-if="error" role="alert" class="text-sm text-n-ruby-11">
         {{ error }}
       </p>
-      <p class="text-sm text-n-slate-11">
-        {{ t('MARCOX_AI.WORKSPACE.MEMORY_HINT') }}
-      </p>
       <div v-if="data" class="space-y-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <p
-            v-if="data.contact.forgotten_at"
-            class="m-0 text-xs text-n-slate-11"
-          >
+        <div
+          v-if="data.contact.forgotten_at"
+          class="flex flex-wrap items-center justify-between gap-3"
+        >
+          <p class="m-0 text-xs text-n-slate-11">
             {{
               t('MARCOX_AI.WORKSPACE.RESET_AT', {
                 date: new Date(data.contact.forgotten_at).toLocaleString(),
               })
             }}
           </p>
-          <Button
-            type="button"
-            color="ruby"
-            variant="outline"
-            icon="i-lucide-eraser"
-            :disabled="busy"
-            :label="t('MARCOX_AI.WORKSPACE.FORGET')"
-            @click="forgetDialog.open()"
-          />
         </div>
         <label
           v-if="data.conversations.length"
           class="block text-sm text-n-slate-12"
         >
           {{ t('MARCOX_AI.WORKSPACE.CONVERSATION') }}
-          <AiSelect
-            v-model="conversationId"
-            :options="
-              data.conversations.map(item => ({
-                value: item.id,
-                label: `#${item.id} · ${item.inbox}`,
-              }))
-            "
-            :label="t('MARCOX_AI.WORKSPACE.CONVERSATION')"
-            class="mt-2"
+          <select
+            v-model.number="conversationId"
+            :aria-label="t('MARCOX_AI.WORKSPACE.CONVERSATION')"
             :disabled="busy"
-            @update:model-value="fetchMemory()"
-          />
-        </label>
-        <div
-          v-if="selected?.editable"
-          class="space-y-3 rounded-xl border border-n-weak p-4"
-        >
-          <label class="block text-sm font-medium text-n-slate-12"
-            >{{ t('MARCOX_AI.WORKSPACE.SUMMARY') }}
-            <textarea
-              v-model="summary"
-              rows="6"
-              maxlength="30000"
-              :disabled="busy"
-              class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3"
-            />
-          </label>
-          <p class="text-xs text-n-slate-11">
-            {{ t('MARCOX_AI.WORKSPACE.SUMMARY_HINT') }}
-          </p>
-          <p v-if="selected.updated_at" class="text-xs text-n-slate-11">
-            {{ new Date(selected.updated_at).toLocaleString() }} ·
-            {{ selected.summarized_count || 0 }}
-          </p>
-          <Button
-            type="button"
-            :disabled="busy || summary === (selected.summary || '')"
-            :label="t('MARCOX_AI.SAVE')"
-            @click="save"
-          />
-        </div>
-        <div class="space-y-3">
-          <h4 class="m-0 text-sm font-semibold text-n-slate-12">
-            {{ t('MARCOX_AI.WORKSPACE.CONTEXT_MESSAGES') }}
-          </h4>
-          <p v-if="!data.messages.length" class="text-sm text-n-slate-11">
-            {{ t('MARCOX_AI.WORKSPACE.NO_MEMORY') }}
-          </p>
-          <div
-            v-for="entry in data.messages"
-            :key="entry.id"
-            class="flex items-start gap-3 rounded-xl border border-n-weak p-4"
-            :class="{ 'opacity-60': entry.excluded }"
+            class="reset-base mt-2 h-10 w-full min-w-0 rounded-lg border border-n-weak bg-n-solid-2 px-3 text-sm"
+            @change="fetchMemory()"
           >
-            <div class="min-w-0 flex-1">
-              <p class="m-0 text-xs text-n-slate-11">
-                {{
-                  entry.incoming
-                    ? data.contact.name
-                    : t('MARCOX_AI.WORKSPACE.REPLY')
-                }}
-                · {{ new Date(entry.created_at).toLocaleString() }}
-              </p>
-              <p
-                class="mb-0 mt-2 whitespace-pre-wrap break-words text-sm text-n-slate-12"
-              >
-                {{ entry.content || t('MARCOX_AI.PLAYGROUND.ATTACH') }}
-              </p>
-              <p
-                v-if="entry.excluded"
-                class="mb-0 mt-2 text-xs text-n-amber-11"
-              >
-                {{ t('MARCOX_AI.WORKSPACE.EXCLUDED') }}
-              </p>
-            </div>
+            <option
+              v-for="item in data.conversations"
+              :key="item.id"
+              :value="item.id"
+            >
+              {{ `#${item.id} · ${item.inbox}` }}
+            </option>
+          </select>
+        </label>
+        <div class="grid items-start gap-4 md:grid-cols-2">
+          <div
+            v-if="selected?.editable"
+            class="min-w-0 space-y-3 rounded-xl border border-n-weak bg-n-solid-2 p-4"
+          >
+            <label class="block text-sm font-medium text-n-slate-12"
+              >{{ t('MARCOX_AI.WORKSPACE.SUMMARY') }}
+              <textarea
+                v-model="summary"
+                rows="6"
+                maxlength="30000"
+                :disabled="busy"
+                class="reset-base mt-2 min-h-36 w-full rounded-lg border border-n-weak bg-n-background p-3"
+              />
+            </label>
+            <p class="text-xs text-n-slate-11">
+              {{ t('MARCOX_AI.WORKSPACE.SUMMARY_HINT') }}
+            </p>
+            <p v-if="selected.updated_at" class="text-xs text-n-slate-11">
+              {{ new Date(selected.updated_at).toLocaleString() }} ·
+              {{ selected.summarized_count || 0 }}
+            </p>
             <Button
               type="button"
-              size="sm"
-              variant="ghost"
-              :color="entry.excluded ? 'slate' : 'ruby'"
-              :disabled="busy"
-              :label="
-                t(
-                  entry.excluded
-                    ? 'MARCOX_AI.WORKSPACE.RESTORE'
-                    : 'MARCOX_AI.WORKSPACE.EXCLUDE'
-                )
-              "
-              @click="exclude(entry)"
+              :disabled="busy || summary === (selected.summary || '')"
+              :label="t('MARCOX_AI.SAVE')"
+              @click="save"
             />
           </div>
-          <Button
-            v-if="more"
-            type="button"
-            variant="outline"
-            :disabled="busy"
-            :label="t('MARCOX_AI.WORKSPACE.OLDER')"
-            @click="fetchMemory(true)"
-          />
+          <div
+            class="min-w-0 space-y-3"
+            :class="{ 'md:col-span-2': !selected?.editable }"
+          >
+            <h4 class="m-0 text-sm font-semibold text-n-slate-12">
+              {{ t('MARCOX_AI.WORKSPACE.CONTEXT_MESSAGES') }}
+            </h4>
+            <p v-if="!data.messages.length" class="text-sm text-n-slate-11">
+              {{ t('MARCOX_AI.WORKSPACE.NO_MEMORY') }}
+            </p>
+            <div
+              v-for="entry in data.messages"
+              :key="entry.id"
+              class="flex min-w-0 flex-col items-start gap-2 rounded-xl border border-n-weak bg-n-solid-2 p-3"
+              :class="{ 'opacity-60': entry.excluded }"
+            >
+              <div class="min-w-0 w-full">
+                <p class="m-0 text-xs text-n-slate-11">
+                  {{
+                    entry.incoming
+                      ? data.contact.name
+                      : t('MARCOX_AI.WORKSPACE.REPLY')
+                  }}
+                  · {{ new Date(entry.created_at).toLocaleString() }}
+                </p>
+                <p
+                  class="mb-0 mt-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-sm text-n-slate-12"
+                >
+                  {{ entry.content || t('MARCOX_AI.PLAYGROUND.ATTACH') }}
+                </p>
+                <p
+                  v-if="entry.excluded"
+                  class="mb-0 mt-2 text-xs text-n-amber-11"
+                >
+                  {{ t('MARCOX_AI.WORKSPACE.EXCLUDED') }}
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                :color="entry.excluded ? 'slate' : 'ruby'"
+                :disabled="busy"
+                :label="
+                  t(
+                    entry.excluded
+                      ? 'MARCOX_AI.WORKSPACE.RESTORE'
+                      : 'MARCOX_AI.WORKSPACE.EXCLUDE'
+                  )
+                "
+                @click="exclude(entry)"
+              />
+            </div>
+            <Button
+              v-if="more"
+              type="button"
+              variant="outline"
+              :disabled="busy"
+              :label="t('MARCOX_AI.WORKSPACE.OLDER')"
+              @click="fetchMemory(true)"
+            />
+          </div>
         </div>
       </div>
     </div>
+    <template #footer>
+      <div
+        class="flex flex-wrap items-center justify-between gap-3 border-t border-n-weak pt-4"
+      >
+        <Button
+          type="button"
+          color="ruby"
+          variant="outline"
+          icon="i-lucide-eraser"
+          :disabled="busy || !data"
+          :label="t('MARCOX_AI.WORKSPACE.FORGET')"
+          @click="forgetDialog.open()"
+        />
+        <Button
+          type="button"
+          variant="faded"
+          color="slate"
+          :label="t('MARCOX_AI.WORKSPACE.CLOSE')"
+          @click="dialog.close()"
+        />
+      </div>
+    </template>
   </Dialog>
   <Dialog
     ref="forgetDialog"

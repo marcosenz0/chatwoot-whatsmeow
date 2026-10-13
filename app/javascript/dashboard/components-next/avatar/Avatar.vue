@@ -12,6 +12,11 @@ const props = defineProps({
     type: String,
     default: '',
   },
+  loading: {
+    type: String,
+    default: 'eager',
+    validator: value => ['eager', 'lazy'].includes(value),
+  },
   name: {
     type: String,
     required: true,
@@ -244,6 +249,7 @@ watch(
       <img
         v-if="src && isImageValid"
         :src="src"
+        :loading="loading"
         :alt="name"
         @error="invalidateCurrentImage"
       />

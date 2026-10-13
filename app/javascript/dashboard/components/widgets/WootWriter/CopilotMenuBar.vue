@@ -35,6 +35,10 @@ const emit = defineEmits(['executeCopilotAction']);
 const { t } = useI18n();
 
 const replyMode = useMapGetter('draftMessages/getReplyEditorMode');
+const currentChat = useMapGetter('getSelectedChat');
+const assistantName = computed(
+  () => currentChat.value?.marcosx_ai?.assistant_name || t('MARCOX_AI.TITLE')
+);
 
 // Selection-based menu items (when text is selected)
 const menuItems = computed(() => {
@@ -188,6 +192,14 @@ const handleSubMenuItemClick = (parentItem, subItem) => {
     :class="{ 'selection-menu': hasSelection && isEditorMenuPopover }"
     :style="hasSelection && isEditorMenuPopover ? selectionMenuStyle : {}"
   >
+    <div class="mb-2 max-w-64 border-b border-n-weak pb-2">
+      <p class="m-0 text-xs font-semibold text-n-slate-12">
+        {{ t('MARCOX_AI.DECISION.COMPOSER', { name: assistantName }) }}
+      </p>
+      <p class="mb-0 mt-1 text-xs leading-4 text-n-slate-11">
+        {{ t('MARCOX_AI.DECISION.COMPOSER_HINT') }}
+      </p>
+    </div>
     <div v-if="menuItems.length > 0" class="flex flex-col items-start gap-2.5">
       <div
         v-for="item in menuItems"

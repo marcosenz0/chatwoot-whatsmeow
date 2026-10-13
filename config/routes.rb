@@ -138,6 +138,7 @@ Rails.application.routes.draw do
               end
             end
             resources :conversations, only: [] do
+              resource :decision, only: [:show], controller: 'conversation_decisions'
               resource :state, only: [:show, :update], controller: 'conversation_states'
               resource :memory, only: [:show, :update, :create], controller: 'memories' do
                 post :link

@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 import Button from 'dashboard/components-next/button/Button.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import AiSelect from './AiSelect.vue';
+import AgentSection from './AgentSection.vue';
 import AiToggleRow from './AiToggleRow.vue';
 
 const props = defineProps({
@@ -125,183 +126,211 @@ const numericFields = computed(() =>
       :label="t('MARCOX_AI.VOICE.ENABLED')"
       :description="t('MARCOX_AI.VOICE.ENABLED_HINT')"
     />
-    <div class="grid gap-4 sm:grid-cols-2">
-      <label class="text-sm font-medium">
-        {{ t('MARCOX_AI.VOICE.PROVIDER') }}
-        <AiSelect
-          v-model="settings.provider"
-          :options="[
-            { value: 'minimax', label: 'MiniMax' },
-            { value: 'elevenlabs', label: 'ElevenLabs' },
-          ]"
-          :label="t('MARCOX_AI.VOICE.PROVIDER')"
-        />
-      </label>
-      <label class="text-sm font-medium">
-        {{ t('MARCOX_AI.VOICE.MODE') }}
-        <AiSelect
-          v-model="settings.mode"
-          :options="
-            ['requested', 'contextual'].map(value => ({
-              value,
-              label: t(`MARCOX_AI.VOICE.MODE_${value.toUpperCase()}`),
-            }))
-          "
-          :label="t('MARCOX_AI.VOICE.MODE')"
-        />
-      </label>
-    </div>
-    <div class="space-y-3 rounded-xl border border-n-weak p-4">
-      <p class="m-0 text-sm font-medium">
-        {{ t('MARCOX_AI.VOICE.CREDENTIAL') }}
-      </p>
-      <p class="text-xs text-n-slate-11">{{ t('MARCOX_AI.VOICE.KEY_HINT') }}</p>
-      <p
-        class="text-xs"
-        :class="configured ? 'text-n-teal-11' : 'text-n-amber-11'"
-      >
-        {{
-          t(
-            configured
-              ? 'MARCOX_AI.VOICE.CONFIGURED'
-              : 'MARCOX_AI.VOICE.MISSING'
-          )
-        }}
-      </p>
-      <p
-        v-if="!assistantId || !encryptionReady"
-        class="text-xs text-n-amber-11"
-      >
-        {{
-          t(
-            !assistantId
-              ? 'MARCOX_AI.VOICE.SAVE_FIRST'
-              : 'MARCOX_AI.VOICE.ENCRYPTION'
-          )
-        }}
-      </p>
-      <input
-        v-model="key"
-        type="password"
-        autocomplete="new-password"
-        :aria-label="t('MARCOX_AI.VOICE.CREDENTIAL')"
-        class="reset-base w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
-      />
-      <div class="flex gap-3">
-        <Button
-          type="button"
-          :label="t('MARCOX_AI.VOICE.SAVE_KEY')"
-          :disabled="busy || !assistantId || !encryptionReady || !key.trim()"
-          @click="saveKey"
-        />
-        <Button
-          v-if="configured"
-          type="button"
-          variant="ghost"
-          color="ruby"
-          :label="t('MARCOX_AI.VOICE.DELETE_KEY')"
-          :disabled="busy"
-          @click="removeKey"
-        />
+    <div class="grid items-start gap-5 xl:grid-cols-2">
+      <div class="min-w-0 space-y-5">
+        <AgentSection
+          :title="t('MARCOX_AI.DESIGN.VOICE_SETTINGS')"
+          icon="i-lucide-audio-lines"
+        >
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="text-sm font-medium">
+              {{ t('MARCOX_AI.VOICE.PROVIDER') }}
+              <AiSelect
+                v-model="settings.provider"
+                :options="[
+                  { value: 'minimax', label: 'MiniMax' },
+                  { value: 'elevenlabs', label: 'ElevenLabs' },
+                ]"
+                :label="t('MARCOX_AI.VOICE.PROVIDER')"
+              />
+            </label>
+            <label class="text-sm font-medium">
+              {{ t('MARCOX_AI.VOICE.MODE') }}
+              <AiSelect
+                v-model="settings.mode"
+                :options="
+                  ['requested', 'contextual'].map(value => ({
+                    value,
+                    label: t(`MARCOX_AI.VOICE.MODE_${value.toUpperCase()}`),
+                  }))
+                "
+                :label="t('MARCOX_AI.VOICE.MODE')"
+              />
+            </label>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="text-sm font-medium">
+              {{ t('MARCOX_AI.VOICE.VOICE_ID') }}
+              <input
+                v-model="options.voice_id"
+                type="text"
+                class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+              />
+              <span class="mt-1 block text-xs font-normal text-n-slate-11">{{
+                t('MARCOX_AI.VOICE.ID_HINT')
+              }}</span>
+            </label>
+            <label class="text-sm font-medium">
+              {{ t('MARCOX_AI.VOICE.MODEL') }}
+              <AiSelect
+                v-model="options.model"
+                :options="
+                  (models[settings.provider] || [options.model]).map(value => ({
+                    value,
+                    label: value,
+                  }))
+                "
+                :label="t('MARCOX_AI.VOICE.MODEL')"
+              />
+            </label>
+            <label
+              v-for="field in numericFields"
+              :key="field.key"
+              class="text-sm font-medium"
+            >
+              {{ t(`MARCOX_AI.VOICE.${field.key.toUpperCase()}`) }}
+              <input
+                v-model.number="options[field.key]"
+                type="number"
+                :min="field.min"
+                :max="field.max"
+                :step="field.step"
+                class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+              />
+            </label>
+            <label class="text-sm font-medium">
+              {{ t('MARCOX_AI.VOICE.MAX_CHARACTERS') }}
+              <input
+                v-model.number="settings.max_characters"
+                type="number"
+                min="100"
+                max="3000"
+                class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+              />
+            </label>
+          </div>
+          <AiToggleRow
+            v-model="settings.send_text"
+            :label="t('MARCOX_AI.VOICE.SEND_TEXT')"
+            :description="t('MARCOX_AI.VOICE.SEND_TEXT_HINT')"
+          />
+        </AgentSection>
+        <AgentSection
+          :title="t('MARCOX_AI.DESIGN.SPOKEN_TEXT')"
+          icon="i-lucide-text"
+        >
+          <label class="block text-sm font-medium">
+            {{ t('MARCOX_AI.VOICE.INSTRUCTIONS') }}
+            <textarea
+              v-model="settings.instructions"
+              rows="4"
+              class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+            />
+          </label>
+          <label class="block text-sm font-medium">
+            {{ t('MARCOX_AI.VOICE.PRONUNCIATION') }}
+            <textarea
+              v-model="settings.pronunciation"
+              rows="3"
+              :placeholder="t('MARCOX_AI.VOICE.PRONUNCIATION_HINT')"
+              class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+            />
+          </label>
+        </AgentSection>
       </div>
-    </div>
-    <div class="grid gap-4 sm:grid-cols-2">
-      <label class="text-sm font-medium">
-        {{ t('MARCOX_AI.VOICE.VOICE_ID') }}
-        <input
-          v-model="options.voice_id"
-          type="text"
-          class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
-        />
-        <span class="mt-1 block text-xs font-normal text-n-slate-11">{{
-          t('MARCOX_AI.VOICE.ID_HINT')
-        }}</span>
-      </label>
-      <label class="text-sm font-medium">
-        {{ t('MARCOX_AI.VOICE.MODEL') }}
-        <AiSelect
-          v-model="options.model"
-          :options="
-            (models[settings.provider] || [options.model]).map(value => ({
-              value,
-              label: value,
-            }))
-          "
-          :label="t('MARCOX_AI.VOICE.MODEL')"
-        />
-      </label>
-      <label
-        v-for="field in numericFields"
-        :key="field.key"
-        class="text-sm font-medium"
-      >
-        {{ t(`MARCOX_AI.VOICE.${field.key.toUpperCase()}`) }}
-        <input
-          v-model.number="options[field.key]"
-          type="number"
-          :min="field.min"
-          :max="field.max"
-          :step="field.step"
-          class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
-        />
-      </label>
-      <label class="text-sm font-medium">
-        {{ t('MARCOX_AI.VOICE.MAX_CHARACTERS') }}
-        <input
-          v-model.number="settings.max_characters"
-          type="number"
-          min="100"
-          max="3000"
-          class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
-        />
-      </label>
-    </div>
-    <AiToggleRow
-      v-model="settings.send_text"
-      :label="t('MARCOX_AI.VOICE.SEND_TEXT')"
-      :description="t('MARCOX_AI.VOICE.SEND_TEXT_HINT')"
-    />
-    <label class="block text-sm font-medium">
-      {{ t('MARCOX_AI.VOICE.INSTRUCTIONS') }}
-      <textarea
-        v-model="settings.instructions"
-        rows="4"
-        class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
-      />
-    </label>
-    <label class="block text-sm font-medium">
-      {{ t('MARCOX_AI.VOICE.PRONUNCIATION') }}
-      <textarea
-        v-model="settings.pronunciation"
-        rows="3"
-        :placeholder="t('MARCOX_AI.VOICE.PRONUNCIATION_HINT')"
-        class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
-      />
-    </label>
-    <div class="space-y-3 rounded-xl border border-n-weak p-4">
-      <p class="text-sm font-medium">{{ t('MARCOX_AI.VOICE.PREVIEW') }}</p>
-      <p class="text-xs text-n-slate-11">
-        {{ t('MARCOX_AI.VOICE.PREVIEW_HINT') }}
-      </p>
-      <textarea
-        v-model="sample"
-        rows="3"
-        :aria-label="t('MARCOX_AI.VOICE.PREVIEW')"
-        class="reset-base w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
-      />
-      <p v-if="unsaved" class="text-xs text-n-amber-11">
-        {{ t('MARCOX_AI.VOICE.SAVE_FIRST') }}
-      </p>
-      <Button
-        type="button"
-        :label="t('MARCOX_AI.VOICE.GENERATE')"
-        :is-loading="busy"
-        :disabled="
-          busy || unsaved || !configured || !options.voice_id || !sample.trim()
-        "
-        @click="preview"
-      />
-      <audio v-if="audioUrl" :src="audioUrl" controls class="w-full" />
+      <div class="min-w-0 space-y-5">
+        <div
+          class="min-w-0 space-y-3 rounded-xl border border-n-weak bg-n-solid-2 p-5"
+        >
+          <p class="m-0 text-sm font-medium">
+            {{ t('MARCOX_AI.VOICE.CREDENTIAL') }}
+          </p>
+          <p class="text-xs text-n-slate-11">
+            {{ t('MARCOX_AI.VOICE.KEY_HINT') }}
+          </p>
+          <p
+            class="text-xs"
+            :class="configured ? 'text-n-teal-11' : 'text-n-amber-11'"
+          >
+            {{
+              t(
+                configured
+                  ? 'MARCOX_AI.VOICE.CONFIGURED'
+                  : 'MARCOX_AI.VOICE.MISSING'
+              )
+            }}
+          </p>
+          <p
+            v-if="!assistantId || !encryptionReady"
+            class="text-xs text-n-amber-11"
+          >
+            {{
+              t(
+                !assistantId
+                  ? 'MARCOX_AI.VOICE.SAVE_FIRST'
+                  : 'MARCOX_AI.VOICE.ENCRYPTION'
+              )
+            }}
+          </p>
+          <input
+            v-model="key"
+            type="password"
+            autocomplete="new-password"
+            :aria-label="t('MARCOX_AI.VOICE.CREDENTIAL')"
+            class="reset-base w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+          />
+          <div class="flex gap-3">
+            <Button
+              type="button"
+              :label="t('MARCOX_AI.VOICE.SAVE_KEY')"
+              :disabled="
+                busy || !assistantId || !encryptionReady || !key.trim()
+              "
+              @click="saveKey"
+            />
+            <Button
+              v-if="configured"
+              type="button"
+              variant="ghost"
+              color="ruby"
+              :label="t('MARCOX_AI.VOICE.DELETE_KEY')"
+              :disabled="busy"
+              @click="removeKey"
+            />
+          </div>
+        </div>
+        <div
+          class="min-w-0 space-y-3 rounded-xl border border-n-weak bg-n-solid-2 p-5"
+        >
+          <p class="text-sm font-medium">{{ t('MARCOX_AI.VOICE.PREVIEW') }}</p>
+          <p class="text-xs text-n-slate-11">
+            {{ t('MARCOX_AI.VOICE.PREVIEW_HINT') }}
+          </p>
+          <textarea
+            v-model="sample"
+            rows="3"
+            :aria-label="t('MARCOX_AI.VOICE.PREVIEW')"
+            class="reset-base w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+          />
+          <p v-if="unsaved" class="text-xs text-n-amber-11">
+            {{ t('MARCOX_AI.VOICE.SAVE_FIRST') }}
+          </p>
+          <Button
+            type="button"
+            :label="t('MARCOX_AI.VOICE.GENERATE')"
+            :is-loading="busy"
+            :disabled="
+              busy ||
+              unsaved ||
+              !configured ||
+              !options.voice_id ||
+              !sample.trim()
+            "
+            @click="preview"
+          />
+          <audio v-if="audioUrl" :src="audioUrl" controls class="w-full" />
+        </div>
+      </div>
     </div>
     <p v-if="error" role="alert" class="text-sm text-n-ruby-11">{{ error }}</p>
   </div>

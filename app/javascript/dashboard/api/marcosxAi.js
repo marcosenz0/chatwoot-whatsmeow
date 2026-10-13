@@ -211,6 +211,13 @@ class MarcosxAiAPI extends ApiClient {
     return axios.get(`${this.url}/conversations/${conversationId}/state`);
   }
 
+  getConversationDecision(conversationId, messageId, options = {}) {
+    return axios.get(`${this.url}/conversations/${conversationId}/decision`, {
+      ...options,
+      params: { message_id: messageId },
+    });
+  }
+
   updateConversationState(conversationId, data) {
     return axios.put(`${this.url}/conversations/${conversationId}/state`, {
       state: data,

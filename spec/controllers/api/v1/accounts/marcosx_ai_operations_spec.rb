@@ -11,6 +11,54 @@ RSpec.describe 'MarcoXIA operations API', type: :request do
   let(:endpoint) { "/api/v1/accounts/#{account.id}/marcosx_ai" }
   let(:memory_endpoint) { "#{endpoint}/conversations/#{conversation.display_id}/memory" }
 
+  it 'controls automatic pause without resuming, changing the agent or affecting other conversations' do
+    assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
+    state.wait_for_human!(reason: 'Needs verification')
+    expect(state.public_data[:automatic_handoff_enabled]).to be(true)
+    before_metadata = state.reload.metadata
+    url = "#{endpoint}/conversations/#{conversation.display_id}/state"
+    put url, params: { state: { action: 'set_auto_pause', automatic_handoff_enabled: false } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:ok), response.body
+    expect(response.parsed_body['state']).to include('automatic_handoff_enabled' => false, 'status' => 'awaiting_human')
+    expect(state.reload.metadata).to eq(before_metadata.merge('automatic_handoff_enabled' => false))
+    expect(assistant.reload.auto_response_enabled?).to be(false)
+    put url, params: { state: { action: 'set_auto_pause', automatic_handoff_enabled: 'false' } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unprocessable_entity)
+    put url, params: { state: { action: 'set_auto_pause', automatic_handoff_enabled: true } }, headers: agent.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unauthorized)
+    expect(state.reload.automatic_handoff_enabled?).to be(false)
+  end
+
+  it 'inspects a legacy AI note using current sources without claiming historical causality and restricts access' do
+    note = create(:message, account: account, inbox: inbox, conversation: conversation, sender: assistant,
+                            message_type: :outgoing, private: true, content: 'Human help requested', additional_attributes: { marcosx_ai: true })
+    url = "#{endpoint}/conversations/#{conversation.display_id}/decision"
+    get url, params: { message_id: note.id }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok), response.body
+    expect(response.parsed_body['snapshot']).to be_nil
+    expect(response.parsed_body['sources'].pluck('field')).to include('system', 'editorial', 'platform')
+    get url, params: { message_id: [note.id] }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:unprocessable_entity)
+    get url, params: { message_id: note.id }, headers: agent.create_new_auth_token
+    expect(response).to have_http_status(:unauthorized)
+    other = create(:message)
+    get url, params: { message_id: other.id }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:not_found)
+  end
+
+  it 'reports recorded rules and flags separately from later prompt changes' do
+    trace = MarcosxAi::DecisionTrace.capture(state: state, plan: { 'handoff' => true, 'handoff_reason' => 'External verification' },
+                                           rules: [{ id: 'verify', name: 'Verify', action: 'pause', description: 'Requires checking' }])
+    note = create(:message, account: account, inbox: inbox, conversation: conversation, sender: assistant,
+                            message_type: :outgoing, private: true, additional_attributes: { marcosx_ai: true, marcosx_ai_decision: trace })
+    assistant.update!(instructions: 'Updated prompt', updated_at: 1.minute.from_now)
+    get "#{endpoint}/conversations/#{conversation.display_id}/decision", params: { message_id: note.id }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok), response.body
+    expect(response.parsed_body['configuration_changed']).to be(true)
+    expect(response.parsed_body.dig('snapshot', 'rules', 0, 'id')).to eq('verify')
+    expect(response.parsed_body['sources'].first['text']).to eq('Updated prompt')
+  end
+
   it 'offers a voice setup without a key and restricts credentials to administrators of the account' do
     url = "#{endpoint}/assistants/#{assistant.id}/voice"
     get url, headers: admin.create_new_auth_token
@@ -95,6 +143,24 @@ RSpec.describe 'MarcoXIA operations API', type: :request do
     other = create(:contact)
     get "#{endpoint}/contact_memories/#{other.id}", headers: admin.create_new_auth_token
     expect(response).to have_http_status(:not_found)
+  end
+
+  it 'paginates fifty memory contacts in global alphabetical order ignoring case and Portuguese accents' do
+    names = ['Álvaro', 'ana', 'Bruno', *Array.new(51) { |index| "Z contact #{index.to_s.rjust(2, '0')}" }]
+    names.reverse_each do |name|
+      contact = create(:contact, account: account, name: name)
+      MarcosxAi::ContactMemory.create!(account: account, contact: contact)
+    end
+    get "#{endpoint}/contact_memories", headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok)
+    first_page = response.parsed_body['contacts']
+    expect(first_page.size).to eq(50)
+    expect(first_page.first(3).pluck('name')).to eq(%w[Álvaro ana Bruno])
+    expect(response.parsed_body['per_page']).to eq(50)
+    expect(response.parsed_body['total']).to eq(54)
+    get "#{endpoint}/contact_memories", params: { page: 2 }, headers: admin.create_new_auth_token
+    expect(response.parsed_body['contacts'].pluck('name')).to eq(['Z contact 47', 'Z contact 48', 'Z contact 49', 'Z contact 50'])
+    expect(first_page.pluck('id') & response.parsed_body['contacts'].pluck('id')).to be_empty
   end
 
   it 'persists test chats privately for the current user and saved assistant' do

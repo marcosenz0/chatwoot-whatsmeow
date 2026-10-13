@@ -18,9 +18,16 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
     end
 
     case state_params[:action]
+    when 'set_auto_pause'
+      @state.with_lock do
+        @state.update!(metadata: @state.metadata.merge('automatic_handoff_enabled' => state_params[:automatic_handoff_enabled]))
+      end
     when 'pause'
       @state.with_lock { @state.pause_by_agent!(reason: state_params[:reason]) }
     when 'resume', 'reply_now'
+      if @state.metadata['processing'] == true && state_params[:action] == 'reply_now'
+        return render json: { error: I18n.t('marcosx_ai.errors.analysis_outdated') }, status: :unprocessable_entity
+      end
       unless @state.assistant.available?
         return render json: { error: I18n.t('marcosx_ai.errors.credential_missing') }, status: :unprocessable_entity
       end
@@ -29,11 +36,12 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
                     status: :unprocessable_entity if !@state.assistant.accepts_conversation?(@conversation) ||
                                                      @conversation.resolved? || @conversation.snoozed?
 
-      @state.with_lock { @state.resume!(manual: true) }
       if state_params[:action] == 'reply_now'
-        latest = @conversation.messages.where(message_type: [:incoming, :outgoing], private: false).order(:created_at, :id).last
-        MarcosxAi::ResponseScheduler.perform(message: latest, manual: true) if latest
+        latest = MarcosxAi::ConversationContext.public_history(@conversation).reorder(:created_at, :id).last
+        return render json: { error: I18n.t('marcosx_ai.errors.empty_history') }, status: :unprocessable_entity unless latest
       end
+      @state.with_lock { @state.resume!(manual: true) }
+      MarcosxAi::ResponseScheduler.perform(message: latest, manual: true) if latest
     when 'handoff'
       @state.with_lock { @state.handoff!(reason: state_params[:reason]) }
       @conversation.bot_handoff! if @conversation.pending?
@@ -69,6 +77,13 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
   end
 
   def validate_action
+    if state_params[:action] == 'set_auto_pause'
+      ensure_admin!
+      valid = [true, false].include?(state_params[:automatic_handoff_enabled]) && state_params[:assistant_id].nil?
+      return if valid
+
+      return render json: { error: I18n.t('marcosx_ai.errors.invalid_response') }, status: :unprocessable_entity
+    end
     valid_action = %w[pause resume reply_now handoff select].include?(state_params[:action])
     id = state_params[:assistant_id]
     valid_id = id.nil? || (id.is_a?(Integer) && id.positive?)
@@ -78,7 +93,7 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
   end
 
   def state_params
-    params.require(:state).permit(:action, :reason, :assistant_id)
+    params.require(:state).permit(:action, :reason, :assistant_id, :automatic_handoff_enabled)
   end
 
   def serialize(state)

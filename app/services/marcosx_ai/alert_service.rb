@@ -16,8 +16,18 @@ class MarcosxAi::AlertService
         record.reason = rule[:description].to_s.first(500)
         record.configuration = state.assistant.resolved_config[:notifications].merge(rule).stringify_keys
       end
-      state.wait_for_human!(reason: alert.name) if alert.action == 'pause' && state.status != 'awaiting_human'
+      if rule[:action] == 'pause' && state.status != 'awaiting_human' && state.automatic_handoff_enabled?
+        state.wait_for_human!(reason: rule[:name])
+      end
       queue(alert)
+    end
+    if plan['handoff'] || rules.any? { |rule| rule[:action] == 'pause' }
+      trace = MarcosxAi::DecisionTrace.capture(state: state, plan: plan, rules: rules)
+      state.update!(metadata: state.metadata.merge('last_decision' => trace))
+      unless plan['handoff']
+        MarcosxAi::DecisionTrace.write_note(state: state,
+                                            content: rules.select { |rule| rule[:action] == 'pause' }.map { |rule| rule[:name] }.join(' · '))
+      end
     end
     state.status == 'awaiting_human'
   end
@@ -44,7 +54,14 @@ class MarcosxAi::AlertService
 
   def self.prepare_delivery(state:, plan:, token:)
     return plan unless perform(state: state, plan: plan)
-    return unless state.assistant.feature_enabled?(:pause_acknowledgement)
+
+    unless state.assistant.feature_enabled?(:pause_acknowledgement)
+      if plan['handoff']
+        MarcosxAi::DecisionTrace.write_note(state: state,
+                                            content: I18n.t('marcosx_ai.handoff_note', name: state.assistant.name, reason: plan['handoff_reason']))
+      end
+      return
+    end
 
     state.update!(metadata: state.metadata.merge('run_token' => token, 'pause_ack' => true, 'processing' => true))
     plan.merge('messages' => plan['messages'].first(1), 'reaction' => nil, 'voice_text' => nil)

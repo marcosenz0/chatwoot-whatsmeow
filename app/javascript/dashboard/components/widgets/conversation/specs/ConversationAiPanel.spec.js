@@ -12,6 +12,9 @@ vi.mock('dashboard/api/marcosxAi', () => ({
   },
 }));
 vi.mock('dashboard/composables', () => ({ useAlert: vi.fn() }));
+vi.mock('dashboard/composables/useAdmin', () => ({
+  useAdmin: () => ({ isAdmin: true }),
+}));
 const props = {
   chat: { id: 7, status: 'open' },
   state: {
@@ -44,6 +47,51 @@ const global = {
 };
 
 describe('Conversation history review', () => {
+  it('updates automatic pause without resuming a waiting conversation or sending a reply', async () => {
+    const waiting = {
+      ...props.state,
+      id: 3,
+      status: 'awaiting_human',
+      automatic_handoff_enabled: true,
+    };
+    MarcosxAiAPI.updateConversationState.mockResolvedValue({
+      data: { state: { ...waiting, automatic_handoff_enabled: false } },
+    });
+    const wrapper = mount(ConversationAiPanel, {
+      props: { ...props, state: waiting },
+      global,
+    });
+    await wrapper.get('[role="switch"]').trigger('click');
+    await flushPromises();
+    expect(MarcosxAiAPI.updateConversationState).toHaveBeenCalledWith(7, {
+      action: 'set_auto_pause',
+      automatic_handoff_enabled: false,
+    });
+    expect(wrapper.emitted('updated')[0][0].status).toBe('awaiting_human');
+    expect(MarcosxAiAPI.sendConversationAnalysis).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+  it('explicitly continues through the automatic response pipeline with the selected conversation agent', async () => {
+    const wrapper = mount(ConversationAiPanel, { props, global });
+    wrapper.vm.open();
+    await flushPromises();
+    MarcosxAiAPI.updateConversationState.mockResolvedValue({
+      data: { state: { ...props.state, status: 'active', processing: true } },
+    });
+    await wrapper
+      .findAll('button')
+      .find(button =>
+        button.text().includes('MARCOX_AI.CONVERSATION.REPLY_NOW')
+      )
+      .trigger('click');
+    await flushPromises();
+    expect(MarcosxAiAPI.updateConversationState).toHaveBeenCalledWith(7, {
+      action: 'reply_now',
+      reason: 'agent_action',
+    });
+    expect(MarcosxAiAPI.analyzeConversation).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
   beforeEach(() => {
     MarcosxAiAPI.getConversationAnalysis.mockResolvedValue({
       data: { analysis: { status: 'idle' } },

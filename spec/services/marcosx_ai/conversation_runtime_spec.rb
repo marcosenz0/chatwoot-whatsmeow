@@ -24,6 +24,27 @@ RSpec.describe 'MarcoXIA conversation runtime' do
     clear_enqueued_jobs
   end
 
+  it 'keeps responding when automatic pause is off while recording handoffs and respecting manual pauses' do
+    assistant.update!(config: assistant.resolved_config.merge(pause_on_handoff: true, pause_acknowledgement: false))
+    message.reload
+    state.update!(metadata: { automatic_handoff_enabled: false })
+    plan.merge!(messages: ['I can explain what is available'], handoff: true, handoff_reason: 'External verification')
+    MarcosxAi::ResponseScheduler.perform(message: message)
+    token = state.reload.metadata['run_token']
+    MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, message.id, token)
+    expect(state.reload.status).to eq('active')
+    expect(MarcosxAi::Alert.where(conversation: conversation, rule_id: 'human_handoff')).to exist
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
+    expect(state.reload.status).to eq('active')
+    note = conversation.messages.where(private: true).last
+    expect(note.additional_attributes.dig('marcosx_ai_decision', 'automatic_handoff_enabled')).to be(false)
+    expect(conversation.messages.where(private: false, message_type: :outgoing).last.content).to eq(plan[:messages].first)
+    incoming = create(:message, account: account, inbox: inbox, conversation: conversation, content: 'Please explain')
+    expect { MarcosxAi::ResponseScheduler.perform(message: incoming) }.to have_enqueued_job(MarcosxAi::ResponseJob)
+    state.pause_by_agent!(reason: 'Operator paused')
+    expect { MarcosxAi::ResponseScheduler.perform(message: incoming) }.not_to have_enqueued_job(MarcosxAi::ResponseJob)
+  end
+
   it 'debounces a burst and makes the earlier job obsolete' do
     MarcosxAi::ResponseScheduler.perform(message: message)
     first = state.reload.metadata['run_token']
