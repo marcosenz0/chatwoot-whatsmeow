@@ -12,7 +12,20 @@ RSpec.describe MarcosxAi::VoicePolicy do
     expect(described_class.requested?('Quero saber quais tipos de áudio existem.')).to be(false)
     expect(described_class.requested?('Me manda um áudio, por favor.')).to be(true)
     expect(described_class.requested?('Fala comigo em áudio.')).to be(true)
+    expect(described_class.requested?('Converse em áudio comigo.')).to be(true)
     expect(described_class.requested?("I prefer text, don't send audio.")).to be(false)
+  end
+
+  it 'recognizes requests and text preferences in cached audio transcriptions without retranscribing history' do
+    create(:message, conversation: conversation, sender: assistant, message_type: :outgoing,
+                     content: 'A previous reply', content_attributes: { marcosx_ai_voice_transcript: 'An earlier audio' })
+    incoming = create(:message, conversation: conversation, message_type: :incoming, content: nil)
+    attachment = create(:attachment, message: incoming, file_type: :audio,
+                                     meta: { transcribed_text: 'Converse em áudio comigo, Emilly, eu não sei ler.' })
+    expect(MarcosxAi::MediaContext).not_to receive(:new)
+    expect(described_class.context(assistant: assistant, conversation: conversation)).to include(voice_allowed: true, voice_requested: true)
+    attachment.update!(meta: { transcribed_text: 'Prefiro texto, não mande áudio.' })
+    expect(described_class.context(assistant: assistant, conversation: conversation)).to include(voice_allowed: false, voice_requested: false)
   end
 
   it 'counts whole replies rather than split parts and respects requests and text preferences' do

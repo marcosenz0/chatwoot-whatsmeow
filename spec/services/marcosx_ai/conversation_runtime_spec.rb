@@ -256,6 +256,33 @@ RSpec.describe 'MarcoXIA conversation runtime' do
     expect(assistant.logs.where(event: 'voice_failed')).to exist
   end
 
+  it 'uses the new transcribed request after an older external-action discussion and delivers audio even if the model proposes only text' do
+    message.update_columns(content: 'Could you arrange a visit?', created_at: 1.day.ago)
+    create(:message, account: account, inbox: inbox, conversation: conversation, sender: assistant, message_type: :outgoing,
+                     content: 'The earlier request needs verification', created_at: 23.hours.ago)
+    incoming = create(:message, account: account, inbox: inbox, conversation: conversation, content: nil)
+    incoming.attachments.create!(account: account, file_type: :audio,
+                                 meta: { transcribed_text: 'Converse em áudio comigo, eu não sei ler.' })
+    allow_any_instance_of(MarcosxAi::Assistant).to receive(:voice_ready?).and_return(true)
+    voice_client = instance_double(MarcosxAi::VoiceClient, synthesize: 'ID3')
+    allow(MarcosxAi::VoiceClient).to receive(:new).and_return(voice_client)
+    plan.merge!(messages: ['Oi, como você tá?'], voice_text: nil)
+    MarcosxAi::ResponseScheduler.perform(message: incoming)
+    token = state.reload.metadata['run_token']
+    MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, incoming.id, token)
+    expect(client).to have_received(:chat) do |arguments|
+      expect(arguments[:messages].find { |item| item[:role] == 'developer' }[:content]).to include('"voice_requested":true')
+      current = arguments[:messages].select { |item| item[:role] == 'user' }.map { |item| JSON.parse(item[:content]) }
+      expect(current.select { |item| item['current_request'] }.pluck('message_id')).to eq([incoming.id])
+    end
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
+    reply = conversation.messages.outgoing.where(private: false).order(:id).last
+    expect(reply.attachments.first.file_type).to eq('audio')
+    expect(reply.content_attributes['marcosx_ai_voice_transcript']).to eq(plan[:messages].first)
+    expect(state.reload.status).to eq('active')
+    expect(voice_client).to have_received(:synthesize).once
+  end
+
   it 'does not send synthesized audio after the operator pauses the agent during synthesis' do
     message.update_columns(content: 'Me responde em áudio, por favor.')
     allow_any_instance_of(MarcosxAi::Assistant).to receive(:voice_ready?).and_return(true)

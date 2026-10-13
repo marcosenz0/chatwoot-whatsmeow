@@ -234,6 +234,7 @@ export default {
     },
     showCannedResponseModal() {
       useTrack(ACCOUNT_EVENTS.ADDED_TO_CANNED_RESPONSE);
+      this.handleClose();
       this.isCannedResponseModalOpen = true;
     },
     hideCannedResponseModal() {
@@ -423,16 +424,13 @@ export default {
   />
   <div class="context-menu">
     <!-- Add To Canned Responses -->
-    <woot-modal
-      v-if="isCannedResponseModalOpen && enabledOptions['cannedResponse']"
-      v-model:show="isCannedResponseModalOpen"
-      :on-close="hideCannedResponseModal"
-    >
+    <Teleport to="body">
       <AddCannedModal
+        v-if="isCannedResponseModalOpen && enabledOptions['cannedResponse']"
         :response-content="plainTextContent"
         :on-close="hideCannedResponseModal"
       />
-    </woot-modal>
+    </Teleport>
     <Teleport to="body">
       <!-- Confirm Deletion -->
       <woot-delete-modal

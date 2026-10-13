@@ -25,7 +25,7 @@ class MarcosxAi::Resource < ApplicationRecord
     catalog_data.merge(
       enabled: enabled, url: url, file_name: file.attached? ? file.filename.to_s : nil,
       file_size: file.attached? ? file.byte_size : nil, file_url: file.attached? ? url_for(file) : nil,
-      thumb_url: kind == 'image' && file.attached? ? url_for(file.representation(resize_to_limit: [320, 240])) : nil
+      thumb_url: kind.in?(%w[image video]) && file.attached? ? url_for(file.representation(resize_to_limit: [320, 240])) : nil
     )
   end
 

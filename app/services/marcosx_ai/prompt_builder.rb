@@ -63,6 +63,10 @@ class MarcosxAi::PromptBuilder
       #{MarcosxAi::ResourceCatalog.instructions(assistant)}
       #{reactions ? "Pode reagir a uma mensagem recebida indicada no histórico com #{MarcosxAi::ReplyPlan::REACTIONS.join(' ')}. Use com moderação, somente se o contexto justificar. Uma reação pode bastar para um agradecimento ou confirmação; nesse caso messages pode ser vazio." : 'Este atendimento não permite reações: use reaction=null e reaction_message_id=null.'}
       #{proactive ? 'O atendente pediu para continuar esta conversa agora. Continue a partir do histórico com uma mensagem útil, sem fingir que o cliente enviou uma nova mensagem.' : 'Responda às mensagens recebidas ainda sem resposta, considerando-as em conjunto.'}
+      Quando houver mensagens com current_request=true, elas são o pedido atual. Responda a elas primeiro, incluindo o conteúdo transcrito dos anexos.
+      As demais mensagens e o resumo são histórico: use-os para contexto, sem tratar pedidos antigos já respondidos como novas solicitações.
+      Uma mudança de assunto ou de formato, como pedir áudio, não renova um pedido antigo de encontro, agendamento ou outra ação externa.
+      Solicite atendimento humano por uma necessidade do pedido atual, não apenas porque esse assunto apareceu no histórico.
     PROMPT
   end
 
