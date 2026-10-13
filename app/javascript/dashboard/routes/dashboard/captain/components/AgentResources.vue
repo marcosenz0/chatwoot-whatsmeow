@@ -114,7 +114,8 @@ const save = async () => {
   });
   if (draft.value.kind === 'link')
     data.append('resource[url]', draft.value.url.trim());
-  if (file.value) data.append('resource[file]', file.value);
+  if (draft.value.kind !== 'link' && file.value)
+    data.append('resource[file]', file.value);
   try {
     await MarcosxAiAPI.saveResource(id, draft.value.id, data);
     editor.value.close();

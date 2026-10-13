@@ -63,6 +63,11 @@ it('saves a described link through multipart without embedding its URL in instru
     .findAll('button')
     .find(button => button.text().includes('RESOURCES.ADD'))
     .trigger('click');
+  const fileInput = wrapper.get('input[type="file"]');
+  Object.defineProperty(fileInput.element, 'files', {
+    value: [new File(['image'], 'discarded.png', { type: 'image/png' })],
+  });
+  await fileInput.trigger('change');
   await wrapper
     .findAll('button')
     .find(button => button.text().includes('KIND_LINK'))
@@ -80,6 +85,7 @@ it('saves a described link through multipart without embedding its URL in instru
   expect(agentId).toBe(3);
   expect(id).toBeUndefined();
   expect(form.get('resource[url]')).toBe('https://example.com/reference');
+  expect(form.get('resource[file]')).toBeNull();
   expect(form.get('resource[description]')).toContain('asks for a reference');
   wrapper.unmount();
 });
