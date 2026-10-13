@@ -1,9 +1,12 @@
 class MarcosxAi::VoicePolicy
   REQUESTS = [
-    /(?:manda|mande|envia|envie|enviar|fala|fale|responda|responde|quero|prefiro|preciso|pode|consegue).{0,80}(?:áudio|audio|mensagem de voz)/i,
+    /(?:manda|mande|envia|envie|enviar)\s+(?:(?:pra mim|para mim|me|um|uma|o|a)\s+)*(?:áudio|audio|mensagem de voz)/i,
+    /(?:fala|fale|responda|responde)\b.{0,60}(?:em|por|via|de)\s+(?:áudio|audio|voz|mensagem de voz)/i,
+    /(?:quero|prefiro|preciso)(?:\s+(?:um|uma|receber|ouvir|por|em))*\s+(?:áudio|audio|mensagem de voz)/i,
     /(?:áudio|audio|mensagem de voz).{0,40}(?:por favor|pra mim|para mim)/i,
     /não sei ler|nao sei ler|dificuldade (?:para|pra|de) ler|prefiro ouvir/i,
-    /(?:send|reply|speak|talk|answer).{0,80}(?:audio|voice)|(?:cannot|can't) read/i
+    /(?:send|give)\s+(?:me\s+)?(?:an?\s+)?(?:audio|voice (?:message|note))/i,
+    /(?:reply|speak|talk|answer).{0,40}(?:in|with|by)\s+(?:audio|voice)|(?:cannot|can't) read/i
   ].freeze
   def self.context(assistant:, conversation:)
     settings = assistant.resolved_config[:voice]
@@ -33,6 +36,7 @@ class MarcosxAi::VoicePolicy
   end
 
   def self.declined?(text)
-    text.to_s.match?(/(?:não|nao) (?:me )?(?:mande|manda|envie|envia|quero).{0,20}(?:áudio|audio)|sem (?:áudio|audio)|prefiro (?:por )?texto/i)
+    text.to_s.match?(/(?:não|nao) (?:me )?(?:mande|manda|envie|envia|quero).{0,20}(?:áudio|audio)|sem (?:áudio|audio)|prefiro (?:por )?texto/i) ||
+      text.to_s.match?(/(?:do not|don't) (?:send|use|reply).{0,30}(?:audio|voice)|prefer text|no (?:audio|voice)/i)
   end
 end

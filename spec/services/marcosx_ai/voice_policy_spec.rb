@@ -7,6 +7,14 @@ RSpec.describe MarcosxAi::VoicePolicy do
   let(:plan) { { messages: ['Posso conversar com você.'], reaction: nil, reaction_message_id: nil, handoff: false, handoff_reason: nil } }
   before { allow(assistant).to receive(:voice_ready?).and_return(true) }
 
+  it 'distinguishes requests to speak from questions about audio and respects text preferences in either language' do
+    expect(described_class.requested?('Pode explicar o que é um áudio?')).to be(false)
+    expect(described_class.requested?('Quero saber quais tipos de áudio existem.')).to be(false)
+    expect(described_class.requested?('Me manda um áudio, por favor.')).to be(true)
+    expect(described_class.requested?('Fala comigo em áudio.')).to be(true)
+    expect(described_class.requested?("I prefer text, don't send audio.")).to be(false)
+  end
+
   it 'counts whole replies rather than split parts and respects requests and text preferences' do
     create(:message, conversation: conversation, sender: assistant, message_type: :outgoing,
                      content_attributes: { marcosx_ai_voice_transcript: 'Olá' }, additional_attributes: { trigger_message_id: 10 })
