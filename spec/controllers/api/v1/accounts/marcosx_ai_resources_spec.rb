@@ -55,4 +55,63 @@ RSpec.describe 'MarcoXIA files API', type: :request do
     expect(response.parsed_body['resource']).to include('kind' => 'video', 'enabled' => true)
     expect(response.parsed_body.dig('resource', 'file_url')).to be_present
   end
+
+  it 'saves a multipart batch with separate descriptions and availability in the selected agent catalog' do
+    post "#{endpoint}/create_batch", params: { resources: [
+      { title: 'Photo', description: 'A profile photo', kind: 'file', enabled: 'true',
+        file: Rack::Test::UploadedFile.new(Rails.root.join('spec/assets/sample.png'), 'image/png') },
+      { title: 'Video', description: 'A presentation video', kind: 'file', enabled: 'false',
+        file: Rack::Test::UploadedFile.new(Rails.root.join('spec/assets/sample.mp4'), 'video/mp4') }
+    ] }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:created), response.body
+    expect(response.parsed_body['resources']).to contain_exactly(
+      include('title' => 'Photo', 'description' => 'A profile photo', 'kind' => 'image', 'enabled' => true),
+      include('title' => 'Video', 'description' => 'A presentation video', 'kind' => 'video', 'enabled' => false)
+    )
+    expect(assistant.resources.available.pluck(:title)).to eq(['Photo'])
+    expect(assistant.reload.auto_response_enabled?).to be(false)
+    expect(assistant.resources.map(&:file).map(&:attached?)).to all(be(true))
+  end
+
+  it 'rolls back all records and blobs when any batch description is invalid' do
+    blob_count = ActiveStorage::Blob.count
+    post "#{endpoint}/create_batch", params: { resources: [
+      { title: 'Valid', description: 'A photo', kind: 'file',
+        file: Rack::Test::UploadedFile.new(Rails.root.join('spec/assets/sample.png'), 'image/png') },
+      { title: 'Invalid', description: '', kind: 'file',
+        file: Rack::Test::UploadedFile.new(Rails.root.join('spec/assets/sample.mp4'), 'video/mp4') }
+    ] }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(assistant.resources.count).to eq(0)
+    expect(ActiveStorage::Blob.count).to eq(blob_count)
+  end
+
+  it 'enforces remaining catalog capacity for the entire batch without partial creation' do
+    stub_const('MarcosxAi::Resource::MAX_ITEMS', 2)
+    assistant.resources.create!(account: account, title: 'Saved', description: 'A link', kind: 'link', url: 'https://example.com')
+    post "#{endpoint}/create_batch", params: { resources: [
+      { title: 'One', description: 'First photo', kind: 'file',
+        file: Rack::Test::UploadedFile.new(Rails.root.join('spec/assets/sample.png'), 'image/png') },
+      { title: 'Two', description: 'Second photo', kind: 'file',
+        file: Rack::Test::UploadedFile.new(Rails.root.join('spec/assets/sample.png'), 'image/png') }
+    ] }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(assistant.resources.pluck(:title)).to eq(['Saved'])
+  end
+
+  it 'rejects malformed batch shapes, non-upload sources, non-admins and foreign-account agents' do
+    payload = { resources: [{ title: 'File', description: 'A file', kind: 'file', file: 'signed-blob' }] }
+    post "#{endpoint}/create_batch", params: payload, headers: agent.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unauthorized)
+    post "#{endpoint}/create_batch", params: payload, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unprocessable_entity)
+    post "#{endpoint}/create_batch", params: { resources: { file: 'wrong shape' } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unprocessable_entity)
+    foreign = create(:account).marcosx_ai_assistants.create!(name: 'Foreign')
+    post endpoint.sub("/#{assistant.id}/resources", "/#{foreign.id}/resources") + '/create_batch',
+         params: payload, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:not_found)
+    expect(assistant.resources.count).to eq(0)
+    expect(foreign.resources.count).to eq(0)
+  end
 end

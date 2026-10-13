@@ -496,7 +496,25 @@
       "FILE_LIMIT": "Até 40 MB: JPG, PNG, WebP, GIF, MP4, WebM, MOV, PDF ou TXT.",
       "DELETE_HINT": "Excluir “{name}” deste agente? Arquivos já enviados continuam no histórico das conversas.",
       "ERROR": "Não foi possível salvar ou carregar este item. Tente novamente.",
-      "SIMULATED": "Item selecionado: {name}. Este teste não envia arquivos."
+      "SIMULATED": "Item selecionado: {name}. Este teste não envia arquivos.",
+      "SAVE_ITEMS": "Salvar {count} itens",
+      "SELECT_FILES": "Selecionar arquivos",
+      "ADD_FILES": "Adicionar mais arquivos",
+      "SELECTED_FILES": "Arquivos selecionados",
+      "SELECTION_COUNT": "Arquivos selecionados: {count}",
+      "BATCH_HINT": "Clique em um arquivo para editar seus detalhes. Selecione vários de uma vez ou acrescente mais em outra seleção.",
+      "SELECT_FILES_HINT": "Escolha imagens, vídeos ou documentos para montar sua seleção.",
+      "EDIT_SELECTION": "Editar detalhes de {name}",
+      "REMOVE_FILE": "Remover {name}",
+      "READY_COUNT": "Descrições preenchidas: {ready}/{total}",
+      "BATCH_LIMIT": "Você pode adicionar até {count} novos itens a este agente.",
+      "PLAY_VIDEO": "Reproduzir vídeo",
+      "PAUSE_VIDEO": "Pausar vídeo",
+      "VIDEO_POSITION": "Posição do vídeo",
+      "MUTE_VIDEO": "Silenciar vídeo",
+      "UNMUTE_VIDEO": "Ativar som do vídeo",
+      "EXPAND_VIDEO": "Ampliar vídeo",
+      "VIDEO_ERROR": "Não foi possível reproduzir este vídeo no navegador."
     }
   }
 }

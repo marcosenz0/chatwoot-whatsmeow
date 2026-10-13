@@ -496,7 +496,25 @@
       "FILE_LIMIT": "Up to 40 MB: JPG, PNG, WebP, GIF, MP4, WebM, MOV, PDF or TXT.",
       "DELETE_HINT": "Delete “{name}” from this agent? Files already sent remain in the conversation history.",
       "ERROR": "Unable to save or load this item. Please try again.",
-      "SIMULATED": "Selected item: {name}. This test does not send files."
+      "SIMULATED": "Selected item: {name}. This test does not send files.",
+      "SAVE_ITEMS": "Save {count} items",
+      "SELECT_FILES": "Choose files",
+      "ADD_FILES": "Add more files",
+      "SELECTED_FILES": "Selected files",
+      "SELECTION_COUNT": "Selected files: {count}",
+      "BATCH_HINT": "Click a file to edit its details. Select several files at once or add more in another selection.",
+      "SELECT_FILES_HINT": "Choose images, videos or documents to build your selection.",
+      "EDIT_SELECTION": "Edit details for {name}",
+      "REMOVE_FILE": "Remove {name}",
+      "READY_COUNT": "Descriptions completed: {ready}/{total}",
+      "BATCH_LIMIT": "You can add up to {count} more items to this agent.",
+      "PLAY_VIDEO": "Play video",
+      "PAUSE_VIDEO": "Pause video",
+      "VIDEO_POSITION": "Video position",
+      "MUTE_VIDEO": "Mute video",
+      "UNMUTE_VIDEO": "Unmute video",
+      "EXPAND_VIDEO": "Expand video",
+      "VIDEO_ERROR": "This video could not be played in the browser."
     }
   }
 }

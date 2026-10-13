@@ -133,7 +133,9 @@ Rails.application.routes.draw do
               get :notification_options, on: :collection
               resources :inboxes, only: [:index, :create, :destroy], param: :inbox_id
               resources :test_sessions, only: [:index, :show, :create, :destroy]
-              resources :resources, only: [:index, :create, :update, :destroy]
+              resources :resources, only: [:index, :create, :update, :destroy] do
+                post :create_batch, on: :collection
+              end
               resource :voice, only: [:show, :update, :destroy], controller: 'voices' do
                 post :preview
               end
