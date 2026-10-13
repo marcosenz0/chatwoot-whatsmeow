@@ -14,7 +14,7 @@ class MarcosxAi::VoicePolicy
 
     limit = (settings[:min_text_turns] + 1) * 9
     messages = MarcosxAi::ConversationContext.public_history(conversation).includes(:attachments)
-                                            .reorder(created_at: :desc, id: :desc).limit(limit).to_a
+                                             .reorder(created_at: :desc, id: :desc).limit(limit).to_a
     incoming = messages.take_while { |message| !message.outgoing? }.select(&:incoming?).map do |message|
       transcripts = message.attachments.select(&:audio?).map { |attachment| attachment.meta&.dig('transcribed_text') }
       [message.content, *transcripts].compact.join(' ')
