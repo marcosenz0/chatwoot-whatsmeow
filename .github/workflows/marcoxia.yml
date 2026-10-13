@@ -1,7 +1,7 @@
 name: MarcoXIA validation and image
 on:
   push:
-    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement]
+    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files]
     paths: ['app/**', 'spec/**', 'db/**', 'config/**', 'lib/**', 'Dockerfile', '.github/workflows/marcoxia.yml']
   workflow_dispatch:
 permissions:
@@ -111,6 +111,7 @@ jobs:
           spec/services/marcosx_ai
           spec/controllers/api/v1/accounts/marcosx_ai_spec.rb
           spec/controllers/api/v1/accounts/marcosx_ai_operations_spec.rb
+          spec/controllers/api/v1/accounts/marcosx_ai_resources_spec.rb
           spec/models/attachment_spec.rb
           spec/services/whatsmeow
           spec/services/telegram_personal
@@ -132,6 +133,7 @@ jobs:
           db/migrate/20261009090000_create_marcosx_ai_alerts.rb
           db/migrate/20261009190000_create_marcosx_ai_workspace.rb
           db/migrate/20261011000000_create_marcosx_ai_voice_credentials.rb
+          db/migrate/20261013090000_create_marcosx_ai_resources.rb
           lib/custom_exceptions/marcosx_ai.rb
   publish:
     needs: [frontend, rails]

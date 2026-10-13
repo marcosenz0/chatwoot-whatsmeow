@@ -35,6 +35,8 @@ class MarcosxAi::ConfigurationValidator
     unless settings.is_a?(Hash) && [true, false].include?(settings[:enabled]) &&
            MarcosxAi::VoiceCredential::PROVIDERS.include?(settings[:provider]) && %w[requested contextual].include?(settings[:mode]) &&
            [true, false].include?(settings[:send_text]) && settings[:max_characters].is_a?(Integer) &&
+           settings[:min_text_turns].is_a?(Integer) && settings[:min_text_turns].between?(1, 30) &&
+           settings[:long_message_characters].is_a?(Integer) && settings[:long_message_characters].between?(100, 2000) &&
            settings[:max_characters].between?(100, 3000) && settings[:instructions].is_a?(String) &&
            settings[:instructions].length <= 4000 && settings[:pronunciation].is_a?(String) && settings[:pronunciation].length <= 4000
       raise ArgumentError, 'Invalid voice settings'

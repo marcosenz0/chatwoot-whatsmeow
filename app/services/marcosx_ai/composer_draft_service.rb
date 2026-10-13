@@ -49,7 +49,8 @@ class MarcosxAi::ComposerDraftService
                                                 context: MarcosxAi::PromptBuilder.context_for(@conversation, assistant: assistant),
                                                 reactions: false, proactive: true)
     task = "Operator draft only. Do not send messages or execute actions. #{TASKS.fetch(@action)} " \
-           'Use the conversation language. Return a nonempty draft in messages, with reaction null and handoff false. ' \
+           'Use the conversation language. Return a nonempty draft in messages, with reaction null, handoff false and resource_ids empty. ' \
+           'This text-only draft cannot send files. Do not say a file has been sent or attached. ' \
            'The operator explicitly requested a draft, even if the latest history message already received a reply. Do not choose silence.'
     messages = [*prompts, { role: 'system', content: task }, *history]
     if @content.present?

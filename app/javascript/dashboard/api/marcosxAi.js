@@ -55,6 +55,21 @@ class MarcosxAiAPI extends ApiClient {
     return axios.get(`${this.url}/assistants/${id}/voice`);
   }
 
+  getResources(id, params = {}) {
+    return axios.get(`${this.url}/assistants/${id}/resources`, { params });
+  }
+
+  saveResource(assistantId, id, data) {
+    const url = `${this.url}/assistants/${assistantId}/resources`;
+    return id ? axios.patch(`${url}/${id}`, data) : axios.post(url, data);
+  }
+
+  deleteResource(assistantId, id) {
+    return axios.delete(
+      `${this.url}/assistants/${assistantId}/resources/${id}`
+    );
+  }
+
   saveVoiceKey(id, provider, apiKey) {
     return axios.put(`${this.url}/assistants/${id}/voice`, {
       provider,

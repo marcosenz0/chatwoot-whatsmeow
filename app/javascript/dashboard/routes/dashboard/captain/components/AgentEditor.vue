@@ -17,6 +17,7 @@ import AgentNotifications from './AgentNotifications.vue';
 import AgentAlertList from './AgentAlertList.vue';
 import AgentMemories from './AgentMemories.vue';
 import AgentVoice from './AgentVoice.vue';
+import AgentResources from './AgentResources.vue';
 import AgentSection from './AgentSection.vue';
 import { voiceDefaults } from './agentVoiceDefaults';
 
@@ -127,6 +128,15 @@ const sections = computed(() => [
     icon: 'i-lucide-notebook-pen',
     label: t('MARCOX_AI.EDITOR.PROMPT'),
   },
+  ...(props.canEdit
+    ? [
+        {
+          id: 'resources',
+          icon: 'i-lucide-folder-open',
+          label: t('MARCOX_AI.RESOURCES.TITLE'),
+        },
+      ]
+    : []),
   {
     id: 'inboxes',
     icon: 'i-lucide-inbox',
@@ -395,7 +405,9 @@ const channelLabel = inbox =>
             :aria-selected="section === item.id"
             :disabled="
               (item.id === 'test' && (!form.id || hasUnsavedChanges)) ||
-              (['attendance', 'activity', 'memories'].includes(item.id) &&
+              (['attendance', 'activity', 'memories', 'resources'].includes(
+                item.id
+              ) &&
                 !form.id)
             "
             class="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2.5 text-start text-sm font-medium disabled:opacity-40 lg:w-full"
@@ -417,7 +429,13 @@ const channelLabel = inbox =>
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
         <form
           v-show="
-            !['test', 'attendance', 'activity', 'memories'].includes(section)
+            ![
+              'test',
+              'attendance',
+              'activity',
+              'memories',
+              'resources',
+            ].includes(section)
           "
           id="marcosx-agent-editor"
           class="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6"
@@ -994,6 +1012,10 @@ const channelLabel = inbox =>
             </fieldset>
           </div>
         </form>
+        <AgentResources
+          v-if="section === 'resources' && form.id && canEdit"
+          :agent-id="form.id"
+        />
         <AgentMemories
           v-if="section === 'memories' && form.id && canEdit"
           :agent-id="form.id"

@@ -24,6 +24,10 @@ class MarcosxAi::VoiceClient
       Você pode propor uma resposta por áudio em voice_text; mantenha também a resposta completa em messages como alternativa por texto.
       #{settings[:mode] == 'requested' ? 'Use voice_text apenas se o cliente pedir um áudio ou mensagem de voz.' : 'Use voice_text quando o cliente pedir áudio ou quando uma explicação breve por voz ajudar; não use voz em todo turno.'}
       Para assuntos que exigem atendimento humano, prefira texto e voice_text=null.
+      Se o contexto voice.voice_allowed for false, use voice_text=null. Se voice.voice_requested for true, prepare um áudio.
+      Para áudios espontâneos, respeite pelo menos #{settings[:min_text_turns]} respostas por texto entre áudios.
+      Prefira áudio para uma explicação com cerca de #{settings[:long_message_characters]} caracteres ou mais,
+      ou para uma resposta casual em que a voz ajudar. Não transforme saudações rotineiras em áudio.
       O áudio deve conter a mesma informação da resposta textual, em no máximo #{settings[:max_characters]} caracteres.
       Escreva números, valores, datas e horários como são falados, por extenso. Não inclua URLs, emojis, Markdown ou instruções técnicas.
       Links e dados que precisam ser copiados devem ficar em mensagens de texto separadas.

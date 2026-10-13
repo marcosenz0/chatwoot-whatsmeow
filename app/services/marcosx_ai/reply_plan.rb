@@ -5,6 +5,7 @@ class MarcosxAi::ReplyPlan
     properties: {
       messages: { type: 'array', items: { type: 'string' } },
       voice_text: { type: ['string', 'null'] },
+      resource_ids: { type: 'array', maxItems: 3, items: { type: 'integer' } },
       reaction: { type: ['string', 'null'], enum: [*REACTIONS, nil] },
       reaction_message_id: { type: ['integer', 'null'] },
       handoff: { type: 'boolean' },
@@ -12,12 +13,12 @@ class MarcosxAi::ReplyPlan
       alert_rule_ids: { type: 'array', items: { type: 'string' } },
       recall_context: { type: 'boolean' }
     },
-    required: %w[messages voice_text reaction reaction_message_id handoff handoff_reason alert_rule_ids recall_context]
+    required: %w[messages voice_text resource_ids reaction reaction_message_id handoff handoff_reason alert_rule_ids recall_context]
   }.freeze
 
-  def self.parse(text, assistant:, recent_messages: [])
+  def self.parse(text, assistant:, recent_messages: [], voice_context: nil)
     plan = JSON.parse(text)
-    plan = { 'alert_rule_ids' => [], 'recall_context' => false, 'voice_text' => nil }.merge(plan) if plan.is_a?(Hash)
+    plan = { 'alert_rule_ids' => [], 'recall_context' => false, 'voice_text' => nil, 'resource_ids' => [] }.merge(plan) if plan.is_a?(Hash)
     unless plan.is_a?(Hash) && plan['messages'].is_a?(Array) && plan['messages'].all? { |part| part.is_a?(String) } &&
            [true, false].include?(plan['handoff']) && SCHEMA[:required].all? { |key| plan.key?(key) } &&
            [*REACTIONS, nil].include?(plan['reaction']) && (plan['reaction_message_id'].nil? || plan['reaction_message_id'].is_a?(Integer)) &&
@@ -27,6 +28,7 @@ class MarcosxAi::ReplyPlan
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_response')
     end
 
+    MarcosxAi::ResourceCatalog.validate!(plan['resource_ids'], assistant)
     parts = MarcosxAi::ReplyStyle.apply(plan['messages'].map(&:strip).compact_blank,
                                         assistant: assistant, recent_messages: recent_messages)
     limit = assistant.split_messages? ? assistant.max_message_parts : 1
@@ -37,6 +39,13 @@ class MarcosxAi::ReplyPlan
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_response')
     end
 
+    if voice_context && !plan['handoff']
+      voice = nil unless voice_context[:voice_allowed]
+      if voice_context[:voice_allowed] && voice_context[:voice_requested] && voice.blank?
+        spoken = parts.reject { |part| part.match?(%r{https?://|www\.}i) }.join(' ')
+        voice = spoken if spoken.length <= assistant.resolved_config.dig(:voice, :max_characters)
+      end
+    end
     plan.merge('messages' => parts, 'voice_text' => assistant.voice_ready? ? voice&.strip.presence : nil)
   rescue JSON::ParserError
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_response')

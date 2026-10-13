@@ -30,13 +30,16 @@ class MarcosxAi::DeliveryJob < ApplicationJob
         react(plan)
       end
       audio_count = plan['voice_text'].present? ? 1 : 0
+      resources = Array(plan['resource_ids'])
       message = if part_index.zero? && @audio
                   create_audio_message(plan['voice_text'])
                 elsif part_index - audio_count < plan['messages'].size
                   create_message(plan['messages'][part_index - audio_count])
+                else
+                  create_resource_message(resources[part_index - audio_count - plan['messages'].size])
                 end
       @state.update!(last_ai_message_id: message.id) if message
-      if part_index + 1 >= plan['messages'].size + audio_count
+      if part_index + 1 >= plan['messages'].size + audio_count + resources.size
         finish(plan)
       else
         @state.update!(metadata: @state.metadata.merge('pending_response' => plan.merge('next_part' => part_index + 1)))
@@ -119,6 +122,26 @@ class MarcosxAi::DeliveryJob < ApplicationJob
     end
     MarcosxAi::Log.create!(account: @state.account, assistant: @state.assistant, conversation: @state.conversation,
                            event: plan['handoff'] ? 'handoff' : 'response_sent',
-                           response: { parts: plan['messages'].size, audio: plan['voice_text'].present?, reaction: plan['reaction'] })
+                           response: { parts: plan['messages'].size, audio: plan['voice_text'].present?,
+                                       resources: Array(plan['resource_ids']).size, reaction: plan['reaction'] })
+  end
+
+  def create_resource_message(id)
+    executed_by = Current.executed_by
+    resource = @state.assistant.resources.available.find_by(id: id)
+    return unless resource
+    return create_message(resource.url) if resource.kind == 'link'
+
+    Current.executed_by = @state.assistant
+    message = @state.conversation.messages.new(
+      message_type: :outgoing, account: @state.account, inbox: @state.inbox, sender: @state.assistant,
+      additional_attributes: { marcosx_ai: true, assistant_name: @state.assistant.name,
+                               marcosx_ai_resource_id: resource.id, trigger_message_id: @state.metadata['trigger_message_id'] }
+    )
+    message.attachments.build(account: @state.account, file_type: resource.kind).file.attach(resource.file.blob)
+    message.save!
+    message
+  ensure
+    Current.executed_by = executed_by
   end
 end

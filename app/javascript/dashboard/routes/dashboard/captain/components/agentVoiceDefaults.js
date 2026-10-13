@@ -4,6 +4,8 @@ export const voiceDefaults = {
   mode: 'requested',
   send_text: false,
   max_characters: 1500,
+  min_text_turns: 6,
+  long_message_characters: 450,
   instructions:
     'Use português brasileiro e frases curtas. Escreva números, datas e horários por extenso.',
   pronunciation: '',
