@@ -93,7 +93,7 @@ class MarcosxAi::PromptBuilder
     return history if current.empty?
 
     [*history, { role: 'developer', content: CURRENT_REQUEST_INSTRUCTIONS },
-     { role: 'user', content: { current_request: current.map { |entry| entry[:data] } }.to_json }]
+     { role: 'user', content: { latest_contact_request: current.map { |entry| entry[:data] } }.to_json }]
   end
 
   def self.split_instructions(assistant)

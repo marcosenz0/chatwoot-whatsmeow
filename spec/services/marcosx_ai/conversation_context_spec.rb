@@ -145,7 +145,7 @@ RSpec.describe MarcosxAi::ConversationContext do
     expect(JSON.parse(history.last[:content])['text']).to eq('Reply in audio, I cannot read')
     focused = MarcosxAi::PromptBuilder.focused_history(history)
     expect(focused.to_json).to include(earlier.content)
-    expect(JSON.parse(focused.last[:content]).fetch('current_request').pluck('message_id')).to eq([message.id])
+    expect(JSON.parse(focused.last[:content]).fetch('latest_contact_request').pluck('message_id')).to eq([message.id])
   end
 
   it 'focuses the latest incoming burst for a manual draft even after a previous reply cleared the pending cursor' do
@@ -155,7 +155,7 @@ RSpec.describe MarcosxAi::ConversationContext do
     message
     state.update!(metadata: state.metadata.except('pending_since_message_id'))
     focused = MarcosxAi::PromptBuilder.focused_history(context.messages)
-    expect(JSON.parse(focused.last[:content]).fetch('current_request').pluck('message_id')).to eq([first.id, message.id])
+    expect(JSON.parse(focused.last[:content]).fetch('latest_contact_request').pluck('message_id')).to eq([first.id, message.id])
   end
 end
 

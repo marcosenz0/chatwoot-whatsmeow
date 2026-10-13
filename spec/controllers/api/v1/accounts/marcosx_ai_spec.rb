@@ -320,6 +320,7 @@ RSpec.describe 'MarcoXIA API', type: :request do
     post "#{endpoint}/conversations/#{conversation.display_id}/draft/voice", params: { draft: { content: 'Olá' } }, headers: admin.create_new_auth_token
     expect(response).to have_http_status(:unprocessable_entity)
     foreign = create(:conversation, display_id: 9001)
+    foreign.update_column(:display_id, 9001)
     post "#{endpoint}/conversations/#{foreign.display_id}/draft/voice", params: { draft: { content: 'Olá' } }, headers: admin.create_new_auth_token
     expect(response).to have_http_status(:not_found)
   end
