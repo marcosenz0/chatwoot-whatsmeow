@@ -28,7 +28,7 @@ class MarcosxAi::ConversationResponderService
       prompts << { role: 'developer', content: @assistant.resolved_config[:missed_call_instructions] }
       history << { role: 'user', content: "Evento de ligação encerrada sem atendimento (dados): #{@state.metadata['call_event'].to_json}" }
     end
-    response = client.chat(messages: [*prompts, *history], schema: MarcosxAi::ReplyPlan::SCHEMA)
+    response = client.chat(messages: [*prompts, *MarcosxAi::PromptBuilder.focused_history(history)], schema: MarcosxAi::ReplyPlan::SCHEMA)
     plan = MarcosxAi::ReplyPlan.parse(response, assistant: @assistant, recent_messages: MarcosxAi::ReplyStyle.recent_text(history),
                                                 voice_context: runtime[:voice])
     if plan['recall_context']
@@ -37,7 +37,7 @@ class MarcosxAi::ConversationResponderService
       recalled = MarcosxAi::LinkedContext.new(state: @state).messages(client: client)
       history.concat(recalled.presence || [{ role: 'user',
                                              content: 'Nenhum histórico de outro canal está aprovado. Peça confirmação ao responsável.' }])
-      response = client.chat(messages: [*prompts, *history], schema: MarcosxAi::ReplyPlan::SCHEMA)
+      response = client.chat(messages: [*prompts, *MarcosxAi::PromptBuilder.focused_history(history)], schema: MarcosxAi::ReplyPlan::SCHEMA)
       plan = MarcosxAi::ReplyPlan.parse(response, assistant: @assistant, recent_messages: MarcosxAi::ReplyStyle.recent_text(history),
                                                   voice_context: runtime[:voice])
     end

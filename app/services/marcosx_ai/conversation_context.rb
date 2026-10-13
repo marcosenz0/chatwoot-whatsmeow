@@ -132,6 +132,8 @@ class MarcosxAi::ConversationContext
     end
     data[:forwarded] = true if attributes['forwarded'] || attributes['whatsmeow_forwarded']
     data[:deleted] = true if attributes['deleted'] || attributes['whatsmeow_deleted']
+    transcripts = message.attachments.select(&:audio?).filter_map { |attachment| attachment.meta&.dig('transcribed_text').presence }
+    data[:text] = [text.presence, *transcripts].compact.uniq.join("\n").truncate(15_000)
     { role: message.incoming? ? 'user' : 'assistant', content: data.to_json }
   end
 

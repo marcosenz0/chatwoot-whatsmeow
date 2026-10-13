@@ -71,4 +71,21 @@ RSpec.describe MarcosxAi::ComposerDraftService do
     expect { described_class.new(conversation: conversation, action: 'improve', content: '').perform }.to raise_error(CustomExceptions::MarcosxAi)
     expect(client).not_to have_received(:chat)
   end
+
+  it 'prepares a spoken draft with the selected agent while preserving a paused conversation and making no delivery' do
+    inbox.update!(channel: create(:channel_whatsmeow, account: account))
+    allow_any_instance_of(MarcosxAi::Assistant).to receive(:voice_ready?).and_return(true)
+    assistant.update!(config: assistant.config.deep_merge('voice' => { 'enabled' => true, 'max_characters' => 1200 }))
+    create(:message, conversation: conversation, account: account, inbox: inbox, content: 'Please reply in audio')
+    state = MarcosxAi::ConversationState.for_conversation!(conversation, assistant: assistant)
+    state.wait_for_human!(reason: 'Previous handoff')
+    baseline = state.attributes
+    result = described_class.new(conversation: conversation.reload, action: 'voice_reply').perform
+    expect(result).to include(content: 'Draft for review', assistant_name: 'Support', max_characters: 1200)
+    expect(state.reload.attributes).to eq(baseline)
+    expect(conversation.messages.outgoing.where(private: false)).to be_empty
+    expect(client).to have_received(:chat) do |messages:, **|
+      expect(messages.last[:content]).to include('Please reply in audio', 'current_request')
+    end
+  end
 end

@@ -49,6 +49,7 @@ en:
       invalid_resource: 'Check the name, description, link and file. Use a supported format up to 40 MB.'
       resource_limit: 'Each agent supports up to 100 files and links.'
       invalid_response: 'The model returned an invalid response.'
+      voice_unavailable: 'Configure and enable Voice and audio for this conversation’s agent before preparing a voice reply. The inbox must support audio.'
       empty_response: 'The model returned an empty response.'
       empty_history: 'There are no public messages to analyze.'
       invalid_assistant: 'Choose a valid agent and action.'

@@ -1,7 +1,7 @@
 name: MarcoXIA validation and image
 on:
   push:
-    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch]
+    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context]
     paths: ['app/**', 'spec/**', 'db/**', 'config/**', 'lib/**', 'Dockerfile', '.github/workflows/marcoxia.yml']
   workflow_dispatch:
 permissions:
@@ -32,6 +32,7 @@ jobs:
           app/javascript/dashboard/components/widgets/conversation/specs/ReplyBox.spec.js
           app/javascript/dashboard/helper/specs/instagramMediaHelper.spec.js
           app/javascript/dashboard/components/widgets/conversation/specs/ReplyBoxRecordedAudio.spec.js
+          app/javascript/dashboard/components/widgets/conversation/specs/ConversationVoiceDraft.spec.js
           app/javascript/dashboard/composables/spec/useMarcosxAiDraft.spec.js
       - name: Lint agent interface
         run: >-
@@ -64,6 +65,7 @@ jobs:
           app/javascript/dashboard/components/widgets/WootWriter/CopilotMenuBar.vue
           app/javascript/dashboard/components/widgets/conversation/CopilotEditorSection.vue
           app/javascript/dashboard/components/widgets/conversation/ReplyBox.vue
+          app/javascript/dashboard/components/widgets/conversation/ConversationVoiceDraft.vue
           app/javascript/dashboard/store/modules/conversations/index.js
       - run: pnpm exec vite build
   rails:

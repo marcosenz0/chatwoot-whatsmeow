@@ -147,7 +147,9 @@ Rails.application.routes.draw do
                 post :link
                 delete :unlink
               end
-              resource :draft, only: [:create], controller: 'conversation_drafts'
+              resource :draft, only: [:create], controller: 'conversation_drafts' do
+                post :voice
+              end
               resource :analysis, only: [:show, :create], controller: 'conversation_analyses' do
                 post :send_reply
               end

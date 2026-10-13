@@ -300,6 +300,30 @@ RSpec.describe 'MarcoXIA API', type: :request do
     expect(conversation.reload.marcosx_ai_conversation_state).to be_nil
   end
 
+  it 'previews a voice reply with conversation access, the selected agent and no persisted message' do
+    inbox.update!(channel: create(:channel_whatsmeow, account: account))
+    assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
+    allow_any_instance_of(MarcosxAi::Assistant).to receive(:voice_ready?).and_return(true)
+    voice = instance_double(MarcosxAi::VoiceClient, synthesize: 'test-mp3')
+    allow(MarcosxAi::VoiceClient).to receive(:new).with(assistant: assistant).and_return(voice)
+    expect {
+      post "#{endpoint}/conversations/#{conversation.display_id}/draft/voice", params: { draft: { content: 'Olá' } }, headers: admin.create_new_auth_token
+    }.not_to change(Message, :count)
+    expect(response).to have_http_status(:ok)
+    expect(response.media_type).to eq('audio/mpeg')
+    expect(response.body).to eq('test-mp3')
+    expect(voice).to have_received(:synthesize).with('Olá')
+  end
+
+  it 'rejects voice preview when voice is unconfigured and keeps the API scoped to the current account' do
+    assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
+    post "#{endpoint}/conversations/#{conversation.display_id}/draft/voice", params: { draft: { content: 'Olá' } }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:unprocessable_entity)
+    foreign = create(:conversation, display_id: 9001)
+    post "#{endpoint}/conversations/#{foreign.display_id}/draft/voice", params: { draft: { content: 'Olá' } }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:not_found)
+  end
+
   it 'protects composer drafts outside the operator inboxes' do
     expect(MarcosxAi::ComposerDraftService).not_to receive(:new)
     post "#{endpoint}/conversations/#{conversation.display_id}/draft", params: { draft: { action: 'reply_suggestion' } }, headers: agent.create_new_auth_token
