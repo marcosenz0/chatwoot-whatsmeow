@@ -171,7 +171,7 @@ defineExpose({ open });
         <Button
           type="button"
           slate
-          :label="t('GENERAL.CANCEL')"
+          :label="t('MARCOX_AI.CANCEL')"
           @click="dialog.close()"
         />
         <Button
