@@ -144,7 +144,7 @@ RSpec.describe 'MarcoXIA operations API', type: :request do
   end
 
   it 'paginates fifty memory contacts in global alphabetical order ignoring case and Portuguese accents' do
-    names = ['Álvaro', 'ana', 'Bruno', *Array.new(51) { |index| "Z contact #{index.to_s.rjust(2, '0')} }]
+    names = ['Álvaro', 'ana', 'Bruno', *Array.new(51) { |index| "Z contact #{index.to_s.rjust(2, '0')}" }]
     names.reverse_each do |name|
       contact = create(:contact, account: account, name: name)
       MarcosxAi::ContactMemory.create!(account: account, contact: contact)

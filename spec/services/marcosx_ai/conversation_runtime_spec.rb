@@ -26,6 +26,7 @@ RSpec.describe 'MarcoXIA conversation runtime' do
 
   it 'keeps responding when automatic pause is off while recording handoffs and respecting manual pauses' do
     assistant.update!(config: assistant.resolved_config.merge(pause_on_handoff: true, pause_acknowledgement: false))
+    message.reload
     state.update!(metadata: { automatic_handoff_enabled: false })
     plan.merge!(messages: ['I can explain what is available'], handoff: true, handoff_reason: 'External verification')
     MarcosxAi::ResponseScheduler.perform(message: message)
