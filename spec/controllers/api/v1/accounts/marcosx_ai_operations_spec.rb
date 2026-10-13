@@ -37,6 +37,8 @@ RSpec.describe 'MarcoXIA operations API', type: :request do
     expect(response).to have_http_status(:ok), response.body
     expect(response.parsed_body['snapshot']).to be_nil
     expect(response.parsed_body['sources'].pluck('field')).to include('system', 'editorial', 'platform')
+    get url, params: { message_id: [note.id] }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:unprocessable_entity)
     get url, params: { message_id: note.id }, headers: agent.create_new_auth_token
     expect(response).to have_http_status(:unauthorized)
     other = create(:message)
