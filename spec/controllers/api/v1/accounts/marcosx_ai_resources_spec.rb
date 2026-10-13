@@ -1,0 +1,49 @@
+require 'rails_helper'
+
+RSpec.describe 'MarcoXIA files API', type: :request do
+  let(:account) { create(:account) }
+  let(:admin) { create(:user, account: account, role: :administrator) }
+  let(:agent) { create(:user, account: account, role: :agent) }
+  let(:assistant) { account.marcosx_ai_assistants.create!(name: 'Support') }
+  let(:endpoint) { "/api/v1/accounts/#{account.id}/marcosx_ai/assistants/#{assistant.id}/resources" }
+
+  it 'uploads a native image, edits its context, excludes disabled items and deletes without changing agent activation' do
+    image = Rack::Test::UploadedFile.new(Rails.root.join('spec/assets/sample.png'), 'image/png')
+    post endpoint, params: { resource: { title: 'Photo', description: 'Send this reference photo when requested', kind: 'file', file: image } },
+                   headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:created), response.body
+    item = response.parsed_body['resource']
+    expect(item).to include('kind' => 'image', 'enabled' => true)
+    expect(item['file_url']).to be_present
+    expect(item['thumb_url']).to be_present
+    patch "#{endpoint}/#{item['id']}", params: { resource: { enabled: false, description: 'Updated context' } },
+                                      headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:ok)
+    expect(assistant.resources.available).to be_empty
+    expect(assistant.reload.auto_response_enabled?).to be(false)
+    get endpoint, params: { search: 'Updated' }, headers: admin.create_new_auth_token
+    expect(response.parsed_body['total']).to eq(1)
+    delete "#{endpoint}/#{item['id']}", headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:no_content)
+    expect(assistant.resources).to be_empty
+  end
+
+  it 'validates links and rejects non-admins, foreign agents and attachment IDs instead of uploads' do
+    payload = { resource: { title: 'Link', description: 'A useful reference', kind: 'link', url: 'javascript:alert(1)' } }
+    post endpoint, params: payload, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unprocessable_entity)
+    payload[:resource][:url] = 'https://example.com/info'
+    post endpoint, params: payload, headers: agent.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unauthorized)
+    post endpoint, params: payload, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:created)
+    id = response.parsed_body.dig('resource', 'id')
+    other = account.marcosx_ai_assistants.create!(name: 'Other')
+    patch endpoint.sub(assistant.id.to_s + '/resources', other.id.to_s + '/resources') + "/#{id}",
+          params: { resource: { enabled: false } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:not_found)
+    payload[:resource] = { title: 'File', description: 'A file', kind: 'file', file: 'some-signed-blob' }
+    post endpoint, params: payload, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unprocessable_entity)
+  end
+end

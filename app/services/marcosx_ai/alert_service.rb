@@ -64,6 +64,6 @@ class MarcosxAi::AlertService
     end
 
     state.update!(metadata: state.metadata.merge('run_token' => token, 'pause_ack' => true, 'processing' => true))
-    plan.merge('messages' => plan['messages'].first(1), 'reaction' => nil, 'voice_text' => nil)
+    plan.merge('messages' => plan['messages'].first(1), 'reaction' => nil, 'voice_text' => nil, 'resource_ids' => [])
   end
 end

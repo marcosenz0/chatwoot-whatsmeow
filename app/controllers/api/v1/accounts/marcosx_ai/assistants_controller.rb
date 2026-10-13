@@ -133,6 +133,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
                simulation: { alerts: rules.map { |rule| rule.slice(:id, :name, :action) },
                              paused: rules.any? { |rule| rule[:action] == 'pause' } ||
                                      (plan['handoff'] && @assistant.feature_enabled?(:pause_on_handoff)),
+                             resources: @assistant.resources.where(id: plan['resource_ids']).map(&:catalog_data),
                              recall_requested: plan['recall_context'] },
                user_context: parts.map { |part| part[:text] }.join("\n") }
     session&.complete_turn!(result, token: turn_token)
@@ -193,7 +194,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
         :show_typing, :show_recording, :split_messages, :max_message_parts, :message_interval_seconds, :allow_reactions, :emoji_usage,
         :message_target_characters, :separate_greeting,
         :process_images, :process_audio, :process_files, :process_video, :respond_to_groups, :auto_start,
-        { voice: [:enabled, :provider, :mode, :send_text, :max_characters, :instructions, :pronunciation,
+        { voice: [:enabled, :provider, :mode, :send_text, :max_characters, :min_text_turns, :long_message_characters, :instructions, :pronunciation,
                   { minimax: [:voice_id, :model, :speed, :volume, :pitch],
                     elevenlabs: [:voice_id, :model, :speed, :stability, :similarity_boost, :style] }],
           notifications: [:inbox_id, { user_ids: [], whatsapp_numbers: [] }],

@@ -46,6 +46,8 @@ en:
     errors:
       conversation_unavailable: 'This conversation cannot receive an AI reply right now. Check the channel reply window and agent settings.'
       credential_missing: 'Save and enable a provider connection first.'
+      invalid_resource: 'Check the name, description, link and file. Use a supported format up to 40 MB.'
+      resource_limit: 'Each agent supports up to 100 files and links.'
       invalid_response: 'The model returned an invalid response.'
       empty_response: 'The model returned an empty response.'
       empty_history: 'There are no public messages to analyze.'

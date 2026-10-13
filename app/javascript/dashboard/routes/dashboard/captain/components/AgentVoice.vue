@@ -214,6 +214,39 @@ const numericFields = computed(() =>
             :label="t('MARCOX_AI.VOICE.SEND_TEXT')"
             :description="t('MARCOX_AI.VOICE.SEND_TEXT_HINT')"
           />
+          <div
+            v-if="settings.mode === 'contextual'"
+            class="grid gap-4 sm:grid-cols-2"
+          >
+            <label class="text-sm font-medium">
+              {{ t('MARCOX_AI.VOICE.MIN_TEXT_TURNS') }}
+              <input
+                v-model.number="settings.min_text_turns"
+                type="number"
+                min="1"
+                max="30"
+                class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+              />
+              <span
+                class="mt-2 block text-xs font-normal leading-5 text-n-slate-11"
+                >{{ t('MARCOX_AI.VOICE.MIN_TEXT_TURNS_HINT') }}</span
+              >
+            </label>
+            <label class="text-sm font-medium">
+              {{ t('MARCOX_AI.VOICE.LONG_MESSAGE') }}
+              <input
+                v-model.number="settings.long_message_characters"
+                type="number"
+                min="100"
+                max="2000"
+                class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+              />
+              <span
+                class="mt-2 block text-xs font-normal leading-5 text-n-slate-11"
+                >{{ t('MARCOX_AI.VOICE.LONG_MESSAGE_HINT') }}</span
+              >
+            </label>
+          </div>
         </AgentSection>
         <AgentSection
           :title="t('MARCOX_AI.DESIGN.SPOKEN_TEXT')"

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_10_11_000000) do
+ActiveRecord::Schema[7.2].define(version: 2026_10_13_090000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1452,6 +1452,21 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_11_000000) do
     t.index ["conversation_id"], name: "index_marcosx_ai_logs_on_conversation_id"
   end
 
+  create_table "marcosx_ai_resources", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "assistant_id", null: false
+    t.string "title", null: false
+    t.text "description", null: false
+    t.string "kind", null: false
+    t.text "url"
+    t.boolean "enabled", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_marcosx_ai_resources_on_account_id"
+    t.index ["assistant_id", "enabled"], name: "index_marcosx_ai_resources_on_assistant_id_and_enabled"
+    t.index ["assistant_id"], name: "index_marcosx_ai_resources_on_assistant_id"
+  end
+
   create_table "marcosx_ai_test_sessions", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "assistant_id", null: false
@@ -2103,6 +2118,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_11_000000) do
   add_foreign_key "marcosx_ai_logs", "accounts"
   add_foreign_key "marcosx_ai_logs", "conversations"
   add_foreign_key "marcosx_ai_logs", "marcosx_ai_assistants", column: "assistant_id"
+  add_foreign_key "marcosx_ai_resources", "accounts"
+  add_foreign_key "marcosx_ai_resources", "marcosx_ai_assistants", column: "assistant_id"
   add_foreign_key "marcosx_ai_test_sessions", "accounts", on_delete: :cascade
   add_foreign_key "marcosx_ai_test_sessions", "marcosx_ai_assistants", column: "assistant_id", on_delete: :cascade
   add_foreign_key "marcosx_ai_test_sessions", "users", on_delete: :cascade

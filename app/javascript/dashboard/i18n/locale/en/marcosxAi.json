@@ -397,7 +397,11 @@
       "PREVIEW_HINT": "Generates private audio without sending it to a contact. Uses saved settings and may consume voice and text-normalization credits.",
       "GENERATE": "Generate preview",
       "ERROR": "Unable to complete. Check saved settings, key, balance and voice ID.",
-      "SIMULATED": "Proposed audio in simulation — no audio generated or sent"
+      "SIMULATED": "Proposed audio in simulation — no audio generated or sent",
+      "MIN_TEXT_TURNS": "Text replies between spontaneous audios",
+      "MIN_TEXT_TURNS_HINT": "Counts complete replies, regardless of message splitting. A direct audio request can bypass this interval.",
+      "LONG_MESSAGE": "Consider audio for longer explanations",
+      "LONG_MESSAGE_HINT": "Approximate character length. The agent still chooses the format that fits the conversation."
     },
     "SPLITTING": {
       "TARGET": "Desired message length (characters)",
@@ -455,6 +459,43 @@
       "EXCERPTS": "Excerpts to review: text matches, without attributing an exact cause.",
       "GO_EXCERPT": "Go to this excerpt",
       "FULL_SOURCE": "View full instruction"
+    },
+    "RESOURCES": {
+      "TITLE": "Files",
+      "HINT": "Give this agent images, videos, documents and links it can send when a contact asks. Each item has its own description and availability.",
+      "ADD": "Add item",
+      "SEARCH": "Search files and descriptions",
+      "COUNT": "{count} items",
+      "LOADING": "Loading files…",
+      "EMPTY": "No matching files or links",
+      "EMPTY_HINT": "Add a photo, an information sheet or a link, then describe when the agent should use it.",
+      "KIND_IMAGE": "Image",
+      "KIND_VIDEO": "Video",
+      "KIND_FILE": "Document",
+      "KIND_LINK": "Link",
+      "AVAILABLE": "Available to the agent",
+      "DISABLED": "Disabled",
+      "OPEN": "Open",
+      "DISABLE": "Disable item",
+      "ENABLE": "Enable item",
+      "EDIT": "Edit item",
+      "DELETE": "Delete item",
+      "SAVE": "Save item",
+      "SAVE_HINT": "Items are saved here independently from the agent settings. Up to 100 items per agent. The AI sends them only in conversations where it is active.",
+      "UPLOAD": "File",
+      "SELECT_FILE": "Choose file",
+      "REPLACE_FILE": "Replace file",
+      "NAME": "Name",
+      "NAME_HINT": "Photo, information sheet, useful link…",
+      "URL": "Link address",
+      "DESCRIPTION": "Description and when to send",
+      "DESCRIPTION_HINT": "This is the information sheet. Send it when someone asks for the sheet or available options.",
+      "DESCRIPTION_HELP": "Explain what this item contains, who or what it shows, and requests it answers. If several items look similar, make their differences clear.",
+      "ENABLED_HINT": "Disabled items are excluded from the agent catalog and future deliveries.",
+      "FILE_LIMIT": "Up to 40 MB: JPG, PNG, WebP, GIF, MP4, WebM, MOV, PDF or TXT.",
+      "DELETE_HINT": "Delete “{name}” from this agent? Files already sent remain in the conversation history.",
+      "ERROR": "Unable to save or load this item. Please try again.",
+      "SIMULATED": "Selected item: {name}. This test does not send files."
     }
   }
 }

@@ -24,6 +24,28 @@ RSpec.describe 'MarcoXIA conversation runtime' do
     clear_enqueued_jobs
   end
 
+  it 'delivers only the selected agent’s native files and exact saved links without duplicating a retried part' do
+    photo = assistant.resources.new(account: account, title: 'Photo', description: 'A reference photo', kind: 'file')
+    photo.file.attach(io: File.open(Rails.root.join('spec/assets/sample.png')), filename: 'photo.png', content_type: 'image/png')
+    photo.save!
+    link = assistant.resources.create!(account: account, title: 'Information', description: 'A reference link',
+                                       kind: 'link', url: 'https://example.com/info?a=1')
+    plan.merge!(messages: ['Segue o arquivo.'], resource_ids: [photo.id, link.id])
+    MarcosxAi::ResponseScheduler.perform(message: message)
+    token = state.reload.metadata['run_token']
+    MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, message.id, token)
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 1)
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 1)
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 2)
+    outgoing = conversation.messages.outgoing.where(private: false).order(:id)
+    expect(outgoing.size).to eq(3)
+    expect(outgoing.second.attachments.first.file.blob).to eq(photo.file.blob)
+    expect(outgoing.last.content).to eq(link.url)
+    expect(outgoing.map(&:sender)).to all(eq(assistant))
+    expect(state.reload.metadata['processing']).to be(false)
+  end
+
   it 'keeps responding when automatic pause is off while recording handoffs and respecting manual pauses' do
     assistant.update!(config: assistant.resolved_config.merge(pause_on_handoff: true, pause_acknowledgement: false))
     message.reload
@@ -197,6 +219,7 @@ RSpec.describe 'MarcoXIA conversation runtime' do
   end
 
   it 'sends requested audio with a stored transcript and retains links as separate text without duplicate sends' do
+    message.update_columns(content: 'Me responde em áudio, por favor.')
     allow_any_instance_of(MarcosxAi::Assistant).to receive(:voice_ready?).and_return(true)
     voice_client = instance_double(MarcosxAi::VoiceClient, synthesize: 'ID3')
     allow(MarcosxAi::VoiceClient).to receive(:new).and_return(voice_client)
@@ -217,6 +240,7 @@ RSpec.describe 'MarcoXIA conversation runtime' do
   end
 
   it 'falls back to the full text response when voice synthesis fails' do
+    message.update_columns(content: 'Me responde em áudio, por favor.')
     allow_any_instance_of(MarcosxAi::Assistant).to receive(:voice_ready?).and_return(true)
     voice_client = instance_double(MarcosxAi::VoiceClient)
     allow(MarcosxAi::VoiceClient).to receive(:new).and_return(voice_client)
@@ -233,6 +257,7 @@ RSpec.describe 'MarcoXIA conversation runtime' do
   end
 
   it 'does not send synthesized audio after the operator pauses the agent during synthesis' do
+    message.update_columns(content: 'Me responde em áudio, por favor.')
     allow_any_instance_of(MarcosxAi::Assistant).to receive(:voice_ready?).and_return(true)
     voice_client = instance_double(MarcosxAi::VoiceClient)
     allow(MarcosxAi::VoiceClient).to receive(:new).and_return(voice_client)

@@ -28,6 +28,7 @@ class MarcosxAi::Assistant < ApplicationRecord
     emoji_usage: 'occasional',
     voice: {
       enabled: false, provider: 'minimax', mode: 'requested', send_text: false, max_characters: 1500,
+      min_text_turns: 6, long_message_characters: 450,
       instructions: 'Use português brasileiro e frases curtas. Escreva números, datas e horários por extenso.',
       pronunciation: '',
       minimax: { voice_id: '', model: 'speech-2.8-hd', speed: 1.0, volume: 1.0, pitch: 0 },
@@ -59,6 +60,7 @@ class MarcosxAi::Assistant < ApplicationRecord
   has_many :logs, class_name: 'MarcosxAi::Log', dependent: :nullify, inverse_of: :assistant
   has_many :alerts, class_name: 'MarcosxAi::Alert', dependent: :nullify, inverse_of: :assistant
   has_many :voice_credentials, class_name: 'MarcosxAi::VoiceCredential', dependent: :destroy, inverse_of: :assistant
+  has_many :resources, class_name: 'MarcosxAi::Resource', dependent: :destroy, inverse_of: :assistant
 
   validates :name, presence: true
   validates :account_id, presence: true

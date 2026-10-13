@@ -329,6 +329,14 @@ const send = async () => {
             }}
           </p>
           <p
+            v-for="resource in item.simulation?.resources || []"
+            :key="resource.id"
+            class="flex items-center gap-2 rounded-lg border border-n-weak p-3 text-xs text-n-slate-11"
+          >
+            <span class="i-lucide-paperclip size-4 shrink-0" />
+            {{ t('MARCOX_AI.RESOURCES.SIMULATED', { name: resource.title }) }}
+          </p>
+          <p
             v-for="alert in item.simulation?.alerts || []"
             :key="alert.id"
             class="text-xs text-n-slate-11"

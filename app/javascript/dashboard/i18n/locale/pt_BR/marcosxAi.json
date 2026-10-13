@@ -397,7 +397,11 @@
       "PREVIEW_HINT": "Gera um áudio privado, sem enviar ao contato. Usa a configuração salva e pode consumir saldo do provedor e créditos de normalização do texto.",
       "GENERATE": "Gerar prévia",
       "ERROR": "Não foi possível concluir. Confira as configurações salvas, a chave, o saldo e o ID da voz.",
-      "SIMULATED": "Áudio proposto na simulação — nenhum áudio gerado ou enviado"
+      "SIMULATED": "Áudio proposto na simulação — nenhum áudio gerado ou enviado",
+      "MIN_TEXT_TURNS": "Respostas por texto entre áudios espontâneos",
+      "MIN_TEXT_TURNS_HINT": "Conta respostas completas, mesmo que sejam divididas em várias mensagens. Um pedido direto de áudio pode ignorar esse intervalo.",
+      "LONG_MESSAGE": "Considerar áudio em explicações maiores",
+      "LONG_MESSAGE_HINT": "Tamanho aproximado em caracteres. O agente ainda escolhe o formato adequado à conversa."
     },
     "SPLITTING": {
       "TARGET": "Tamanho desejado por mensagem (caracteres)",
@@ -455,6 +459,43 @@
       "EXCERPTS": "Trechos para revisar: correspondências de texto, sem atribuição de causa exata.",
       "GO_EXCERPT": "Ir para este trecho",
       "FULL_SOURCE": "Ver instrução completa"
+    },
+    "RESOURCES": {
+      "TITLE": "Arquivos",
+      "HINT": "Cadastre imagens, vídeos, documentos e links que este agente pode enviar quando a pessoa pedir. Cada item tem sua descrição e disponibilidade.",
+      "ADD": "Adicionar item",
+      "SEARCH": "Buscar arquivos e descrições",
+      "COUNT": "{count} itens",
+      "LOADING": "Carregando arquivos…",
+      "EMPTY": "Nenhum arquivo ou link encontrado",
+      "EMPTY_HINT": "Adicione uma foto, uma tabela ou um link e descreva quando o agente deve usá-lo.",
+      "KIND_IMAGE": "Imagem",
+      "KIND_VIDEO": "Vídeo",
+      "KIND_FILE": "Documento",
+      "KIND_LINK": "Link",
+      "AVAILABLE": "Disponível para a IA",
+      "DISABLED": "Desativado",
+      "OPEN": "Abrir",
+      "DISABLE": "Desativar item",
+      "ENABLE": "Ativar item",
+      "EDIT": "Editar item",
+      "DELETE": "Excluir item",
+      "SAVE": "Salvar item",
+      "SAVE_HINT": "Os itens são salvos aqui, separadamente das configurações do agente. Até 100 itens por agente. A IA envia somente nas conversas em que está ligada.",
+      "UPLOAD": "Arquivo",
+      "SELECT_FILE": "Selecionar arquivo",
+      "REPLACE_FILE": "Substituir arquivo",
+      "NAME": "Nome",
+      "NAME_HINT": "Foto, tabela, link útil…",
+      "URL": "Endereço do link",
+      "DESCRIPTION": "Descrição e quando enviar",
+      "DESCRIPTION_HINT": "Esta é a tabela de informações. Envie quando a pessoa pedir a tabela ou as opções disponíveis.",
+      "DESCRIPTION_HELP": "Explique o conteúdo, quem ou o que aparece no arquivo e quais pedidos ele atende. Se houver itens parecidos, descreva a diferença.",
+      "ENABLED_HINT": "Itens desativados ficam fora do catálogo da IA e dos próximos envios.",
+      "FILE_LIMIT": "Até 40 MB: JPG, PNG, WebP, GIF, MP4, WebM, MOV, PDF ou TXT.",
+      "DELETE_HINT": "Excluir “{name}” deste agente? Arquivos já enviados continuam no histórico das conversas.",
+      "ERROR": "Não foi possível salvar ou carregar este item. Tente novamente.",
+      "SIMULATED": "Item selecionado: {name}. Este teste não envia arquivos."
     }
   }
 }
