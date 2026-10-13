@@ -537,7 +537,7 @@ const remove = async () => {
                 "
                 :aria-pressed="entry.key === activeKey"
                 :disabled="saving"
-                class="reset-base relative block aspect-square w-full overflow-hidden rounded-xl border-2 bg-n-solid-2 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-blue-9"
+                class="reset-base relative block aspect-square w-full overflow-hidden rounded-xl !border-2 !border-solid bg-n-solid-2 text-start transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-n-blue-9"
                 :class="
                   entry.key === activeKey
                     ? 'border-n-blue-9 ring-2 ring-n-blue-9/20'
@@ -565,13 +565,14 @@ const remove = async () => {
                   v-else
                   class="i-lucide-file-text absolute left-1/2 top-1/2 size-9 -translate-x-1/2 -translate-y-1/2 text-n-slate-10"
                 />
-                <span
+                <div
                   v-if="mediaKind(entry) === 'video'"
                   class="pointer-events-none absolute inset-0 flex items-center justify-center"
-                  ><span class="rounded-full bg-n-solid-2/80 p-2"
-                    ><span
-                      class="i-lucide-play block size-5 text-n-slate-12" /></span
-                ></span>
+                >
+                  <div class="rounded-full bg-n-solid-2/80 p-2">
+                    <span class="i-lucide-play block size-5 text-n-slate-12" />
+                  </div>
+                </div>
                 <span
                   class="absolute bottom-0 start-0 flex w-full items-center gap-1.5 bg-n-solid-2/90 p-2 text-xs text-n-slate-12"
                 >
@@ -678,11 +679,10 @@ const remove = async () => {
               class="reset-base mt-2 block min-h-28 w-full resize-y rounded-lg border border-n-weak bg-n-background p-3 text-sm"
               :placeholder="t('MARCOX_AI.RESOURCES.DESCRIPTION_HINT')"
             />
-            <span
-              class="mt-2 block text-xs font-normal leading-5 text-n-slate-11"
-              >{{ t('MARCOX_AI.RESOURCES.DESCRIPTION_HELP') }}</span
-            >
           </label>
+          <p class="m-0 text-xs leading-5 text-n-slate-11">
+            {{ t('MARCOX_AI.RESOURCES.DESCRIPTION_HELP') }}
+          </p>
           <AiToggleRow
             v-model="draft.enabled"
             :disabled="saving"

@@ -41,7 +41,7 @@ const fullscreen = async () => {
 <template>
   <div
     ref="container"
-    class="overflow-hidden rounded-xl border border-n-weak bg-n-solid-2"
+    class="overflow-hidden rounded-xl border border-n-weak bg-n-solid-2 [&:fullscreen]:flex [&:fullscreen]:flex-col [&:fullscreen>video]:aspect-auto [&:fullscreen>video]:min-h-0 [&:fullscreen>video]:max-h-none [&:fullscreen>video]:flex-1"
   >
     <video
       ref="video"
