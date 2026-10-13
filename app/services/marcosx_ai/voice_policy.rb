@@ -1,7 +1,7 @@
 class MarcosxAi::VoicePolicy
   REQUESTS = [
     /(?:manda|mande|envia|envie|enviar)\s+(?:(?:pra mim|para mim|me|um|uma|o|a)\s+)*(?:áudio|audio|mensagem de voz)/i,
-    /(?:fala|fale|responda|responde)\b.{0,60}(?:em|por|via|de)\s+(?:áudio|audio|voz|mensagem de voz)/i,
+    /(?:fala|fale|responda|responde|converse|conversa|conversar)\b.{0,60}(?:em|por|via|de)\s+(?:áudio|audio|voz|mensagem de voz)/i,
     /(?:quero|prefiro|preciso)(?:\s+(?:um|uma|receber|ouvir|por|em))*\s+(?:áudio|audio|mensagem de voz)/i,
     /(?:áudio|audio|mensagem de voz).{0,40}(?:por favor|pra mim|para mim)/i,
     /não sei ler|nao sei ler|dificuldade (?:para|pra|de) ler|prefiro ouvir/i,
@@ -13,8 +13,12 @@ class MarcosxAi::VoicePolicy
     return { voice_allowed: false, voice_requested: false, text_turns_since_audio: 0 } unless assistant.voice_ready?
 
     limit = (settings[:min_text_turns] + 1) * 9
-    messages = MarcosxAi::ConversationContext.public_history(conversation).reorder(created_at: :desc, id: :desc).limit(limit).to_a
-    incoming = messages.take_while { |message| !message.outgoing? }.select(&:incoming?).map(&:content).join(' ')
+    messages = MarcosxAi::ConversationContext.public_history(conversation).includes(:attachments)
+                                             .reorder(created_at: :desc, id: :desc).limit(limit).to_a
+    incoming = messages.take_while { |message| !message.outgoing? }.select(&:incoming?).map do |message|
+      transcripts = message.attachments.select(&:audio?).map { |attachment| attachment.meta&.dig('transcribed_text') }
+      [message.content, *transcripts].compact.join(' ')
+    end.join(' ')
     requested = requested?(incoming)
     outgoing = messages.select { |message| message.outgoing? && message.sender_type == 'MarcosxAi::Assistant' && message.sender_id == assistant.id }
     voice_index = outgoing.index { |message| message.content_attributes['marcosx_ai_voice_transcript'].present? }

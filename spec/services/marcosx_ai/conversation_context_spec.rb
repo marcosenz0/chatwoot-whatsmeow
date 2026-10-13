@@ -38,6 +38,20 @@ RSpec.describe MarcosxAi::ConversationContext do
     expect(data.dig('reply_to', 'text')).to eq('Our announcement')
   end
 
+  it 'marks only the new incoming burst as the current request while retaining the older discussion for context' do
+    earlier = create(:message, account: account, inbox: inbox, conversation: conversation, content: 'An earlier request')
+    answer = create(:message, account: account, inbox: inbox, conversation: conversation, message_type: :outgoing,
+                             content: 'The earlier answer')
+    first = create(:message, account: account, inbox: inbox, conversation: conversation, content: 'A new topic')
+    message
+    state.update!(metadata: state.metadata.merge('pending_since_message_id' => first.id))
+    data = context.messages.map { |item| JSON.parse(item[:content]) }
+    expect(data.select { |item| item['current_request'] }.pluck('message_id')).to eq([first.id, message.id])
+    expect(data.reject { |item| item['current_request'] }.pluck('message_id')).to include(earlier.id, answer.id)
+    state.update!(metadata: state.metadata.except('pending_since_message_id'))
+    expect(context.messages.map { |item| JSON.parse(item[:content])['current_request'] }).to all(be(false))
+  end
+
   it 'uses the inbox timezone for current time and dated messages from previous days' do
     inbox.update!(timezone: 'America/Araguaina')
     message.update!(created_at: Time.utc(2026, 10, 7, 1, 30))

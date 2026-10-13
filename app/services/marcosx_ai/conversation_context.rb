@@ -115,6 +115,7 @@ class MarcosxAi::ConversationContext
     text = attributes['marcosx_ai_voice_transcript'].presence || message.processed_message_content.presence || message.content
     data = {
       message_id: message.id,
+      current_request: @state.metadata['pending_since_message_id'].present? && current_message?(message),
       sent_at: message.created_at.in_time_zone(MarcosxAi::PromptBuilder.timezone_for(@conversation, assistant: @assistant)).iso8601,
       sender: message.sender&.name,
       text: text.to_s.truncate(15_000),

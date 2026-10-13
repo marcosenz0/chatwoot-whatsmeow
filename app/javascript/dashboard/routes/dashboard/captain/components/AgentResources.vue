@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { useDebounceFn } from '@vueuse/core';
+import { useDebounceFn, useObjectUrl } from '@vueuse/core';
 import { useI18n } from 'vue-i18n';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import Button from 'dashboard/components-next/button/Button.vue';
@@ -23,7 +23,18 @@ const deleteDialog = ref(null);
 const deleting = ref(null);
 const upload = ref(null);
 const file = ref(null);
+const selectedFileUrl = useObjectUrl(file);
 const draft = ref({});
+const previewUrl = computed(
+  () => selectedFileUrl.value || draft.value.file_url
+);
+const previewKind = computed(() =>
+  file.value ? file.value.type.split('/')[0] : draft.value.kind
+);
+const clearFile = () => {
+  file.value = null;
+  if (upload.value) upload.value.value = '';
+};
 let generation = 0;
 const icons = {
   image: 'i-lucide-image',
@@ -70,7 +81,7 @@ watch(
   }, 250)
 );
 const openEditor = item => {
-  file.value = null;
+  clearFile();
   formError.value = '';
   draft.value = item
     ? { ...item }
@@ -224,6 +235,15 @@ const remove = async () => {
               loading="lazy"
               class="h-full w-full object-contain"
             />
+            <video
+              v-else-if="item.kind === 'video'"
+              :src="`${item.file_url}#t=0.001`"
+              :aria-label="item.title"
+              preload="metadata"
+              muted
+              playsinline
+              class="h-full w-full object-contain"
+            />
             <span
               v-else
               :class="icons[item.kind]"
@@ -344,16 +364,19 @@ const remove = async () => {
       :is-loading="saving"
       :prevent-close="saving"
       @confirm="save"
+      @close="clearFile"
     >
-      <div class="max-h-[58vh] space-y-5 overflow-y-auto pe-2">
+      <div class="max-h-[58vh] space-y-5 overflow-y-auto p-1">
         <div v-if="!draft.id" class="grid grid-cols-2 gap-2">
           <Button
+            type="button"
             :variant="draft.kind === 'file' ? 'solid' : 'outline'"
             icon="i-lucide-paperclip"
             :label="t('MARCOX_AI.RESOURCES.UPLOAD')"
             @click="draft.kind = 'file'"
           />
           <Button
+            type="button"
             :variant="draft.kind === 'link' ? 'solid' : 'outline'"
             icon="i-lucide-link"
             :label="t('MARCOX_AI.RESOURCES.KIND_LINK')"
@@ -366,7 +389,7 @@ const remove = async () => {
             <input
               v-model="draft.title"
               maxlength="120"
-              class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+              class="reset-base mt-2 block w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
               :placeholder="t('MARCOX_AI.RESOURCES.NAME_HINT')"
             />
           </label>
@@ -379,7 +402,7 @@ const remove = async () => {
               v-model="draft.url"
               type="url"
               maxlength="2048"
-              class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+              class="reset-base mt-2 block w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
             />
           </label>
           <div v-else class="space-y-2 text-sm">
@@ -395,6 +418,7 @@ const remove = async () => {
               @change="selectFile"
             />
             <Button
+              type="button"
               variant="outline"
               color="slate"
               icon="i-lucide-upload"
@@ -407,10 +431,49 @@ const remove = async () => {
               "
               @click="upload.click()"
             />
-            <p class="m-0 break-all text-xs text-n-slate-11">
+            <p v-if="!previewUrl" class="m-0 break-all text-xs text-n-slate-11">
               {{ file?.name || draft.file_name }}
             </p>
           </div>
+        </div>
+        <div
+          v-if="draft.kind !== 'link' && previewUrl"
+          class="relative overflow-hidden rounded-xl border border-n-weak bg-n-alpha-1"
+        >
+          <div class="flex h-40 items-center justify-center p-3">
+            <img
+              v-if="previewKind === 'image'"
+              :src="previewUrl"
+              :alt="file?.name || draft.file_name"
+              class="h-full w-full object-contain"
+            />
+            <video
+              v-else-if="previewKind === 'video'"
+              :src="`${previewUrl}#t=0.001`"
+              :aria-label="file?.name || draft.file_name"
+              preload="metadata"
+              controls
+              playsinline
+              class="h-full w-full object-contain"
+            />
+            <span v-else class="i-lucide-file-text size-10 text-n-slate-10" />
+          </div>
+          <Button
+            v-if="file"
+            type="button"
+            size="xs"
+            color="slate"
+            icon="i-lucide-x"
+            class="absolute right-2 top-2"
+            :aria-label="t('MARCOX_AI.RESOURCES.REMOVE_SELECTION')"
+            :disabled="saving"
+            @click="clearFile"
+          />
+          <p
+            class="m-0 break-all border-t border-n-weak p-3 text-xs text-n-slate-11"
+          >
+            {{ file?.name || draft.file_name }}
+          </p>
         </div>
         <label class="block text-sm font-medium text-n-slate-12">
           {{ t('MARCOX_AI.RESOURCES.DESCRIPTION') }}
@@ -418,7 +481,7 @@ const remove = async () => {
             v-model="draft.description"
             rows="4"
             maxlength="800"
-            class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+            class="reset-base mt-2 block min-h-28 w-full resize-y rounded-lg border border-n-weak bg-n-background p-3 text-sm"
             :placeholder="t('MARCOX_AI.RESOURCES.DESCRIPTION_HINT')"
           />
           <span

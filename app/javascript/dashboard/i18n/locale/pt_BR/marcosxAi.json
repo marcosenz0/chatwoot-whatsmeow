@@ -485,6 +485,7 @@
       "UPLOAD": "Arquivo",
       "SELECT_FILE": "Selecionar arquivo",
       "REPLACE_FILE": "Substituir arquivo",
+      "REMOVE_SELECTION": "Remover arquivo selecionado",
       "NAME": "Nome",
       "NAME_HINT": "Foto, tabela, link útil…",
       "URL": "Endereço do link",
