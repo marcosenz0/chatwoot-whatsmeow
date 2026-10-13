@@ -88,7 +88,9 @@ onMounted(async () => {
     :cancel-button-label="t('MARCOX_AI.WORKSPACE.CLOSE')"
     @close="close"
   >
-    <div class="max-h-[calc(100dvh-16rem)] space-y-4 overflow-y-auto pe-2">
+    <div
+      class="max-h-[calc(100dvh-16rem)] space-y-4 overflow-y-auto pe-2 text-n-slate-12"
+    >
       <p v-if="isPending" class="text-sm text-n-slate-11">
         {{ t('MARCOX_AI.DECISION.LOADING') }}
       </p>
@@ -137,14 +139,23 @@ onMounted(async () => {
             :key="rule.id"
             class="rounded-lg bg-n-alpha-1 p-3"
           >
-            <p class="m-0 font-medium">{{ rule.name }} · {{ rule.action }}</p>
+            <p class="m-0 font-medium">
+              {{ rule.name }} ·
+              {{
+                t(
+                  rule.action === 'pause'
+                    ? 'MARCOX_AI.AUTOMATION.ACTION_PAUSE'
+                    : 'MARCOX_AI.AUTOMATION.ACTION_NOTIFY'
+                )
+              }}
+            </p>
             <p class="mb-0 mt-1 text-xs text-n-slate-11">
               {{ rule.description }}
             </p>
           </div>
         </div>
         <div
-          class="flex items-center justify-between gap-3 rounded-lg border border-n-weak p-4"
+          class="flex flex-col items-start justify-between gap-3 rounded-lg border border-n-weak p-4 sm:flex-row sm:items-center"
         >
           <div class="space-y-1 text-sm">
             <p class="m-0">{{ t('MARCOX_AI.DECISION.NOTIFICATIONS') }}</p>
@@ -167,6 +178,7 @@ onMounted(async () => {
           </div>
           <Button
             icon="i-lucide-arrow-up-right"
+            class="shrink-0"
             variant="faded"
             color="blue"
             :label="t('MARCOX_AI.DECISION.OPEN')"
