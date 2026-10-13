@@ -18,22 +18,22 @@ class Api::V1::Accounts::MarcosxAi::ResourcesController < Api::V1::Accounts::Mar
         return render json: { error: I18n.t('marcosx_ai.errors.resource_limit') }, status: :unprocessable_entity
       end
 
-      @resource = @assistant.resources.create!(resource_params.merge(account: Current.account))
+      @item = @assistant.resources.create!(resource_params.merge(account: Current.account))
     end
-    render json: { resource: @resource.public_data }, status: :created
+    render json: { resource: @item.public_data }, status: :created
   rescue ActiveRecord::RecordInvalid, ArgumentError
     render_invalid
   end
 
   def update
-    @resource.update!(resource_params)
-    render json: { resource: @resource.public_data }
+    @item.update!(resource_params)
+    render json: { resource: @item.public_data }
   rescue ActiveRecord::RecordInvalid, ArgumentError
     render_invalid
   end
 
   def destroy
-    @resource.destroy!
+    @item.destroy!
     head :no_content
   end
 
@@ -44,7 +44,8 @@ class Api::V1::Accounts::MarcosxAi::ResourcesController < Api::V1::Accounts::Mar
   end
 
   def set_resource
-    @resource = @assistant.resources.find(params[:id])
+    # Devise Token Auth reserves @resource for the authenticated user.
+    @item = @assistant.resources.find(params[:id])
   end
 
   def resource_params

@@ -9,6 +9,7 @@ RSpec.describe MarcosxAi::ResourceCatalog do
   }
 
   it 'exposes descriptions without file URLs and rejects disabled, invented or another agent’s IDs' do
+    resource
     expect(described_class.instructions(assistant)).to include(resource.title, resource.description)
     expect(described_class.validate!([resource.id], assistant)).to eq([resource.id])
     other = account.marcosx_ai_assistants.create!(name: 'Other')

@@ -483,6 +483,8 @@
       "SAVE": "Save item",
       "SAVE_HINT": "Items are saved here independently from the agent settings. Up to 100 items per agent. The AI sends them only in conversations where it is active.",
       "UPLOAD": "File",
+      "SELECT_FILE": "Choose file",
+      "REPLACE_FILE": "Replace file",
       "NAME": "Name",
       "NAME_HINT": "Photo, information sheet, useful link…",
       "URL": "Link address",

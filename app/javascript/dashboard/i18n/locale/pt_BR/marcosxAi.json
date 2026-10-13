@@ -483,6 +483,8 @@
       "SAVE": "Salvar item",
       "SAVE_HINT": "Os itens são salvos aqui, separadamente das configurações do agente. Até 100 itens por agente. A IA envia somente nas conversas em que está ligada.",
       "UPLOAD": "Arquivo",
+      "SELECT_FILE": "Selecionar arquivo",
+      "REPLACE_FILE": "Substituir arquivo",
       "NAME": "Nome",
       "NAME_HINT": "Foto, tabela, link útil…",
       "URL": "Endereço do link",

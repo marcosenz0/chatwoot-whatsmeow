@@ -257,7 +257,7 @@ const remove = async () => {
               </span>
             </div>
             <p
-              class="m-0 line-clamp-3 min-h-12 break-words text-sm leading-6 text-n-slate-11"
+              class="m-0 line-clamp-3 min-h-[4.5rem] break-words text-sm leading-6 text-n-slate-11"
             >
               {{ item.description }}
             </p>
@@ -389,9 +389,22 @@ const remove = async () => {
               ref="upload"
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime,application/pdf,text/plain"
-              class="block w-full text-xs text-n-slate-11"
+              class="hidden"
               :aria-label="t('MARCOX_AI.RESOURCES.UPLOAD')"
               @change="selectFile"
+            />
+            <Button
+              variant="outline"
+              color="slate"
+              icon="i-lucide-upload"
+              :label="
+                t(
+                  draft.file_name
+                    ? 'MARCOX_AI.RESOURCES.REPLACE_FILE'
+                    : 'MARCOX_AI.RESOURCES.SELECT_FILE'
+                )
+              "
+              @click="upload.click()"
             />
             <p class="m-0 break-all text-xs text-n-slate-11">
               {{ file?.name || draft.file_name }}
