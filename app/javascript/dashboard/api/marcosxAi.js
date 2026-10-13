@@ -64,6 +64,13 @@ class MarcosxAiAPI extends ApiClient {
     return id ? axios.patch(`${url}/${id}`, data) : axios.post(url, data);
   }
 
+  saveResourceBatch(assistantId, data) {
+    return axios.post(
+      `${this.url}/assistants/${assistantId}/resources/create_batch`,
+      data
+    );
+  }
+
   deleteResource(assistantId, id) {
     return axios.delete(
       `${this.url}/assistants/${assistantId}/resources/${id}`

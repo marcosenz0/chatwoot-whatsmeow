@@ -32,6 +32,30 @@ class Api::V1::Accounts::MarcosxAi::ResourcesController < Api::V1::Accounts::Mar
     render_invalid
   end
 
+  def create_batch
+    entries = params.require(:resources)
+    raise ArgumentError unless entries.is_a?(Array) && entries.size.between?(1, MarcosxAi::Resource::MAX_ITEMS)
+
+    records = entries.map do |entry|
+      raise ArgumentError unless entry.is_a?(ActionController::Parameters)
+
+      data = resource_params(entry)
+      raise ArgumentError unless data['kind'] == 'file' && data['file'].present?
+
+      data
+    end
+    @assistant.with_lock do
+      if @assistant.resources.count + records.size > MarcosxAi::Resource::MAX_ITEMS
+        return render json: { error: I18n.t('marcosx_ai.errors.resource_limit') }, status: :unprocessable_entity
+      end
+
+      @items = records.map { |data| @assistant.resources.create!(data.merge(account: Current.account)) }
+    end
+    render json: { resources: @items.map(&:public_data) }, status: :created
+  rescue ActiveRecord::RecordInvalid, ArgumentError
+    render_invalid
+  end
+
   def destroy
     @item.destroy!
     head :no_content
@@ -48,8 +72,8 @@ class Api::V1::Accounts::MarcosxAi::ResourcesController < Api::V1::Accounts::Mar
     @item = @assistant.resources.find(params[:id])
   end
 
-  def resource_params
-    data = params.require(:resource).permit(:title, :description, :kind, :url, :enabled, :file).to_h
+  def resource_params(entry = params.require(:resource))
+    data = entry.permit(:title, :description, :kind, :url, :enabled, :file).to_h
     if data.key?('enabled')
       raise ArgumentError unless [true, false, 'true', 'false'].include?(data['enabled'])
 
