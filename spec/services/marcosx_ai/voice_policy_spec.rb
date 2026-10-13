@@ -20,8 +20,8 @@ RSpec.describe MarcosxAi::VoicePolicy do
     create(:message, conversation: conversation, sender: assistant, message_type: :outgoing,
                      content: 'A previous reply', content_attributes: { marcosx_ai_voice_transcript: 'An earlier audio' })
     incoming = create(:message, conversation: conversation, message_type: :incoming, content: nil)
-    attachment = create(:attachment, message: incoming, file_type: :audio,
-                                     meta: { transcribed_text: 'Converse em áudio comigo, Emilly, eu não sei ler.' })
+    attachment = incoming.attachments.create!(account: account, file_type: :audio,
+                                              meta: { transcribed_text: 'Converse em áudio comigo, Emilly, eu não sei ler.' })
     expect(MarcosxAi::MediaContext).not_to receive(:new)
     expect(described_class.context(assistant: assistant, conversation: conversation)).to include(voice_allowed: true, voice_requested: true)
     attachment.update!(meta: { transcribed_text: 'Prefiro texto, não mande áudio.' })

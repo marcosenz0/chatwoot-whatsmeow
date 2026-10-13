@@ -47,13 +47,12 @@ RSpec.describe 'MarcoXIA files API', type: :request do
     expect(response).to have_http_status(:unprocessable_entity)
   end
 
-  it 'provides a native frame thumbnail for uploaded videos as well as the original file' do
+  it 'uploads a video for the browser preview while native video previewers remain disabled' do
     video = Rack::Test::UploadedFile.new(Rails.root.join('spec/assets/sample.mp4'), 'video/mp4')
     post endpoint, params: { resource: { title: 'Video', description: 'A reference video', kind: 'file', file: video } },
                    headers: admin.create_new_auth_token
     expect(response).to have_http_status(:created), response.body
     expect(response.parsed_body['resource']).to include('kind' => 'video', 'enabled' => true)
-    expect(response.parsed_body.dig('resource', 'thumb_url')).to include('/representations/')
     expect(response.parsed_body.dig('resource', 'file_url')).to be_present
   end
 end

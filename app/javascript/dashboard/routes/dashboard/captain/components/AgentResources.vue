@@ -235,6 +235,15 @@ const remove = async () => {
               loading="lazy"
               class="h-full w-full object-contain"
             />
+            <video
+              v-else-if="item.kind === 'video'"
+              :src="`${item.file_url}#t=0.001`"
+              :aria-label="item.title"
+              preload="metadata"
+              muted
+              playsinline
+              class="h-full w-full object-contain"
+            />
             <span
               v-else
               :class="icons[item.kind]"
