@@ -246,7 +246,15 @@
     },
     "COMPOSER": {
       "THINKING": "MarcoXIA is preparing your draft…",
-      "REFINE": "Ask MarcoXIA to adjust this draft…"
+      "REFINE": "Ask MarcoXIA to adjust this draft…",
+      "VOICE_TITLE": "Prepare a voice reply",
+      "VOICE_HINT": "Uses this conversation’s agent and latest request. Listen and review before adding the audio to your reply. Works while AI is paused; nothing is sent automatically.",
+      "VOICE_TEXT": "Spoken reply",
+      "VOICE_COUNT": "{count} / {max} characters",
+      "VOICE_WORKING": "Preparing your voice reply…",
+      "VOICE_GENERATE": "Generate audio",
+      "VOICE_USE": "Add audio to reply",
+      "VOICE_CHANGED": "The text changed. Generate the audio again before using it."
     },
     "AUTOMATION": {
       "NOTIFICATIONS": "Notifications",

@@ -11,6 +11,14 @@ class MarcosxAi::PromptBuilder
     Não mencione atrasos, datas ou horários nem peça desculpas por uma demora sem motivo na conversa.
   PROMPT
 
+  CURRENT_REQUEST_INSTRUCTIONS = <<~PROMPT.freeze
+    A seguir está o pedido atual do contato, extraído das últimas mensagens e transcrições. O histórico anterior é apenas contexto.
+    Responda ao conteúdo deste pedido. Não substitua o assunto atual por uma pendência antiga nem repita a resposta anterior.
+    Pedir outro formato de resposta não é solicitar uma ação externa. Gere o áudio quando disponível e solicitado.
+    Encaminhe ou acione regras de pausa somente por uma necessidade expressa neste pedido atual.
+    Se o contato corrigir sua interpretação anterior, considere a correção. Não trate a própria resposta anterior como prova da intenção dele.
+  PROMPT
+
   def self.timezone_for(conversation, assistant: nil)
     assistant_timezone = assistant&.resolved_config&.dig(:timezone)
     return assistant_timezone if assistant_timezone.present?
@@ -68,6 +76,24 @@ class MarcosxAi::PromptBuilder
       Uma mudança de assunto ou de formato, como pedir áudio, não renova um pedido antigo de encontro, agendamento ou outra ação externa.
       Solicite atendimento humano por uma necessidade do pedido atual, não apenas porque esse assunto apareceu no histórico.
     PROMPT
+  end
+
+  def self.focused_history(history)
+    entries = history.filter_map do |entry|
+      data = JSON.parse(entry[:content])
+      { role: entry[:role], data: data } if data.is_a?(Hash) && data['message_id']
+    rescue JSON::ParserError
+      nil
+    end
+    current = entries.select { |entry| entry[:role] == 'user' && entry[:data]['current_request'] }
+    if current.empty?
+      current = entries.reverse.drop_while { |entry| entry[:role] != 'user' }
+                       .take_while { |entry| entry[:role] == 'user' }.reverse
+    end
+    return history if current.empty?
+
+    [*history, { role: 'developer', content: CURRENT_REQUEST_INSTRUCTIONS },
+     { role: 'user', content: { latest_contact_request: current.map { |entry| entry[:data] } }.to_json }]
   end
 
   def self.split_instructions(assistant)

@@ -246,7 +246,15 @@
     },
     "COMPOSER": {
       "THINKING": "A MarcoXIA está preparando seu rascunho…",
-      "REFINE": "Peça à MarcoXIA para ajustar este rascunho…"
+      "REFINE": "Peça à MarcoXIA para ajustar este rascunho…",
+      "VOICE_TITLE": "Preparar resposta em áudio",
+      "VOICE_HINT": "Usa o agente desta conversa e o pedido mais recente. Ouça e revise antes de adicionar o áudio à resposta. Funciona com a IA pausada; nada é enviado automaticamente.",
+      "VOICE_TEXT": "Texto que será falado",
+      "VOICE_COUNT": "{count} / {max} caracteres",
+      "VOICE_WORKING": "Preparando a resposta em áudio…",
+      "VOICE_GENERATE": "Gerar áudio",
+      "VOICE_USE": "Adicionar áudio à resposta",
+      "VOICE_CHANGED": "O texto foi alterado. Gere o áudio novamente antes de usá-lo."
     },
     "AUTOMATION": {
       "NOTIFICATIONS": "Notificações",

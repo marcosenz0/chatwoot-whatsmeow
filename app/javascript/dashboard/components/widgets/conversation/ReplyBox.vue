@@ -65,6 +65,7 @@ import MessageSignatureMissingAlert from './MessageSignatureMissingAlert.vue';
 import CopilotEditorSection from './CopilotEditorSection.vue';
 import ReplyEmailHead from './ReplyEmailHead.vue';
 import ReplyToMessage from './ReplyToMessage.vue';
+import ConversationVoiceDraft from './ConversationVoiceDraft.vue';
 
 const EmojiIconPicker = defineAsyncComponent(
   () =>
@@ -73,6 +74,7 @@ const EmojiIconPicker = defineAsyncComponent(
 
 export default {
   components: {
+    ConversationVoiceDraft,
     ArticleSearchPopover,
     AttachmentPreview,
     AudioRecorder,
@@ -1169,6 +1171,10 @@ export default {
       this.onFocus();
     },
     executeCopilotAction(action, data) {
+      if (action === 'voice_reply') {
+        this.$refs.voiceDraft.open();
+        return;
+      }
       this.copilot.execute(action, data);
     },
     clearMessage() {
@@ -1553,6 +1559,12 @@ export default {
 </script>
 
 <template>
+  <ConversationVoiceDraft
+    ref="voiceDraft"
+    :conversation-id="conversationId"
+    :assistant-id="currentChat.marcosx_ai?.assistant_id || null"
+    @use-audio="onFileUpload"
+  />
   <ReplyBoxBanner :message="message" :is-on-private-note="isOnPrivateNote" />
   <div class="reply-box" :class="replyBoxClass">
     <ReplyTopPanel

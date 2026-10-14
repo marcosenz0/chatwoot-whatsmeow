@@ -229,6 +229,14 @@ class MarcosxAiAPI extends ApiClient {
     );
   }
 
+  previewConversationVoice(conversationId, content, options = {}) {
+    return axios.post(
+      `${this.url}/conversations/${conversationId}/draft/voice`,
+      { draft: { content } },
+      { ...options, responseType: 'blob' }
+    );
+  }
+
   getConversationState(conversationId) {
     return axios.get(`${this.url}/conversations/${conversationId}/state`);
   }

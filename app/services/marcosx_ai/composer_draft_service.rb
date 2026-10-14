@@ -1,6 +1,8 @@
 class MarcosxAi::ComposerDraftService
   TASKS = {
     'reply_suggestion' => 'Suggest the next reply to the contact, following the configured system prompt and conversation context.',
+    'voice_reply' => 'Prepare a short spoken reply to the latest contact request. ' \
+                     'Return the complete spoken text in messages, without URLs, emoji or Markdown.',
     'summarize' => 'Write a concise factual summary for the operator, preserving outstanding requests and relevant dates.',
     'improve' => 'Improve the supplied draft without adding unconfirmed facts.',
     'fix_spelling_grammar' => 'Correct spelling and grammar in the supplied draft while preserving its meaning.',
@@ -32,8 +34,12 @@ class MarcosxAi::ComposerDraftService
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_assistant') unless assistant
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.credential_missing') unless assistant.available?
 
-    if !%w[reply_suggestion summarize].include?(@action) && (!@content.is_a?(String) || @content.blank?)
+    if !%w[reply_suggestion voice_reply summarize].include?(@action) && (!@content.is_a?(String) || @content.blank?)
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_response')
+    end
+
+    if @action == 'voice_reply' && (!assistant.voice_ready? || !MarcosxAi::VoiceClient::CHANNELS.include?(@conversation.inbox.channel_type))
+      raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.voice_unavailable')
     end
 
     trigger = MarcosxAi::ConversationContext.public_history(@conversation).order(:created_at, :id).last
@@ -52,7 +58,11 @@ class MarcosxAi::ComposerDraftService
            'Use the conversation language. Return a nonempty draft in messages, with reaction null, handoff false and resource_ids empty. ' \
            'This text-only draft cannot send files. Do not say a file has been sent or attached. ' \
            'The operator explicitly requested a draft, even if the latest history message already received a reply. Do not choose silence.'
-    messages = [*prompts, { role: 'system', content: task }, *history]
+    if @action == 'voice_reply'
+      task += ' The operator will review and generate the audio. ' \
+              "Keep the spoken draft within #{assistant.resolved_config.dig(:voice, :max_characters)} characters."
+    end
+    messages = [*prompts, { role: 'system', content: task }, *MarcosxAi::PromptBuilder.focused_history(history)]
     if @content.present?
       draft = { draft_to_edit: @content.to_s.truncate(15_000), operator_request: @instruction.to_s.truncate(2000) }
       messages << { role: 'user', content: draft.to_json }
@@ -61,10 +71,12 @@ class MarcosxAi::ComposerDraftService
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response') if plan['messages'].empty?
 
     latest = MarcosxAi::ConversationContext.public_history(@conversation).order(:created_at, :id).last
-    if assistant.reload.updated_at != version || latest&.id != trigger.id
+    if assistant.reload.updated_at != version || latest&.id != trigger.id || @conversation.reload.marcosx_ai_assistant&.id != assistant.id
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.analysis_outdated')
     end
 
-    { content: plan['messages'].join("\n\n"), assistant_name: assistant.name }
+    result = { content: plan['messages'].join("\n\n"), assistant_name: assistant.name }
+    result[:max_characters] = assistant.resolved_config.dig(:voice, :max_characters) if @action == 'voice_reply'
+    result
   end
 end

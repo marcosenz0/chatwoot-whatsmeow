@@ -127,6 +127,11 @@ const generalMenuItems = computed(() => {
       key: 'reply_suggestion',
       icon: 'i-fluent-chat-sparkle-16-regular',
     });
+    items.push({
+      label: t('MARCOX_AI.COMPOSER.VOICE_TITLE'),
+      key: 'voice_reply',
+      icon: 'i-lucide-mic',
+    });
   }
 
   if (

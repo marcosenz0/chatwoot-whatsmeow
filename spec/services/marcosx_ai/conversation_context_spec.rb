@@ -134,5 +134,28 @@ RSpec.describe MarcosxAi::ConversationContext do
     data = context.messages.map { |item| JSON.parse(item[:content]) }.find { |item| item['message_id'] == image.id }
     expect(data.dig('attachments', 0, 'description')).to eq('Visible image text')
   end
+
+  it 'places a cached incoming audio transcript in the main text and focuses it without discarding previous history' do
+    earlier = create(:message, conversation: conversation, account: account, inbox: inbox, content: 'An earlier appointment')
+    create(:message, conversation: conversation, account: account, inbox: inbox, message_type: :outgoing, content: 'Already answered')
+    message.update!(content: '')
+    message.attachments.create!(account: account, file_type: :audio, meta: { transcribed_text: 'Reply in audio, I cannot read' })
+    state.update!(metadata: state.metadata.merge('pending_since_message_id' => message.id))
+    history = context.messages
+    expect(JSON.parse(history.last[:content])['text']).to eq('Reply in audio, I cannot read')
+    focused = MarcosxAi::PromptBuilder.focused_history(history)
+    expect(focused.to_json).to include(earlier.content)
+    expect(JSON.parse(focused.last[:content]).fetch('latest_contact_request').pluck('message_id')).to eq([message.id])
+  end
+
+  it 'focuses the latest incoming burst for a manual draft even after a previous reply cleared the pending cursor' do
+    create(:message, conversation: conversation, account: account, inbox: inbox, content: 'Old topic')
+    create(:message, conversation: conversation, account: account, inbox: inbox, message_type: :outgoing, content: 'Old answer')
+    first = create(:message, conversation: conversation, account: account, inbox: inbox, content: 'New topic')
+    message
+    state.update!(metadata: state.metadata.except('pending_since_message_id'))
+    focused = MarcosxAi::PromptBuilder.focused_history(context.messages)
+    expect(JSON.parse(focused.last[:content]).fetch('latest_contact_request').pluck('message_id')).to eq([first.id, message.id])
+  end
 end
 
