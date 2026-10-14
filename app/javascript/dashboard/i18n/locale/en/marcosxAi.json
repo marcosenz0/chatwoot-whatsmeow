@@ -258,7 +258,8 @@
       "REVIEW_TITLE": "Review reply",
       "REVIEW_TEXT": "Text to send",
       "REVIEW_SEND": "Send reply",
-      "REPLY_SENT": "Reply sent. Check delivery in the conversation."
+      "REPLY_SENT": "Reply sent. Check delivery in the conversation.",
+      "REVIEW_HINT": "Review and edit the agent’s reply before sending. Preparing a reply neither enables AI nor sends messages."
     },
     "AUTOMATION": {
       "NOTIFICATIONS": "Notifications",

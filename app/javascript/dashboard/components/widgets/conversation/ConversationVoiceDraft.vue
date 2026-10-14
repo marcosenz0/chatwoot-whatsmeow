@@ -154,7 +154,13 @@ defineExpose({ open });
           : 'MARCOX_AI.COMPOSER.REVIEW_TITLE'
       )
     "
-    :description="t('MARCOX_AI.COMPOSER.VOICE_HINT')"
+    :description="
+      t(
+        voiceMode
+          ? 'MARCOX_AI.COMPOSER.VOICE_HINT'
+          : 'MARCOX_AI.COMPOSER.REVIEW_HINT'
+      )
+    "
     :show-confirm-button="false"
     :show-cancel-button="false"
     @close="reset"
@@ -208,6 +214,7 @@ defineExpose({ open });
           type="button"
           slate
           :label="t('MARCOX_AI.CANCEL')"
+          :disabled="sending"
           @click="dialog.close()"
         />
         <Button

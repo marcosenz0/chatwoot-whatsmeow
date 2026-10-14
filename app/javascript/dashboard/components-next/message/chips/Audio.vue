@@ -41,8 +41,15 @@ defineOptions({
   inheritAttrs: false,
 });
 
-const { contentAttributes, conversationId, id, inboxId, orientation, sender } =
-  useMessageContext();
+const {
+  contentAttributes,
+  conversationId,
+  id,
+  inboxId,
+  orientation,
+  sender,
+  isMarcoxMessage,
+} = useMessageContext();
 const store = useStore();
 const { t } = useI18n();
 
@@ -405,7 +412,7 @@ const playerToneClass = computed(() => {
   return 'bg-n-slate-4 text-n-slate-12';
 });
 const playerClass = computed(() => [
-  'flex w-80 max-w-full min-w-0 items-center gap-2 rounded-xl px-3 py-2 shadow-[0_1px_1px_rgba(0,0,0,0.14)]',
+  'flex w-80 max-w-full min-w-0 flex-wrap items-center gap-2 rounded-xl px-3 py-2 shadow-[0_1px_1px_rgba(0,0,0,0.14)]',
   playerToneClass.value,
 ]);
 const playedBarClass = computed(() =>
@@ -712,7 +719,7 @@ const changePlaybackSpeed = () => {
             {{ displayTime }}
           </span>
           <MessageMeta
-            v-if="props.showMessageMeta"
+            v-if="props.showMessageMeta && !isMarcoxMessage"
             class="ml-auto min-w-0 overflow-hidden justify-end text-[10px] font-medium leading-none text-n-slate-11"
           />
         </div>
@@ -734,6 +741,10 @@ const changePlaybackSpeed = () => {
           <Icon class="size-2.5" icon="i-lucide-mic" />
         </span>
       </div>
+      <MessageMeta
+        v-if="props.showMessageMeta && isMarcoxMessage"
+        class="basis-full justify-end flex-wrap text-[10px] font-medium leading-none text-n-slate-11"
+      />
     </div>
 
     <div v-if="showAudioActions" class="flex flex-wrap items-center gap-2 px-1">

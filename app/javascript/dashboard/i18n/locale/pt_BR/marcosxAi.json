@@ -258,7 +258,8 @@
       "REVIEW_TITLE": "Revisar resposta",
       "REVIEW_TEXT": "Texto que será enviado",
       "REVIEW_SEND": "Enviar resposta",
-      "REPLY_SENT": "Resposta enviada. Acompanhe a entrega na conversa."
+      "REPLY_SENT": "Resposta enviada. Acompanhe a entrega na conversa.",
+      "REVIEW_HINT": "Revise e edite a resposta do agente antes de enviar. Preparar uma resposta não ativa a IA nem envia mensagens."
     },
     "AUTOMATION": {
       "NOTIFICATIONS": "Notificações",
