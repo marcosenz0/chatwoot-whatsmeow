@@ -1,5 +1,13 @@
 # Chatwoot Development Guidelines
 
+## Required fork UI convention — Marco, October 14, 2026
+
+- New or changed selectors and dropdowns must use the existing Chatwoot design system (`AiSelect`, `components-next/dropdown-menu`, or the matching shipped control). Do not introduce browser-native `<select>/<option>` menus in custom interfaces.
+- Match the surrounding Chatwoot trigger, menu, spacing, radius, hover and selected states. Reuse the existing Lucide/SVG icons when the same choices already exist elsewhere (for example Pix types in `WhatsmeowPixModal.vue`).
+- Keep the chevron in a dedicated `shrink-0` icon with real end padding; use `min-w-0`/truncation for labels. Do not rely on a native select arrow or a clipped background image.
+- In dialogs, verify the open menu stays above the form, fits its field/viewport and is not clipped by scroll containers. Verify keyboard choice, Escape returning focus, and a narrow viewport with the actual Chatwoot stylesheet before declaring the visual fix complete.
+- This convention applies to the whole fork and future interfaces, across principal, MX and MD. Record user-visible changes and verification in the relevant handoff document.
+
 ## Build / Test / Lint
 
 - **Setup**: `bundle install && pnpm install`

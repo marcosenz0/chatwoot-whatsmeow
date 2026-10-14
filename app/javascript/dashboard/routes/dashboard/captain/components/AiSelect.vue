@@ -55,6 +55,7 @@ const openWithKeyboard = async event => {
 const menuKeys = event => {
   if (event.key === 'Escape') {
     event.preventDefault();
+    event.stopPropagation();
     container.value.close();
     trigger.value?.$el.focus();
     return;
@@ -76,7 +77,10 @@ const menuKeys = event => {
 </script>
 
 <template>
-  <DropdownContainer ref="container" class="w-full min-w-0">
+  <DropdownContainer
+    ref="container"
+    class="w-full min-w-0 [&>div.absolute]:w-full"
+  >
     <template #trigger="{ toggle, isOpen }">
       <Button
         ref="trigger"
@@ -97,11 +101,23 @@ const menuKeys = event => {
         "
         @keydown.down="openWithKeyboard"
         @keydown.up="openWithKeyboard"
-      />
+      >
+        <span class="flex min-w-0 flex-1 items-center gap-2.5 text-start">
+          <span
+            v-if="selected?.icon"
+            :class="selected.icon"
+            class="size-4 shrink-0 text-n-slate-11"
+          />
+          <span class="min-w-0 truncate">{{
+            selected?.label || placeholder || t('COMBOBOX.PLACEHOLDER')
+          }}</span>
+        </span>
+      </Button>
     </template>
-    <div ref="menu" class="relative z-50" @keydown="menuKeys">
+    <div ref="menu" class="relative z-50 w-full" @keydown="menuKeys">
       <DropdownBody
-        class="!static w-80 max-w-[calc(100vw-2rem)] [&>ul]:gap-0.5"
+        class="!static max-w-[calc(100vw-2rem)] [&>ul]:gap-0.5"
+        :class="teleport ? 'w-80' : 'w-full'"
       >
         <li v-if="searchable" class="mb-1 border-b border-n-weak pb-2">
           <label class="relative block">

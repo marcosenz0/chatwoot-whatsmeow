@@ -7,6 +7,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import WhatsmeowPixCard from 'next/message/WhatsmeowPixCard.vue';
 import PixIcon from 'next/icon/PixIcon.vue';
 import AiToggleRow from './AiToggleRow.vue';
+import AiSelect from './AiSelect.vue';
 
 const props = defineProps({ agentId: { type: Number, required: true } });
 const { t } = useI18n();
@@ -22,7 +23,18 @@ const draft = ref({});
 const activeCount = computed(
   () => items.value.filter(item => item.enabled).length
 );
-const keyTypes = ['PHONE', 'CPF', 'EMAIL', 'EVP'];
+const keyTypes = computed(() =>
+  [
+    ['PHONE', 'i-lucide-smartphone'],
+    ['CPF', 'i-lucide-id-card'],
+    ['EMAIL', 'i-lucide-mail'],
+    ['EVP', 'i-lucide-key-round'],
+  ].map(([value, icon]) => ({
+    value,
+    icon,
+    label: t(`CONVERSATION.WHATSMEOW_PIX.KEY_TYPES.${value}`),
+  }))
+);
 const valid = computed(() =>
   ['title', 'key', 'merchant_name'].every(field => draft.value[field]?.trim())
 );
@@ -291,14 +303,17 @@ const remove = async () => {
               :class="inputClass"
               maxlength="120"
           /></label>
-          <label class="block space-y-2 text-sm font-medium text-n-slate-12"
-            ><span>{{ t('CONVERSATION.WHATSMEOW_PIX.KEY_TYPE') }}</span
-            ><select v-model="draft.key_type" :class="inputClass">
-              <option v-for="type in keyTypes" :key="type" :value="type">
-                {{ t(`CONVERSATION.WHATSMEOW_PIX.KEY_TYPES.${type}`) }}
-              </option>
-            </select></label
-          >
+          <div class="space-y-2">
+            <span class="text-sm font-medium text-n-slate-12">{{
+              t('CONVERSATION.WHATSMEOW_PIX.KEY_TYPE')
+            }}</span>
+            <AiSelect
+              v-model="draft.key_type"
+              :options="keyTypes"
+              :label="t('CONVERSATION.WHATSMEOW_PIX.KEY_TYPE')"
+              :teleport="false"
+            />
+          </div>
           <label class="block space-y-2 text-sm font-medium text-n-slate-12"
             ><span>{{ t('CONVERSATION.WHATSMEOW_PIX.KEY') }}</span>
             <input
