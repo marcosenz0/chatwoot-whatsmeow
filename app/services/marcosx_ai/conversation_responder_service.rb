@@ -37,7 +37,7 @@ class MarcosxAi::ConversationResponderService
     end
     response = client.chat(messages: [*prompts, *MarcosxAi::PromptBuilder.focused_history(history)], schema: MarcosxAi::ReplyPlan::SCHEMA)
     plan = MarcosxAi::ReplyPlan.parse(response, assistant: @assistant, recent_messages: MarcosxAi::ReplyStyle.recent_text(history),
-                                                voice_context: runtime[:voice])
+                                                voice_context: runtime[:voice], pix_available: runtime[:pix_available])
     if plan['recall_context']
       return unless @state.reload.current_run?(@token)
 
@@ -46,10 +46,11 @@ class MarcosxAi::ConversationResponderService
                                              content: 'Nenhum histórico de outro canal está aprovado. Peça confirmação ao responsável.' }])
       response = client.chat(messages: [*prompts, *MarcosxAi::PromptBuilder.focused_history(history)], schema: MarcosxAi::ReplyPlan::SCHEMA)
       plan = MarcosxAi::ReplyPlan.parse(response, assistant: @assistant, recent_messages: MarcosxAi::ReplyStyle.recent_text(history),
-                                                  voice_context: runtime[:voice])
+                                                  voice_context: runtime[:voice], pix_available: runtime[:pix_available])
     end
     plan['messages'] = [@assistant.handoff_message] if plan['handoff'] && plan['messages'].empty? && @assistant.handoff_message.present?
-    if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff'] && plan['alert_rule_ids'].empty? && plan['resource_ids'].empty?
+    if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff'] &&
+       plan['alert_rule_ids'].empty? && plan['resource_ids'].empty? && plan['pix_key_id'].nil?
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response')
     end
 

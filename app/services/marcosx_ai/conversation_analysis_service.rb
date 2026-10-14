@@ -58,7 +58,7 @@ class MarcosxAi::ConversationAnalysisService
         Em summary, resuma toda a conversa fornecida: fatos confirmados, preferências, pendências e o último contexto.
         Em next_step, explique brevemente a melhor próxima ação ao atendente. Prepare em messages uma resposta ao contato,
         seguindo as instruções do agente. Use o resumo anterior como contexto factual, sem inventar informações.
-        Este rascunho revisado envia somente texto: use resource_ids=[] e não diga que um arquivo foi enviado ou anexado.
+        Este rascunho revisado envia somente texto: use resource_ids=[] e pix_key_id=null; não digite chave Pix e não diga que um arquivo foi enviado ou anexado.
       PROMPT
     }
     result = JSON.parse(client.chat(messages: [*prompts, *MarcosxAi::PromptBuilder.focused_history(context)], schema: SCHEMA))
@@ -107,7 +107,8 @@ class MarcosxAi::ConversationAnalysisService
         raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.conversation_unavailable')
       end
 
-      plan = MarcosxAi::ReplyPlan.parse(analysis.fetch('plan').merge('messages' => messages, 'voice_text' => nil, 'resource_ids' => []).to_json,
+      plan = MarcosxAi::ReplyPlan.parse(analysis.fetch('plan').merge('messages' => messages, 'voice_text' => nil,
+                                                                     'resource_ids' => [], 'pix_key_id' => nil).to_json,
                                         assistant: @assistant)
       if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff'] && plan['alert_rule_ids'].empty?
         raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response')

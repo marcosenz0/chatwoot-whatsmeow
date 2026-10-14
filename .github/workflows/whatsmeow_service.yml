@@ -10,6 +10,7 @@ on:
       - develop
       - codex/whatsmeow-stars-groups
       - codex/whatsmeow-deleted-messages
+      - codex/marcoxia-pix-keys
     paths:
       - 'whatsmeow-service/**'
       - '.github/workflows/whatsmeow_service.yml'
@@ -36,10 +37,13 @@ jobs:
           module_dir="$(go list -m -f '{{.Dir}}' github.com/polymorfa/hypermeow)"
           chmod -R u+w "$module_dir"
           patch -d "$module_dir" -p1 < patches/hypermeow-status-receipt-participant.patch
+          patch -d "$module_dir" -p1 < patches/hypermeow-profile-about.patch
+          patch -d "$module_dir" -p1 < patches/hypermeow-pix-business-node.patch
           module_dir="$(go list -m -f '{{.Dir}}' github.com/purpshell/meowcaller)"
           chmod -R u+w "$module_dir"
           patch -d "$module_dir" -p1 < patches/meowcaller-linked-device-reject.patch
           patch -d "$module_dir" -p1 < patches/meowcaller-group-jid.patch
+      - run: go test github.com/polymorfa/hypermeow -run 'TestPix|TestNativeFlow|TestHeterogeneousNativeFlow' -count=1
       - run: go test github.com/purpshell/meowcaller/... -count=1
       - run: go test ./...
       - run: go vet ./...

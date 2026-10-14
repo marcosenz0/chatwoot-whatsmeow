@@ -31,15 +31,18 @@ class MarcosxAi::DeliveryJob < ApplicationJob
       end
       audio_count = plan['voice_text'].present? ? 1 : 0
       resources = Array(plan['resource_ids'])
+      pix_count = plan['pix_key_id'].present? ? 1 : 0
       message = if part_index.zero? && @audio
                   create_audio_message(plan['voice_text'])
                 elsif part_index - audio_count < plan['messages'].size
                   create_message(plan['messages'][part_index - audio_count])
-                else
+                elsif part_index - audio_count - plan['messages'].size < resources.size
                   create_resource_message(resources[part_index - audio_count - plan['messages'].size])
+                else
+                  create_pix_message(plan['pix_key_id'])
                 end
       @state.update!(last_ai_message_id: message.id) if message
-      if part_index + 1 >= plan['messages'].size + audio_count + resources.size
+      if part_index + 1 >= plan['messages'].size + audio_count + resources.size + pix_count
         finish(plan)
       else
         @state.update!(metadata: @state.metadata.merge('pending_response' => plan.merge('next_part' => part_index + 1)))
@@ -130,7 +133,23 @@ class MarcosxAi::DeliveryJob < ApplicationJob
     MarcosxAi::Log.create!(account: @state.account, assistant: @state.assistant, conversation: @state.conversation,
                            event: plan['handoff'] ? 'handoff' : 'response_sent',
                            response: { parts: plan['messages'].size, audio: plan['voice_text'].present?,
-                                       resources: Array(plan['resource_ids']).size, reaction: plan['reaction'] })
+                                       resources: Array(plan['resource_ids']).size, pix_key_id: plan['pix_key_id'], reaction: plan['reaction'] })
+  end
+
+  def create_pix_message(id)
+    executed_by = Current.executed_by
+    @state.assistant.with_lock do
+      item = @state.assistant.pix_keys.available.find_by(id: id)
+      next unless item
+
+      Current.executed_by = @state.assistant
+      Whatsmeow::PixMessageBuilder.new(actor: @state.assistant, conversation: @state.conversation, attributes: item.payload.to_h,
+                                       additional_attributes: { marcosx_ai: true, assistant_name: @state.assistant.name,
+                                                                marcosx_ai_pix_key_id: item.id,
+                                                                trigger_message_id: @state.metadata['trigger_message_id'] }).perform
+    end
+  ensure
+    Current.executed_by = executed_by
   end
 
   def create_resource_message(id)

@@ -1,12 +1,14 @@
 class Whatsmeow::PixMessageBuilder
-  pattr_initialize [:actor!, :conversation!, :attributes]
+  pattr_initialize [:actor!, :conversation!, :attributes, :additional_attributes]
 
   def perform
     ensure_whatsmeow_conversation!
     pix = explicit_payload? ? Whatsmeow::PixPayload.new(attributes) : configured_payload
     pix.validate!
 
-    Messages::MessageBuilder.new(actor, conversation, message_params(pix), allow_whatsmeow_pix: true).perform
+    message = Messages::MessageBuilder.new(actor, conversation, message_params(pix), allow_whatsmeow_pix: true).perform
+    message.update!(additional_attributes: additional_attributes) if additional_attributes.present?
+    message
   end
 
   private

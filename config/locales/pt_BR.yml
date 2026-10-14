@@ -33,6 +33,8 @@ pt_BR:
     errors:
       conversation_unavailable: 'Esta conversa não pode receber uma resposta de IA agora. Confira a janela de resposta do canal e as opções do agente.'
       credential_missing: 'Salve e habilite uma conexão de IA primeiro.'
+      invalid_pix_key: 'Confira o nome, o tipo, a chave Pix válida e o nome completo do titular. A mesma chave não pode ser cadastrada duas vezes neste agente.'
+      pix_active_limit: 'Cada agente pode ter no máximo duas chaves Pix ativas. Desative uma antes de ativar outra.'
       invalid_resource: 'Confira o nome, a descrição, o link e o arquivo. Use um formato permitido com até 40 MB.'
       resource_limit: 'Cada agente permite até 100 arquivos e links.'
       invalid_response: 'O modelo devolveu uma resposta inválida.'

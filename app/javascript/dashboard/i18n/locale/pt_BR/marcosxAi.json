@@ -527,6 +527,34 @@
       "MUTE_VIDEO": "Silenciar vídeo",
       "UNMUTE_VIDEO": "Ativar som do vídeo",
       "VIDEO_ERROR": "Não foi possível reproduzir este vídeo no navegador."
+    },
+    "PIX": {
+      "TITLE": "Chaves Pix",
+      "BODY": "Cadastre suas chaves e escolha quais este agente pode compartilhar. Clique em um cartão para ativar ou desativar. A chave principal é usada primeiro; a alternativa ajuda quando houver dificuldade com ela.",
+      "ADD": "Adicionar chave",
+      "EDIT": "Editar chave",
+      "DELETE": "Excluir chave",
+      "SAVE": "Salvar chave",
+      "NAME": "Nome da chave",
+      "HOLDER": "Nome completo do titular",
+      "PREVIEW": "Prévia do cartão no WhatsApp",
+      "DESCRIPTION": "Contexto desta chave",
+      "DESCRIPTION_HINT": "Ex.: conta principal para compras diretas; alternativa caso a primeira não funcione.",
+      "ENABLED": "Disponível para a IA",
+      "ENABLED_HINT": "Salvar aqui não envia mensagem e não liga o atendimento automático.",
+      "PRIMARY": "Principal",
+      "ALTERNATIVE": "Alternativa",
+      "INACTIVE": "Desativada",
+      "MAKE_PRIMARY": "Usar como principal",
+      "TOGGLE": "Ativar ou desativar {name}",
+      "ACTIVE_COUNT": "{count} de 2 chaves ativas",
+      "LIMIT_HINT": "Para ativar outra chave, desative uma das duas selecionadas.",
+      "EMPTY": "Nenhuma chave cadastrada neste agente. Adicione uma chave para permitir o envio de cartões Pix conforme a conversa.",
+      "CHANNEL_HINT": "O cartão com botão de copiar é enviado pelo WhatsApp conectado via Whatsmeow. Compartilhar uma chave não confirma pagamento. Cada agente mantém seu próprio cadastro. As alterações são salvas nesta seção.",
+      "DELETE_HINT": "Excluir “{name}” deste agente? Ela deixará de estar disponível para novos envios. Mensagens já enviadas permanecem na conversa.",
+      "ERROR": "Não foi possível salvar ou carregar as chaves Pix. Tente novamente.",
+      "LOADING": "Carregando chaves…",
+      "SIMULATED": "Cartão Pix simulado: {name}"
     }
   }
 }

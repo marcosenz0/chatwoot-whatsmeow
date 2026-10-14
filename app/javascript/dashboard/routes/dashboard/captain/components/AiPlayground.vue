@@ -345,6 +345,14 @@ const send = async () => {
               t('MARCOX_AI.AUTOMATION.SIMULATED_ALERT', { name: alert.name })
             }}
           </p>
+          <p
+            v-if="item.simulation?.pix"
+            class="flex items-center gap-2 text-xs text-n-teal-11"
+          >
+            <span class="i-lucide-key-round size-3.5" />{{
+              t('MARCOX_AI.PIX.SIMULATED', { name: item.simulation.pix.title })
+            }}
+          </p>
           <p v-if="item.simulation?.paused" class="text-xs text-n-amber-11">
             {{ t('MARCOX_AI.AUTOMATION.SIMULATED_PAUSE') }}
           </p>
