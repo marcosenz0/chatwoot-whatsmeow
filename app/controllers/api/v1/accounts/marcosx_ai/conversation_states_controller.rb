@@ -1,4 +1,7 @@
 class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Accounts::MarcosxAi::BaseController
+  rescue_from CustomExceptions::MarcosxAi do |error|
+    render json: { error: error.message }, status: :unprocessable_entity
+  end
   before_action :set_conversation
   before_action :validate_action, only: :update
   before_action :set_state
@@ -24,10 +27,12 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
       end
     when 'pause'
       @state.with_lock { @state.pause_by_agent!(reason: state_params[:reason]) }
-    when 'resume', 'reply_now'
-      if @state.metadata['processing'] == true && state_params[:action] == 'reply_now'
-        return render json: { error: I18n.t('marcosx_ai.errors.analysis_outdated') }, status: :unprocessable_entity
-      end
+    when 'reply_now'
+      review = MarcosxAi::ReviewedReplyService.new(conversation: @conversation)
+      snapshot = review.snapshot
+      draft = MarcosxAi::ComposerDraftService.new(conversation: @conversation, action: 'reply_review').perform
+      return render json: { state: serialize(@state.reload), draft: draft.merge(review_token: review.token(snapshot: snapshot)) }
+    when 'resume'
       unless @state.assistant.available?
         return render json: { error: I18n.t('marcosx_ai.errors.credential_missing') }, status: :unprocessable_entity
       end
@@ -36,12 +41,7 @@ class Api::V1::Accounts::MarcosxAi::ConversationStatesController < Api::V1::Acco
                     status: :unprocessable_entity if !@state.assistant.accepts_conversation?(@conversation) ||
                                                      @conversation.resolved? || @conversation.snoozed?
 
-      if state_params[:action] == 'reply_now'
-        latest = MarcosxAi::ConversationContext.public_history(@conversation).reorder(:created_at, :id).last
-        return render json: { error: I18n.t('marcosx_ai.errors.empty_history') }, status: :unprocessable_entity unless latest
-      end
       @state.with_lock { @state.resume!(manual: true) }
-      MarcosxAi::ResponseScheduler.perform(message: latest, manual: true) if latest
     when 'handoff'
       @state.with_lock { @state.handoff!(reason: state_params[:reason]) }
       @conversation.bot_handoff! if @conversation.pending?

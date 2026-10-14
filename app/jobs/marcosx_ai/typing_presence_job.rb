@@ -10,8 +10,10 @@ class MarcosxAi::TypingPresenceJob < ApplicationJob
       return unless state.metadata['run_token'] == token
       return unless state.inbox.channel_type == 'Channel::Whatsmeow'
 
-      active = state.metadata['processing'] && state.current_run?(token) && state.assistant.feature_enabled?(:show_typing)
-      Whatsmeow::TypingStatusService.new(conversation: state.conversation, status: active ? 'on' : 'off').perform
+      media = state.metadata['presence_media'] == 'audio' ? 'audio' : 'text'
+      feature = media == 'audio' ? :show_recording : :show_typing
+      active = state.metadata['processing'] && state.current_run?(token) && state.assistant.feature_enabled?(feature)
+      Whatsmeow::TypingStatusService.new(conversation: state.conversation, status: active ? 'on' : 'off', media: media).perform
       self.class.set(wait: 8.seconds).perform_later(conversation_id, token) if active && state.inbox.channel.typing_enabled?
     end
   end

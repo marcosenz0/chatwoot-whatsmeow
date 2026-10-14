@@ -143,7 +143,7 @@ class MarcosxAi::ConversationState < ApplicationRecord
   end
 
   def cancelled_metadata
-    metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'pause_ack', 'call_event')
+    metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'pause_ack', 'call_event', 'presence_media')
             .merge('run_token' => SecureRandom.uuid, 'processing' => false)
   end
 
@@ -152,7 +152,7 @@ class MarcosxAi::ConversationState < ApplicationRecord
     return unless previous && previous['processing']
     return if metadata['processing'] && metadata['run_token'] == previous['run_token']
 
-    Whatsmeow::TypingStatusService.new(conversation: conversation, status: 'off').perform
+    Whatsmeow::TypingStatusService.new(conversation: conversation, status: 'off', media: previous['presence_media']).perform
   end
 
   def broadcast_state

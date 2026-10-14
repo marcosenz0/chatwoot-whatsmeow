@@ -11,6 +11,38 @@ RSpec.describe 'MarcoXIA operations API', type: :request do
   let(:endpoint) { "/api/v1/accounts/#{account.id}/marcosx_ai" }
   let(:memory_endpoint) { "#{endpoint}/conversations/#{conversation.display_id}/memory" }
 
+  it 'sends the reviewed multipart audio through the conversation endpoint only after explicit acceptance' do
+    inbox.update!(channel: create(:channel_whatsmeow, account: account))
+    assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
+    account.marcosx_ai_credentials.create!(provider: 'openai', api_key: 'test', enabled: true)
+    allow_any_instance_of(MarcosxAi::Assistant).to receive(:voice_ready?).and_return(true)
+    create(:message, conversation: conversation, account: account, inbox: inbox, content: 'Reply in audio')
+    state.wait_for_human!(reason: 'Keep paused')
+    bytes = File.binread(Rails.root.join('spec/assets/sample.mp3'))
+    client = instance_double(MarcosxAi::VoiceClient, synthesize: bytes)
+    allow(MarcosxAi::VoiceClient).to receive(:new).and_return(client)
+    url = "#{endpoint}/conversations/#{conversation.display_id}/draft"
+    post "#{url}/voice", params: { draft: { content: 'Reviewed speech' } }, headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok), response.body
+    expect(response.body.b).to eq(bytes)
+    token = response.headers['X-Marcoxia-Review-Token']
+    expect(token).to be_present
+    expect(conversation.messages.outgoing.where(private: false)).to be_empty
+    post "#{url}/send_reply", params: { draft: { content: 'Reviewed speech', review_token: token, audio: 'not-an-upload' } },
+                              headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(conversation.messages.outgoing.where(private: false)).to be_empty
+    upload = Rack::Test::UploadedFile.new(Rails.root.join('spec/assets/sample.mp3'), 'audio/mpeg')
+    post "#{url}/send_reply", params: { draft: { content: 'Reviewed speech', review_token: token, audio: upload } },
+                              headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok), response.body
+    message = conversation.messages.find(response.parsed_body['message_id'])
+    expect(message.attachments.first.file.download).to eq(bytes)
+    expect(message.sender).to eq(assistant)
+    expect(state.reload.status).to eq('awaiting_human')
+    expect(client).to have_received(:synthesize).once
+  end
+
   it 'controls automatic pause without resuming, changing the agent or affecting other conversations' do
     assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
     state.wait_for_human!(reason: 'Needs verification')

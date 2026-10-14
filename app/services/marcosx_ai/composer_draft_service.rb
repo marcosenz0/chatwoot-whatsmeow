@@ -1,6 +1,7 @@
 class MarcosxAi::ComposerDraftService
   TASKS = {
     'reply_suggestion' => 'Suggest the next reply to the contact, following the configured system prompt and conversation context.',
+    'reply_review' => 'Prepare the next reply for the operator to review before sending, honoring the current voice preference.',
     'voice_reply' => 'Prepare a short spoken reply to the latest contact request. ' \
                      'Return the complete spoken text in messages, without URLs, emoji or Markdown.',
     'summarize' => 'Write a concise factual summary for the operator, preserving outstanding requests and relevant dates.',
@@ -34,7 +35,7 @@ class MarcosxAi::ComposerDraftService
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_assistant') unless assistant
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.credential_missing') unless assistant.available?
 
-    if !%w[reply_suggestion voice_reply summarize].include?(@action) && (!@content.is_a?(String) || @content.blank?)
+    if !%w[reply_suggestion reply_review voice_reply summarize].include?(@action) && (!@content.is_a?(String) || @content.blank?)
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_response')
     end
 
@@ -62,12 +63,16 @@ class MarcosxAi::ComposerDraftService
       task += ' The operator will review and generate the audio. ' \
               "Keep the spoken draft within #{assistant.resolved_config.dig(:voice, :max_characters)} characters."
     end
+    if @action == 'reply_review'
+      task += ' For a voice preference, also return the complete spoken reply in voice_text. The operator must listen before sending.'
+    end
     messages = [*prompts, { role: 'system', content: task }, *MarcosxAi::PromptBuilder.focused_history(history)]
     if @content.present?
       draft = { draft_to_edit: @content.to_s.truncate(15_000), operator_request: @instruction.to_s.truncate(2000) }
       messages << { role: 'user', content: draft.to_json }
     end
-    plan = MarcosxAi::ReplyPlan.parse(client.chat(messages: messages, schema: SCHEMA), assistant: assistant)
+    voice_context = MarcosxAi::VoicePolicy.context(assistant: assistant, conversation: @conversation) if @action == 'reply_review'
+    plan = MarcosxAi::ReplyPlan.parse(client.chat(messages: messages, schema: SCHEMA), assistant: assistant, voice_context: voice_context)
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response') if plan['messages'].empty?
 
     latest = MarcosxAi::ConversationContext.public_history(@conversation).order(:created_at, :id).last
@@ -76,7 +81,8 @@ class MarcosxAi::ComposerDraftService
     end
 
     result = { content: plan['messages'].join("\n\n"), assistant_name: assistant.name }
-    result[:max_characters] = assistant.resolved_config.dig(:voice, :max_characters) if @action == 'voice_reply'
+    result[:voice_text] = plan['voice_text'] if @action == 'reply_review'
+    result[:max_characters] = assistant.resolved_config.dig(:voice, :max_characters)
     result
   end
 end

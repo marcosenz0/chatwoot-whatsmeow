@@ -1,7 +1,7 @@
 name: MarcoXIA validation and image
 on:
   push:
-    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context]
+    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context, codex/marcoxia-audio-delivery]
     paths: ['app/**', 'spec/**', 'db/**', 'config/**', 'lib/**', 'Dockerfile', '.github/workflows/marcoxia.yml']
   workflow_dispatch:
 permissions:
@@ -58,6 +58,8 @@ jobs:
           app/javascript/dashboard/modules/conversations/components/MessageContextMenu.vue
           app/javascript/dashboard/components/widgets/WootWriter/CopilotMenuBar.vue
           app/javascript/dashboard/api/marcosxAi.js
+          app/javascript/dashboard/components-next/message/chips/Audio.vue
+          app/javascript/dashboard/composables/useInboxProfilePhoto.js
           app/javascript/dashboard/routes/dashboard/inbox/helpers/InboxViewHelpers.js
           app/javascript/dashboard/composables/useMarcosxAiDraft.js
           app/javascript/dashboard/components/widgets/WootWriter/Editor.vue

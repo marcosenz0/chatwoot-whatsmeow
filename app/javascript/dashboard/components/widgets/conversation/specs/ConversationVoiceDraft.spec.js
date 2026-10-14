@@ -4,7 +4,11 @@ import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import ConversationVoiceDraft from '../ConversationVoiceDraft.vue';
 
 vi.mock('dashboard/api/marcosxAi', () => ({
-  default: { generateDraft: vi.fn(), previewConversationVoice: vi.fn() },
+  default: {
+    generateDraft: vi.fn(),
+    previewConversationVoice: vi.fn(),
+    sendReviewedReply: vi.fn(),
+  },
 }));
 vi.mock('dashboard/composables', () => ({ useAlert: vi.fn() }));
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: key => key }) }));
@@ -37,14 +41,19 @@ describe('Conversation voice draft', () => {
         content: 'Oi! Como você está?',
         assistant_name: 'Selected agent',
         max_characters: 1200,
+        review_token: 'text-review',
       },
     });
     MarcosxAiAPI.previewConversationVoice.mockResolvedValue({
       data: new Blob(['audio'], { type: 'audio/mpeg' }),
+      headers: { 'x-marcoxia-review-token': 'voice-review' },
+    });
+    MarcosxAiAPI.sendReviewedReply.mockResolvedValue({
+      data: { message_id: 10 },
     });
   });
 
-  it('previews the selected conversation response and adds a recorded file only after explicit acceptance', async () => {
+  it('previews the selected conversation response and sends the exact preview only after explicit acceptance', async () => {
     const wrapper = mountDraft();
     await wrapper.vm.open();
     expect(MarcosxAiAPI.generateDraft).toHaveBeenCalledWith(
@@ -58,17 +67,57 @@ describe('Conversation voice draft', () => {
       { signal: expect.any(AbortSignal) }
     );
     expect(wrapper.find('audio').attributes('src')).toBe('blob:voice-preview');
-    expect(wrapper.emitted('useAudio')).toBeUndefined();
+    expect(MarcosxAiAPI.sendReviewedReply).not.toHaveBeenCalled();
     await wrapper
       .findAll('button')
       .find(button => button.text() === 'MARCOX_AI.COMPOSER.VOICE_USE')
       .trigger('click');
-    expect(wrapper.emitted('useAudio')[0][0]).toMatchObject({
-      isRecordedAudio: true,
-      type: 'audio/mpeg',
-      file: expect.any(File),
-    });
+    await flushPromises();
+    expect(MarcosxAiAPI.sendReviewedReply).toHaveBeenCalledWith(
+      92,
+      'Oi! Como você está?',
+      'voice-review',
+      expect.any(Blob)
+    );
+    expect(wrapper.emitted('sent')).toHaveLength(1);
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:voice-preview');
+    wrapper.unmount();
+  });
+
+  it('opens Reply now as an editable text review and sends only on acceptance', async () => {
+    const wrapper = mountDraft();
+    await wrapper.vm.open('reply_review');
+    expect(MarcosxAiAPI.previewConversationVoice).not.toHaveBeenCalled();
+    expect(MarcosxAiAPI.sendReviewedReply).not.toHaveBeenCalled();
+    await wrapper.get('textarea').setValue('Edited text');
+    await wrapper
+      .findAll('button')
+      .find(button => button.text() === 'MARCOX_AI.COMPOSER.REVIEW_SEND')
+      .trigger('click');
+    await flushPromises();
+    expect(MarcosxAiAPI.sendReviewedReply).toHaveBeenCalledWith(
+      92,
+      'Edited text',
+      'text-review',
+      null
+    );
+    wrapper.unmount();
+  });
+
+  it('keeps the playable preview when delivery fails so the operator can retry', async () => {
+    MarcosxAiAPI.sendReviewedReply.mockRejectedValue({
+      response: { data: { error: 'Delivery unavailable' } },
+    });
+    const wrapper = mountDraft();
+    await wrapper.vm.open();
+    await wrapper
+      .findAll('button')
+      .find(button => button.text() === 'MARCOX_AI.COMPOSER.VOICE_USE')
+      .trigger('click');
+    await flushPromises();
+    expect(useAlert).toHaveBeenCalledWith('Delivery unavailable');
+    expect(wrapper.find('audio').attributes('src')).toBe('blob:voice-preview');
+    expect(wrapper.emitted('sent')).toBeUndefined();
     wrapper.unmount();
   });
 
@@ -112,7 +161,7 @@ describe('Conversation voice draft', () => {
     wrapper.unmount();
   });
 
-  it('keeps the text for correction when synthesis fails and emits no file', async () => {
+  it('keeps the text for correction when synthesis fails and sends nothing', async () => {
     MarcosxAiAPI.previewConversationVoice.mockRejectedValue({
       response: { data: { error: 'Insufficient voice balance' } },
     });
@@ -121,7 +170,7 @@ describe('Conversation voice draft', () => {
     expect(useAlert).toHaveBeenCalledWith('Insufficient voice balance');
     expect(wrapper.get('textarea').element.value).toBe('Oi! Como você está?');
     expect(wrapper.find('audio').exists()).toBe(false);
-    expect(wrapper.emitted('useAudio')).toBeUndefined();
+    expect(MarcosxAiAPI.sendReviewedReply).not.toHaveBeenCalled();
     wrapper.unmount();
   });
 });

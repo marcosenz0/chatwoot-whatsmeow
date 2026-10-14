@@ -9,6 +9,9 @@ vi.mock('dashboard/api/marcosxAi', () => ({
     sendConversationAnalysis: vi.fn(),
     getConversationState: vi.fn(),
     updateConversationState: vi.fn(),
+    generateDraft: vi.fn(),
+    previewConversationVoice: vi.fn(),
+    sendReviewedReply: vi.fn(),
   },
 }));
 vi.mock('dashboard/composables', () => ({ useAlert: vi.fn() }));
@@ -71,7 +74,7 @@ describe('Conversation history review', () => {
     expect(MarcosxAiAPI.sendConversationAnalysis).not.toHaveBeenCalled();
     wrapper.unmount();
   });
-  it('explicitly continues through the automatic response pipeline with the selected conversation agent', async () => {
+  it('opens a review using the selected agent without sending or resuming AI', async () => {
     const wrapper = mount(ConversationAiPanel, { props, global });
     wrapper.vm.open();
     await flushPromises();
@@ -85,14 +88,24 @@ describe('Conversation history review', () => {
       )
       .trigger('click');
     await flushPromises();
-    expect(MarcosxAiAPI.updateConversationState).toHaveBeenCalledWith(7, {
-      action: 'reply_now',
-      reason: 'agent_action',
-    });
+    expect(MarcosxAiAPI.generateDraft).toHaveBeenCalledWith(
+      7,
+      { action: 'reply_review' },
+      { signal: expect.any(AbortSignal) }
+    );
+    expect(MarcosxAiAPI.sendReviewedReply).not.toHaveBeenCalled();
     expect(MarcosxAiAPI.analyzeConversation).not.toHaveBeenCalled();
     wrapper.unmount();
   });
   beforeEach(() => {
+    vi.clearAllMocks();
+    MarcosxAiAPI.generateDraft.mockResolvedValue({
+      data: {
+        content: 'Review this',
+        max_characters: 1200,
+        review_token: 'preview',
+      },
+    });
     MarcosxAiAPI.getConversationAnalysis.mockResolvedValue({
       data: { analysis: { status: 'idle' } },
     });
@@ -130,7 +143,7 @@ describe('Conversation history review', () => {
     const wrapper = mount(ConversationAiPanel, { props, global });
     wrapper.vm.open();
     await flushPromises();
-    await wrapper.get('textarea').setValue('Edited reply');
+    await wrapper.findAll('textarea').at(-1).setValue('Edited reply');
     await wrapper
       .findAll('button')
       .find(button => button.text().includes('MARCOX_AI.ANALYSIS.SEND'))
@@ -142,7 +155,7 @@ describe('Conversation history review', () => {
       ['Edited reply']
     );
     expect(wrapper.emitted('updated')[0][0].status).toBe('active');
-    expect(wrapper.find('textarea').exists()).toBe(false);
+    expect(wrapper.findAll('textarea')).toHaveLength(1);
     wrapper.unmount();
   });
   it('ignores a late report from a different conversation', async () => {
@@ -176,9 +189,9 @@ describe('Conversation history review', () => {
       .findAll('button')
       .find(button => button.text().includes('MARCOX_AI.ANALYSIS.SEND'));
     expect(sendButton.attributes('disabled')).toBeDefined();
-    await wrapper.get('textarea').setValue('   ');
+    await wrapper.findAll('textarea').at(-1).setValue('   ');
     expect(sendButton.attributes('disabled')).toBeDefined();
-    await wrapper.get('textarea').setValue('Reviewed follow-up');
+    await wrapper.findAll('textarea').at(-1).setValue('Reviewed follow-up');
     expect(sendButton.attributes('disabled')).toBeUndefined();
     await sendButton.trigger('click');
     await flushPromises();

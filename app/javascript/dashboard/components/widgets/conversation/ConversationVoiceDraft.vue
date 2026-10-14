@@ -13,7 +13,7 @@ const props = defineProps({
   conversationId: { type: Number, required: true },
   assistantId: { type: Number, default: null },
 });
-const emit = defineEmits(['useAudio']);
+const emit = defineEmits(['sent']);
 const { t } = useI18n();
 const request = useAbortableRequest();
 const dialog = ref(null);
@@ -24,12 +24,19 @@ const audio = ref(null);
 const previewUrl = ref('');
 const spokenText = ref('');
 const visible = ref(false);
+const voiceMode = ref(true);
+const sending = ref(false);
+const reviewToken = ref('');
 let generation = 0;
 const canGenerate = computed(
   () => content.value.trim() && content.value.length <= maxCharacters.value
 );
 const canUse = computed(
-  () => audio.value && spokenText.value === content.value.trim()
+  () =>
+    reviewToken.value &&
+    canGenerate.value &&
+    (!voiceMode.value ||
+      (audio.value && spokenText.value === content.value.trim()))
 );
 
 function clearPreview() {
@@ -46,6 +53,7 @@ function reset() {
   content.value = '';
   assistantName.value = '';
   maxCharacters.value = 0;
+  reviewToken.value = '';
 }
 async function notifyError(error) {
   let data = error.response?.data;
@@ -73,40 +81,56 @@ async function generateAudio() {
     audio.value = response.data;
     previewUrl.value = URL.createObjectURL(response.data);
     spokenText.value = text;
+    reviewToken.value = response.headers['x-marcoxia-review-token'];
   } catch (error) {
     if (currentGeneration === generation) await notifyError(error);
   }
 }
-async function open() {
+async function open(action = 'voice_reply') {
   reset();
+  voiceMode.value = action === 'voice_reply';
   visible.value = true;
   dialog.value.open();
   const currentGeneration = generation;
   try {
     const response = await request.run(signal =>
-      MarcosxAiAPI.generateDraft(
-        props.conversationId,
-        { action: 'voice_reply' },
-        { signal }
-      )
+      MarcosxAiAPI.generateDraft(props.conversationId, { action }, { signal })
     );
     if (!response || currentGeneration !== generation || !visible.value) return;
-    content.value = response.data.content;
+    voiceMode.value =
+      action === 'voice_reply' || Boolean(response.data.voice_text);
+    content.value = response.data.voice_text || response.data.content;
     assistantName.value = response.data.assistant_name;
-    maxCharacters.value = response.data.max_characters;
-    await generateAudio();
+    maxCharacters.value = voiceMode.value
+      ? response.data.max_characters
+      : 15000;
+    reviewToken.value = response.data.review_token;
+    if (voiceMode.value) await generateAudio();
   } catch (error) {
     if (currentGeneration === generation) await notifyError(error);
   }
 }
-function useAudio() {
-  if (!canUse.value) return;
-  const file = new File([audio.value], 'agent-voice.mp3', {
-    type: 'audio/mpeg',
-  });
-  emit('useAudio', { file, type: file.type, isRecordedAudio: true });
-  dialog.value.close();
-  reset();
+async function sendReply() {
+  if (!canUse.value || sending.value) return;
+  const { conversationId } = props;
+  sending.value = true;
+  try {
+    await MarcosxAiAPI.sendReviewedReply(
+      conversationId,
+      content.value.trim(),
+      reviewToken.value,
+      voiceMode.value ? audio.value : null
+    );
+    if (conversationId !== props.conversationId) return;
+    emit('sent');
+    useAlert(t('MARCOX_AI.COMPOSER.REPLY_SENT'));
+    dialog.value.close();
+    reset();
+  } catch (error) {
+    if (conversationId === props.conversationId) await notifyError(error);
+  } finally {
+    sending.value = false;
+  }
 }
 watch(
   () => [props.conversationId, props.assistantId],
@@ -123,8 +147,20 @@ defineExpose({ open });
   <Dialog
     ref="dialog"
     width="xl"
-    :title="t('MARCOX_AI.COMPOSER.VOICE_TITLE')"
-    :description="t('MARCOX_AI.COMPOSER.VOICE_HINT')"
+    :title="
+      t(
+        voiceMode
+          ? 'MARCOX_AI.COMPOSER.VOICE_TITLE'
+          : 'MARCOX_AI.COMPOSER.REVIEW_TITLE'
+      )
+    "
+    :description="
+      t(
+        voiceMode
+          ? 'MARCOX_AI.COMPOSER.VOICE_HINT'
+          : 'MARCOX_AI.COMPOSER.REVIEW_HINT'
+      )
+    "
     :show-confirm-button="false"
     :show-cancel-button="false"
     @close="reset"
@@ -134,12 +170,18 @@ defineExpose({ open });
         {{ t('MARCOX_AI.DECISION.COMPOSER', { name: assistantName }) }}
       </p>
       <label class="flex min-w-0 flex-col gap-2 text-sm text-n-slate-12">
-        {{ t('MARCOX_AI.COMPOSER.VOICE_TEXT') }}
+        {{
+          t(
+            voiceMode
+              ? 'MARCOX_AI.COMPOSER.VOICE_TEXT'
+              : 'MARCOX_AI.COMPOSER.REVIEW_TEXT'
+          )
+        }}
         <textarea
           v-model="content"
           rows="4"
           class="!m-0 !min-h-28 !w-full !resize-y !rounded-lg !border !border-solid !border-n-weak !bg-n-solid-2 !p-3 focus:!border-n-blue-9"
-          :disabled="request.isPending.value"
+          :disabled="request.isPending.value || sending"
         />
       </label>
       <p v-if="maxCharacters" class="m-0 text-xs text-n-slate-11">
@@ -172,22 +214,31 @@ defineExpose({ open });
           type="button"
           slate
           :label="t('MARCOX_AI.CANCEL')"
+          :disabled="sending"
           @click="dialog.close()"
         />
         <Button
+          v-if="voiceMode"
           type="button"
           outline
           icon="i-lucide-refresh-cw"
           :label="t('MARCOX_AI.COMPOSER.VOICE_GENERATE')"
-          :disabled="!canGenerate || request.isPending.value"
+          :disabled="!canGenerate || request.isPending.value || sending"
           @click="generateAudio"
         />
         <Button
           type="button"
-          icon="i-lucide-mic"
-          :label="t('MARCOX_AI.COMPOSER.VOICE_USE')"
-          :disabled="!canUse || request.isPending.value"
-          @click="useAudio"
+          icon="i-lucide-send"
+          :label="
+            t(
+              voiceMode
+                ? 'MARCOX_AI.COMPOSER.VOICE_USE'
+                : 'MARCOX_AI.COMPOSER.REVIEW_SEND'
+            )
+          "
+          :disabled="!canUse || request.isPending.value || sending"
+          :is-loading="sending"
+          @click="sendReply"
         />
       </div>
     </div>

@@ -19,6 +19,13 @@ class MarcosxAi::ConversationResponderService
     return unless @state.reload.current_run?(@token)
 
     runtime = MarcosxAi::PromptBuilder.context_for(@conversation, assistant: @assistant)
+    @state.with_lock do
+      return unless @state.current_run?(@token)
+
+      if runtime.dig(:voice, :voice_preference).present?
+        @state.update!(metadata: @state.metadata.merge('voice_preference' => runtime[:voice][:voice_preference]))
+      end
+    end
     prompts = MarcosxAi::PromptBuilder.messages(
       assistant: @assistant, context: runtime,
       reactions: @assistant.feature_enabled?(:allow_reactions) && @conversation.inbox.channel_type == 'Channel::Whatsmeow',

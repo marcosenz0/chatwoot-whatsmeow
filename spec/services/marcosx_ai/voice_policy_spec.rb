@@ -67,4 +67,27 @@ RSpec.describe MarcosxAi::VoicePolicy do
     expect(MarcosxAi::ConversationContext).not_to receive(:public_history)
     expect(described_class.context(assistant: assistant, conversation: conversation)[:voice_allowed]).to be(false)
   end
+
+  it 'keeps reading difficulty across answered turns and remembers it beyond the history window until a text request' do
+    request = create(:message, conversation: conversation, message_type: :incoming, content: 'Não sei ler, responda em áudio')
+    state = MarcosxAi::ConversationState.for_conversation!(conversation, assistant: assistant)
+    preference = described_class.context(assistant: assistant, conversation: conversation)[:voice_preference]
+    expect(preference).to include('mode' => 'audio', 'persistent' => true, 'message_id' => request.id)
+    state.update!(metadata: state.metadata.merge('voice_preference' => preference))
+    create_list(:message, 30, conversation: conversation, message_type: :incoming, content: 'Continuando a conversa')
+    create(:message, conversation: conversation, sender: assistant, message_type: :outgoing,
+                     content_attributes: { marcosx_ai_voice_transcript: 'Olá' })
+    create(:message, conversation: conversation, message_type: :incoming, content: 'Como você está?')
+    expect(described_class.context(assistant: assistant, conversation: conversation)).to include(voice_requested: true, voice_allowed: true)
+    create(:message, conversation: conversation, message_type: :incoming, content: 'Prefiro texto agora, sem áudio')
+    expect(described_class.context(assistant: assistant, conversation: conversation)).to include(voice_requested: false, voice_allowed: false)
+  end
+
+  it 'allows a text turn to supersede a soft voice request after it was answered, without requiring voice for every received audio' do
+    create(:message, conversation: conversation, message_type: :incoming, content: 'Me responde em áudio')
+    create(:message, conversation: conversation, sender: assistant, message_type: :outgoing,
+                     content_attributes: { marcosx_ai_voice_transcript: 'Olá' })
+    create(:message, conversation: conversation, message_type: :incoming, content: 'Manda esse nome para eu copiar')
+    expect(described_class.context(assistant: assistant, conversation: conversation)).to include(voice_requested: false, voice_allowed: false)
+  end
 end
