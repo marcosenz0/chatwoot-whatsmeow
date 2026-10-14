@@ -28,6 +28,10 @@ RSpec.describe 'MarcoXIA operations API', type: :request do
     token = response.headers['X-Marcoxia-Review-Token']
     expect(token).to be_present
     expect(conversation.messages.outgoing.where(private: false)).to be_empty
+    post "#{url}/send_reply", params: { draft: { content: 'Reviewed speech', review_token: token, audio: 'not-an-upload' } },
+                              headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(conversation.messages.outgoing.where(private: false)).to be_empty
     upload = Rack::Test::UploadedFile.new(Rails.root.join('spec/assets/sample.mp3'), 'audio/mpeg')
     post "#{url}/send_reply", params: { draft: { content: 'Reviewed speech', review_token: token, audio: upload } },
                               headers: admin.create_new_auth_token

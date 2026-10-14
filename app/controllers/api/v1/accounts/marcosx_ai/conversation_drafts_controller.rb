@@ -36,6 +36,10 @@ class Api::V1::Accounts::MarcosxAi::ConversationDraftsController < Api::V1::Acco
     conversation = Current.account.conversations.find_by!(display_id: params[:conversation_id])
     authorize conversation, :show?
     draft = params.require(:draft).permit(:review_token, :content, :audio)
+    if draft[:audio] && !draft[:audio].is_a?(ActionDispatch::Http::UploadedFile)
+      return render json: { error: I18n.t('marcosx_ai.errors.invalid_response') }, status: :unprocessable_entity
+    end
+
     message = MarcosxAi::ReviewedReplyService.new(conversation: conversation).send!(
       token: draft[:review_token], content: draft[:content], audio: draft[:audio]
     )

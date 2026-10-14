@@ -44,6 +44,11 @@ class MarcosxAi::ReviewedReplyService
       unless @assistant.available? && @assistant.accepts_conversation?(@conversation) && !@conversation.resolved? && !@conversation.snoozed?
         raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.conversation_unavailable')
       end
+
+      if audio && audio.size > MarcosxAi::VoiceClient::MAX_BYTES
+        raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_response')
+      end
+
       bytes = audio&.read
       if claims['audio_digest']
         unless bytes && audio.content_type == 'audio/mpeg' && Digest::SHA256.hexdigest(bytes) == claims['audio_digest'] &&

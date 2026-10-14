@@ -63,7 +63,9 @@ class MarcosxAi::ComposerDraftService
       task += ' The operator will review and generate the audio. ' \
               "Keep the spoken draft within #{assistant.resolved_config.dig(:voice, :max_characters)} characters."
     end
-    task += ' For a voice preference, also return the complete spoken reply in voice_text. The operator must listen before sending.' if @action == 'reply_review'
+    if @action == 'reply_review'
+      task += ' For a voice preference, also return the complete spoken reply in voice_text. The operator must listen before sending.'
+    end
     messages = [*prompts, { role: 'system', content: task }, *MarcosxAi::PromptBuilder.focused_history(history)]
     if @content.present?
       draft = { draft_to_edit: @content.to_s.truncate(15_000), operator_request: @instruction.to_s.truncate(2000) }
