@@ -743,7 +743,7 @@ const changePlaybackSpeed = () => {
       </div>
       <MessageMeta
         v-if="props.showMessageMeta && isMarcoxMessage"
-        class="basis-full justify-end flex-wrap text-[10px] font-medium leading-none text-n-slate-11"
+        class="basis-full justify-end flex-wrap !gap-1 !text-[10px] font-medium leading-none text-n-slate-11"
       />
     </div>
 
