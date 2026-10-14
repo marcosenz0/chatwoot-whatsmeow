@@ -1,7 +1,7 @@
 name: MarcoXIA validation and image
 on:
   push:
-    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context, codex/marcoxia-audio-delivery, codex/marcoxia-pix-keys]
+    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context, codex/marcoxia-audio-delivery, codex/marcoxia-pix-keys, codex/marcoxia-pix-selector]
     paths: ['app/**', 'spec/**', 'db/**', 'config/**', 'lib/**', 'Dockerfile', '.github/workflows/marcoxia.yml']
   workflow_dispatch:
 permissions:

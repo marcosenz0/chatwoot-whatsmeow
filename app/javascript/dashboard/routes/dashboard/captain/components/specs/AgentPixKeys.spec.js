@@ -81,7 +81,10 @@ it('keeps details and type-specific native previews, saves without sending and s
   await wrapper
     .findAll('button[aria-label="MARCOX_AI.PIX.EDIT"]')[1]
     .trigger('click');
-  expect(wrapper.get('select').element.value).toBe('PHONE');
+  expect(wrapper.find('select').exists()).toBe(false);
+  expect(wrapper.get('[aria-haspopup="listbox"]').text()).toBe(
+    'CONVERSATION.WHATSMEOW_PIX.KEY_TYPES.PHONE'
+  );
   const inputs = wrapper.findAll('input');
   await inputs[0].setValue('Second phone');
   await inputs[1].setValue('+5511988888888');
@@ -117,6 +120,61 @@ it('shows backend validation failures inside the editor and leaves the submitted
   await flushPromises();
   expect(wrapper.get('[role="alert"]').text()).toBe('Invalid Pix key');
   expect(wrapper.findAll('input')[1].element.value).toBe(keys[0].key);
+  wrapper.unmount();
+});
+
+it('selects Pix types with the Chatwoot icon menu and saves the selected type', async () => {
+  const wrapper = mount(AgentPixKeys, options);
+  await flushPromises();
+  await wrapper
+    .findAll('button[aria-label="MARCOX_AI.PIX.EDIT"]')[1]
+    .trigger('click');
+  const trigger = wrapper.get('[aria-haspopup="listbox"]');
+  expect(trigger.find('.i-lucide-smartphone').exists()).toBe(true);
+  await trigger.trigger('click');
+  expect(wrapper.findAll('[role="option"]')).toHaveLength(4);
+  expect(
+    wrapper.get('[role="listbox"]').find('.i-lucide-id-card').exists()
+  ).toBe(true);
+  await wrapper.findAll('[role="option"]')[2].trigger('click');
+  expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+  expect(trigger.find('.i-lucide-mail').exists()).toBe(true);
+  await wrapper.findAll('input')[1].setValue('other@example.com');
+  await wrapper.findAll('form')[0].trigger('submit');
+  await flushPromises();
+  expect(API.savePixKey).toHaveBeenCalledWith(
+    7,
+    2,
+    expect.objectContaining({ key_type: 'EMAIL', key: 'other@example.com' })
+  );
+  wrapper.unmount();
+});
+
+it('keeps Escape inside the open menu and returns keyboard focus to its trigger', async () => {
+  const wrapper = mount(AgentPixKeys, { ...options, attachTo: document.body });
+  await flushPromises();
+  await wrapper
+    .findAll('button[aria-label="MARCOX_AI.PIX.EDIT"]')[1]
+    .trigger('click');
+  const trigger = wrapper.get('[aria-haspopup="listbox"]');
+  await trigger.trigger('keydown', { key: 'ArrowDown' });
+  await flushPromises();
+  expect(document.activeElement).toBe(
+    wrapper.findAll('[role="option"]')[0].element
+  );
+  await wrapper
+    .get('[role="listbox"]')
+    .trigger('keydown', { key: 'ArrowDown' });
+  expect(document.activeElement).toBe(
+    wrapper.findAll('[role="option"]')[1].element
+  );
+  const escaped = vi.fn();
+  wrapper.get('form').element.addEventListener('keydown', escaped);
+  await wrapper.get('[role="listbox"]').trigger('keydown', { key: 'Escape' });
+  expect(escaped).not.toHaveBeenCalled();
+  expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+  expect(document.activeElement).toBe(trigger.element);
+  expect(API.savePixKey).not.toHaveBeenCalled();
   wrapper.unmount();
 });
 
