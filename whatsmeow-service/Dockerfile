@@ -7,6 +7,7 @@ RUN go mod download && \
     chmod -R u+w "$module_dir" && \
     patch -d "$module_dir" -p1 < patches/hypermeow-status-receipt-participant.patch && \
     patch -d "$module_dir" -p1 < patches/hypermeow-profile-about.patch && \
+    patch -d "$module_dir" -p1 < patches/hypermeow-pix-business-node.patch && \
     module_dir="$(go list -m -f '{{.Dir}}' github.com/purpshell/meowcaller)" && \
     chmod -R u+w "$module_dir" && \
     patch -d "$module_dir" -p1 < patches/meowcaller-linked-device-reject.patch && \

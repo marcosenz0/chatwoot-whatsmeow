@@ -1,0 +1,86 @@
+--- a/send.go
++++ b/send.go
+@@ -1190,11 +1190,18 @@
+ 	if extraParams.metaNode != nil {
+ 		content = append(content, *extraParams.metaNode)
+ 	}
++	hasBusinessNode := false
+ 	if extraParams.additionalNodes != nil {
+ 		content = append(content, *extraParams.additionalNodes...)
+-	}
+-
+-	if buttonType := getButtonTypeFromMessage(message); buttonType != "" {
++		for _, node := range *extraParams.additionalNodes {
++			if node.Tag == "biz" {
++				hasBusinessNode = true
++				break
++			}
++		}
++	}
++
++	if buttonType := getButtonTypeFromMessage(message); buttonType != "" && !hasBusinessNode {
+ 		if buttonType == "native_flow" {
+ 			content = append(content, buildNativeFlowBizNode(message, time.Now().Unix()))
+ 		} else {
+--- /dev/null
++++ b/pix_business_metadata_test.go
+@@ -0,0 +1,59 @@
++package whatsmeow
++
++import (
++	waBinary "github.com/polymorfa/hypermeow/binary"
++	waE2E "github.com/polymorfa/hypermeow/proto/waE2E"
++	"google.golang.org/protobuf/proto"
++	"testing"
++)
++
++func TestPixExplicitBusinessNodeIsNotDuplicated(t *testing.T) {
++	message := &waE2E.Message{InteractiveMessage: &waE2E.InteractiveMessage{
++		InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
++			Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{{Name: proto.String("payment_info")}},
++		}},
++	}}
++	additional := []waBinary.Node{{Tag: "biz", Attrs: waBinary.Attrs{"native_flow_name": "payment_info"}}}
++	content := (&Client{}).getMessageContent(waBinary.Node{Tag: "participants"}, message, waBinary.Attrs{"type": "text"}, false,
++		nodeExtraParams{additionalNodes: &additional})
++	business := []waBinary.Node{}
++	for _, node := range content {
++		if node.Tag == "biz" {
++			business = append(business, node)
++		}
++	}
++	if len(business) != 1 || business[0].Attrs["native_flow_name"] != "payment_info" || business[0].Content != nil {
++		t.Fatalf("Pix stanza must contain exactly one explicit flat business node; got %+v", business)
++	}
++}
++
++func TestPixFixPreservesAutomaticNativeFlowMetadata(t *testing.T) {
++	message := &waE2E.Message{InteractiveMessage: &waE2E.InteractiveMessage{
++		InteractiveMessage: &waE2E.InteractiveMessage_NativeFlowMessage_{NativeFlowMessage: &waE2E.InteractiveMessage_NativeFlowMessage{
++			Buttons: []*waE2E.InteractiveMessage_NativeFlowMessage_NativeFlowButton{{Name: proto.String("quick_reply")}},
++		}},
++	}}
++	for _, withExtra := range []bool{false, true} {
++		extra := nodeExtraParams{}
++		if withExtra {
++			nodes := []waBinary.Node{{Tag: "meta", Attrs: waBinary.Attrs{"test": "preserved"}}}
++			extra.additionalNodes = &nodes
++		}
++		content := (&Client{}).getMessageContent(waBinary.Node{Tag: "participants"}, message, waBinary.Attrs{"type": "text"}, false, extra)
++		count, meta := 0, 0
++		for _, node := range content {
++			if node.Tag == "biz" {
++				count++
++				if node.Attrs["actual_actors"] != "2" {
++					t.Fatal("automatic metadata lost")
++				}
++			}
++			if node.Tag == "meta" {
++				meta++
++			}
++		}
++		if count != 1 || (withExtra && meta != 1) {
++			t.Fatalf("metadata not preserved: %+v", content)
++		}
++	}
++}
