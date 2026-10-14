@@ -206,14 +206,20 @@ const markAudioAsHeard = () => {
   isAudioHeard.value = true;
 };
 
-const ownPhoto = useInboxProfilePhoto(inboxId, isOutgoing);
+const useOwnProfile = computed(
+  () =>
+    isOutgoing.value &&
+    store.getters['inboxes/getInbox'](inboxId.value)?.channel_type ===
+      'Channel::Whatsmeow'
+);
+const ownPhoto = useInboxProfilePhoto(inboxId, useOwnProfile);
 const avatarName = computed(() =>
-  isOutgoing.value
+  useOwnProfile.value
     ? store.getters['inboxes/getInbox'](inboxId.value)?.name || ''
     : sender.value?.name || ''
 );
 const avatarSrc = computed(() =>
-  isOutgoing.value
+  useOwnProfile.value
     ? ownPhoto.value
     : sender.value?.thumbnail ||
       sender.value?.avatarUrl ||
@@ -651,7 +657,7 @@ const changePlaybackSpeed = () => {
           :src="avatarSrc"
           :size="44"
           :inbox-id="inboxId"
-          own-profile
+          :own-profile="useOwnProfile"
         />
         <span
           class="absolute -bottom-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-n-teal-9 text-white"

@@ -99,4 +99,24 @@ describe('Recorded audio layout and identity', () => {
     expect(WhatsappProfileAPI.photo).not.toHaveBeenCalled();
     wrapper.unmount();
   });
+
+  it('preserves sender avatars on other channels that have no own WhatsApp profile endpoint', async () => {
+    const otherStore = createStore({
+      getters: {
+        'inboxes/getInbox': () => () => ({
+          channel_type: 'Channel::TelegramPersonal',
+          name: 'Telegram inbox',
+        }),
+        getCurrentAccountId: () => 1,
+      },
+    });
+    const wrapper = mount(Audio, {
+      ...options,
+      global: { ...options.global, plugins: [otherStore] },
+    });
+    await flushPromises();
+    expect(wrapper.get('img').attributes('src')).toBe('agent.png');
+    expect(WhatsappProfileAPI.photo).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
 });
