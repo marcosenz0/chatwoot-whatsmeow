@@ -8,6 +8,8 @@
 - In dialogs, verify the open menu stays above the form, fits its field/viewport and is not clipped by scroll containers. Verify keyboard choice, Escape returning focus, and a narrow viewport with the actual Chatwoot stylesheet before declaring the visual fix complete.
 - This convention applies to the whole fork and future interfaces, across principal, MX and MD. Record user-visible changes and verification in the relevant handoff document.
 
+Latest shipped UI correction (October 14, 2026): principal, MX and MD web/workers use `fork-bbb72873c79a70f8b7b63b43515feea05146457e`. Agent Pix types use the Chatwoot icon menu with a separate chevron. Gate 38646681385 passed 737 targeted checks; published UI, normal/narrow layout and keyboard confirmed. All 78 conversation states/profiles and MD data hashes preserved; six bridge containers/images unchanged (WhatsApp 0632806, Telegram f78d265). Read `docs/marcoxia-pix-selector-2026-10-14.md`. PR48 is above PR47, unmerged; older app pins below are historical.
+
 ## Build / Test / Lint
 
 - **Setup**: `bundle install && pnpm install`
