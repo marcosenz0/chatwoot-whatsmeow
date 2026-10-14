@@ -221,7 +221,7 @@
       "AUTO_PAUSE_SAVED": "Automatic pause updated for this conversation.",
       "REPLY_NOW": "Reply now",
       "REPLY_NOW_OK": "The agent is preparing a reply to send in this conversation.",
-      "REPLY_NOW_HINT": "Generates and sends a reply to the current history using the selected agent, even if AI was off. To review before sending, use Analyze conversation below."
+      "REPLY_NOW_HINT": "Prepares a reply for review. For voice replies, listen to the preview before sending. Never sends automatically or resumes paused AI."
     },
     "ANALYSIS": {
       "TITLE": "Analyze history and prepare a reply",
@@ -248,13 +248,17 @@
       "THINKING": "MarcoXIA is preparing your draft…",
       "REFINE": "Ask MarcoXIA to adjust this draft…",
       "VOICE_TITLE": "Prepare a voice reply",
-      "VOICE_HINT": "Uses this conversation’s agent and latest request. Listen and review before adding the audio to your reply. Works while AI is paused; nothing is sent automatically.",
+      "VOICE_HINT": "Uses this conversation’s agent and context. Listen and review; Send audio delivers this exact recording to the contact. Works while AI is paused.",
       "VOICE_TEXT": "Spoken reply",
       "VOICE_COUNT": "{count} / {max} characters",
       "VOICE_WORKING": "Preparing your voice reply…",
       "VOICE_GENERATE": "Generate audio",
-      "VOICE_USE": "Add audio to reply",
-      "VOICE_CHANGED": "The text changed. Generate the audio again before using it."
+      "VOICE_USE": "Send audio",
+      "VOICE_CHANGED": "The text changed. Generate the audio again before using it.",
+      "REVIEW_TITLE": "Review reply",
+      "REVIEW_TEXT": "Text to send",
+      "REVIEW_SEND": "Send reply",
+      "REPLY_SENT": "Reply sent. Check delivery in the conversation."
     },
     "AUTOMATION": {
       "NOTIFICATIONS": "Notifications",

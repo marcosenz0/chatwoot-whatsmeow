@@ -11,7 +11,7 @@ class MarcosxAi::DeliveryJob < ApplicationJob
     pending = @state.metadata['pending_response']
     return unless pending && pending['next_part'] == part_index
 
-    prepare_audio(pending) if part_index.zero?
+    prepare_audio(pending, token) if part_index.zero?
     @state.with_lock do
       return unless @state.current_run?(token)
 
@@ -52,15 +52,22 @@ class MarcosxAi::DeliveryJob < ApplicationJob
 
   private
 
-  def prepare_audio(plan)
+  def prepare_audio(plan, token)
     return if plan['voice_text'].blank? || plan['handoff']
     return unless @state.assistant.voice_ready? && MarcosxAi::VoiceClient::CHANNELS.include?(@state.inbox.channel_type)
 
+    @state.with_lock do
+      return unless @state.current_run?(token)
+
+      @state.update!(metadata: @state.metadata.merge('presence_media' => 'audio'))
+    end
+    MarcosxAi::TypingPresenceJob.perform_now(@state.conversation_id, token)
     @audio = MarcosxAi::VoiceClient.new(assistant: @state.assistant).synthesize(plan['voice_text'])
   rescue StandardError
     MarcosxAi::Log.create!(account: @state.account, assistant: @state.assistant, conversation: @state.conversation,
                            event: 'voice_failed', status: 'error', error: 'Voice synthesis failed; continuing with text.')
     @audio = nil
+    @state.with_lock { @state.update!(metadata: @state.metadata.except('presence_media')) } if @state.current_run?(token)
   end
 
   def create_audio_message(transcript)
@@ -72,7 +79,7 @@ class MarcosxAi::DeliveryJob < ApplicationJob
       additional_attributes: { marcosx_ai: true, assistant_name: @state.assistant.name,
                                trigger_message_id: @state.metadata['trigger_message_id'] }
     )
-    attachment = message.attachments.build(account: @state.account, file_type: :audio, meta: { is_voice_message: true })
+    attachment = message.attachments.build(account: @state.account, file_type: :audio, meta: { is_voice_message: true, transcribed_text: transcript })
     attachment.file.attach(io: StringIO.new(@audio), filename: 'agent-voice.mp3', content_type: 'audio/mpeg')
     message.save!
     message
@@ -108,7 +115,7 @@ class MarcosxAi::DeliveryJob < ApplicationJob
   end
 
   def finish(plan)
-    metadata = @state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'pause_ack', 'call_event')
+    metadata = @state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'pause_ack', 'call_event', 'presence_media')
     @state.update!(metadata: metadata.merge(
       'processing' => false, 'last_processed_trigger_id' => @state.metadata['trigger_message_id']
     ))

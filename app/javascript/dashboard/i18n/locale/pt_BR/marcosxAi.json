@@ -221,7 +221,7 @@
       "AUTO_PAUSE_SAVED": "Pausa automática atualizada para esta conversa.",
       "REPLY_NOW": "Responder agora",
       "REPLY_NOW_OK": "O agente está preparando a resposta para enviar nesta conversa.",
-      "REPLY_NOW_HINT": "Gera e envia uma resposta ao histórico atual com o agente selecionado, mesmo se a IA estava desligada. Para revisar antes de enviar, use Analisar conversa abaixo."
+      "REPLY_NOW_HINT": "Prepara uma resposta para você revisar. Quando for em áudio, ouça a prévia antes de enviar. Não envia automaticamente nem reativa uma IA pausada."
     },
     "ANALYSIS": {
       "TITLE": "Analisar o histórico e preparar uma resposta",
@@ -248,13 +248,17 @@
       "THINKING": "A MarcoXIA está preparando seu rascunho…",
       "REFINE": "Peça à MarcoXIA para ajustar este rascunho…",
       "VOICE_TITLE": "Preparar resposta em áudio",
-      "VOICE_HINT": "Usa o agente desta conversa e o pedido mais recente. Ouça e revise antes de adicionar o áudio à resposta. Funciona com a IA pausada; nada é enviado automaticamente.",
+      "VOICE_HINT": "Usa o agente e o contexto desta conversa. Ouça e revise; Enviar áudio envia esta mesma gravação ao contato. Funciona com a IA pausada.",
       "VOICE_TEXT": "Texto que será falado",
       "VOICE_COUNT": "{count} / {max} caracteres",
       "VOICE_WORKING": "Preparando a resposta em áudio…",
       "VOICE_GENERATE": "Gerar áudio",
-      "VOICE_USE": "Adicionar áudio à resposta",
-      "VOICE_CHANGED": "O texto foi alterado. Gere o áudio novamente antes de usá-lo."
+      "VOICE_USE": "Enviar áudio",
+      "VOICE_CHANGED": "O texto foi alterado. Gere o áudio novamente antes de usá-lo.",
+      "REVIEW_TITLE": "Revisar resposta",
+      "REVIEW_TEXT": "Texto que será enviado",
+      "REVIEW_SEND": "Enviar resposta",
+      "REPLY_SENT": "Resposta enviada. Acompanhe a entrega na conversa."
     },
     "AUTOMATION": {
       "NOTIFICATIONS": "Notificações",

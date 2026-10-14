@@ -1563,7 +1563,6 @@ export default {
     ref="voiceDraft"
     :conversation-id="conversationId"
     :assistant-id="currentChat.marcosx_ai?.assistant_id || null"
-    @use-audio="onFileUpload"
   />
   <ReplyBoxBanner :message="message" :is-on-private-note="isOnPrivateNote" />
   <div class="reply-box" :class="replyBoxClass">

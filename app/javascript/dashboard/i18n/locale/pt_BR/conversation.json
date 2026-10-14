@@ -538,7 +538,8 @@
         "STRUCTURED": "Estruturado",
         "GENERAL": "Geral"
       },
-      "PROCESSING_ERROR": "Não foi possível processar o áudio. Confira a integração de transcrição de áudios e tente novamente."
+      "PROCESSING_ERROR": "Não foi possível processar o áudio. Confira a integração de transcrição de áudios e tente novamente.",
+      "SEEK": "Posição do áudio"
     },
     "WHATSMEOW_GROUP": {
       "OPEN_PRIVATE_CHAT": "Conversar",

@@ -60,4 +60,14 @@ RSpec.describe MarcosxAi::TypingPresenceJob do
     Whatsmeow::TypingStatusService.new(conversation: conversation.reload, status: 'on', media: 'audio').perform
     expect(client).to have_received(:typing).with(to: anything, state: 'composing', media: 'audio')
   end
+
+  it 'renews recording during synthesis instead of reverting to typing, and respects recording with typing off' do
+    assistant.update!(config: assistant.resolved_config.merge(show_recording: true, show_typing: false))
+    state.update!(metadata: state.metadata.merge('presence_media' => 'audio', 'assistant_version' => assistant.updated_at.iso8601(6)))
+    described_class.perform_now(conversation.id, token)
+    expect(client).to have_received(:typing).with(to: anything, state: 'composing', media: 'audio')
+    expect(client).not_to have_received(:typing).with(to: anything, state: 'composing', media: 'text')
+    state.pause_by_agent!
+    expect(client).to have_received(:typing).with(to: anything, state: 'paused', media: 'audio')
+  end
 end

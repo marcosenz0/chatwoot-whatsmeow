@@ -241,6 +241,17 @@ class MarcosxAiAPI extends ApiClient {
     return axios.get(`${this.url}/conversations/${conversationId}/state`);
   }
 
+  sendReviewedReply(conversationId, content, reviewToken, audio = null) {
+    const data = new FormData();
+    data.append('draft[content]', content);
+    data.append('draft[review_token]', reviewToken);
+    if (audio) data.append('draft[audio]', audio, 'agent-voice.mp3');
+    return axios.post(
+      `${this.url}/conversations/${conversationId}/draft/send_reply`,
+      data
+    );
+  }
+
   getConversationDecision(conversationId, messageId, options = {}) {
     return axios.get(`${this.url}/conversations/${conversationId}/decision`, {
       ...options,

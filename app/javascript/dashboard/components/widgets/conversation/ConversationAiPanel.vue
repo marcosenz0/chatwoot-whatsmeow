@@ -12,6 +12,7 @@ import AiToggleRow from 'dashboard/routes/dashboard/captain/components/AiToggleR
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import ConversationMemory from 'dashboard/routes/dashboard/captain/components/ConversationMemory.vue';
 import AgentAlertList from 'dashboard/routes/dashboard/captain/components/AgentAlertList.vue';
+import ConversationVoiceDraft from './ConversationVoiceDraft.vue';
 
 const props = defineProps({
   chat: { type: Object, required: true },
@@ -22,6 +23,7 @@ const emit = defineEmits(['updated']);
 const { t } = useI18n();
 const { isAdmin } = useAdmin();
 const dialog = ref(null);
+const replyReview = ref(null);
 const visible = ref(false);
 const working = ref(false);
 const assistantId = ref(null);
@@ -221,6 +223,11 @@ const selectContext = event => {
 </script>
 
 <template>
+  <ConversationVoiceDraft
+    ref="replyReview"
+    :conversation-id="chat.id"
+    :assistant-id="assistantId"
+  />
   <Dialog
     ref="dialog"
     width="3xl"
@@ -289,7 +296,7 @@ const selectContext = event => {
             class="shrink-0"
             :label="t('MARCOX_AI.CONVERSATION.REPLY_NOW')"
             :disabled="working || processing || state?.processing || !available"
-            @click="act('reply_now')"
+            @click="replyReview.open('reply_review')"
           />
         </div>
       </div>

@@ -82,15 +82,20 @@ RSpec.describe 'MarcoXIA API', type: :request do
     expect(response.body).not_to include('private facts')
   end
 
-  it 'starts manual continuation only in the selected conversation' do
+  it 'prepares manual continuation for review without scheduling or resuming the conversation' do
     assistant.update!(config: { auto_response_enabled: true, auto_start: false })
     assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
     create(:message, account: account, conversation: conversation, inbox: inbox, message_type: :outgoing)
+    client = instance_double(MarcosxAi::ProviderClient, usage: {})
+    allow(MarcosxAi::ProviderClient).to receive(:new).and_return(client)
+    allow(client).to receive(:chat).and_return({ messages: ['Review this'], reaction: nil, reaction_message_id: nil,
+                                               handoff: false, handoff_reason: nil }.to_json)
     expect {
       put "#{endpoint}/conversations/#{conversation.display_id}/state", params: { state: { action: 'reply_now' } }, headers: admin.create_new_auth_token
-    }.to have_enqueued_job(MarcosxAi::ResponseJob)
+    }.not_to have_enqueued_job(MarcosxAi::ResponseJob)
     expect(response).to have_http_status(:ok), response.body
-    expect(response.parsed_body['state']['processing']).to be(true)
+    expect(response.parsed_body['draft']).to include('content' => 'Review this', 'review_token' => be_present)
+    expect(response.parsed_body['state']['processing']).to be(false)
   end
 
   it 'uses the saved reaction setting in the private test area' do

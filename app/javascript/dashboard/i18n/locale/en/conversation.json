@@ -556,7 +556,8 @@
         "STRUCTURED": "Structured",
         "GENERAL": "General"
       },
-      "PROCESSING_ERROR": "Could not process the audio. Check the audio transcription integration and try again."
+      "PROCESSING_ERROR": "Could not process the audio. Check the audio transcription integration and try again.",
+      "SEEK": "Audio position"
     },
     "WHATSMEOW_GROUP": {
       "OPEN_PRIVATE_CHAT": "Message",

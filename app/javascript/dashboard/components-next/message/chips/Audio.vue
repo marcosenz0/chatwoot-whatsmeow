@@ -14,6 +14,7 @@ import ProfilePhotoAvatar from 'next/avatar/ProfilePhotoAvatar.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import { timeStampAppendedURL } from 'dashboard/helper/URLHelper';
 import { useAlert } from 'dashboard/composables';
+import { useInboxProfilePhoto } from 'dashboard/composables/useInboxProfilePhoto';
 import { useEmitter } from 'dashboard/composables/emitter';
 import { emitter } from 'shared/helpers/mitt';
 import { LocalStorage } from 'shared/helpers/localStorage';
@@ -198,13 +199,19 @@ const markAudioAsHeard = () => {
   isAudioHeard.value = true;
 };
 
-const avatarName = computed(() => sender.value?.name || '');
-const avatarSrc = computed(
-  () =>
-    sender.value?.thumbnail ||
-    sender.value?.avatarUrl ||
-    sender.value?.avatar_url ||
-    ''
+const ownPhoto = useInboxProfilePhoto(inboxId, isOutgoing);
+const avatarName = computed(() =>
+  isOutgoing.value
+    ? store.getters['inboxes/getInbox'](inboxId.value)?.name || ''
+    : sender.value?.name || ''
+);
+const avatarSrc = computed(() =>
+  isOutgoing.value
+    ? ownPhoto.value
+    : sender.value?.thumbnail ||
+      sender.value?.avatarUrl ||
+      sender.value?.avatar_url ||
+      ''
 );
 const metaDuration = computed(() =>
   Number(
@@ -398,7 +405,7 @@ const playerToneClass = computed(() => {
   return 'bg-n-slate-4 text-n-slate-12';
 });
 const playerClass = computed(() => [
-  'flex w-full min-w-80 max-w-[28rem] items-center gap-2 rounded-xl px-3 py-2 shadow-[0_1px_1px_rgba(0,0,0,0.14)]',
+  'flex w-80 max-w-full min-w-0 items-center gap-2 rounded-xl px-3 py-2 shadow-[0_1px_1px_rgba(0,0,0,0.14)]',
   playerToneClass.value,
 ]);
 const playedBarClass = computed(() =>
@@ -677,11 +684,14 @@ const changePlaybackSpeed = () => {
 
       <div class="flex min-w-0 flex-1 flex-col justify-center gap-1">
         <div class="relative flex h-6 min-w-0 items-center">
-          <div class="flex h-6 w-full min-w-0 items-center gap-px">
+          <div
+            data-testid="audio-waveform"
+            class="flex h-6 w-full max-w-48 min-w-0 items-center gap-0.5 overflow-hidden"
+          >
             <span
               v-for="(height, index) in waveformBars"
               :key="`${height}-${index}`"
-              class="min-w-px flex-1 rounded-full"
+              class="w-0.5 max-w-0.5 min-w-0 flex-1 rounded-full"
               :class="[barHeightClass(height), barColorClass(index)]"
             />
           </div>
@@ -690,7 +700,8 @@ const changePlaybackSpeed = () => {
             min="0"
             :max="effectiveDuration"
             :value="currentTime"
-            class="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            :aria-label="t('CONVERSATION.AUDIO.SEEK')"
+            class="absolute inset-0 h-full w-full max-w-48 cursor-pointer opacity-0"
             @input="seek"
           />
         </div>
@@ -702,7 +713,7 @@ const changePlaybackSpeed = () => {
           </span>
           <MessageMeta
             v-if="props.showMessageMeta"
-            class="ml-auto justify-end text-[10px] font-medium leading-none text-n-slate-11"
+            class="ml-auto min-w-0 overflow-hidden justify-end text-[10px] font-medium leading-none text-n-slate-11"
           />
         </div>
       </div>
