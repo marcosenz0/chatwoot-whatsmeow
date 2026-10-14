@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_10_13_090000) do
+ActiveRecord::Schema[7.2].define(version: 2026_10_14_180000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1452,6 +1452,24 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_13_090000) do
     t.index ["conversation_id"], name: "index_marcosx_ai_logs_on_conversation_id"
   end
 
+  create_table "marcosx_ai_pix_keys", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "assistant_id", null: false
+    t.string "title", null: false
+    t.string "key_type", null: false
+    t.string "key", null: false
+    t.string "merchant_name", null: false
+    t.text "description", default: "", null: false
+    t.integer "position"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["account_id"], name: "index_marcosx_ai_pix_keys_on_account_id"
+    t.index ["assistant_id", "key"], name: "index_marcosx_ai_pix_keys_on_assistant_id_and_key", unique: true
+    t.index ["assistant_id", "position"], name: "index_marcosx_ai_pix_keys_on_assistant_id_and_position", unique: true
+    t.index ["assistant_id"], name: "index_marcosx_ai_pix_keys_on_assistant_id"
+    t.check_constraint "\"position\" = ANY (ARRAY[1, 2])", name: "marcosx_ai_pix_active_slots"
+  end
+
   create_table "marcosx_ai_resources", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "assistant_id", null: false
@@ -2118,6 +2136,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_13_090000) do
   add_foreign_key "marcosx_ai_logs", "accounts"
   add_foreign_key "marcosx_ai_logs", "conversations"
   add_foreign_key "marcosx_ai_logs", "marcosx_ai_assistants", column: "assistant_id"
+  add_foreign_key "marcosx_ai_pix_keys", "accounts"
+  add_foreign_key "marcosx_ai_pix_keys", "marcosx_ai_assistants", column: "assistant_id"
   add_foreign_key "marcosx_ai_resources", "accounts"
   add_foreign_key "marcosx_ai_resources", "marcosx_ai_assistants", column: "assistant_id"
   add_foreign_key "marcosx_ai_test_sessions", "accounts", on_delete: :cascade

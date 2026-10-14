@@ -56,8 +56,10 @@ class MarcosxAi::ComposerDraftService
                                                 context: MarcosxAi::PromptBuilder.context_for(@conversation, assistant: assistant),
                                                 reactions: false, proactive: true)
     task = "Operator draft only. Do not send messages or execute actions. #{TASKS.fetch(@action)} " \
-           'Use the conversation language. Return a nonempty draft in messages, with reaction null, handoff false, resource_ids empty and pix_key_id null. ' \
-           'This draft cannot send files or Pix cards. Do not write a Pix key or claim a Pix card was sent. Do not say a file has been sent or attached. ' \
+           'Use the conversation language. Return a nonempty draft in messages, with reaction null, handoff false, ' \
+           'resource_ids empty and pix_key_id null. ' \
+           'This draft cannot send files or Pix cards. Do not write a Pix key or claim a Pix card was sent. ' \
+           'Do not say a file has been sent or attached. ' \
            'The operator explicitly requested a draft, even if the latest history message already received a reply. Do not choose silence.'
     if @action == 'voice_reply'
       task += ' The operator will review and generate the audio. ' \

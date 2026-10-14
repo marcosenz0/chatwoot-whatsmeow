@@ -49,7 +49,8 @@ class MarcosxAi::ConversationResponderService
                                                   voice_context: runtime[:voice], pix_available: runtime[:pix_available])
     end
     plan['messages'] = [@assistant.handoff_message] if plan['handoff'] && plan['messages'].empty? && @assistant.handoff_message.present?
-    if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff'] && plan['alert_rule_ids'].empty? && plan['resource_ids'].empty? && plan['pix_key_id'].nil?
+    if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff'] &&
+       plan['alert_rule_ids'].empty? && plan['resource_ids'].empty? && plan['pix_key_id'].nil?
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response')
     end
 

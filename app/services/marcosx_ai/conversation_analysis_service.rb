@@ -107,7 +107,8 @@ class MarcosxAi::ConversationAnalysisService
         raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.conversation_unavailable')
       end
 
-      plan = MarcosxAi::ReplyPlan.parse(analysis.fetch('plan').merge('messages' => messages, 'voice_text' => nil, 'resource_ids' => [], 'pix_key_id' => nil).to_json,
+      plan = MarcosxAi::ReplyPlan.parse(analysis.fetch('plan').merge('messages' => messages, 'voice_text' => nil,
+                                                                     'resource_ids' => [], 'pix_key_id' => nil).to_json,
                                         assistant: @assistant)
       if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff'] && plan['alert_rule_ids'].empty?
         raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response')

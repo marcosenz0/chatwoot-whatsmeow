@@ -19,7 +19,8 @@ class MarcosxAi::ReplyPlan
 
   def self.parse(text, assistant:, recent_messages: [], voice_context: nil, pix_available: true)
     plan = JSON.parse(text)
-    plan = { 'alert_rule_ids' => [], 'recall_context' => false, 'voice_text' => nil, 'resource_ids' => [], 'pix_key_id' => nil }.merge(plan) if plan.is_a?(Hash)
+    plan = { 'alert_rule_ids' => [], 'recall_context' => false, 'voice_text' => nil, 'resource_ids' => [],
+             'pix_key_id' => nil }.merge(plan) if plan.is_a?(Hash)
     unless plan.is_a?(Hash) && plan['messages'].is_a?(Array) && plan['messages'].all? { |part| part.is_a?(String) } &&
            [true, false].include?(plan['handoff']) && SCHEMA[:required].all? { |key| plan.key?(key) } &&
            [*REACTIONS, nil].include?(plan['reaction']) && (plan['reaction_message_id'].nil? || plan['reaction_message_id'].is_a?(Integer)) &&
@@ -32,6 +33,7 @@ class MarcosxAi::ReplyPlan
     if !pix_available && plan['pix_key_id'].present?
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_response')
     end
+
     MarcosxAi::PixCatalog.validate!(plan['pix_key_id'], assistant)
     MarcosxAi::ResourceCatalog.validate!(plan['resource_ids'], assistant)
     parts = MarcosxAi::ReplyStyle.apply(plan['messages'].map(&:strip).compact_blank,

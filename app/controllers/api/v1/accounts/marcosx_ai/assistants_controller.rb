@@ -98,7 +98,8 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
 
     client = MarcosxAi::ProviderClient.new(account: Current.account, provider: @assistant.provider, model: @assistant.model,
                                            temperature: @assistant.temperature, reasoning_effort: @assistant.reasoning_effort)
-    prompts = MarcosxAi::PromptBuilder.messages(assistant: @assistant, context: { pix_available: @assistant.pix_keys.available.exists? }, reactions: @assistant.feature_enabled?(:allow_reactions))
+    prompts = MarcosxAi::PromptBuilder.messages(assistant: @assistant, context: { pix_available: @assistant.pix_keys.available.exists? },
+                                                reactions: @assistant.feature_enabled?(:allow_reactions))
     if playground_params[:event] == 'missed_call'
       prompts << { role: 'developer', content: @assistant.resolved_config[:missed_call_instructions] }
       prompts << { role: 'user', content: 'Simulação: chamada recebida encerrada sem atendimento.' }
