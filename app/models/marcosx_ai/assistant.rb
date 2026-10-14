@@ -60,6 +60,7 @@ class MarcosxAi::Assistant < ApplicationRecord
   has_many :logs, class_name: 'MarcosxAi::Log', dependent: :nullify, inverse_of: :assistant
   has_many :alerts, class_name: 'MarcosxAi::Alert', dependent: :nullify, inverse_of: :assistant
   has_many :voice_credentials, class_name: 'MarcosxAi::VoiceCredential', dependent: :destroy, inverse_of: :assistant
+  has_many :pix_keys, class_name: 'MarcosxAi::PixKey', dependent: :destroy, inverse_of: :assistant
   has_many :resources, class_name: 'MarcosxAi::Resource', dependent: :destroy, inverse_of: :assistant
 
   validates :name, presence: true

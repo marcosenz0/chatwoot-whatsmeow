@@ -527,6 +527,34 @@
       "MUTE_VIDEO": "Mute video",
       "UNMUTE_VIDEO": "Unmute video",
       "VIDEO_ERROR": "This video could not be played in the browser."
+    },
+    "PIX": {
+      "TITLE": "Pix keys",
+      "BODY": "Register keys and choose which ones this agent may share. Click a card to enable or disable it. The primary key is used first; the alternative helps if the customer has trouble with it.",
+      "ADD": "Add key",
+      "EDIT": "Edit key",
+      "DELETE": "Delete key",
+      "SAVE": "Save key",
+      "NAME": "Key name",
+      "HOLDER": "Full account holder name",
+      "PREVIEW": "WhatsApp card preview",
+      "DESCRIPTION": "Key context",
+      "DESCRIPTION_HINT": "For example: primary account for direct purchases; fallback if the first key does not work.",
+      "ENABLED": "Available to AI",
+      "ENABLED_HINT": "Saving here does not send a message or enable automatic replies.",
+      "PRIMARY": "Primary",
+      "ALTERNATIVE": "Alternative",
+      "INACTIVE": "Disabled",
+      "MAKE_PRIMARY": "Make primary",
+      "TOGGLE": "Enable or disable {name}",
+      "ACTIVE_COUNT": "{count} of 2 active keys",
+      "LIMIT_HINT": "Disable one of the two selected keys before enabling another.",
+      "EMPTY": "No keys registered for this agent. Add a key to allow contextual Pix cards.",
+      "CHANNEL_HINT": "Cards with a copy button are sent through Whatsmeow WhatsApp. Sharing a key does not confirm payment. Keys belong to this agent. Changes are saved in this section.",
+      "DELETE_HINT": "Delete “{name}” from this agent? It will no longer be available for new messages. Sent messages remain in the conversation.",
+      "ERROR": "Could not load or save Pix keys. Please try again.",
+      "LOADING": "Loading keys…",
+      "SIMULATED": "Simulated Pix card: {name}"
     }
   }
 }

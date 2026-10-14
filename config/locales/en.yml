@@ -46,6 +46,8 @@ en:
     errors:
       conversation_unavailable: 'This conversation cannot receive an AI reply right now. Check the channel reply window and agent settings.'
       credential_missing: 'Save and enable a provider connection first.'
+      invalid_pix_key: 'Check the name, key type, valid Pix key and full account holder name. Duplicate keys are not allowed for the same agent.'
+      pix_active_limit: 'An agent can have at most two active Pix keys. Disable a key before activating another.'
       invalid_resource: 'Check the name, description, link and file. Use a supported format up to 40 MB.'
       resource_limit: 'Each agent supports up to 100 files and links.'
       invalid_response: 'The model returned an invalid response.'

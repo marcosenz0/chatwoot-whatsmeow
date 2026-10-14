@@ -18,6 +18,7 @@ import AgentAlertList from './AgentAlertList.vue';
 import AgentMemories from './AgentMemories.vue';
 import AgentVoice from './AgentVoice.vue';
 import AgentResources from './AgentResources.vue';
+import AgentPixKeys from './AgentPixKeys.vue';
 import AgentSection from './AgentSection.vue';
 import { voiceDefaults } from './agentVoiceDefaults';
 
@@ -134,6 +135,11 @@ const sections = computed(() => [
           id: 'resources',
           icon: 'i-lucide-folder-open',
           label: t('MARCOX_AI.RESOURCES.TITLE'),
+        },
+        {
+          id: 'pix',
+          icon: 'i-lucide-key-round',
+          label: t('MARCOX_AI.PIX.TITLE'),
         },
       ]
     : []),
@@ -405,9 +411,13 @@ const channelLabel = inbox =>
             :aria-selected="section === item.id"
             :disabled="
               (item.id === 'test' && (!form.id || hasUnsavedChanges)) ||
-              (['attendance', 'activity', 'memories', 'resources'].includes(
-                item.id
-              ) &&
+              ([
+                'attendance',
+                'activity',
+                'memories',
+                'resources',
+                'pix',
+              ].includes(item.id) &&
                 !form.id)
             "
             class="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2.5 text-start text-sm font-medium disabled:opacity-40 lg:w-full"
@@ -435,6 +445,7 @@ const channelLabel = inbox =>
               'activity',
               'memories',
               'resources',
+              'pix',
             ].includes(section)
           "
           id="marcosx-agent-editor"
@@ -1012,6 +1023,10 @@ const channelLabel = inbox =>
             </fieldset>
           </div>
         </form>
+        <AgentPixKeys
+          v-if="section === 'pix' && form.id && canEdit"
+          :agent-id="form.id"
+        />
         <AgentResources
           v-if="section === 'resources' && form.id && canEdit"
           :agent-id="form.id"

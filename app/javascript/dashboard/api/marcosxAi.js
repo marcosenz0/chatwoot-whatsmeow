@@ -209,6 +209,21 @@ class MarcosxAiAPI extends ApiClient {
     return axios.get(`${this.url}/contact_memories`, { params });
   }
 
+  getPixKeys(assistantId) {
+    return axios.get(`${this.url}/assistants/${assistantId}/pix_keys`);
+  }
+
+  savePixKey(assistantId, id, pixKey) {
+    const url = `${this.url}/assistants/${assistantId}/pix_keys`;
+    return id
+      ? axios.put(`${url}/${id}`, { pix_key: pixKey })
+      : axios.post(url, { pix_key: pixKey });
+  }
+
+  deletePixKey(assistantId, id) {
+    return axios.delete(`${this.url}/assistants/${assistantId}/pix_keys/${id}`);
+  }
+
   getContactMemory(contactId, params = {}) {
     return axios.get(`${this.url}/contact_memories/${contactId}`, { params });
   }

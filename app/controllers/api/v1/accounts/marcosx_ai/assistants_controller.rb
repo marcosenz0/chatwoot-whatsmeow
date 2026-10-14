@@ -98,7 +98,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
 
     client = MarcosxAi::ProviderClient.new(account: Current.account, provider: @assistant.provider, model: @assistant.model,
                                            temperature: @assistant.temperature, reasoning_effort: @assistant.reasoning_effort)
-    prompts = MarcosxAi::PromptBuilder.messages(assistant: @assistant, reactions: @assistant.feature_enabled?(:allow_reactions))
+    prompts = MarcosxAi::PromptBuilder.messages(assistant: @assistant, context: { pix_available: @assistant.pix_keys.available.exists? }, reactions: @assistant.feature_enabled?(:allow_reactions))
     if playground_params[:event] == 'missed_call'
       prompts << { role: 'developer', content: @assistant.resolved_config[:missed_call_instructions] }
       prompts << { role: 'user', content: 'Simulação: chamada recebida encerrada sem atendimento.' }
@@ -133,6 +133,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
                simulation: { alerts: rules.map { |rule| rule.slice(:id, :name, :action) },
                              paused: rules.any? { |rule| rule[:action] == 'pause' } ||
                                      (plan['handoff'] && @assistant.feature_enabled?(:pause_on_handoff)),
+                             pix: @assistant.pix_keys.available.find_by(id: plan['pix_key_id'])&.public_data&.slice(:id, :title),
                              resources: @assistant.resources.where(id: plan['resource_ids']).map(&:catalog_data),
                              recall_requested: plan['recall_context'] },
                user_context: parts.map { |part| part[:text] }.join("\n") }
