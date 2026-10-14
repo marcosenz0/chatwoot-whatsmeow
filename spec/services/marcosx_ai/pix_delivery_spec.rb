@@ -17,7 +17,7 @@ RSpec.describe 'MarcoXIA native Pix delivery' do
     assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
     allow(Whatsmeow::TypingStatusService).to receive(:new).and_return(instance_double(Whatsmeow::TypingStatusService, perform: nil))
     allow(MarcosxAi::ProviderClient).to receive(:new).and_return(client)
-    allow(client).to receive(:chat).and_return(plan.to_json)
+    allow(client).to receive(:chat) { plan.to_json }
   end
 
   it 'sends the registered native card after text and resources, attributes the agent and never rewrites the inbox key' do
