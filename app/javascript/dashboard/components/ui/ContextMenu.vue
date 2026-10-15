@@ -18,7 +18,7 @@ const props = defineProps({
   topLayer: { type: Boolean, default: false },
 });
 
-const emit = defineEmits(['close']);
+const emit = defineEmits(['close', 'keydown']);
 
 const elementToLock = inject('contextMenuElementTarget', null);
 
@@ -106,6 +106,7 @@ onUnmounted(() => {
       :style="position"
       tabindex="0"
       @focusout="handleFocusOut"
+      @keydown="emit('keydown', $event)"
     >
       <slot />
     </div>

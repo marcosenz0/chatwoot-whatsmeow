@@ -31,7 +31,7 @@ const options = {
   attachTo: document.body,
   global: {
     stubs: {
-      ContextMenu: { template: '<div><slot /></div>' },
+      ContextMenu: { template: '<div tabindex="0"><slot /></div>' },
       Dialog: {
         setup(_, { expose }) {
           expose({ open: vi.fn(), close: vi.fn() });
@@ -157,12 +157,12 @@ it('supports keyboard context menus and Escape without dismissing the file edito
   await flushPromises();
   const tile = wrapper.findAll('[data-testid="saved-resource"]')[0];
   await tile.trigger('keydown', { key: 'F10', shiftKey: true });
-  const menu = wrapper.get('[role="menu"]');
-  await menu.trigger('keydown', { key: 'ArrowDown' });
+  const menuRoot = wrapper.get('div[tabindex="0"]');
+  await menuRoot.trigger('keydown', { key: 'ArrowDown' });
   expect(document.activeElement).toBe(
     wrapper.findAll('[role="menuitemradio"]')[0].element
   );
-  await menu.trigger('keydown', { key: 'Escape' });
+  await menuRoot.trigger('keydown', { key: 'Escape' });
   await flushPromises();
   expect(wrapper.find('[role="menu"]').exists()).toBe(false);
   expect(document.activeElement).toBe(tile.element);

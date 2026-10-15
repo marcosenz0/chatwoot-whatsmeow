@@ -282,6 +282,7 @@ const menuKeys = event => {
       :teleport-to="`#${libraryId}`"
       top-layer
       @close="closeMenu"
+      @keydown="menuKeys"
     >
       <div
         ref="menuSurface"
@@ -289,7 +290,6 @@ const menuKeys = event => {
         tabindex="-1"
         :aria-label="t('MARCOX_AI.AUDIENCE.TITLE')"
         class="w-72 max-w-[calc(100vw-2rem)] outline-none"
-        @keydown="menuKeys"
       >
         <DropdownBody class="!static">
           <li
