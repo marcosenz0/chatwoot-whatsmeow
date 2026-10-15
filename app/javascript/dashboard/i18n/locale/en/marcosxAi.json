@@ -25,7 +25,8 @@
       "VIEW_CONTEXT": "View context",
       "PENDING": "Pending requests",
       "OPEN_COUNT": "{count} open | {count} open",
-      "LOAD_ERROR": "Could not load totals. Reopen the panel to try again."
+      "LOAD_ERROR": "Could not load totals. Reopen the panel to try again.",
+      "EDIT_NOTICES": "Edit number | Edit numbers"
     },
     "AUDIENCE": {
       "TITLE": "Available to",

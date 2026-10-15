@@ -1,3 +1,4 @@
+import { ref } from 'vue';
 import { flushPromises, mount } from '@vue/test-utils';
 import API from 'dashboard/api/marcosxAi';
 import AgentNotificationTargets from '../AgentNotificationTargets.vue';
@@ -15,9 +16,19 @@ const global = {
     Dialog: {
       props: ['disableConfirmButton'],
       setup(_, { expose }) {
-        expose({ open() {}, close() {} });
+        const visible = ref(false);
+        expose({
+          open() {
+            visible.value = true;
+          },
+          close() {
+            visible.value = false;
+          },
+        });
+        return { visible };
       },
-      template: '<form @submit.prevent="$emit(\'confirm\')"><slot /></form>',
+      template:
+        '<form v-if="visible" @submit.prevent="$emit(\'confirm\')"><slot /></form>',
     },
   },
 };

@@ -21,6 +21,7 @@ const { t } = useI18n();
 const items = ref([]);
 const inboxes = ref([]);
 const editor = ref(null);
+const manager = ref(null);
 const deleteDialog = ref(null);
 const deleting = ref(null);
 const draft = ref({});
@@ -136,6 +137,10 @@ const remove = async () => {
   }
 };
 defineExpose({
+  openManager: async () => {
+    await initialLoad;
+    manager.value?.open();
+  },
   openCreate: async () => {
     await initialLoad;
     if (editor.value) openEditor();
@@ -145,75 +150,93 @@ defineExpose({
 
 <template>
   <section>
-    <div v-if="!compact" class="space-y-4">
-      <header class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h4
-            class="m-0 flex items-center gap-2 text-base font-semibold text-n-slate-12"
-          >
-            <span class="i-lucide-bell size-5 text-n-ruby-11" />{{
-              t('MARCOX_AI.NOTIFICATION_TARGETS.TITLE')
-            }}
-          </h4>
-          <p class="mb-0 mt-1 text-xs leading-5 text-n-slate-11">
-            {{ t('MARCOX_AI.NOTIFICATION_TARGETS.HINT') }}
-          </p>
-        </div>
-        <Button
-          icon="i-lucide-plus"
-          variant="outline"
-          :label="t('MARCOX_AI.NOTIFICATION_TARGETS.ADD')"
-          @click="openEditor()"
-        />
-      </header>
-      <p v-if="error" role="alert" class="text-sm text-n-ruby-11">
-        {{ error }}
-      </p>
-      <p
-        v-if="!items.length"
-        class="rounded-xl border border-dashed border-n-weak p-6 text-center text-sm text-n-slate-11"
+    <component
+      :is="compact ? Dialog : 'div'"
+      ref="manager"
+      v-bind="
+        compact
+          ? {
+              title: t('MARCOX_AI.NOTIFICATION_TARGETS.TITLE'),
+              width: '3xl',
+              showConfirmButton: false,
+              cancelButtonLabel: t('MARCOX_AI.ANALYSIS.CLOSE'),
+            }
+          : {}
+      "
+    >
+      <div
+        class="space-y-4"
+        :class="compact ? 'max-h-[60vh] overflow-y-auto p-1' : ''"
       >
-        {{ t('MARCOX_AI.NOTIFICATION_TARGETS.EMPTY') }}
-      </p>
-      <div v-else class="grid gap-3 sm:grid-cols-2">
-        <article
-          v-for="item in items"
-          :key="item.id"
-          class="min-w-0 space-y-3 rounded-xl border border-n-weak bg-n-solid-2 p-4"
+        <header class="flex flex-wrap items-center justify-between gap-3">
+          <div v-if="!compact">
+            <h4
+              class="m-0 flex items-center gap-2 text-base font-semibold text-n-slate-12"
+            >
+              <span class="i-lucide-bell size-5 text-n-ruby-11" />{{
+                t('MARCOX_AI.NOTIFICATION_TARGETS.TITLE')
+              }}
+            </h4>
+            <p class="mb-0 mt-1 text-xs leading-5 text-n-slate-11">
+              {{ t('MARCOX_AI.NOTIFICATION_TARGETS.HINT') }}
+            </p>
+          </div>
+          <Button
+            icon="i-lucide-plus"
+            variant="outline"
+            :label="t('MARCOX_AI.NOTIFICATION_TARGETS.ADD')"
+            @click="openEditor()"
+          />
+        </header>
+        <p v-if="error" role="alert" class="text-sm text-n-ruby-11">
+          {{ error }}
+        </p>
+        <p
+          v-if="!items.length"
+          class="rounded-xl border border-dashed border-n-weak p-6 text-center text-sm text-n-slate-11"
         >
-          <div class="flex items-start justify-between gap-2">
-            <div class="min-w-0">
-              <h5 class="m-0 truncate text-sm font-medium text-n-slate-12">
-                {{ item.title || item.number }}
-              </h5>
-              <p v-if="item.title" class="mb-0 mt-1 text-xs text-n-slate-11">
-                {{ item.number }}
-              </p>
+          {{ t('MARCOX_AI.NOTIFICATION_TARGETS.EMPTY') }}
+        </p>
+        <div v-else class="grid gap-3 sm:grid-cols-2">
+          <article
+            v-for="item in items"
+            :key="item.id"
+            class="min-w-0 space-y-3 rounded-xl border border-n-weak bg-n-solid-2 p-4"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <h5 class="m-0 truncate text-sm font-medium text-n-slate-12">
+                  {{ item.title || item.number }}
+                </h5>
+                <p v-if="item.title" class="mb-0 mt-1 text-xs text-n-slate-11">
+                  {{ item.number }}
+                </p>
+              </div>
+              <span v-if="!item.enabled" class="text-xs text-n-slate-11">{{
+                t('MARCOX_AI.RESOURCES.DISABLED')
+              }}</span>
             </div>
-            <span v-if="!item.enabled" class="text-xs text-n-slate-11">{{
-              t('MARCOX_AI.RESOURCES.DISABLED')
-            }}</span>
-          </div>
-          <AudienceBadge :item="item" />
-          <div class="flex justify-end gap-1 border-t border-n-weak pt-2">
-            <Button
-              variant="ghost"
-              color="slate"
-              icon="i-lucide-pencil"
-              :aria-label="t('MARCOX_AI.NOTIFICATION_TARGETS.EDIT')"
-              @click="openEditor(item)"
-            />
-            <Button
-              variant="ghost"
-              color="ruby"
-              icon="i-lucide-trash-2"
-              :aria-label="t('MARCOX_AI.NOTIFICATION_TARGETS.DELETE')"
-              @click="requestDelete(item)"
-            />
-          </div>
-        </article>
+            <AudienceBadge :item="item" />
+            <div class="flex justify-end gap-1 border-t border-n-weak pt-2">
+              <Button
+                variant="ghost"
+                color="slate"
+                icon="i-lucide-pencil"
+                :aria-label="t('MARCOX_AI.NOTIFICATION_TARGETS.EDIT')"
+                @click="openEditor(item)"
+              />
+              <Button
+                variant="ghost"
+                color="ruby"
+                icon="i-lucide-trash-2"
+                :aria-label="t('MARCOX_AI.NOTIFICATION_TARGETS.DELETE')"
+                @click="requestDelete(item)"
+              />
+            </div>
+          </article>
+        </div>
       </div>
-    </div>
+    </component>
     <Dialog
       ref="editor"
       :title="

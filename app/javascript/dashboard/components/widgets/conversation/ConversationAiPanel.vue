@@ -67,9 +67,14 @@ const loadShortcuts = async () => {
 const openQuick = async kind => {
   quickEditor.value = kind;
   await nextTick();
-  ({ resources: quickFiles, pix: quickPix, notices: quickNotices })[
-    kind
-  ].value.openCreate();
+  const editor = {
+    resources: quickFiles,
+    pix: quickPix,
+    notices: quickNotices,
+  }[kind].value;
+  if (kind === 'notices' && shortcutCounts.value.notices > 0)
+    await editor.openManager();
+  else await editor.openCreate();
 };
 watch(assistantId, () => {
   quickEditor.value = null;
@@ -377,10 +382,10 @@ const selectContext = event => {
               ? 'border-n-teal-6 bg-n-teal-2 text-n-teal-11'
               : 'border-n-weak bg-n-alpha-1 text-n-slate-11'
           "
-          ><span class="size-1.5 rounded-full bg-current" />{{
-            t(active ? 'MARCOX_AI.PANEL.ACTIVE' : 'MARCOX_AI.PANEL.PAUSED')
-          }}</span
         >
+          <span class="size-1.5 rounded-full bg-current" />
+          {{ t(active ? 'MARCOX_AI.PANEL.ACTIVE' : 'MARCOX_AI.PANEL.PAUSED') }}
+        </span>
         <Button
           type="button"
           variant="outline"
@@ -417,19 +422,22 @@ const selectContext = event => {
       <div
         class="flex flex-wrap items-center justify-between gap-2 pb-2 text-xs text-n-slate-11"
       >
-        <span>{{ t('MARCOX_AI.PANEL.REVIEW') }}</span
-        ><span class="inline-flex items-center gap-1.5"
-          ><span
+        <span>
+          {{ t('MARCOX_AI.PANEL.REVIEW') }}
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <span
             :class="globalScope ? 'i-lucide-globe' : 'i-lucide-message-circle'"
             class="size-3.5 shrink-0"
-          />{{
+          />
+          {{
             t(
               globalScope
                 ? 'MARCOX_AI.PANEL.SCOPE_GLOBAL'
                 : 'MARCOX_AI.PANEL.SCOPE_CONVERSATION'
             )
-          }}</span
-        >
+          }}
+        </span>
       </div>
       <p v-if="!assistants.length" class="text-sm text-n-slate-11">
         {{ t('MARCOX_AI.CONVERSATION.NO_AGENT') }}
@@ -468,7 +476,9 @@ const selectContext = event => {
             :for="`ai-context-${chat.id}`"
             class="flex max-w-sm items-center justify-between gap-3 text-xs font-medium text-n-slate-12"
           >
-            <span>{{ t('MARCOX_AI.ANALYSIS.CONTEXT_LABEL') }}</span>
+            <span>
+              {{ t('MARCOX_AI.ANALYSIS.CONTEXT_LABEL') }}
+            </span>
             <span class="text-n-slate-11">
               {{
                 messagesLimit === null
@@ -517,8 +527,9 @@ const selectContext = event => {
             <div class="flex items-center gap-3 p-3">
               <span
                 class="flex size-10 shrink-0 items-center justify-center rounded-full bg-n-blue-3 text-n-blue-11"
-                ><span class="i-lucide-file size-5"
-              /></span>
+              >
+                <span class="i-lucide-file size-5" />
+              </span>
               <div class="min-w-0">
                 <h4 class="m-0 text-sm font-semibold text-n-slate-12">
                   {{ t('MARCOX_AI.RESOURCES.TITLE') }}
@@ -547,8 +558,9 @@ const selectContext = event => {
             <div class="flex items-center gap-3 p-3">
               <span
                 class="flex size-10 shrink-0 items-center justify-center rounded-full bg-n-teal-3 text-n-teal-11"
-                ><PixIcon class="size-6"
-              /></span>
+              >
+                <PixIcon class="size-6" />
+              </span>
               <div class="min-w-0">
                 <h4 class="m-0 text-sm font-semibold text-n-slate-12">
                   {{ t('MARCOX_AI.PIX.TITLE') }}
@@ -577,8 +589,9 @@ const selectContext = event => {
             <div class="flex items-center gap-3 p-3">
               <span
                 class="flex size-10 shrink-0 items-center justify-center rounded-full bg-n-ruby-3 text-n-ruby-11"
-                ><span class="i-lucide-bell size-5"
-              /></span>
+              >
+                <span class="i-lucide-bell size-5" />
+              </span>
               <div class="min-w-0">
                 <h4 class="m-0 text-sm font-semibold text-n-slate-12">
                   {{ t('MARCOX_AI.PANEL.NOTICES') }}
@@ -598,7 +611,13 @@ const selectContext = event => {
               variant="ghost"
               icon="i-lucide-plus"
               class="w-full !rounded-t-none !border-t !border-n-weak"
-              :label="t('MARCOX_AI.PANEL.REGISTER')"
+              :label="
+                shortcutCounts.notices
+                  ? t('MARCOX_AI.PANEL.EDIT_NOTICES', {
+                      count: shortcutCounts.notices,
+                    })
+                  : t('MARCOX_AI.PANEL.REGISTER')
+              "
               :disabled="working"
               @click="openQuick('notices')"
             />
@@ -607,7 +626,8 @@ const selectContext = event => {
         <p
           class="mb-0 mt-3 flex items-start gap-2 text-xs leading-5 text-n-slate-11"
         >
-          <span class="i-lucide-info mt-0.5 size-4 shrink-0" />{{
+          <span class="i-lucide-info mt-0.5 size-4 shrink-0" />
+          {{
             t(
               globalScope
                 ? 'MARCOX_AI.PANEL.ADD_GLOBAL'
@@ -629,9 +649,9 @@ const selectContext = event => {
         icon="i-lucide-database"
       >
         <template #trailing>
-          <span class="text-xs text-n-blue-11">{{
-            t('MARCOX_AI.PANEL.VIEW_CONTEXT')
-          }}</span>
+          <span class="text-xs text-n-blue-11">
+            {{ t('MARCOX_AI.PANEL.VIEW_CONTEXT') }}
+          </span>
         </template>
         <ConversationMemory
           :conversation-id="chat.id"
@@ -652,10 +672,9 @@ const selectContext = event => {
                 ? 'bg-n-amber-3 text-n-amber-11'
                 : 'bg-n-alpha-2 text-n-slate-11'
             "
-            >{{
-              t('MARCOX_AI.PANEL.OPEN_COUNT', { count: pendingCount })
-            }}</span
           >
+            {{ t('MARCOX_AI.PANEL.OPEN_COUNT', { count: pendingCount }) }}
+          </span>
         </template>
         <AgentAlertList
           :conversation-id="chat.id"
@@ -667,9 +686,8 @@ const selectContext = event => {
         v-if="processing"
         class="flex items-center gap-2 text-sm text-n-slate-11"
       >
-        <span class="i-lucide-loader-circle size-4 animate-spin" />{{
-          t('MARCOX_AI.ANALYSIS.PROCESSING')
-        }}
+        <span class="i-lucide-loader-circle size-4 animate-spin" />
+        {{ t('MARCOX_AI.ANALYSIS.PROCESSING') }}
       </p>
       <p
         v-if="['outdated', 'failed', 'sent'].includes(analysis.status)"
@@ -706,9 +724,9 @@ const selectContext = event => {
           {{ t('MARCOX_AI.ANALYSIS.DRAFT') }}
         </h4>
         <label v-for="(_, index) in parts" :key="index" class="block">
-          <span class="mb-2 block text-xs text-n-slate-11">{{
-            t('MARCOX_AI.ANALYSIS.PART', { number: index + 1 })
-          }}</span>
+          <span class="mb-2 block text-xs text-n-slate-11">
+            {{ t('MARCOX_AI.ANALYSIS.PART', { number: index + 1 }) }}
+          </span>
           <textarea
             v-model="parts[index]"
             rows="3"
