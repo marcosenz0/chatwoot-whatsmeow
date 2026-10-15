@@ -14,6 +14,8 @@ import TeleportWithDirection from 'dashboard/components-next/TeleportWithDirecti
 const props = defineProps({
   x: { type: Number, default: 0 },
   y: { type: Number, default: 0 },
+  teleportTo: { type: String, default: 'body' },
+  topLayer: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['close']);
@@ -69,7 +71,10 @@ const position = computed(() => {
 
 onMounted(() => {
   isLocked.value = true;
-  nextTick(() => menuRef.value?.focus());
+  nextTick(() => {
+    if (props.topLayer) menuRef.value?.showPopover();
+    menuRef.value?.focus();
+  });
 });
 
 const handleClose = () => {
@@ -92,10 +97,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <TeleportWithDirection to="body">
+  <TeleportWithDirection :to="teleportTo">
     <div
       ref="menuRef"
       class="fixed outline-none z-[9999] cursor-pointer"
+      :class="{ 'm-0 overflow-visible border-0 bg-transparent p-0': topLayer }"
+      :popover="topLayer ? 'manual' : null"
       :style="position"
       tabindex="0"
       @focusout="handleFocusOut"

@@ -25,6 +25,7 @@ const options = {
   props: { agentId: 3 },
   global: {
     stubs: {
+      SavedResourceLibrary: true,
       Dialog: {
         props: ['disableConfirmButton'],
         setup(_, { expose }) {
@@ -337,5 +338,59 @@ it('rejects a selection beyond remaining catalog capacity while retaining existi
   expect(wrapper.findAll('[data-testid="resource-draft"]')).toHaveLength(1);
   expect(wrapper.get('textarea').element.value).toBe('Preserved description');
   expect(wrapper.get('[role="alert"]').text()).toContain('BATCH_LIMIT');
+  wrapper.unmount();
+});
+
+it('keeps new upload details and scope while changing a saved file, and submits only the new file', async () => {
+  API.saveResource.mockResolvedValue({
+    data: {
+      resource: { ...item, audience: 'conversation', conversation_id: 92 },
+    },
+  });
+  const wrapper = mount(AgentResources, {
+    ...options,
+    props: { agentId: 3, conversationId: 92, globalScope: false },
+    global: {
+      stubs: {
+        ...options.global.stubs,
+        SavedResourceLibrary: false,
+        ContextMenu: { template: '<div><slot /></div>' },
+      },
+    },
+  });
+  await flushPromises();
+  await wrapper
+    .findAll('button')
+    .find(b => b.text().includes('RESOURCES.ADD'))
+    .trigger('click');
+  await flushPromises();
+  const input = wrapper.get('input[type="file"]');
+  Object.defineProperty(input.element, 'files', {
+    value: [new File(['new'], 'new.png', { type: 'image/png' })],
+  });
+  await input.trigger('change');
+  await wrapper.get('textarea').setValue('New file context');
+  const scope = wrapper.findComponent(AudienceSelector);
+  scope.vm.$emit('update:modelValue', {
+    ...scope.props('modelValue'),
+    audience: 'global',
+    conversation_id: null,
+  });
+  await flushPromises();
+  await wrapper.get('[data-testid="saved-resource"]').trigger('contextmenu');
+  await wrapper.findAll('[role="menuitemradio"]')[1].trigger('click');
+  await flushPromises();
+  expect(wrapper.get('textarea').element.value).toBe('New file context');
+  expect(wrapper.findAll('[data-testid="resource-draft"]')).toHaveLength(1);
+  expect(scope.props('modelValue').audience).toBe('global');
+  wrapper.findAllComponents(Dialog)[0].vm.$emit('confirm');
+  await flushPromises();
+  const [, form] = API.saveResourceBatch.mock.calls[0];
+  expect(form.getAll('resources[][file]').map(file => file.name)).toEqual([
+    'new.png',
+  ]);
+  expect(form.getAll('resources[][description]')).toEqual(['New file context']);
+  expect(form.getAll('resources[][audience]')).toEqual(['global']);
+  expect(API.saveResource).toHaveBeenCalledTimes(1);
   wrapper.unmount();
 });

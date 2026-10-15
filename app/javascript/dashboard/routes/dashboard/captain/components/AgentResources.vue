@@ -10,6 +10,7 @@ import AudienceSelector from './AudienceSelector.vue';
 import AudienceBadge from './AudienceBadge.vue';
 import { defaultAudience, audiencePayload, audienceValid } from './audience';
 import ResourceVideoPlayer from './ResourceVideoPlayer.vue';
+import SavedResourceLibrary from './SavedResourceLibrary.vue';
 
 const props = defineProps({
   agentId: { type: Number, required: true },
@@ -260,6 +261,10 @@ const toggle = async item => {
     saving.value = false;
   }
 };
+const libraryUpdated = () => {
+  load();
+  emit('saved');
+};
 const requestDelete = item => {
   deleting.value = item;
   deleteDialog.value.open();
@@ -487,6 +492,13 @@ defineExpose({
       @close="clearFiles"
     >
       <div class="max-h-[60vh] space-y-5 overflow-y-auto p-1">
+        <SavedResourceLibrary
+          v-if="!editingId"
+          :agent-id="agentId"
+          :conversation-id="conversationId"
+          :disabled="saving"
+          @updated="libraryUpdated"
+        />
         <div v-if="!editingId" class="grid grid-cols-2 gap-2">
           <Button
             type="button"
@@ -640,6 +652,11 @@ defineExpose({
                 "
                 :disabled="saving"
                 @click="removeSelection(entry)"
+              />
+              <AudienceBadge
+                :item="entry"
+                icon-only
+                class="pointer-events-none absolute start-2 top-2"
               />
             </div>
           </div>
