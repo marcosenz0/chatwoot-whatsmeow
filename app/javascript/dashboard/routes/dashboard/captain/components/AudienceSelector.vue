@@ -111,6 +111,7 @@ watch(
       :options="options"
       :label="t('MARCOX_AI.AUDIENCE.TITLE')"
       :teleport="false"
+      in-flow
       @update:model-value="change"
     />
     <p class="m-0 text-xs leading-5 text-n-slate-11">

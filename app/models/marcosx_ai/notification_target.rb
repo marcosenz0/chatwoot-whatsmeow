@@ -4,7 +4,7 @@ class MarcosxAi::NotificationTarget < ApplicationRecord
   self.table_name = 'marcosx_ai_notification_targets'
   belongs_to :account
   belongs_to :assistant, class_name: 'MarcosxAi::Assistant', inverse_of: :notification_targets
-  belongs_to :inbox
+  belongs_to :inbox, class_name: '::Inbox'
 
   validates :title, length: { maximum: 120 }
   validates :number, format: { with: /\A\+[1-9]\d{7,14}\z/ }, uniqueness: { scope: :assistant_id }

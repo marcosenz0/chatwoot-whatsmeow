@@ -310,7 +310,9 @@ defineExpose({ openCreate: () => openEditor() });
       :prevent-close="saving"
       @confirm="save"
     >
-      <div class="grid min-w-0 gap-6 md:grid-cols-2">
+      <div
+        class="grid max-h-[60vh] min-w-0 gap-6 overflow-y-auto p-1 md:grid-cols-2"
+      >
         <div class="min-w-0 space-y-4">
           <label class="block space-y-2 text-sm font-medium text-n-slate-12"
             ><span>{{ t('MARCOX_AI.PIX.NAME') }}</span>
@@ -329,6 +331,7 @@ defineExpose({ openCreate: () => openEditor() });
               :options="keyTypes"
               :label="t('CONVERSATION.WHATSMEOW_PIX.KEY_TYPE')"
               :teleport="false"
+              in-flow
             />
           </div>
           <label class="block space-y-2 text-sm font-medium text-n-slate-12"

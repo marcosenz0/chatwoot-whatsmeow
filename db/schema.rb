@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_10_14_180000) do
+ActiveRecord::Schema[7.2].define(version: 2026_10_14_230000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1452,6 +1452,27 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_14_180000) do
     t.index ["conversation_id"], name: "index_marcosx_ai_logs_on_conversation_id"
   end
 
+  create_table "marcosx_ai_notification_targets", force: :cascade do |t|
+    t.bigint "account_id", null: false
+    t.bigint "assistant_id", null: false
+    t.bigint "inbox_id", null: false
+    t.string "title", default: "", null: false
+    t.string "number", null: false
+    t.boolean "enabled", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.string "audience", default: "global", null: false
+    t.jsonb "contact_ids", default: [], null: false
+    t.bigint "conversation_id"
+    t.index ["account_id"], name: "index_marcosx_ai_notification_targets_on_account_id"
+    t.index ["assistant_id", "audience"], name: "marcosx_ai_notification_targets_audience"
+    t.index ["assistant_id", "number"], name: "marcosx_ai_notification_number", unique: true
+    t.index ["assistant_id"], name: "index_marcosx_ai_notification_targets_on_assistant_id"
+    t.index ["conversation_id"], name: "index_marcosx_ai_notification_targets_on_conversation_id"
+    t.index ["inbox_id"], name: "index_marcosx_ai_notification_targets_on_inbox_id"
+    t.check_constraint "audience::text = ANY (ARRAY['global'::character varying, 'conversation'::character varying, 'contacts'::character varying]::text[])", name: "marcosx_ai_notification_targets_audience_kind"
+  end
+
   create_table "marcosx_ai_pix_keys", force: :cascade do |t|
     t.bigint "account_id", null: false
     t.bigint "assistant_id", null: false
@@ -1463,11 +1484,17 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_14_180000) do
     t.integer "position"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "audience", default: "global", null: false
+    t.jsonb "contact_ids", default: [], null: false
+    t.bigint "conversation_id"
     t.index ["account_id"], name: "index_marcosx_ai_pix_keys_on_account_id"
+    t.index ["assistant_id", "audience"], name: "marcosx_ai_pix_keys_audience"
     t.index ["assistant_id", "key"], name: "index_marcosx_ai_pix_keys_on_assistant_id_and_key", unique: true
     t.index ["assistant_id", "position"], name: "index_marcosx_ai_pix_keys_on_assistant_id_and_position", unique: true
     t.index ["assistant_id"], name: "index_marcosx_ai_pix_keys_on_assistant_id"
+    t.index ["conversation_id"], name: "index_marcosx_ai_pix_keys_on_conversation_id"
     t.check_constraint "\"position\" = ANY (ARRAY[1, 2])", name: "marcosx_ai_pix_active_slots"
+    t.check_constraint "audience::text = ANY (ARRAY['global'::character varying, 'conversation'::character varying, 'contacts'::character varying]::text[])", name: "marcosx_ai_pix_keys_audience_kind"
   end
 
   create_table "marcosx_ai_resources", force: :cascade do |t|
@@ -1480,9 +1507,15 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_14_180000) do
     t.boolean "enabled", default: true, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "audience", default: "global", null: false
+    t.jsonb "contact_ids", default: [], null: false
+    t.bigint "conversation_id"
     t.index ["account_id"], name: "index_marcosx_ai_resources_on_account_id"
+    t.index ["assistant_id", "audience"], name: "marcosx_ai_resources_audience"
     t.index ["assistant_id", "enabled"], name: "index_marcosx_ai_resources_on_assistant_id_and_enabled"
     t.index ["assistant_id"], name: "index_marcosx_ai_resources_on_assistant_id"
+    t.index ["conversation_id"], name: "index_marcosx_ai_resources_on_conversation_id"
+    t.check_constraint "audience::text = ANY (ARRAY['global'::character varying, 'conversation'::character varying, 'contacts'::character varying]::text[])", name: "marcosx_ai_resources_audience_kind"
   end
 
   create_table "marcosx_ai_test_sessions", force: :cascade do |t|
@@ -2136,9 +2169,15 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_14_180000) do
   add_foreign_key "marcosx_ai_logs", "accounts"
   add_foreign_key "marcosx_ai_logs", "conversations"
   add_foreign_key "marcosx_ai_logs", "marcosx_ai_assistants", column: "assistant_id"
+  add_foreign_key "marcosx_ai_notification_targets", "accounts"
+  add_foreign_key "marcosx_ai_notification_targets", "conversations", on_delete: :nullify
+  add_foreign_key "marcosx_ai_notification_targets", "inboxes"
+  add_foreign_key "marcosx_ai_notification_targets", "marcosx_ai_assistants", column: "assistant_id"
   add_foreign_key "marcosx_ai_pix_keys", "accounts"
+  add_foreign_key "marcosx_ai_pix_keys", "conversations", on_delete: :nullify
   add_foreign_key "marcosx_ai_pix_keys", "marcosx_ai_assistants", column: "assistant_id"
   add_foreign_key "marcosx_ai_resources", "accounts"
+  add_foreign_key "marcosx_ai_resources", "conversations", on_delete: :nullify
   add_foreign_key "marcosx_ai_resources", "marcosx_ai_assistants", column: "assistant_id"
   add_foreign_key "marcosx_ai_test_sessions", "accounts", on_delete: :cascade
   add_foreign_key "marcosx_ai_test_sessions", "marcosx_ai_assistants", column: "assistant_id", on_delete: :cascade

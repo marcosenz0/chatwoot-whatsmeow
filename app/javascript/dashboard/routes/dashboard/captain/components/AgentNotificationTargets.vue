@@ -36,9 +36,12 @@ const inboxOptions = computed(() =>
     icon: 'i-lucide-message-circle',
   }))
 );
+const normalizedNumber = computed(() =>
+  (draft.value.number || '').replace(/[\s().-]/g, '')
+);
 const valid = computed(
   () =>
-    /^\+[1-9]\d{7,14}$/.test(draft.value.number || '') &&
+    /^\+[1-9]\d{7,14}$/.test(normalizedNumber.value) &&
     draft.value.inbox_id &&
     audienceValid(draft.value)
 );
@@ -90,10 +93,10 @@ const save = async () => {
   if (!valid.value || saving.value) return;
   saving.value = true;
   try {
-    const { id, title, number, inbox_id: inboxId, enabled } = draft.value;
+    const { id, title, inbox_id: inboxId, enabled } = draft.value;
     const { data } = await API.saveNotificationTarget(props.agentId, id, {
       title,
-      number,
+      number: normalizedNumber.value,
       inbox_id: inboxId,
       enabled,
       ...audiencePayload(draft.value),
@@ -248,6 +251,7 @@ defineExpose({ openCreate: () => openEditor() });
             :options="inboxOptions"
             :label="t('MARCOX_AI.AUTOMATION.SENDER_INBOX')"
             :teleport="false"
+            in-flow
           />
         </div>
         <AudienceSelector

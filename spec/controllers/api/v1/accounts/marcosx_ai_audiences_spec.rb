@@ -109,9 +109,10 @@ RSpec.describe 'MarcoXIA audience management', type: :request do
     get "#{endpoint}/audience_contacts", headers: agent.create_new_auth_token
     expect(response).to have_http_status(:unauthorized)
     foreign_assistant = foreign.account.marcosx_ai_assistants.create!(name: 'Foreign')
-    get endpoint.sub("/#{assistant.id}", "/#{foreign_assistant.id}") + '/notification_targets', headers: admin.create_new_auth_token
+    get endpoint.sub("/assistants/#{assistant.id}", "/assistants/#{foreign_assistant.id}") + '/notification_targets', headers: admin.create_new_auth_token
     expect(response).to have_http_status(:not_found)
-    post "#{endpoint}/notification_targets", params: { notification_target: { number: '+15555550101', inbox_id: foreign.account.inboxes.first&.id } },
+    foreign_inbox = create(:channel_whatsmeow, account: foreign.account).inbox
+    post "#{endpoint}/notification_targets", params: { notification_target: { number: '+15555550101', inbox_id: foreign_inbox.id } },
                                            headers: admin.create_new_auth_token, as: :json
     expect(response).to have_http_status(:unprocessable_entity)
   end
