@@ -533,6 +533,10 @@
       "FULL_SOURCE": "Ver instrução completa"
     },
     "RESOURCES": {
+      "YOUR_FILES": "Seus arquivos",
+      "LIBRARY_HINT": "Veja o que já está salvo. Clique para ampliar; botão direito para mudar o alcance.",
+      "LIBRARY_SEARCH": "Buscar nos seus arquivos",
+      "PREVIEW_ITEM": "Visualizar {name}",
       "TITLE": "Arquivos",
       "HINT": "Cadastre imagens, vídeos, documentos e links que este agente pode enviar quando a pessoa pedir. Cada item tem sua descrição e disponibilidade.",
       "ADD": "Adicionar item",

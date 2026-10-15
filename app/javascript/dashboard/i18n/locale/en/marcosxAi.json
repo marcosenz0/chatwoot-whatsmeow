@@ -533,6 +533,10 @@
       "FULL_SOURCE": "View full instruction"
     },
     "RESOURCES": {
+      "YOUR_FILES": "Your files",
+      "LIBRARY_HINT": "See what is already saved. Click to preview; right-click to change the audience.",
+      "LIBRARY_SEARCH": "Search your files",
+      "PREVIEW_ITEM": "Preview {name}",
       "TITLE": "Files",
       "HINT": "Give this agent images, videos, documents and links it can send when a contact asks. Each item has its own description and availability.",
       "ADD": "Add item",
