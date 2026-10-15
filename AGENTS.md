@@ -1,6 +1,14 @@
 # Chatwoot Development Guidelines
 
-## Current MarcoXIA center and audiences — October 15, 2026
+## Current MarcoXIA saved file library — October 15, 2026
+
+- Principal, MX and MD web/workers all run `fork-583c5c0a49be8ae11f7876775c3f20989d135be1`; gate 38750551029 passed 764 targeted tests (410 Vue + 354 Rails), lint, build and image publication. All three health endpoints return 200.
+- Quick Add shows Seus arquivos above the independent new upload batch. Compact square thumbnails open full image/video previews; right-click or Shift+F10 changes a saved item's scope to Global or the current conversation. Scope appears as an accessible icon. Saved scope edits persist immediately and do not reset or submit new upload drafts.
+- In native dialogs, use the shared ContextMenu topLayer mode with teleport inside the form to avoid clipping and keep dialog focus/outside-click semantics. Handle its emitted keydown from the outer root: actual browser focus can land there. Verify Escape from the root and a menu item closes only the menu and returns focus to the thumbnail; verify Shift+F10/arrows and a narrow viewport with real CSS.
+- Published browser checks passed for existing image/video, a neutral disabled PNG upload, preview and scope change; checksum verified and the temporary item removed. Final-image keyboard/root focus check passed. Existing three MD resources, real Pix key, credentials, voice and memory hashes remain identical. All 78 states/profiles, 12 service configurations except six app pins, and six bridge containers/images are preserved; sessions unchanged. General AI stays off and MD92 stays active/context 20. No channel messages were sent.
+- Read `docs/marcoxia-resource-library-2026-10-15.md` and HOT op37. PR50 is stacked on PR49, unmerged. Older app pins below are historical; preserve the general checkout's preexisting changes.
+
+## Previous MarcoXIA center and audiences — October 15, 2026
 
 - Principal, MX and MD web/workers all run `fork-71d732716f2596c0a309464c70fa9c5fb72db0f9`; gate 38664233859 passed 757 targeted checks, lint, build and image publication. All three health endpoints and rollback-only published API contracts passed.
 - The approved fourth design is the shipped Central da IA: compact header, review actions, collapsed controls/memory/pending sections and three quick resource/Pix/notice shortcuts.
