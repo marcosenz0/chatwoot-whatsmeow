@@ -15,6 +15,7 @@ const props = defineProps({
   disabled: { type: Boolean, default: false },
   searchable: { type: Boolean, default: false },
   teleport: { type: Boolean, default: true },
+  inFlow: { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:modelValue']);
 const { t } = useI18n();
@@ -80,6 +81,7 @@ const menuKeys = event => {
   <DropdownContainer
     ref="container"
     class="w-full min-w-0 [&>div.absolute]:w-full"
+    :class="{ '[&>div.absolute]:!relative': inFlow }"
   >
     <template #trigger="{ toggle, isOpen }">
       <Button

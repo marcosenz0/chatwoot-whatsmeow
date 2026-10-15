@@ -1,9 +1,14 @@
+import { ref } from 'vue';
 import { flushPromises, mount } from '@vue/test-utils';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import ConversationAiPanel from '../ConversationAiPanel.vue';
 
 vi.mock('dashboard/api/marcosxAi', () => ({
   default: {
+    getResources: vi.fn(),
+    getPixKeys: vi.fn(),
+    getNotificationTargets: vi.fn(),
+    getNotificationOptions: vi.fn(),
     getConversationAnalysis: vi.fn(),
     analyzeConversation: vi.fn(),
     sendConversationAnalysis: vi.fn(),
@@ -16,7 +21,7 @@ vi.mock('dashboard/api/marcosxAi', () => ({
 }));
 vi.mock('dashboard/composables', () => ({ useAlert: vi.fn() }));
 vi.mock('dashboard/composables/useAdmin', () => ({
-  useAdmin: () => ({ isAdmin: true }),
+  useAdmin: () => ({ isAdmin: ref(true) }),
 }));
 const props = {
   chat: { id: 7, status: 'open' },
@@ -64,7 +69,9 @@ describe('Conversation history review', () => {
       props: { ...props, state: waiting },
       global,
     });
-    await wrapper.get('[role="switch"]').trigger('click');
+    await wrapper
+      .get('[role="switch"][aria-label="MARCOX_AI.PANEL.AUTO_PAUSE"]')
+      .trigger('click');
     await flushPromises();
     expect(MarcosxAiAPI.updateConversationState).toHaveBeenCalledWith(7, {
       action: 'set_auto_pause',
@@ -83,9 +90,7 @@ describe('Conversation history review', () => {
     });
     await wrapper
       .findAll('button')
-      .find(button =>
-        button.text().includes('MARCOX_AI.CONVERSATION.REPLY_NOW')
-      )
+      .find(button => button.text().includes('MARCOX_AI.PANEL.PREPARE'))
       .trigger('click');
     await flushPromises();
     expect(MarcosxAiAPI.generateDraft).toHaveBeenCalledWith(
@@ -99,6 +104,16 @@ describe('Conversation history review', () => {
   });
   beforeEach(() => {
     vi.clearAllMocks();
+    MarcosxAiAPI.getResources.mockResolvedValue({
+      data: { total: 3, resources: [] },
+    });
+    MarcosxAiAPI.getPixKeys.mockResolvedValue({ data: { pix_keys: [] } });
+    MarcosxAiAPI.getNotificationTargets.mockResolvedValue({
+      data: { notification_targets: [] },
+    });
+    MarcosxAiAPI.getNotificationOptions.mockResolvedValue({
+      data: { inboxes: [{ id: 1, name: 'WhatsApp' }] },
+    });
     MarcosxAiAPI.generateDraft.mockResolvedValue({
       data: {
         content: 'Review this',
@@ -122,7 +137,7 @@ describe('Conversation history review', () => {
     await flushPromises();
     await wrapper
       .findAll('button')
-      .find(button => button.text().includes('MARCOX_AI.ANALYSIS.ANALYZE'))
+      .find(button => button.text().includes('MARCOX_AI.PANEL.ANALYZE'))
       .trigger('click');
     await flushPromises();
     expect(MarcosxAiAPI.analyzeConversation).toHaveBeenCalledWith(7, 1, null);
@@ -239,7 +254,7 @@ describe('Conversation history review', () => {
     expect(sendButton.attributes('disabled')).toBeDefined();
     await wrapper
       .findAll('button')
-      .find(button => button.text().includes('MARCOX_AI.ANALYSIS.ANALYZE'))
+      .find(button => button.text().includes('MARCOX_AI.PANEL.ANALYZE'))
       .trigger('click');
     await flushPromises();
     expect(MarcosxAiAPI.analyzeConversation).toHaveBeenCalledWith(7, 1, 25);
@@ -262,7 +277,7 @@ describe('Conversation history review', () => {
       .find(button => button.text().includes('MARCOX_AI.CONVERSATION.RESUME'));
     const analyze = wrapper
       .findAll('button')
-      .find(button => button.text().includes('MARCOX_AI.ANALYSIS.ANALYZE'));
+      .find(button => button.text().includes('MARCOX_AI.PANEL.ANALYZE'));
     expect(resume.attributes('disabled')).toBeUndefined();
     expect(analyze.attributes('disabled')).toBeUndefined();
     MarcosxAiAPI.updateConversationState.mockResolvedValue({
@@ -276,4 +291,25 @@ describe('Conversation history review', () => {
     });
     wrapper.unmount();
   });
+});
+
+it('opens with a local audience every time and keeps shortcuts expanded while controls stay collapsed', async () => {
+  vi.clearAllMocks();
+  const wrapper = mount(ConversationAiPanel, { props, global });
+  wrapper.vm.open();
+  await flushPromises();
+  const toggle = wrapper.get(
+    '[role="switch"][aria-label="MARCOX_AI.PANEL.GLOBAL"]'
+  );
+  expect(toggle.attributes('aria-checked')).toBe('false');
+  const sections = wrapper.findAll('details');
+  expect(sections[0].attributes('open')).toBeUndefined();
+  expect(sections[1].attributes('open')).toBeDefined();
+  await toggle.trigger('click');
+  expect(toggle.attributes('aria-checked')).toBe('true');
+  expect(MarcosxAiAPI.updateConversationState).not.toHaveBeenCalled();
+  wrapper.vm.open();
+  await flushPromises();
+  expect(toggle.attributes('aria-checked')).toBe('false');
+  wrapper.unmount();
 });

@@ -1,5 +1,63 @@
 {
   "MARCOX_AI": {
+    "PANEL": {
+      "TITLE": "AI center",
+      "CONTACT": "{name} · conversation #{id}",
+      "GLOBAL": "Global",
+      "ACTIVE": "AI on",
+      "PAUSED": "AI paused",
+      "PAUSE": "Pause AI",
+      "PREPARE": "Prepare reply",
+      "ANALYZE": "Analyze history",
+      "REVIEW": "Review before sending.",
+      "SCOPE_GLOBAL": "Scope: all agent conversations",
+      "SCOPE_CONVERSATION": "Scope: this conversation only",
+      "CONTROLS": "Conversation controls",
+      "AUTO_PAUSE": "Pause for human help",
+      "SHORTCUTS": "Agent shortcuts",
+      "ADD": "Add",
+      "REGISTER": "Register",
+      "NOTICES": "Notices",
+      "NUMBERS": "{count} number | {count} numbers",
+      "ADD_GLOBAL": "New files, Pix keys and notice numbers are available in all conversations of this agent.",
+      "ADD_CONVERSATION": "New files, Pix keys and notice numbers are available only in this conversation. Change their scope in the agent workspace.",
+      "MEMORY": "Memory",
+      "VIEW_CONTEXT": "View context",
+      "PENDING": "Pending requests",
+      "OPEN_COUNT": "{count} open | {count} open",
+      "LOAD_ERROR": "Could not load totals. Reopen the panel to try again.",
+      "EDIT_NOTICES": "Edit number | Edit numbers"
+    },
+    "AUDIENCE": {
+      "TITLE": "Available to",
+      "GLOBAL": "Global · all agent conversations",
+      "CONVERSATION": "Conversation #{id} only",
+      "CONTACTS": "Specific contacts",
+      "HINT_GLOBAL": "The AI can use this item in any conversation handled by this agent.",
+      "HINT_CONVERSATION": "The AI can use this item only in this conversation. It is unavailable in other conversations.",
+      "HINT_CONTACTS": "The AI can use this item only in conversations with the selected contacts.",
+      "BADGE_GLOBAL": "Global",
+      "BADGE_CONVERSATION": "Conversation #{id}",
+      "BADGE_CONTACTS": "{count} contact | {count} contacts",
+      "REMOVE": "Remove {name}",
+      "SEARCH": "Find contact by name, email or number",
+      "NO_CONTACTS": "No other contacts found.",
+      "REQUIRED": "Select at least one contact.",
+      "LOAD_ERROR": "Could not search contacts."
+    },
+    "NOTIFICATION_TARGETS": {
+      "TITLE": "Notice numbers",
+      "HINT": "Choose who receives AI notices and which conversations each number applies to.",
+      "ADD": "Add number",
+      "EDIT": "Edit notice number",
+      "DELETE": "Delete notice number",
+      "DELETE_HINT": "Remove {number} from this agent's notices?",
+      "EMPTY": "No notice numbers registered.",
+      "NAME": "Recipient name (optional)",
+      "ENABLED": "Receive notices",
+      "ENABLED_HINT": "Saving does not send a notice. Future alerts follow the selected scope.",
+      "ERROR": "Check the international number, WhatsApp inbox and allowed contacts."
+    },
     "TITLE": "MarcoXIA",
     "SUBTITLE": "Thoughtful conversations, in every inbox.",
     "TABS": {
@@ -335,7 +393,8 @@
       "EVENT_MISSED_CALL": "Unanswered incoming call",
       "SIMULATED_PAUSE": "Simulation: AI would pause. No real conversation is modified.",
       "SIMULATED_ALERT": "Simulated alert: {name}",
-      "SIMULATED_RECALL": "Simulation: a request for approved context would be made."
+      "SIMULATED_RECALL": "Simulation: a request for approved context would be made.",
+      "DELIVERY_CANCELLED": "Cancelled"
     },
     "WORKSPACE": {
       "MEMORIES": "Memories",

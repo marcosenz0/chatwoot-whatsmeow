@@ -1,4 +1,5 @@
 class MarcosxAi::Resource < ApplicationRecord
+  include MarcosxAiAudience
   include Rails.application.routes.url_helpers
   self.table_name = 'marcosx_ai_resources'
   MAX_ITEMS = 100
@@ -22,7 +23,7 @@ class MarcosxAi::Resource < ApplicationRecord
   end
 
   def public_data
-    catalog_data.merge(
+    catalog_data.merge(audience_data).merge(
       enabled: enabled, url: url, file_name: file.attached? ? file.filename.to_s : nil,
       file_size: file.attached? ? file.byte_size : nil, file_url: file.attached? ? url_for(file) : nil,
       thumb_url: kind == 'image' && file.attached? ? url_for(file.representation(resize_to_limit: [320, 240])) : nil

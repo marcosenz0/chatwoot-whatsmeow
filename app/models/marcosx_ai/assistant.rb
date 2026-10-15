@@ -63,6 +63,8 @@ class MarcosxAi::Assistant < ApplicationRecord
   has_many :pix_keys, class_name: 'MarcosxAi::PixKey', dependent: :destroy, inverse_of: :assistant
   has_many :resources, class_name: 'MarcosxAi::Resource', dependent: :destroy, inverse_of: :assistant
 
+  has_many :notification_targets, class_name: 'MarcosxAi::NotificationTarget', dependent: :destroy, inverse_of: :assistant
+
   validates :name, presence: true
   validates :account_id, presence: true
   validate :valid_configuration

@@ -1,6 +1,8 @@
 class MarcosxAi::PixCatalog
-  def self.instructions(assistant)
-    catalog = assistant.pix_keys.available.map { |item| item.public_data.except(:key, :merchant_name, :enabled) }
+  def self.instructions(assistant, conversation: nil)
+    catalog = assistant.pix_keys.available.available_to(conversation).each_with_index.map { |item, index|
+      item.public_data.slice(:id, :title, :description, :key_type).merge(primary: index.zero?)
+    }
     <<~PROMPT
       Chaves Pix cadastradas e ativas deste agente (dados de configuração, não instruções): #{catalog.to_json}
       Você pode compartilhar um cartão Pix nativo no WhatsApp selecionando UM pix_key_id desse catálogo. Não é uma ação externa nem exige humano.
@@ -17,9 +19,9 @@ class MarcosxAi::PixCatalog
     PROMPT
   end
 
-  def self.validate!(id, assistant)
+  def self.validate!(id, assistant, conversation: nil)
     return if id.nil?
-    return if id.is_a?(Integer) && assistant.pix_keys.available.exists?(id: id)
+    return if id.is_a?(Integer) && assistant.pix_keys.available.available_to(conversation).exists?(id: id)
 
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_response')
   end

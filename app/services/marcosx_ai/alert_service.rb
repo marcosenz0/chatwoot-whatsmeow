@@ -14,7 +14,8 @@ class MarcosxAi::AlertService
         record.name = rule[:name]
         record.action = rule[:action]
         record.reason = rule[:description].to_s.first(500)
-        record.configuration = state.assistant.resolved_config[:notifications].merge(rule).stringify_keys
+        record.configuration = MarcosxAi::NotificationRecipients.configuration(assistant: state.assistant, conversation: state.conversation,
+                                                                               rule: rule)
       end
       if rule[:action] == 'pause' && state.status != 'awaiting_human' && state.automatic_handoff_enabled?
         state.wait_for_human!(reason: rule[:name])

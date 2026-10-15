@@ -17,7 +17,7 @@ class MarcosxAi::ReplyPlan
     required: %w[messages voice_text resource_ids pix_key_id reaction reaction_message_id handoff handoff_reason alert_rule_ids recall_context]
   }.freeze
 
-  def self.parse(text, assistant:, recent_messages: [], voice_context: nil, pix_available: true)
+  def self.parse(text, assistant:, recent_messages: [], voice_context: nil, pix_available: true, conversation: nil)
     plan = JSON.parse(text)
     plan = { 'alert_rule_ids' => [], 'recall_context' => false, 'voice_text' => nil, 'resource_ids' => [],
              'pix_key_id' => nil }.merge(plan) if plan.is_a?(Hash)
@@ -34,8 +34,8 @@ class MarcosxAi::ReplyPlan
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_response')
     end
 
-    MarcosxAi::PixCatalog.validate!(plan['pix_key_id'], assistant)
-    MarcosxAi::ResourceCatalog.validate!(plan['resource_ids'], assistant)
+    MarcosxAi::PixCatalog.validate!(plan['pix_key_id'], assistant, conversation: conversation)
+    MarcosxAi::ResourceCatalog.validate!(plan['resource_ids'], assistant, conversation: conversation)
     parts = MarcosxAi::ReplyStyle.apply(plan['messages'].map(&:strip).compact_blank,
                                         assistant: assistant, recent_messages: recent_messages)
     limit = assistant.split_messages? ? assistant.max_message_parts : 1

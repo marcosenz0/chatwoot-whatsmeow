@@ -53,7 +53,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
 
     conversation = Current.account.conversations.find_by!(display_id: id)
     authorize conversation, :show?
-    configuration = @assistant.resolved_config[:notifications]
+    configuration = MarcosxAi::NotificationRecipients.configuration(assistant: @assistant, conversation: conversation).with_indifferent_access
     if configuration[:user_ids].empty? && configuration[:whatsapp_numbers].empty?
       return render json: { error: 'Configure recipients first' }, status: :unprocessable_entity
     end
@@ -98,7 +98,8 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
 
     client = MarcosxAi::ProviderClient.new(account: Current.account, provider: @assistant.provider, model: @assistant.model,
                                            temperature: @assistant.temperature, reasoning_effort: @assistant.reasoning_effort)
-    prompts = MarcosxAi::PromptBuilder.messages(assistant: @assistant, context: { pix_available: @assistant.pix_keys.available.exists? },
+    prompts = MarcosxAi::PromptBuilder.messages(assistant: @assistant,
+                                                context: { pix_available: @assistant.pix_keys.available.available_to(nil).exists? },
                                                 reactions: @assistant.feature_enabled?(:allow_reactions))
     if playground_params[:event] == 'missed_call'
       prompts << { role: 'developer', content: @assistant.resolved_config[:missed_call_instructions] }

@@ -52,7 +52,7 @@ class MarcosxAi::ComposerDraftService
                                            temperature: assistant.temperature, reasoning_effort: assistant.reasoning_effort)
     history = MarcosxAi::ConversationContext.new(conversation: @conversation, assistant: assistant, state: state, client: client,
                                                  trigger_message: trigger, token: nil, persist_memory: false, valid_run: -> { true }).messages
-    prompts = MarcosxAi::PromptBuilder.messages(assistant: assistant,
+    prompts = MarcosxAi::PromptBuilder.messages(assistant: assistant, conversation: @conversation,
                                                 context: MarcosxAi::PromptBuilder.context_for(@conversation, assistant: assistant),
                                                 reactions: false, proactive: true)
     task = "Operator draft only. Do not send messages or execute actions. #{TASKS.fetch(@action)} " \
@@ -74,7 +74,8 @@ class MarcosxAi::ComposerDraftService
       messages << { role: 'user', content: draft.to_json }
     end
     voice_context = MarcosxAi::VoicePolicy.context(assistant: assistant, conversation: @conversation) if @action == 'reply_review'
-    plan = MarcosxAi::ReplyPlan.parse(client.chat(messages: messages, schema: SCHEMA), assistant: assistant, voice_context: voice_context)
+    plan = MarcosxAi::ReplyPlan.parse(client.chat(messages: messages, schema: SCHEMA), assistant: assistant, conversation: @conversation,
+                                                                                       voice_context: voice_context)
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response') if plan['messages'].empty?
 
     latest = MarcosxAi::ConversationContext.public_history(@conversation).order(:created_at, :id).last

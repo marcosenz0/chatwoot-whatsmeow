@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import API from 'dashboard/api/marcosxAi';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import AgentResources from '../AgentResources.vue';
+import AudienceSelector from '../AudienceSelector.vue';
 
 vi.mock('dashboard/api/marcosxAi', () => ({
   default: {
@@ -99,8 +100,11 @@ it('saves a described link without sending the unsaved file selection', async ()
   wrapper.unmount();
 });
 
-it('keeps successive and multiple selections, independent descriptions and availability, and submits one complete batch', async () => {
-  const wrapper = mount(AgentResources, options);
+it('keeps successive and multiple selections, independent descriptions, audiences and availability, and submits one complete batch', async () => {
+  const wrapper = mount(AgentResources, {
+    ...options,
+    props: { ...options.props, conversationId: 92, globalScope: false },
+  });
   await flushPromises();
   await wrapper
     .findAll('button')
@@ -137,6 +141,13 @@ it('keeps successive and multiple selections, independent descriptions and avail
   expect(tiles[1].get('button').attributes('aria-pressed')).toBe('true');
   expect(wrapper.get('textarea').element.value).toBe('');
   await wrapper.get('textarea').setValue('Video presentation context');
+  const scope = wrapper.findComponent(AudienceSelector);
+  scope.vm.$emit('update:modelValue', {
+    ...scope.props('modelValue'),
+    audience: 'global',
+    conversation_id: null,
+  });
+  await flushPromises();
   await wrapper.get('button[role="switch"]').trigger('click');
   await tiles[3].get('button').trigger('click');
   await wrapper.get('textarea').setValue('Fourth photo context');
@@ -172,6 +183,17 @@ it('keeps successive and multiple selections, independent descriptions and avail
     'false',
     'true',
     'true',
+  ]);
+  expect(form.getAll('resources[][audience]')).toEqual([
+    'conversation',
+    'global',
+    'conversation',
+    'conversation',
+  ]);
+  expect(form.getAll('resources[][conversation_id]')).toEqual([
+    '92',
+    '92',
+    '92',
   ]);
   expect(API.saveResource).not.toHaveBeenCalled();
   wrapper.unmount();
