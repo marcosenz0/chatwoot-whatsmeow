@@ -66,12 +66,13 @@ const load = async () => {
         t('MARCOX_AI.NOTIFICATION_TARGETS.ERROR');
   }
 };
+let initialLoad = Promise.resolve();
 watch(
   () => props.agentId,
   () => {
     editor.value?.close();
     items.value = [];
-    load();
+    initialLoad = load();
   },
   { immediate: true }
 );
@@ -86,7 +87,7 @@ const openEditor = item => {
         ...defaultAudience(props.globalScope, props.conversationId),
       };
   originalNumber.value = item?.number || null;
-  formError.value = '';
+  formError.value = error.value;
   editor.value.open();
 };
 const save = async () => {
@@ -134,7 +135,12 @@ const remove = async () => {
     saving.value = false;
   }
 };
-defineExpose({ openCreate: () => openEditor() });
+defineExpose({
+  openCreate: async () => {
+    await initialLoad;
+    if (editor.value) openEditor();
+  },
+});
 </script>
 
 <template>

@@ -70,13 +70,14 @@ const load = async () => {
     if (current === generation) busy.value = false;
   }
 };
+let initialLoad = Promise.resolve();
 watch(
   () => props.agentId,
   () => {
     items.value = [];
     editor.value?.close();
     deleteDialog.value?.close();
-    load();
+    initialLoad = load();
   },
   { immediate: true }
 );
@@ -92,7 +93,7 @@ const openEditor = item => {
         enabled: activeCount.value < 2,
         ...defaultAudience(props.globalScope, props.conversationId),
       };
-  formError.value = '';
+  formError.value = error.value;
   editor.value.open();
 };
 const save = async () => {
@@ -156,7 +157,12 @@ const remove = async () => {
     saving.value = false;
   }
 };
-defineExpose({ openCreate: () => openEditor() });
+defineExpose({
+  openCreate: async () => {
+    await initialLoad;
+    if (editor.value) openEditor();
+  },
+});
 </script>
 
 <template>
@@ -186,10 +192,10 @@ defineExpose({ openCreate: () => openEditor() });
         class="flex items-center gap-2 rounded-xl border border-n-weak bg-n-solid-2 p-4 text-sm text-n-slate-11"
       >
         <span class="i-lucide-info size-4 shrink-0" />
-        <span
-          >{{ t('MARCOX_AI.PIX.ACTIVE_COUNT', { count: activeCount }) }}.
-          {{ t('MARCOX_AI.PIX.LIMIT_HINT') }}</span
-        >
+        <p class="m-0">
+          {{ t('MARCOX_AI.PIX.ACTIVE_COUNT', { count: activeCount }) }}.
+          {{ t('MARCOX_AI.PIX.LIMIT_HINT') }}
+        </p>
       </div>
       <p v-if="error" role="alert" class="text-sm text-n-ruby-11">
         {{ error }}
@@ -229,9 +235,9 @@ defineExpose({ openCreate: () => openEditor() });
             @click="update(item, { enabled: !item.enabled })"
           >
             <span class="flex items-center justify-between gap-2">
-              <span class="truncate text-sm font-semibold text-n-slate-12">{{
-                item.title
-              }}</span>
+              <span class="truncate text-sm font-semibold text-n-slate-12">
+                {{ item.title }}
+              </span>
               <span
                 class="shrink-0 rounded-md px-2 py-1 text-xs"
                 :class="
@@ -239,7 +245,8 @@ defineExpose({ openCreate: () => openEditor() });
                     ? 'bg-n-blue-3 text-n-blue-11'
                     : 'bg-n-alpha-2 text-n-slate-11'
                 "
-                >{{
+              >
+                {{
                   t(
                     item.primary
                       ? 'MARCOX_AI.PIX.PRIMARY'
@@ -247,21 +254,23 @@ defineExpose({ openCreate: () => openEditor() });
                         ? 'MARCOX_AI.PIX.ALTERNATIVE'
                         : 'MARCOX_AI.PIX.INACTIVE'
                   )
-                }}</span
-              >
+                }}
+              </span>
             </span>
-            <span class="block text-sm text-n-slate-11">{{
-              item.merchant_name
-            }}</span>
-            <span class="block break-all text-sm text-n-slate-12"
-              >{{ t(`CONVERSATION.WHATSMEOW_PIX.KEY_TYPES.${item.key_type}`) }}:
-              {{ item.key }}</span
-            >
+            <span class="block text-sm text-n-slate-11">
+              {{ item.merchant_name }}
+            </span>
+            <span class="block break-all text-sm text-n-slate-12">
+              {{
+                `${t(`CONVERSATION.WHATSMEOW_PIX.KEY_TYPES.${item.key_type}`)}: ${item.key}`
+              }}
+            </span>
             <span
               v-if="item.description"
               class="block line-clamp-3 text-xs leading-5 text-n-slate-11"
-              >{{ item.description }}</span
             >
+              {{ item.description }}
+            </span>
             <AudienceBadge :item="item" />
           </button>
           <div
@@ -314,14 +323,15 @@ defineExpose({ openCreate: () => openEditor() });
         class="grid max-h-[60vh] min-w-0 gap-6 overflow-y-auto p-1 md:grid-cols-2"
       >
         <div class="min-w-0 space-y-4">
-          <label class="block space-y-2 text-sm font-medium text-n-slate-12"
-            ><span>{{ t('MARCOX_AI.PIX.NAME') }}</span>
+          <label class="block space-y-2 text-sm font-medium text-n-slate-12">
+            <span>{{ t('MARCOX_AI.PIX.NAME') }}</span>
             <input
               v-model="draft.title"
               type="text"
               :class="inputClass"
               maxlength="120"
-          /></label>
+            />
+          </label>
           <div class="space-y-2">
             <span class="text-sm font-medium text-n-slate-12">{{
               t('CONVERSATION.WHATSMEOW_PIX.KEY_TYPE')
@@ -334,30 +344,32 @@ defineExpose({ openCreate: () => openEditor() });
               in-flow
             />
           </div>
-          <label class="block space-y-2 text-sm font-medium text-n-slate-12"
-            ><span>{{ t('CONVERSATION.WHATSMEOW_PIX.KEY') }}</span>
+          <label class="block space-y-2 text-sm font-medium text-n-slate-12">
+            <span>{{ t('CONVERSATION.WHATSMEOW_PIX.KEY') }}</span>
             <input
               v-model="draft.key"
               type="text"
               :class="inputClass"
               maxlength="255"
-          /></label>
-          <label class="block space-y-2 text-sm font-medium text-n-slate-12"
-            ><span>{{ t('MARCOX_AI.PIX.HOLDER') }}</span>
+            />
+          </label>
+          <label class="block space-y-2 text-sm font-medium text-n-slate-12">
+            <span>{{ t('MARCOX_AI.PIX.HOLDER') }}</span>
             <input
               v-model="draft.merchant_name"
               type="text"
               :class="inputClass"
               maxlength="100"
-          /></label>
+            />
+          </label>
         </div>
         <div class="min-w-0 space-y-4">
           <p class="m-0 text-sm font-medium text-n-slate-12">
             {{ t('MARCOX_AI.PIX.PREVIEW') }}
           </p>
           <WhatsmeowPixCard :pix="draft" standalone />
-          <label class="block space-y-2 text-sm font-medium text-n-slate-12"
-            ><span>{{ t('MARCOX_AI.PIX.DESCRIPTION') }}</span>
+          <label class="block space-y-2 text-sm font-medium text-n-slate-12">
+            <span>{{ t('MARCOX_AI.PIX.DESCRIPTION') }}</span>
             <textarea
               v-model="draft.description"
               :class="inputClass"

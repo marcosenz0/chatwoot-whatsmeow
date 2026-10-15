@@ -108,11 +108,12 @@ const load = async () => {
     if (current === generation) busy.value = false;
   }
 };
+let initialLoad = Promise.resolve();
 watch(
   () => props.agentId,
   () => {
     page.value = 1;
-    load();
+    initialLoad = load();
   },
   { immediate: true }
 );
@@ -126,7 +127,7 @@ watch(
 );
 const openEditor = item => {
   clearFiles();
-  formError.value = '';
+  formError.value = error.value;
   editingId.value = item?.id ?? null;
   editorMode.value = item?.kind === 'link' ? 'link' : 'file';
   linkDraft.value =
@@ -277,7 +278,12 @@ const remove = async () => {
     saving.value = false;
   }
 };
-defineExpose({ openCreate: () => openEditor() });
+defineExpose({
+  openCreate: async () => {
+    await initialLoad;
+    if (editor.value) openEditor();
+  },
+});
 </script>
 
 <template>
