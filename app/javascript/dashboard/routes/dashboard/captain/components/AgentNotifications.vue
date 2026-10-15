@@ -7,6 +7,7 @@ import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import AiSelect from './AiSelect.vue';
 import AiToggleRow from './AiToggleRow.vue';
 import NotificationRecipients from './NotificationRecipients.vue';
+import AgentNotificationTargets from './AgentNotificationTargets.vue';
 
 const props = defineProps({ agentId: { type: Number, default: null } });
 const emit = defineEmits(['show-alerts']);
@@ -24,6 +25,13 @@ onMounted(async () => {
     useAlert(error.response?.data?.error || t('MARCOX_AI.CONVERSATION.ERROR'));
   }
 });
+const syncRecipients = removed => {
+  [config.value.notifications, ...config.value.alert_rules].forEach(entry => {
+    entry.whatsapp_numbers = entry.whatsapp_numbers.filter(
+      number => !removed.includes(number)
+    );
+  });
+};
 const addRule = () => {
   config.value.alert_rules.push({
     id: crypto.randomUUID(),
@@ -75,6 +83,12 @@ const testNotification = async () => {
       v-model="config.notifications"
       :users="options.users"
       :inboxes="options.inboxes"
+      :panel-only="Boolean(agentId)"
+    />
+    <AgentNotificationTargets
+      v-if="agentId"
+      :agent-id="agentId"
+      @saved="syncRecipients"
     />
     <div class="grid items-start gap-5 xl:grid-cols-2">
       <div

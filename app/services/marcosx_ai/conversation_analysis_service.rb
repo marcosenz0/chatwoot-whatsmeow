@@ -49,7 +49,7 @@ class MarcosxAi::ConversationAnalysisService
     return invalidate(token) unless current?(token)
 
     prompts = MarcosxAi::PromptBuilder.messages(
-      assistant: @assistant, context: MarcosxAi::PromptBuilder.context_for(@conversation, assistant: @assistant),
+      assistant: @assistant, conversation: @conversation, context: MarcosxAi::PromptBuilder.context_for(@conversation, assistant: @assistant),
       reactions: @assistant.feature_enabled?(:allow_reactions) && @state.inbox.channel_type == 'Channel::Whatsmeow', proactive: true
     )
     prompts << {
@@ -63,7 +63,7 @@ class MarcosxAi::ConversationAnalysisService
     }
     result = JSON.parse(client.chat(messages: [*prompts, *MarcosxAi::PromptBuilder.focused_history(context)], schema: SCHEMA))
     recent = MarcosxAi::ReplyStyle.recent_text(context)
-    plan = MarcosxAi::ReplyPlan.parse(result.to_json, assistant: @assistant, recent_messages: recent)
+    plan = MarcosxAi::ReplyPlan.parse(result.to_json, assistant: @assistant, conversation: @conversation, recent_messages: recent)
     unless result['summary'].is_a?(String) && result['next_step'].is_a?(String)
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_response')
     end
@@ -109,7 +109,7 @@ class MarcosxAi::ConversationAnalysisService
 
       plan = MarcosxAi::ReplyPlan.parse(analysis.fetch('plan').merge('messages' => messages, 'voice_text' => nil,
                                                                      'resource_ids' => [], 'pix_key_id' => nil).to_json,
-                                        assistant: @assistant)
+                                        assistant: @assistant, conversation: @conversation)
       if plan['messages'].empty? && plan['reaction'].blank? && !plan['handoff'] && plan['alert_rule_ids'].empty?
         raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response')
       end

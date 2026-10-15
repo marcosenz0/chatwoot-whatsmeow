@@ -6,6 +6,7 @@ import AiSelect from './AiSelect.vue';
 
 const props = defineProps({
   users: { type: Array, default: () => [] },
+  panelOnly: { type: Boolean, default: false },
   inboxes: { type: Array, default: () => [] },
 });
 const settings = defineModel({ type: Object, required: true });
@@ -41,7 +42,7 @@ const toggleUser = id => {
 </script>
 
 <template>
-  <div class="grid gap-5 lg:grid-cols-2">
+  <div class="grid gap-5" :class="panelOnly ? '' : 'lg:grid-cols-2'">
     <div class="space-y-3 rounded-xl border border-n-weak bg-n-solid-2 p-4">
       <p class="m-0 text-sm font-medium">
         {{ t('MARCOX_AI.AUTOMATION.PANEL_USERS') }}
@@ -60,7 +61,10 @@ const toggleUser = id => {
         {{ user.name }}
       </label>
     </div>
-    <div class="space-y-3 rounded-xl border border-n-weak bg-n-solid-2 p-4">
+    <div
+      v-if="!panelOnly"
+      class="space-y-3 rounded-xl border border-n-weak bg-n-solid-2 p-4"
+    >
       <p class="m-0 text-sm font-medium">
         {{ t('MARCOX_AI.AUTOMATION.WHATSAPP_NUMBERS') }}
       </p>

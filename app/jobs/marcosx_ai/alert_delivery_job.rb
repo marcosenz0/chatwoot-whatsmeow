@@ -18,7 +18,13 @@ class MarcosxAi::AlertDeliveryJob < ApplicationJob
                                             notification_type: :marcosx_ai_attention, meta: { alert_id: alert.id, reason: alert.reason })
         delivery.update!(status: 'sent', notification: notification)
       else
-        inbox = alert.account.inboxes.find(alert.configuration.fetch('inbox_id'))
+        unless MarcosxAi::NotificationRecipients.allowed_delivery?(alert, delivery.recipient)
+          delivery.update!(status: 'cancelled')
+          return
+        end
+
+        inbox_id = alert.configuration.dig('whatsapp_routes', delivery.recipient) || alert.configuration.fetch('inbox_id')
+        inbox = alert.account.inboxes.find(inbox_id)
         raise ArgumentError, 'WhatsApp Direct inbox required' unless inbox.channel_type == 'Channel::Whatsmeow'
 
         conversation = Whatsmeow::DirectConversationBuilder.new(

@@ -1,4 +1,5 @@
 class MarcosxAi::PixKey < ApplicationRecord
+  include MarcosxAiAudience
   self.table_name = 'marcosx_ai_pix_keys'
   belongs_to :account
   belongs_to :assistant, class_name: 'MarcosxAi::Assistant', inverse_of: :pix_keys
@@ -17,7 +18,7 @@ class MarcosxAi::PixKey < ApplicationRecord
   end
 
   def public_data
-    payload.to_h.merge(id: id, title: title, description: description, enabled: position.present?, primary: position == 1)
+    payload.to_h.merge(audience_data).merge(id: id, title: title, description: description, enabled: position.present?, primary: position == 1)
   end
 
   # Two database slots enforce the limit even when two administrators activate keys together.

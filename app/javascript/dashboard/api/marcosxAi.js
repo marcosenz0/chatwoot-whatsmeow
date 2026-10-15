@@ -209,6 +209,32 @@ class MarcosxAiAPI extends ApiClient {
     return axios.get(`${this.url}/contact_memories`, { params });
   }
 
+  getAudienceContacts(assistantId, q = '', options = {}) {
+    return axios.get(
+      `${this.url}/assistants/${assistantId}/audience_contacts`,
+      { ...options, params: { q } }
+    );
+  }
+
+  getNotificationTargets(assistantId) {
+    return axios.get(
+      `${this.url}/assistants/${assistantId}/notification_targets`
+    );
+  }
+
+  saveNotificationTarget(assistantId, id, target) {
+    const url = `${this.url}/assistants/${assistantId}/notification_targets`;
+    return id
+      ? axios.put(`${url}/${id}`, { notification_target: target })
+      : axios.post(url, { notification_target: target });
+  }
+
+  deleteNotificationTarget(assistantId, id) {
+    return axios.delete(
+      `${this.url}/assistants/${assistantId}/notification_targets/${id}`
+    );
+  }
+
   getPixKeys(assistantId) {
     return axios.get(`${this.url}/assistants/${assistantId}/pix_keys`);
   }

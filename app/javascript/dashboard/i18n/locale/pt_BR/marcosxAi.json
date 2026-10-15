@@ -1,5 +1,62 @@
 {
   "MARCOX_AI": {
+    "PANEL": {
+      "TITLE": "Central da IA",
+      "CONTACT": "{name} · conversa #{id}",
+      "GLOBAL": "Global",
+      "ACTIVE": "IA ligada",
+      "PAUSED": "IA pausada",
+      "PAUSE": "Pausar IA",
+      "PREPARE": "Preparar resposta",
+      "ANALYZE": "Analisar histórico",
+      "REVIEW": "Revise antes de enviar.",
+      "SCOPE_GLOBAL": "Alcance: todas do agente",
+      "SCOPE_CONVERSATION": "Alcance: somente esta conversa",
+      "CONTROLS": "Controles da conversa",
+      "AUTO_PAUSE": "Pausar ao chamar humano",
+      "SHORTCUTS": "Atalhos do agente",
+      "ADD": "Adicionar",
+      "REGISTER": "Cadastrar",
+      "NOTICES": "Avisos",
+      "NUMBERS": "{count} número | {count} números",
+      "ADD_GLOBAL": "Novos arquivos, Pix e avisos ficam disponíveis em todas as conversas deste agente.",
+      "ADD_CONVERSATION": "Novos arquivos, Pix e avisos ficam disponíveis somente nesta conversa. Você pode alterar o alcance na aba do agente.",
+      "MEMORY": "Memória",
+      "VIEW_CONTEXT": "Ver contexto",
+      "PENDING": "Pendências",
+      "OPEN_COUNT": "{count} aberta | {count} abertas",
+      "LOAD_ERROR": "Não foi possível carregar os totais. Reabra o painel para tentar novamente."
+    },
+    "AUDIENCE": {
+      "TITLE": "Para quem fica disponível",
+      "GLOBAL": "Global · todas as conversas do agente",
+      "CONVERSATION": "Somente a conversa #{id}",
+      "CONTACTS": "Contatos específicos",
+      "HINT_GLOBAL": "A IA pode usar este item em qualquer conversa atendida por este agente.",
+      "HINT_CONVERSATION": "A IA pode usar este item apenas nesta conversa. Nas outras, ele fica indisponível.",
+      "HINT_CONTACTS": "A IA pode usar este item somente nas conversas dos contatos selecionados.",
+      "BADGE_GLOBAL": "Global",
+      "BADGE_CONVERSATION": "Conversa #{id}",
+      "BADGE_CONTACTS": "{count} contato | {count} contatos",
+      "REMOVE": "Remover {name}",
+      "SEARCH": "Buscar contato por nome, e-mail ou número",
+      "NO_CONTACTS": "Nenhum outro contato encontrado.",
+      "REQUIRED": "Selecione pelo menos um contato.",
+      "LOAD_ERROR": "Não foi possível buscar os contatos."
+    },
+    "NOTIFICATION_TARGETS": {
+      "TITLE": "Números de aviso",
+      "HINT": "Escolha quem recebe os avisos da IA e em quais conversas cada número pode ser usado.",
+      "ADD": "Adicionar número",
+      "EDIT": "Editar número de aviso",
+      "DELETE": "Excluir número de aviso",
+      "DELETE_HINT": "Remover {number} dos avisos deste agente?",
+      "EMPTY": "Nenhum número de aviso cadastrado.",
+      "NAME": "Nome do destinatário (opcional)",
+      "ENABLED": "Receber avisos",
+      "ENABLED_HINT": "Salvar não envia um aviso. Os próximos alertas seguem o alcance escolhido.",
+      "ERROR": "Confira o número com DDI, a caixa de WhatsApp e os contatos permitidos."
+    },
     "TITLE": "MarcoXIA",
     "SUBTITLE": "Conversas com contexto, em todas as suas caixas.",
     "TABS": {
@@ -335,7 +392,8 @@
       "EVENT_MISSED_CALL": "Ligação recebida não atendida",
       "SIMULATED_PAUSE": "Simulação: a IA pausaria. Nenhuma conversa real é alterada.",
       "SIMULATED_ALERT": "Alerta simulado: {name}",
-      "SIMULATED_RECALL": "Simulação: seria solicitado contexto aprovado."
+      "SIMULATED_RECALL": "Simulação: seria solicitado contexto aprovado.",
+      "DELIVERY_CANCELLED": "Cancelada"
     },
     "WORKSPACE": {
       "MEMORIES": "Memórias",

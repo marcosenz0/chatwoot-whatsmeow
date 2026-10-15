@@ -83,7 +83,7 @@ class Api::V1::Accounts::MarcosxAi::ResourcesController < Api::V1::Accounts::Mar
       raise ArgumentError
     end
 
-    data
+    data.merge(MarcosxAi::AudienceParams.parse(entry, account: Current.account))
   end
 
   def render_invalid

@@ -134,6 +134,8 @@ Rails.application.routes.draw do
               resources :inboxes, only: [:index, :create, :destroy], param: :inbox_id
               resources :test_sessions, only: [:index, :show, :create, :destroy]
               resources :pix_keys, only: [:index, :create, :update, :destroy]
+              resources :notification_targets, only: [:index, :create, :update, :destroy]
+              resources :audience_contacts, only: [:index]
               resources :resources, only: [:index, :create, :update, :destroy] do
                 post :create_batch, on: :collection
               end

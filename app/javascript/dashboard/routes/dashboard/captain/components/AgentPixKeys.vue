@@ -7,9 +7,18 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import WhatsmeowPixCard from 'next/message/WhatsmeowPixCard.vue';
 import PixIcon from 'next/icon/PixIcon.vue';
 import AiToggleRow from './AiToggleRow.vue';
+import AudienceSelector from './AudienceSelector.vue';
+import AudienceBadge from './AudienceBadge.vue';
+import { defaultAudience, audiencePayload, audienceValid } from './audience';
 import AiSelect from './AiSelect.vue';
 
-const props = defineProps({ agentId: { type: Number, required: true } });
+const props = defineProps({
+  agentId: { type: Number, required: true },
+  conversationId: { type: Number, default: null },
+  globalScope: { type: Boolean, default: true },
+  compact: { type: Boolean, default: false },
+});
+const emit = defineEmits(['saved']);
 const { t } = useI18n();
 const items = ref([]);
 const busy = ref(false);
@@ -35,8 +44,11 @@ const keyTypes = computed(() =>
     label: t(`CONVERSATION.WHATSMEOW_PIX.KEY_TYPES.${value}`),
   }))
 );
-const valid = computed(() =>
-  ['title', 'key', 'merchant_name'].every(field => draft.value[field]?.trim())
+const valid = computed(
+  () =>
+    ['title', 'key', 'merchant_name'].every(field =>
+      draft.value[field]?.trim()
+    ) && audienceValid(draft.value)
 );
 const inputClass =
   'reset-base !mb-0 w-full rounded-lg border border-n-weak bg-n-solid-2 !px-3 !py-2.5 text-sm text-n-slate-12 focus:!border-n-blue-9 focus:!ring-0';
@@ -78,6 +90,7 @@ const openEditor = item => {
         merchant_name: '',
         description: '',
         enabled: activeCount.value < 2,
+        ...defaultAudience(props.globalScope, props.conversationId),
       };
   formError.value = '';
   editor.value.open();
@@ -102,9 +115,11 @@ const save = async () => {
       merchant_name: merchantName,
       description,
       enabled,
+      ...audiencePayload(draft.value),
     });
     items.value = data.pix_keys;
     editor.value.close();
+    emit('saved');
     error.value = '';
   } catch (failure) {
     formError.value = failureText(failure);
@@ -141,11 +156,12 @@ const remove = async () => {
     saving.value = false;
   }
 };
+defineExpose({ openCreate: () => openEditor() });
 </script>
 
 <template>
-  <section class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
-    <div class="mx-auto w-full max-w-6xl space-y-6">
+  <section :class="compact ? '' : 'min-h-0 flex-1 overflow-y-auto p-4 sm:p-6'">
+    <div v-if="!compact" class="mx-auto w-full max-w-6xl space-y-6">
       <header class="flex flex-wrap items-start justify-between gap-4">
         <div class="max-w-2xl">
           <h2
@@ -246,6 +262,7 @@ const remove = async () => {
               class="block line-clamp-3 text-xs leading-5 text-n-slate-11"
               >{{ item.description }}</span
             >
+            <AudienceBadge :item="item" />
           </button>
           <div
             class="flex flex-wrap items-center justify-end gap-1 border-t border-n-weak px-3 py-2"
@@ -346,6 +363,11 @@ const remove = async () => {
               :placeholder="t('MARCOX_AI.PIX.DESCRIPTION_HINT')"
             />
           </label>
+          <AudienceSelector
+            v-model="draft"
+            :agent-id="agentId"
+            :conversation-id="conversationId"
+          />
           <AiToggleRow
             v-model="draft.enabled"
             :label="t('MARCOX_AI.PIX.ENABLED')"

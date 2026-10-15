@@ -6,9 +6,18 @@ import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import AiToggleRow from './AiToggleRow.vue';
+import AudienceSelector from './AudienceSelector.vue';
+import AudienceBadge from './AudienceBadge.vue';
+import { defaultAudience, audiencePayload, audienceValid } from './audience';
 import ResourceVideoPlayer from './ResourceVideoPlayer.vue';
 
-const props = defineProps({ agentId: { type: Number, required: true } });
+const props = defineProps({
+  agentId: { type: Number, required: true },
+  conversationId: { type: Number, default: null },
+  globalScope: { type: Boolean, default: true },
+  compact: { type: Boolean, default: false },
+});
+const emit = defineEmits(['saved']);
 const { t } = useI18n();
 const items = ref([]);
 const total = ref(0);
@@ -51,7 +60,9 @@ const mediaUrl = entry => entry.localUrl || entry.file_url;
 const mediaKind = entry =>
   entry.file ? entry.file.type.split('/')[0] : entry.kind;
 const ready = entry =>
-  Boolean(entry.title?.trim() && entry.description?.trim());
+  Boolean(
+    entry.title?.trim() && entry.description?.trim() && audienceValid(entry)
+  );
 const readyCount = computed(() => fileDrafts.value.filter(ready).length);
 const removeSelection = entry => {
   releasePreview(entry);
@@ -121,7 +132,14 @@ const openEditor = item => {
   linkDraft.value =
     item?.kind === 'link'
       ? { ...item }
-      : { title: '', description: '', kind: 'link', url: '', enabled: true };
+      : {
+          title: '',
+          description: '',
+          kind: 'link',
+          url: '',
+          enabled: true,
+          ...defaultAudience(props.globalScope, props.conversationId),
+        };
   if (item && item.kind !== 'link') {
     nextKey += 1;
     const entry = { ...item, key: nextKey };
@@ -176,6 +194,7 @@ const selectFile = event => {
         description: '',
         kind: 'file',
         enabled: true,
+        ...defaultAudience(props.globalScope, props.conversationId),
         file,
         localUrl: URL.createObjectURL(file),
       };
@@ -189,6 +208,13 @@ const appendResource = (data, prefix, entry) => {
   ['title', 'description', 'kind', 'enabled'].forEach(key => {
     data.append(`${prefix}[${key}]`, entry[key]);
   });
+  const audience = audiencePayload(entry);
+  data.append(`${prefix}[audience]`, audience.audience);
+  if (audience.conversation_id)
+    data.append(`${prefix}[conversation_id]`, audience.conversation_id);
+  audience.contact_ids.forEach(id =>
+    data.append(`${prefix}[contact_ids][]`, id)
+  );
   if (entry.kind === 'link') data.append(`${prefix}[url]`, entry.url.trim());
   else if (entry.file) data.append(`${prefix}[file]`, entry.file);
 };
@@ -210,6 +236,7 @@ const save = async () => {
     }
     editor.value.close();
     await load();
+    emit('saved');
   } catch (failure) {
     formError.value =
       failure.response?.data?.error || t('MARCOX_AI.RESOURCES.ERROR');
@@ -250,11 +277,14 @@ const remove = async () => {
     saving.value = false;
   }
 };
+defineExpose({ openCreate: () => openEditor() });
 </script>
 
 <template>
-  <section class="min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
-    <div class="mx-auto w-full max-w-6xl space-y-5">
+  <section
+    :class="compact ? '' : 'min-h-0 min-w-0 flex-1 overflow-y-auto p-4 sm:p-6'"
+  >
+    <div v-if="!compact" class="mx-auto w-full max-w-6xl space-y-5">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="max-w-2xl">
           <h3 class="m-0 text-lg font-semibold text-n-slate-12">
@@ -356,6 +386,7 @@ const remove = async () => {
                 }}
               </span>
             </div>
+            <AudienceBadge :item="item" />
             <p
               class="m-0 line-clamp-3 min-h-[4.5rem] break-words text-sm leading-6 text-n-slate-11"
             >
@@ -683,6 +714,12 @@ const remove = async () => {
           <p class="m-0 text-xs leading-5 text-n-slate-11">
             {{ t('MARCOX_AI.RESOURCES.DESCRIPTION_HELP') }}
           </p>
+          <AudienceSelector
+            :model-value="draft"
+            :agent-id="agentId"
+            :conversation-id="conversationId"
+            @update:model-value="Object.assign(draft, $event)"
+          />
           <AiToggleRow
             v-model="draft.enabled"
             :disabled="saving"

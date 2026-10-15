@@ -41,7 +41,7 @@ class Api::V1::Accounts::MarcosxAi::PixKeysController < Api::V1::Accounts::Marco
     data.each do |field, value|
       raise ArgumentError unless %w[enabled primary].include?(field) ? [true, false].include?(value) : value.is_a?(String)
     end
-    data
+    data.merge(MarcosxAi::AudienceParams.parse(params.require(:pix_key), account: Current.account))
   end
 
   def render_keys(status = :ok)

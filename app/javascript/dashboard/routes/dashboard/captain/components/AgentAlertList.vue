@@ -10,7 +10,9 @@ import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 const props = defineProps({
   agentId: { type: Number, default: null },
   conversationId: { type: Number, default: null },
+  embedded: { type: Boolean, default: false },
 });
+const emit = defineEmits(['loaded']);
 const { t } = useI18n();
 const alerts = ref([]);
 const { run } = useAbortableRequest();
@@ -19,7 +21,13 @@ const load = async () => {
     const result = await run(signal =>
       MarcosxAiAPI.getAlerts(props.agentId, props.conversationId, { signal })
     );
-    if (result) alerts.value = result.data.alerts;
+    if (result) {
+      alerts.value = result.data.alerts;
+      emit(
+        'loaded',
+        alerts.value.filter(alert => alert.status === 'open').length
+      );
+    }
   } catch (error) {
     useAlert(error.response?.data?.error || t('MARCOX_AI.CONVERSATION.ERROR'));
   }
@@ -38,7 +46,7 @@ const resolve = async id => {
 
 <template>
   <div class="space-y-3">
-    <h4 class="m-0 text-sm font-semibold">
+    <h4 v-if="!embedded" class="m-0 text-sm font-semibold">
       {{ t('MARCOX_AI.AUTOMATION.PENDING') }}
     </h4>
     <p class="text-xs text-n-slate-11">

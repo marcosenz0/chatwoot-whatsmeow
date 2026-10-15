@@ -7,7 +7,10 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import AiSelect from './AiSelect.vue';
 
-const props = defineProps({ conversationId: { type: Number, required: true } });
+const props = defineProps({
+  conversationId: { type: Number, required: true },
+  embedded: { type: Boolean, default: false },
+});
 const emit = defineEmits(['updated']);
 const { t } = useI18n();
 const memory = ref(null);
@@ -67,8 +70,12 @@ const perform = async action => {
 </script>
 
 <template>
-  <details v-if="memory" class="space-y-3 rounded-lg border border-n-weak p-3">
-    <summary class="cursor-pointer text-sm font-semibold">
+  <component
+    :is="embedded ? 'div' : 'details'"
+    v-if="memory"
+    class="space-y-3 rounded-lg border border-n-weak p-3"
+  >
+    <summary v-if="!embedded" class="cursor-pointer text-sm font-semibold">
       {{ t('MARCOX_AI.AUTOMATION.MEMORY_TITLE') }}
     </summary>
     <AiSelect
@@ -166,5 +173,5 @@ const perform = async action => {
         @click="perform('unlink')"
       />
     </div>
-  </details>
+  </component>
 </template>

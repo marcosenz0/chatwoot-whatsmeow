@@ -139,7 +139,7 @@ class MarcosxAi::DeliveryJob < ApplicationJob
   def create_pix_message(id)
     executed_by = Current.executed_by
     @state.assistant.with_lock do
-      item = @state.assistant.pix_keys.available.find_by(id: id)
+      item = @state.assistant.pix_keys.available.available_to(@state.conversation).find_by(id: id)
       next unless item
 
       Current.executed_by = @state.assistant
@@ -154,7 +154,7 @@ class MarcosxAi::DeliveryJob < ApplicationJob
 
   def create_resource_message(id)
     executed_by = Current.executed_by
-    resource = @state.assistant.resources.available.find_by(id: id)
+    resource = @state.assistant.resources.available.available_to(@state.conversation).find_by(id: id)
     return unless resource
     return create_message(resource.url) if resource.kind == 'link'
 

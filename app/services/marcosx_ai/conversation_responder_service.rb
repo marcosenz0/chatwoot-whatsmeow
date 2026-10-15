@@ -27,7 +27,7 @@ class MarcosxAi::ConversationResponderService
       end
     end
     prompts = MarcosxAi::PromptBuilder.messages(
-      assistant: @assistant, context: runtime,
+      assistant: @assistant, conversation: @conversation, context: runtime,
       reactions: @assistant.feature_enabled?(:allow_reactions) && @conversation.inbox.channel_type == 'Channel::Whatsmeow',
       proactive: @state.metadata['manual']
     )
@@ -36,7 +36,8 @@ class MarcosxAi::ConversationResponderService
       history << { role: 'user', content: "Evento de ligação encerrada sem atendimento (dados): #{@state.metadata['call_event'].to_json}" }
     end
     response = client.chat(messages: [*prompts, *MarcosxAi::PromptBuilder.focused_history(history)], schema: MarcosxAi::ReplyPlan::SCHEMA)
-    plan = MarcosxAi::ReplyPlan.parse(response, assistant: @assistant, recent_messages: MarcosxAi::ReplyStyle.recent_text(history),
+    plan = MarcosxAi::ReplyPlan.parse(response, assistant: @assistant, conversation: @conversation,
+                                                recent_messages: MarcosxAi::ReplyStyle.recent_text(history),
                                                 voice_context: runtime[:voice], pix_available: runtime[:pix_available])
     if plan['recall_context']
       return unless @state.reload.current_run?(@token)
@@ -45,7 +46,8 @@ class MarcosxAi::ConversationResponderService
       history.concat(recalled.presence || [{ role: 'user',
                                              content: 'Nenhum histórico de outro canal está aprovado. Peça confirmação ao responsável.' }])
       response = client.chat(messages: [*prompts, *MarcosxAi::PromptBuilder.focused_history(history)], schema: MarcosxAi::ReplyPlan::SCHEMA)
-      plan = MarcosxAi::ReplyPlan.parse(response, assistant: @assistant, recent_messages: MarcosxAi::ReplyStyle.recent_text(history),
+      plan = MarcosxAi::ReplyPlan.parse(response, assistant: @assistant, conversation: @conversation,
+                                                  recent_messages: MarcosxAi::ReplyStyle.recent_text(history),
                                                   voice_context: runtime[:voice], pix_available: runtime[:pix_available])
     end
     plan['messages'] = [@assistant.handoff_message] if plan['handoff'] && plan['messages'].empty? && @assistant.handoff_message.present?
