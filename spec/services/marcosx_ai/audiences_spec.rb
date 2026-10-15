@@ -46,6 +46,17 @@ RSpec.describe 'MarcoXIA scoped catalogs and notices' do
     expect { MarcosxAi::PixCatalog.validate!(key.id, assistant, conversation: same_contact) }.not_to raise_error
   end
 
+  it 'uses the first permitted Pix key when the agent primary key is restricted to another contact' do
+    key
+    alternative = assistant.pix_keys.create!(account: account, title: 'Permitted Pix', key_type: 'EMAIL', key: 'other@example.com',
+                                             merchant_name: 'Holder', position: 2)
+    prompt = MarcosxAi::PixCatalog.instructions(assistant, conversation: other)
+    expect(prompt).to include(alternative.title, '"primary":true')
+    expect(prompt).not_to include(key.title)
+    expect(key.reload.position).to eq(1)
+    expect(alternative.reload.position).to eq(2)
+  end
+
   it 'revalidates resource and Pix scopes immediately before a queued delivery' do
     state = MarcosxAi::ConversationState.for_conversation!(conversation, assistant: assistant)
     job = MarcosxAi::DeliveryJob.new
