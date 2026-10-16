@@ -51,6 +51,10 @@ en:
       invalid_resource: 'Check the name, description, link, file and audience. Use a supported format up to 40 MB.'
       invalid_notification_target: 'Check the international phone number, WhatsApp inbox and allowed contacts.'
       resource_limit: 'Each agent supports up to 100 files and links.'
+      batch_invalid: "Invalid selection or conversation already included in another batch. Refresh the list."
+      batch_changed: "The conversation changed, was already answered or is no longer available. Refresh and analyze again."
+      batch_failed: "Could not complete this reply. Check the conversation before trying again."
+      batch_recall: "This reply needs context from another channel. Open the conversation and review it individually."
       invalid_response: 'The model returned an invalid response.'
       voice_unavailable: 'Configure and enable Voice and audio for this conversation’s agent before preparing a voice reply. The inbox must support audio.'
       empty_response: 'The model returned an empty response.'

@@ -192,6 +192,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
         :memory_mode, :editorial_instructions, :reply_to_missed_calls, :missed_call_instructions,
         :resume_mode, :resume_after_minutes, :pause_on_handoff, :pause_acknowledgement,
         :auto_response_enabled,
+        :manual_sessions_enabled,
         :fallback_message,
         :handoff_message,
         :show_typing, :show_recording, :split_messages, :max_message_parts, :message_interval_seconds, :allow_reactions, :emoji_usage,
@@ -228,6 +229,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
       guardrails: assistant.guardrails || [],
       inboxes_count: assistant.marcosx_ai_inboxes.count,
       inbox_ids: assistant.marcosx_ai_inboxes.pluck(:inbox_id),
+      manual_sessions_count: assistant.conversation_states.where("metadata ->> 'manual_activation' = 'true'").count,
       created_at: assistant.created_at,
       updated_at: assistant.updated_at
     }

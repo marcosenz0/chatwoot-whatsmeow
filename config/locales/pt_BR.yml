@@ -38,6 +38,10 @@ pt_BR:
       invalid_resource: 'Confira o nome, a descrição, o link, o arquivo e os contatos permitidos. Use um formato permitido com até 40 MB.'
       invalid_notification_target: 'Confira o número com DDI, a caixa de WhatsApp e os contatos permitidos.'
       resource_limit: 'Cada agente permite até 100 arquivos e links.'
+      batch_invalid: "Seleção inválida ou conversa já incluída em outro lote. Atualize a lista."
+      batch_changed: "A conversa mudou, já foi respondida ou não está mais disponível. Atualize e analise novamente."
+      batch_failed: "Não foi possível concluir. Confira a conversa antes de tentar novamente."
+      batch_recall: "Esta resposta precisa de contexto de outro canal. Abra a conversa e revise individualmente."
       invalid_response: 'O modelo devolveu uma resposta inválida.'
       voice_unavailable: 'Configure e ative Voz e áudio no agente desta conversa antes de preparar uma resposta em voz. A caixa de entrada precisa aceitar áudio.'
       empty_response: 'O modelo devolveu uma resposta vazia.'

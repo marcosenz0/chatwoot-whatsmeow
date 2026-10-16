@@ -1,5 +1,15 @@
 # Chatwoot Development Guidelines
 
+## Current MarcoXIA pending replies and manual sessions — October16,2026
+
+- All six principal/MX/MD web/workers run `fork-e346b33e1392c39fcd002cd5673530396aae1104`; gate38952991835 passed784 targeted examples (413Vue+371Rails), lint/build and image publication. Three health endpoints and rollback-only published API contracts passed. Repository-wide CE has preexisting failures outside this flow; see the technical handoff.
+- Pending replies starts unselected, preserves cross-page selections, previews history on demand, prepares all reviews in a second native dialog, removes one person only from the batch and returns to selection without losing reviews. Direct mode skips review. The durable sequential queue survives panel closure; Stop cancels future deliveries. Do not imply it recalls messages already committed.
+- Manual sessions is separate from general support. Preserve manual_activation membership when suspending; restoring must not resume individual pauses. Selected one-shot replies do not activate either general support or a paused session.
+- Recheck the latest meaningful incoming turn, operator role, assistant version, audience and run token at delivery. Normalize object/serialized JSON history. New live incoming messages supersede a batch without letting old-item cancellation clear the new run. Preserve exact reviewed audio bytes and the two-active-Pix/audience rules.
+- All78states/2profiles, full MD data hashes,12service configurations except six app pins, and six bridge container/image identities plus sessions were preserved. General support remains OFF; MD92 stays manually selected/context20. No customer messages were sent. Additive migration20261016190000 is applied to all three databases.
+- Verify new Lucide names exist in the installed `@iconify-json/lucide` set; missing icons can silently render blank. Read `docs/marcoxia-pending-replies-2026-10-16.md` and HOT op40. PR51 above50, unmerged. Older pins below are historical; preserve the general checkout's preexisting changes.
+
+
 ## Current MarcoXIA saved file library — October 15, 2026
 
 - Principal, MX and MD web/workers all run `fork-583c5c0a49be8ae11f7876775c3f20989d135be1`; gate 38750551029 passed 764 targeted tests (410 Vue + 354 Rails), lint, build and image publication. All three health endpoints return 200.

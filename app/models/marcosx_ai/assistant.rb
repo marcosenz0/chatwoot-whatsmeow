@@ -21,6 +21,7 @@ class MarcosxAi::Assistant < ApplicationRecord
     pause_on_handoff: false,
     pause_acknowledgement: true,
     auto_response_enabled: false,
+    manual_sessions_enabled: true,
     auto_start: true,
     show_typing: true,
     show_recording: true,
@@ -62,6 +63,7 @@ class MarcosxAi::Assistant < ApplicationRecord
   has_many :voice_credentials, class_name: 'MarcosxAi::VoiceCredential', dependent: :destroy, inverse_of: :assistant
   has_many :pix_keys, class_name: 'MarcosxAi::PixKey', dependent: :destroy, inverse_of: :assistant
   has_many :resources, class_name: 'MarcosxAi::Resource', dependent: :destroy, inverse_of: :assistant
+  has_many :reply_batches, class_name: 'MarcosxAi::ReplyBatch', dependent: :destroy
 
   has_many :notification_targets, class_name: 'MarcosxAi::NotificationTarget', dependent: :destroy, inverse_of: :assistant
 

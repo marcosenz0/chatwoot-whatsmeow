@@ -65,7 +65,12 @@ class MarcosxAi::DeliveryJob < ApplicationJob
       @state.update!(metadata: @state.metadata.merge('presence_media' => 'audio'))
     end
     MarcosxAi::TypingPresenceJob.perform_now(@state.conversation_id, token)
-    @audio = MarcosxAi::VoiceClient.new(assistant: @state.assistant).synthesize(plan['voice_text'])
+    item = MarcosxAi::ReplyBatchItem.find_by(id: @state.metadata['reply_batch_item_id']) if @state.metadata['reply_batch_item_id']
+    @audio = if item&.audio&.attached? && item.plan['voice_text'] == plan['voice_text']
+               item.audio.download
+             else
+               MarcosxAi::VoiceClient.new(assistant: @state.assistant).synthesize(plan['voice_text'])
+             end
   rescue StandardError
     MarcosxAi::Log.create!(account: @state.account, assistant: @state.assistant, conversation: @state.conversation,
                            event: 'voice_failed', status: 'error', error: 'Voice synthesis failed; continuing with text.')
@@ -118,7 +123,9 @@ class MarcosxAi::DeliveryJob < ApplicationJob
   end
 
   def finish(plan)
-    metadata = @state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'pause_ack', 'call_event', 'presence_media')
+    batch_item_id = @state.metadata['reply_batch_item_id']
+    metadata = @state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'pause_ack', 'call_event', 'presence_media',
+                                      'reply_batch_item_id')
     @state.update!(metadata: metadata.merge(
       'processing' => false, 'last_processed_trigger_id' => @state.metadata['trigger_message_id']
     ))
@@ -134,6 +141,11 @@ class MarcosxAi::DeliveryJob < ApplicationJob
                            event: plan['handoff'] ? 'handoff' : 'response_sent',
                            response: { parts: plan['messages'].size, audio: plan['voice_text'].present?,
                                        resources: Array(plan['resource_ids']).size, pix_key_id: plan['pix_key_id'], reaction: plan['reaction'] })
+    if batch_item_id
+      item = MarcosxAi::ReplyBatchItem.find(batch_item_id)
+      item.update!(status: 'sent')
+      item.reply_batch.continue_later(wait: @state.assistant.response_delay_seconds)
+    end
   end
 
   def create_pix_message(id)

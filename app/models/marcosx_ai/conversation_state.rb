@@ -47,6 +47,8 @@ class MarcosxAi::ConversationState < ApplicationRecord
   end
 
   def enabled_for_ai?
+    return false if metadata['manual_activation'] == true && assistant && !assistant.feature_enabled?(:manual_sessions_enabled)
+
     assistant.present? && (assistant.auto_response_enabled? || metadata['manual_activation'] == true)
   end
 
@@ -114,14 +116,20 @@ class MarcosxAi::ConversationState < ApplicationRecord
       id: id, assistant_id: assistant_id, assistant_name: assistant&.name, status: status, paused_until: paused_until,
       enabled: enabled_for_ai?, available: assistant&.available? || false, manual_activation: metadata['manual_activation'] == true,
       processing: metadata['processing'] == true,
+      manual_sessions_suspended: metadata['manual_activation'] == true && !assistant&.feature_enabled?(:manual_sessions_enabled),
       automatic_handoff_enabled: automatic_handoff_enabled?,
       reason: metadata['last_error'] || metadata['handoff_reason'] || metadata['paused_reason'], updated_at: updated_at
     }
   end
 
   def current_run?(token)
+    if metadata['reply_batch_item_id']
+      item = MarcosxAi::ReplyBatchItem.find_by(id: metadata['reply_batch_item_id'], status: 'sending', run_token: token)
+      return false unless item && item.reply_batch.status == 'running' &&
+                          account.account_users.exists?(user_id: item.reply_batch.user_id, role: :administrator)
+    end
     (status == 'active' || (status == 'awaiting_human' && metadata['pause_ack']) ||
-      (status == 'paused_by_agent' && metadata['approved_draft'])) &&
+      (status.in?(%w[paused_by_agent paused_by_human]) && metadata['approved_draft'] == true)) &&
       metadata['run_token'] == token && assistant&.available? && (enabled_for_ai? || metadata['approved_draft'] == true) &&
       conversation.marcosx_ai_assistant&.id == assistant_id && assistant.accepts_conversation?(conversation) &&
       !conversation.resolved? && !conversation.snoozed? && metadata['assistant_version'] == assistant.updated_at.iso8601(6) && !superseded?
@@ -143,7 +151,8 @@ class MarcosxAi::ConversationState < ApplicationRecord
   end
 
   def cancelled_metadata
-    metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'pause_ack', 'call_event', 'presence_media')
+    metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'pause_ack', 'call_event',
+                    'presence_media', 'reply_batch_item_id')
             .merge('run_token' => SecureRandom.uuid, 'processing' => false)
   end
 

@@ -1,5 +1,7 @@
 class MarcosxAi::ConfigurationValidator
   def self.validate!(config, account:)
+    raise ArgumentError, 'Invalid manual sessions setting' unless [true, false].include?(config[:manual_sessions_enabled])
+
     unless config[:message_target_characters].is_a?(Integer) && config[:message_target_characters].between?(40, 1500) &&
            [true, false].include?(config[:separate_greeting])
       raise ArgumentError, 'Invalid message splitting settings'
