@@ -12,7 +12,7 @@ class MarcosxAi::BatchReplyPlanner
     runtime = MarcosxAi::PromptBuilder.context_for(conversation, assistant: assistant)
     prompts = MarcosxAi::PromptBuilder.messages(assistant: assistant, conversation: conversation, context: runtime, reactions: false, proactive: true)
     prompts << { role: 'developer', content: 'O operador selecionou este pedido ainda sem resposta. Prepare uma resposta ao pedido atual. ' \
-                                           'Não execute ações agora. Reações devem ser null. Arquivos e Pix somente pelos catálogos autorizados.' }
+                                             'Não execute ações agora. Reações devem ser null. Arquivos e Pix somente pelos catálogos autorizados.' }
     response = client.chat(messages: [*prompts, *MarcosxAi::PromptBuilder.focused_history(history)], schema: MarcosxAi::ReplyPlan::SCHEMA)
     plan = MarcosxAi::ReplyPlan.parse(response, assistant: assistant, conversation: conversation,
                                                 recent_messages: MarcosxAi::ReplyStyle.recent_text(history),
@@ -20,11 +20,13 @@ class MarcosxAi::BatchReplyPlanner
     if plan['recall_context']
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.batch_recall')
     end
+
     plan['reaction'] = nil
     plan['reaction_message_id'] = nil
     if plan['messages'].empty? && plan['voice_text'].blank? && Array(plan['resource_ids']).empty? && plan['pix_key_id'].nil?
       raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response')
     end
+
     plan
   end
 end

@@ -5,8 +5,9 @@ class MarcosxAi::ReplyBatchItem < ApplicationRecord
   has_one_attached :audio
 
   def public_data
+    audio_path = Rails.application.routes.url_helpers.rails_blob_path(audio, only_path: true) if audio.attached?
     { id: id, conversation_id: conversation.display_id, name: conversation.contact.name, avatar_url: conversation.contact.avatar_url,
-      status: status, reason: reason, plan: plan, audio_url: audio.attached? ? Rails.application.routes.url_helpers.rails_blob_path(audio, only_path: true) : nil,
+      status: status, reason: reason, plan: plan, audio_url: audio_path,
       resources: reply_batch.assistant.resources.where(id: plan['resource_ids']).map { |r| { title: r.title, kind: r.kind } },
       pix: reply_batch.assistant.pix_keys.find_by(id: plan['pix_key_id'])&.title }
   end

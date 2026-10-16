@@ -17,7 +17,7 @@ class MarcosxAi::ReplyBatchRunner
 
   def run_next
     last_sent = @batch.items.where(status: 'sent').maximum(:updated_at)
-    wait = last_sent && last_sent + @assistant.response_delay_seconds.seconds - Time.current
+    wait = last_sent && (last_sent + @assistant.response_delay_seconds.seconds - Time.current)
     return @batch.continue_later(wait: wait.ceil) if wait && wait.positive?
 
     sending = @batch.items.find_by(status: 'sending')
@@ -42,7 +42,8 @@ class MarcosxAi::ReplyBatchRunner
         audio = MarcosxAi::VoiceClient.new(assistant: @assistant).synthesize(plan['voice_text'])
         item.audio.attach(io: StringIO.new(audio), filename: 'reply.mp3', content_type: 'audio/mpeg')
       end
-      return unless @batch.reload.status != 'cancelled' && item.reload.status == 'analyzing'
+      return if @batch.reload.status == 'cancelled'
+      return @batch.continue_later unless item.reload.status == 'analyzing'
 
       item.update!(plan: plan, status: @batch.mode == 'review' ? 'ready' : 'queued')
       return @batch.continue_later if @batch.mode == 'review'
@@ -55,7 +56,8 @@ class MarcosxAi::ReplyBatchRunner
   end
 
   def current?(item)
-    @assistant.reload.available? && item.assistant_version == @assistant.updated_at.iso8601(6) &&
+    @assistant.account.account_users.exists?(user: @batch.user, role: :administrator) &&
+      @assistant.reload.available? && item.assistant_version == @assistant.updated_at.iso8601(6) &&
       @pending.eligible?(item.conversation.reload, trigger_id: item.trigger_message_id)
   end
 
@@ -65,8 +67,9 @@ class MarcosxAi::ReplyBatchRunner
     state.with_lock do
       return skip(item) unless current?(item) && @batch.reload.status != 'cancelled' && item.reload.status == 'queued'
 
+      runtime = MarcosxAi::PromptBuilder.context_for(item.conversation, assistant: @assistant)
       plan = MarcosxAi::ReplyPlan.parse(item.plan.to_json, assistant: @assistant, conversation: item.conversation,
-                                                        pix_available: MarcosxAi::PromptBuilder.context_for(item.conversation, assistant: @assistant)[:pix_available])
+                                                           pix_available: runtime[:pix_available])
       item.update!(status: 'sending', run_token: token)
       @batch.update!(status: 'running')
       state.update!(metadata: state.metadata.merge(

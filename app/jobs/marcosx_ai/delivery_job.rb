@@ -128,7 +128,8 @@ class MarcosxAi::DeliveryJob < ApplicationJob
 
   def finish(plan)
     batch_item_id = @state.metadata['reply_batch_item_id']
-    metadata = @state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'pause_ack', 'call_event', 'presence_media', 'reply_batch_item_id')
+    metadata = @state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'pause_ack', 'call_event', 'presence_media',
+                                      'reply_batch_item_id')
     @state.update!(metadata: metadata.merge(
       'processing' => false, 'last_processed_trigger_id' => @state.metadata['trigger_message_id']
     ))

@@ -52,10 +52,10 @@ en:
       invalid_notification_target: 'Check the international phone number, WhatsApp inbox and allowed contacts.'
       resource_limit: 'Each agent supports up to 100 files and links.'
       batch_invalid: "Seleção inválida ou conversa já incluída em outro lote. Atualize a lista."
-    batch_changed: "A conversa mudou, já foi respondida ou não está mais disponível. Atualize e analise novamente."
-    batch_failed: "Não foi possível concluir. Confira a conversa antes de tentar novamente."
-    batch_recall: "Esta resposta precisa de contexto de outro canal. Abra a conversa e revise individualmente."
-    invalid_response: 'The model returned an invalid response.'
+      batch_changed: "A conversa mudou, já foi respondida ou não está mais disponível. Atualize e analise novamente."
+      batch_failed: "Não foi possível concluir. Confira a conversa antes de tentar novamente."
+      batch_recall: "Esta resposta precisa de contexto de outro canal. Abra a conversa e revise individualmente."
+      invalid_response: 'The model returned an invalid response.'
       voice_unavailable: 'Configure and enable Voice and audio for this conversation’s agent before preparing a voice reply. The inbox must support audio.'
       empty_response: 'The model returned an empty response.'
       empty_history: 'There are no public messages to analyze.'

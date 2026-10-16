@@ -24,9 +24,11 @@ class Api::V1::Accounts::MarcosxAi::ReplyBatchesController < Api::V1::Accounts::
     conversation = @assistant.account.conversations.find_by!(display_id: params[:conversation_id])
     authorize conversation, :show?
     history = MarcosxAi::ConversationContext.public_history(conversation).reorder(id: :desc).limit(20).to_a.reverse
-    render json: { messages: history.map { |m| { id: m.id, incoming: m.incoming?, content: m.content_attributes['marcosx_ai_voice_transcript'].presence ||
-                                                                                     m.content.presence || m.attachments.first&.file_type,
-                                                sent_at: m.created_at.iso8601 } } }
+    render json: { messages: history.map { |m|
+      { id: m.id, incoming: m.incoming?, content: m.content_attributes['marcosx_ai_voice_transcript'].presence ||
+        m.content.presence || m.attachments.first&.file_type,
+        sent_at: m.created_at.iso8601 }
+    } }
   end
 
   def create

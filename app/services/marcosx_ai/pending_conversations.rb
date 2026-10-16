@@ -25,20 +25,24 @@ class MarcosxAi::PendingConversations
     conversations = conversations.where("#{states}.id IS NULL OR (#{states}.status NOT IN ('handoff', 'awaiting_human', 'error') AND " \
                                         "COALESCE(#{states}.metadata ->> 'processing', 'false') != 'true' AND " \
                                         "COALESCE((#{states}.metadata ->> 'last_processed_trigger_id')::bigint, 0) < pending_message.id)")
-                                 .where("COALESCE(#{states}.metadata ->> 'conversation_override', 'false') != 'true' OR #{states}.assistant_id = ?", @assistant.id)
-                                 .where("inboxes.channel_type NOT IN ('Channel::Instagram', 'Channel::FacebookPage') OR pending_message.created_at > ?", 24.hours.ago)
+                                 .where("COALESCE(#{states}.metadata ->> 'conversation_override', 'false') != 'true' OR #{states}.assistant_id = ?",
+                                        @assistant.id)
+                                 .where("inboxes.channel_type NOT IN ('Channel::Instagram', 'Channel::FacebookPage') OR " \
+                                        'pending_message.created_at > ?',
+                                        24.hours.ago)
     unless @assistant.feature_enabled?(:respond_to_groups)
       conversations = conversations.where("COALESCE(conversations.additional_attributes ->> 'whatsmeow_group', 'false') = 'false' AND " \
                                           "COALESCE(conversations.additional_attributes ->> 'telegram_group', 'false') = 'false' AND " \
                                           "COALESCE(contacts.additional_attributes ->> 'whatsmeow_group', 'false') = 'false' AND " \
-                                          "COALESCE(conversations.additional_attributes ->> 'chat_type', '') NOT IN ('group', 'supergroup', 'channel')")
+                                          "COALESCE(conversations.additional_attributes ->> 'chat_type', '') " \
+                                          "NOT IN ('group', 'supergroup', 'channel')")
     end
     conversations.includes(:contact, :inbox, :marcosx_ai_conversation_state).order(last_activity_at: :desc, id: :desc)
   end
 
   def latest(conversation)
     MarcosxAi::ConversationContext.public_history(conversation).where("COALESCE(content_attributes ->> 'historical', 'false') != 'true'")
-             .where("COALESCE(content_attributes ->> 'is_unsupported', 'false') != 'true'").reorder(id: :desc).first
+                                  .where("COALESCE(content_attributes ->> 'is_unsupported', 'false') != 'true'").reorder(id: :desc).first
   end
 
   def eligible?(conversation, trigger_id: nil)
@@ -47,6 +51,7 @@ class MarcosxAi::PendingConversations
 
     state = conversation.marcosx_ai_conversation_state
     return false if state && (state.status.in?(%w[handoff awaiting_human error]) || state.metadata['processing'] == true)
+
     message = latest(conversation)
     message&.incoming? && (!trigger_id || message.id == trigger_id) && state&.metadata&.fetch('last_processed_trigger_id', 0).to_i < message.id
   end
