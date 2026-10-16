@@ -6,6 +6,31 @@ class MarcosxAiAPI extends ApiClient {
     super('marcosx_ai', { accountScoped: true });
   }
 
+  getPendingReplies(id, params = {}) {
+    return axios.get(`${this.url}/assistants/${id}/reply_batches`, { params });
+  }
+
+  previewPendingReply(id, conversationId) {
+    return axios.get(`${this.url}/assistants/${id}/reply_batches/preview`, {
+      params: { conversation_id: conversationId },
+    });
+  }
+
+  createReplyBatch(id, data) {
+    return axios.post(`${this.url}/assistants/${id}/reply_batches`, data);
+  }
+
+  getReplyBatch(id, batchId) {
+    return axios.get(`${this.url}/assistants/${id}/reply_batches/${batchId}`);
+  }
+
+  updateReplyBatch(id, batchId, data) {
+    return axios.patch(
+      `${this.url}/assistants/${id}/reply_batches/${batchId}`,
+      data
+    );
+  }
+
   getPreferences() {
     return axios.get(`${this.url}/preferences`);
   }

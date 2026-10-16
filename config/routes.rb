@@ -136,6 +136,9 @@ Rails.application.routes.draw do
               resources :pix_keys, only: [:index, :create, :update, :destroy]
               resources :notification_targets, only: [:index, :create, :update, :destroy]
               resources :audience_contacts, only: [:index]
+              resources :reply_batches, only: [:index, :create, :show, :update] do
+                get :preview, on: :collection
+              end
               resources :resources, only: [:index, :create, :update, :destroy] do
                 post :create_batch, on: :collection
               end

@@ -9,6 +9,7 @@ import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import AgentEditor from '../components/AgentEditor.vue';
+import PendingReplies from '../components/PendingReplies.vue';
 
 const store = useStore();
 const route = useRoute();
@@ -191,6 +192,26 @@ const connectionReady = agent =>
     item =>
       item.provider === agent.config.provider && item.enabled && item.configured
   );
+const toggleManual = async agent => {
+  togglingId.value = agent.id;
+  try {
+    const { data } = await MarcosxAiAPI.updateAssistant(agent.id, {
+      assistant: {
+        config: {
+          manual_sessions_enabled:
+            agent.config.manual_sessions_enabled === false,
+        },
+      },
+    });
+    agents.value = agents.value.map(item =>
+      item.id === agent.id ? data.assistant : item
+    );
+  } catch (error) {
+    notifyError(error);
+  } finally {
+    togglingId.value = null;
+  }
+};
 const toggleAgent = async agent => {
   togglingId.value = agent.id;
   try {
@@ -347,6 +368,7 @@ const testConnection = async provider => {
             </h3>
             <label class="relative block w-full sm:w-72">
               <span
+                aria-hidden="true"
                 class="i-lucide-search absolute start-3 top-2.5 size-4 text-n-slate-11"
               />
               <input
@@ -369,10 +391,12 @@ const testConnection = async provider => {
                   class="flex min-w-0 flex-1 items-start gap-3 text-start"
                   @click="selectAgent(agent)"
                 >
-                  <span
+                  <div
+                    aria-hidden="true"
                     class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-n-blue-3 text-n-blue-11"
-                    ><span class="i-lucide-bot size-5"
-                  /></span>
+                  >
+                    <span class="i-lucide-bot size-5" />
+                  </div>
                   <span class="min-w-0 flex-1">
                     <span
                       class="block truncate text-sm font-semibold text-n-slate-12"
@@ -424,7 +448,7 @@ const testConnection = async provider => {
                   {{ agent.description }}
                 </p>
                 <p class="m-0 flex items-center gap-2 text-xs text-n-slate-11">
-                  <span class="i-lucide-inbox size-3.5" />{{
+                  <span aria-hidden="true" class="i-lucide-inbox size-3.5" />{{
                     t(
                       agent.inboxes_count
                         ? 'MARCOX_AI.INBOX_COUNT'
@@ -487,6 +511,47 @@ const testConnection = async provider => {
                   @click="selectAgent(agent, 'memories')"
                 />
               </div>
+              <div
+                v-if="canEdit"
+                class="mt-3 flex flex-wrap items-center gap-2 border-t border-n-weak pt-3"
+              >
+                <PendingReplies :agent="agent" />
+                <button
+                  type="button"
+                  role="switch"
+                  :aria-checked="agent.config.manual_sessions_enabled !== false"
+                  :aria-label="t('MARCOX_AI.PENDING.MANUAL')"
+                  :disabled="togglingId === agent.id"
+                  class="reset-base flex items-center gap-2 rounded-lg px-2 py-2 text-xs text-n-slate-11 hover:bg-n-alpha-1"
+                  :title="t('MARCOX_AI.PENDING.MANUAL_HINT')"
+                  @click="toggleManual(agent)"
+                >
+                  <span
+                    aria-hidden="true"
+                    class="i-lucide-mouse-pointer-2 size-4"
+                  />
+                  {{ t('MARCOX_AI.PENDING.MANUAL') }} ({{
+                    agent.manual_sessions_count || 0
+                  }})
+                  <span
+                    class="relative h-5 w-9 rounded-full"
+                    :class="
+                      agent.config.manual_sessions_enabled === false
+                        ? 'bg-n-slate-5'
+                        : 'bg-n-blue-9'
+                    "
+                  >
+                    <span
+                      class="absolute top-0.5 size-4 rounded-full bg-white"
+                      :class="
+                        agent.config.manual_sessions_enabled === false
+                          ? 'start-0.5'
+                          : 'end-0.5'
+                      "
+                    />
+                  </span>
+                </button>
+              </div>
             </article>
           </div>
           <p
@@ -525,10 +590,12 @@ const testConnection = async provider => {
         v-else-if="!agents.length"
         class="flex flex-1 flex-col items-center justify-center p-8 text-center"
       >
-        <span
+        <div
+          aria-hidden="true"
           class="flex size-16 items-center justify-center rounded-2xl bg-n-blue-3 text-n-blue-11"
-          ><span class="i-lucide-bot size-8"
-        /></span>
+        >
+          <span class="i-lucide-bot size-8" />
+        </div>
         <h2 class="mt-6 text-xl font-semibold text-n-slate-12">
           {{ t('MARCOX_AI.EMPTY_TITLE') }}
         </h2>
