@@ -6,10 +6,6 @@ class MarcosxAi::DeliveryJob < ApplicationJob
 
   def perform(conversation_id, token, part_index)
     @state = MarcosxAi::ConversationState.find_by!(conversation_id: conversation_id)
-    if @state.metadata['reply_batch_item_id']
-      item = MarcosxAi::ReplyBatchItem.find(@state.metadata['reply_batch_item_id'])
-      return unless item.status == 'sending' && item.reply_batch.status == 'running'
-    end
     return unless @state.current_run?(token)
 
     pending = @state.metadata['pending_response']

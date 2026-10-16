@@ -92,6 +92,28 @@ RSpec.describe MarcosxAi::ReplyBatchRunner do
     expect(item.reload.status).to eq('failed')
   end
 
+  it 'does not cancel the new automatic reply when an incoming message supersedes a batch' do
+    assistant.update!(config: assistant.resolved_config.merge(auto_response_enabled: true))
+    batch.update!(mode: 'direct')
+    item
+    described_class.new(batch).perform
+    incoming = create(:message, account: account, inbox: inbox, conversation: conversation, content: 'A newer question')
+    MarcosxAi::ResponseScheduler.perform(message: incoming)
+    state = MarcosxAi::ConversationState.find_by!(conversation: conversation)
+    new_token = state.metadata['run_token']
+    expect(state.metadata['reply_batch_item_id']).to be_nil
+    described_class.new(batch).perform
+    expect(item.reload.status).to eq('skipped')
+    expect(state.reload.current_run?(new_token)).to be(true)
+  end
+
+  it 'continues preparing other items if the operator discards one during generation' do
+    item
+    allow(MarcosxAi::BatchReplyPlanner).to receive(:perform) { item.discard!; plan }
+    expect { described_class.new(batch).perform }.to have_enqueued_job(MarcosxAi::ReplyBatchJob)
+    expect(item.reload.status).to eq('discarded')
+  end
+
   it 'prevents two batches from reserving the same unanswered turn' do
     item
     other = assistant.reply_batches.create!(account: account, user: user, mode: 'direct', request_id: SecureRandom.uuid)

@@ -123,6 +123,11 @@ class MarcosxAi::ConversationState < ApplicationRecord
   end
 
   def current_run?(token)
+    if metadata['reply_batch_item_id']
+      item = MarcosxAi::ReplyBatchItem.find_by(id: metadata['reply_batch_item_id'], status: 'sending', run_token: token)
+      return false unless item && item.reply_batch.status == 'running' &&
+                          account.account_users.exists?(user_id: item.reply_batch.user_id, role: :administrator)
+    end
     (status == 'active' || (status == 'awaiting_human' && metadata['pause_ack']) ||
       (status.in?(%w[paused_by_agent paused_by_human]) && metadata['approved_draft'] == true)) &&
       metadata['run_token'] == token && assistant&.available? && (enabled_for_ai? || metadata['approved_draft'] == true) &&
@@ -146,7 +151,8 @@ class MarcosxAi::ConversationState < ApplicationRecord
   end
 
   def cancelled_metadata
-    metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'pause_ack', 'call_event', 'presence_media')
+    metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'pause_ack', 'call_event',
+                    'presence_media', 'reply_batch_item_id')
             .merge('run_token' => SecureRandom.uuid, 'processing' => false)
   end
 

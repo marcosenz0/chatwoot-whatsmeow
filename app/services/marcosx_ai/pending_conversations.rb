@@ -10,12 +10,15 @@ class MarcosxAi::PendingConversations
     conversations = @assistant.account.conversations.where(inbox_id: inbox_ids)
     conversations = conversations.or(@assistant.account.conversations.where(id: overrides))
     conversations = Conversations::PermissionFilterService.new(conversations, @user, @assistant.account).perform
+    attributes_sql = MarcosxAi::ConversationContext::CONTENT_ATTRIBUTES_SQL
     latest = Message.where(private: false, message_type: [:incoming, :outgoing])
                     .where('messages.conversation_id = conversations.id').where.not(content_type: 'voice_call')
                     .where("COALESCE(additional_attributes ->> 'marcosx_ai_operational', 'false') != 'true'")
-                    .where("COALESCE(content_attributes ->> 'historical', 'false') != 'true'")
-                    .where("COALESCE(content_attributes ->> 'deleted', 'false') != 'true'")
-                    .where("COALESCE(content_attributes ->> 'is_unsupported', 'false') != 'true'")
+                    .where("COALESCE(#{attributes_sql} ->> 'historical', 'false') != 'true'")
+                    .where("COALESCE(#{attributes_sql} ->> 'deleted', 'false') != 'true'")
+                    .where("COALESCE(#{attributes_sql} ->> 'whatsmeow_deleted', 'false') != 'true'")
+                    .where("COALESCE(#{attributes_sql} ->> 'is_unsupported', 'false') != 'true'")
+                    .where('COALESCE(content, ?) NOT LIKE ?', '', "#{MarcosxAi::AlertService::NOTICE_PREFIX}%")
                     .reorder(id: :desc).limit(1).select(:id, :message_type, :created_at)
     conversations = conversations.joins(:contact, :inbox).left_joins(:marcosx_ai_conversation_state)
                                  .joins("JOIN LATERAL (#{latest.to_sql}) pending_message ON true")
@@ -41,8 +44,9 @@ class MarcosxAi::PendingConversations
   end
 
   def latest(conversation)
-    MarcosxAi::ConversationContext.public_history(conversation).where("COALESCE(content_attributes ->> 'historical', 'false') != 'true'")
-                                  .where("COALESCE(content_attributes ->> 'is_unsupported', 'false') != 'true'").reorder(id: :desc).first
+    attributes_sql = MarcosxAi::ConversationContext::CONTENT_ATTRIBUTES_SQL
+    MarcosxAi::ConversationContext.public_history(conversation).where("COALESCE(#{attributes_sql} ->> 'historical', 'false') != 'true'")
+                                  .where("COALESCE(#{attributes_sql} ->> 'is_unsupported', 'false') != 'true'").reorder(id: :desc).first
   end
 
   def eligible?(conversation, trigger_id: nil)

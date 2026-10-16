@@ -79,13 +79,15 @@ class MarcosxAi::ReplyBatchRunner
       plan = MarcosxAi::AlertService.prepare_delivery(state: state, plan: plan, token: token)
       return skip(item) unless plan
 
-      state.update!(metadata: state.metadata.merge('pending_response' => plan.merge('next_part' => 0)))
+      state.update!(metadata: state.metadata.merge('pending_response' => plan.merge('next_part' => 0),
+                                                   'approved_draft' => true, 'reply_batch_item_id' => item.id))
     end
     MarcosxAi::DeliveryJob.perform_later(item.conversation_id, token, 0)
     @batch.continue_later(wait: 10)
   end
 
   def skip(item)
+    item.discard!
     item.update!(status: 'skipped', reason: I18n.t('marcosx_ai.errors.batch_changed'))
     @batch.continue_later
   end

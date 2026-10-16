@@ -159,7 +159,7 @@ onBeforeUnmount(() => {
     :show-cancel-button="false"
     @close="close"
   >
-    <div class="max-h-[65vh] space-y-4 overflow-y-auto p-1">
+    <div class="max-h-[65vh] space-y-4 overflow-y-auto p-1 text-n-slate-12">
       <p v-if="error" role="alert" class="text-sm text-n-ruby-11">
         {{ error }}
       </p>
@@ -187,10 +187,10 @@ onBeforeUnmount(() => {
         />
       </div>
       <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
-        <span
-          >{{ text('TOTAL') }}: {{ total ?? '…' }} · {{ text('SELECTED') }}:
-          {{ count }}</span
-        >
+        <p class="m-0">
+          {{ text('TOTAL') }}: {{ total ?? '…' }} · {{ text('SELECTED') }}:
+          {{ count }}
+        </p>
         <div class="flex gap-2">
           <Button
             variant="link"
@@ -351,7 +351,7 @@ onBeforeUnmount(() => {
     :show-confirm-button="false"
     :show-cancel-button="false"
   >
-    <div class="max-h-[65vh] space-y-3 overflow-y-auto p-1">
+    <div class="max-h-[65vh] space-y-3 overflow-y-auto p-1 text-n-slate-12">
       <p v-if="error" role="alert" class="text-sm text-n-ruby-11">
         {{ error }}
       </p>
@@ -453,7 +453,7 @@ onBeforeUnmount(() => {
     :show-confirm-button="false"
     :cancel-button-label="text('BACK')"
   >
-    <div class="max-h-[60vh] space-y-3 overflow-y-auto p-1">
+    <div class="max-h-[60vh] space-y-3 overflow-y-auto p-1 text-n-slate-12">
       <div
         v-for="message in messages"
         :key="message.id"
