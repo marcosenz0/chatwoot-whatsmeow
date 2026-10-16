@@ -10,8 +10,10 @@ RSpec.describe MarcosxAi::ReplyBatchRunner do
   let!(:message) { create(:message, account: account, inbox: inbox, conversation: conversation, content: 'Please help') }
   let(:batch) { assistant.reply_batches.create!(account: account, user: user, mode: 'review', request_id: SecureRandom.uuid) }
   let(:item) { batch.items.create!(conversation: conversation, trigger_message_id: message.id, assistant_version: assistant.updated_at.iso8601(6)) }
-  let(:plan) { { 'messages' => ['A helpful answer'], 'voice_text' => nil, 'resource_ids' => [], 'pix_key_id' => nil, 'reaction' => nil,
-                'reaction_message_id' => nil, 'handoff' => false, 'handoff_reason' => nil, 'alert_rule_ids' => [], 'recall_context' => false } }
+  let(:plan) {
+    { 'messages' => ['A helpful answer'], 'voice_text' => nil, 'resource_ids' => [], 'pix_key_id' => nil, 'reaction' => nil,
+      'reaction_message_id' => nil, 'handoff' => false, 'handoff_reason' => nil, 'alert_rule_ids' => [], 'recall_context' => false }
+  }
 
   before do
     assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
@@ -97,7 +99,7 @@ RSpec.describe MarcosxAi::ReplyBatchRunner do
     batch.update!(mode: 'direct')
     item
     described_class.new(batch).perform
-    incoming = create(:message, account: account, inbox: inbox, conversation: conversation, content: 'A newer question')
+    incoming = create(:message, account: account, inbox: inbox, conversation: conversation.reload, content: 'A newer question')
     MarcosxAi::ResponseScheduler.perform(message: incoming)
     state = MarcosxAi::ConversationState.find_by!(conversation: conversation)
     new_token = state.metadata['run_token']
@@ -112,6 +114,25 @@ RSpec.describe MarcosxAi::ReplyBatchRunner do
     allow(MarcosxAi::BatchReplyPlanner).to receive(:perform) { item.discard!; plan }
     expect { described_class.new(batch).perform }.to have_enqueued_job(MarcosxAi::ReplyBatchJob)
     expect(item.reload.status).to eq('discarded')
+  end
+
+  it 'delivers the reviewed audio bytes without synthesizing the voice again' do
+    assistant.update!(config: assistant.resolved_config.deep_merge(voice: { enabled: true, minimax: { voice_id: 'test_voice' } }))
+    assistant.voice_credentials.create!(account: account, provider: 'minimax', api_key: 'voice-test')
+    voice = instance_double(MarcosxAi::VoiceClient)
+    allow(MarcosxAi::VoiceClient).to receive(:new).and_return(voice)
+    expect(voice).to receive(:synthesize).with('The reviewed answer').once.and_return('ID3-reviewed-bytes')
+    allow(MarcosxAi::BatchReplyPlanner).to receive(:perform).and_return(plan.merge('voice_text' => 'The reviewed answer'))
+    item
+    described_class.new(batch).perform
+    expect(item.reload.audio.download).to eq('ID3-reviewed-bytes')
+    item.update!(status: 'queued')
+    batch.update!(status: 'running')
+    described_class.new(batch).perform
+    MarcosxAi::DeliveryJob.perform_now(conversation.id, item.reload.run_token, 0)
+    audio = conversation.messages.outgoing.where(private: false).last.attachments.first
+    expect(audio.file.download).to eq('ID3-reviewed-bytes')
+    expect(item.reload.status).to eq('sent')
   end
 
   it 'prevents two batches from reserving the same unanswered turn' do
