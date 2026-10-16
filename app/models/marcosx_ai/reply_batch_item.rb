@@ -13,7 +13,7 @@ class MarcosxAi::ReplyBatchItem < ApplicationRecord
   end
 
   def discard!
-    state = conversation.marcosx_ai_conversation_state
+    state = MarcosxAi::ConversationState.find_by(conversation_id: conversation_id)
     state&.with_lock do
       if state.metadata['reply_batch_item_id'] == id
         state.update!(metadata: state.metadata.except('reply_batch_item_id', 'approved_draft', 'pending_response', 'presence_media').merge(

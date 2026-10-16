@@ -78,10 +78,11 @@ RSpec.describe MarcosxAi::ReplyBatchRunner do
     item
     described_class.new(batch).perform
     token = item.reload.run_token
+    expect(item.status).to eq('sending')
     batch.cancel!
     MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
     expect(conversation.messages.outgoing.where(private: false)).to be_empty
-    expect(conversation.marcosx_ai_conversation_state.reload.metadata['processing']).to be(false)
+    expect(conversation.reload.marcosx_ai_conversation_state.metadata['processing']).to be(false)
   end
 
   it 'shows a failure and advances instead of silently dropping the remaining queue' do

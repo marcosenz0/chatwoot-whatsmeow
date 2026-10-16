@@ -124,7 +124,7 @@ class MarcosxAi::ConversationState < ApplicationRecord
 
   def current_run?(token)
     (status == 'active' || (status == 'awaiting_human' && metadata['pause_ack']) ||
-      (status.in?(%w[paused_by_agent paused_by_human]) && metadata['approved_draft'])) &&
+      (status.in?(%w[paused_by_agent paused_by_human]) && metadata['approved_draft'] == true)) &&
       metadata['run_token'] == token && assistant&.available? && (enabled_for_ai? || metadata['approved_draft'] == true) &&
       conversation.marcosx_ai_assistant&.id == assistant_id && assistant.accepts_conversation?(conversation) &&
       !conversation.resolved? && !conversation.snoozed? && metadata['assistant_version'] == assistant.updated_at.iso8601(6) && !superseded?

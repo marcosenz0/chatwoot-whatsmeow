@@ -46,6 +46,7 @@ class MarcosxAi::PendingConversations
   end
 
   def eligible?(conversation, trigger_id: nil)
+    conversation.reload
     return false unless scope.where(id: conversation.id).exists? && @assistant.accepts_conversation?(conversation)
     return false unless conversation.marcosx_ai_assistant&.id == @assistant.id
 
