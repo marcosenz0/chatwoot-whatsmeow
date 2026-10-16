@@ -146,7 +146,7 @@ onBeforeUnmount(() => {
     size="sm"
     variant="ghost"
     color="slate"
-    icon="i-lucide-message-square-clock"
+    icon="i-lucide-message-square-text"
     :label="`${text('TITLE')} ${total === null ? '…' : total}`"
     @click="open"
   />
