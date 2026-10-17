@@ -73,7 +73,7 @@ load = async (silent = false) => {
     if (version !== request) return;
     rows.value = data.conversations;
     total.value = data.total;
-    if (data.batch && (!batch.value || data.batch.id > batch.value.id))
+    if (data.batch && (!batch.value || data.batch.id >= batch.value.id))
       adopt(data.batch);
     poll();
   } catch (e) {

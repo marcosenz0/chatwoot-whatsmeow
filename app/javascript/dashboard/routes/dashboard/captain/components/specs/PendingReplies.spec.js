@@ -1,8 +1,8 @@
 import { ref } from 'vue';
 import { flushPromises, mount } from '@vue/test-utils';
 import API from 'dashboard/api/marcosxAi';
-import PendingReplies from '../PendingReplies.vue';
 import { useMarcosxAiBatches } from 'dashboard/composables/useMarcosxAiBatches';
+import PendingReplies from '../PendingReplies.vue';
 
 vi.mock('dashboard/api/marcosxAi', () => ({
   default: {
