@@ -75,6 +75,19 @@ RSpec.describe MarcosxAi::ReplyBatchRunner do
     expect(state.status).to eq('active')
   end
 
+  it 'requires a new review when media protection would change an older approved reply' do
+    photo = assistant.resources.new(account: account, title: 'Preview', description: 'A preview', kind: 'image')
+    photo.file.attach(io: File.open(Rails.root.join('spec/assets/sample.png')), filename: 'photo.png', content_type: 'image/png')
+    photo.save!
+    sent = create(:message, :outgoing, account: account, inbox: inbox, conversation: conversation, sender: assistant, status: :delivered)
+    sent.attachments.create!(account: account, file_type: 'image', file: photo.file.blob)
+    latest = create(:message, account: account, inbox: inbox, conversation: conversation, content: 'Another preview')
+    item.update!(status: 'queued', trigger_message_id: latest.id, plan: plan.merge('resource_ids' => [photo.id]))
+    batch.update!(status: 'running')
+    expect { described_class.new(batch).perform }.not_to change(conversation.messages.outgoing, :count)
+    expect(item.reload.status).to eq('skipped')
+  end
+
   it 'cancels delivery already queued without sending or erasing manual membership' do
     batch.update!(mode: 'direct')
     item
