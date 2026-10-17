@@ -160,7 +160,7 @@ RSpec.describe MarcosxAi::ReplyBatchRunner do
   it 'suspends and restores manually enabled sessions without changing the selected people or their pauses' do
     state = MarcosxAi::ConversationState.for_conversation!(conversation, assistant: assistant)
     state.resume!(manual: true)
-    assistant.update!(config: assistant.resolved_config.merge(manual_sessions_enabled: false, auto_response_enabled: true))
+    assistant.update!(config: assistant.resolved_config.merge(manual_sessions_enabled: false, auto_response_enabled: false))
     expect(state.reload.enabled_for_ai?).to be(false)
     expect(state.metadata['manual_activation']).to be(true)
     state.pause_by_agent!

@@ -164,7 +164,8 @@
       "SHOW_TYPING": "Show typing on WhatsApp",
       "SHOW_TYPING_HINT": "Shows typing while the agent prepares a reply. The inbox typing setting must also be enabled.",
       "SHOW_RECORDING": "Show audio recording on WhatsApp",
-      "SHOW_RECORDING_HINT": "Shows recording while an operator uses the microphone. Configure the agent's voice replies in Voice and audio."
+      "SHOW_RECORDING_HINT": "Shows recording while an operator uses the microphone. Configure the agent's voice replies in Voice and audio.",
+      "PAUSE_NONE": "Keep AI enabled"
     },
     "PROVIDERS": {
       "TITLE": "Connect the intelligence behind your agents",
@@ -660,8 +661,19 @@
         "sent": "Sent",
         "skipped": "Skipped: conversation changed",
         "failed": "Failed; check conversation",
-        "discarded": "Removed from this batch"
-      }
+        "discarded": "Removed from this batch",
+        "delivery_pending": "Waiting for send confirmation",
+        "delivery_failed": "Delivery failed; check conversation",
+        "delivery_unconfirmed": "Send unconfirmed; check conversation before retrying",
+        "delivered": "Delivered"
+      },
+      "MONITOR": "AI replies",
+      "MINIMIZE": "Minimize progress",
+      "DISMISS": "Dismiss results",
+      "RESULTS": "Results by contact",
+      "CONNECTION_ERROR": "Progress connection interrupted. Sending status is unknown; reconnect before trying again.",
+      "STOP_ERROR": "Could not confirm that the batch stopped. Reconnect to check its status.",
+      "RECONNECT": "Refresh status"
     }
   }
 }

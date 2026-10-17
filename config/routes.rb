@@ -115,6 +115,7 @@ Rails.application.routes.draw do
             end
           end
           namespace :marcosx_ai do
+            get 'reply_batches', to: 'reply_batches#active'
             resource :preferences, only: [:show, :update]
             resources :credentials, only: [:index, :show, :create, :update, :destroy] do
               post :test, on: :collection

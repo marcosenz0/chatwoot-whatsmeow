@@ -271,7 +271,12 @@ class Conversation < ApplicationRecord
 
   def marcosx_ai_state_data
     state = marcosx_ai_conversation_state
-    state&.public_data
+    assistant = marcosx_ai_assistant
+    return state.public_data if state && state.assistant_id == assistant&.id
+    return unless assistant
+
+    MarcosxAi::ConversationState.new(account: account, conversation: self, inbox: inbox, assistant: assistant,
+                                     status: assistant.feature_enabled?(:auto_start) ? 'active' : 'paused_by_agent', metadata: {}).public_data
   end
 
   def marcosx_ai_assistant

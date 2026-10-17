@@ -3,7 +3,8 @@ class MarcosxAi::FailureHandler
     state.with_lock do
       return unless state.current_run?(token)
 
-      state.update!(status: 'error', paused_until: nil, metadata: state.metadata.except('pending_response').merge(
+      batch_item_id = state.metadata['reply_batch_item_id']
+      state.update!(metadata: state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft', 'reply_batch_item_id').merge(
         'last_error' => error.message.truncate(500), 'processing' => false, 'run_token' => SecureRandom.uuid
       ))
       state.conversation.messages.create!(
@@ -13,6 +14,11 @@ class MarcosxAi::FailureHandler
       )
       MarcosxAi::Log.create!(account: state.account, assistant: state.assistant, conversation: state.conversation,
                              event: 'response_failed', status: 'error', error: error.message.truncate(500))
+      if batch_item_id
+        item = MarcosxAi::ReplyBatchItem.find(batch_item_id)
+        item.update!(status: 'failed', reason: I18n.t('marcosx_ai.errors.batch_failed'))
+        item.reply_batch.continue_later
+      end
     end
     ChatwootExceptionTracker.new(error, account: state.account).capture_exception
   end

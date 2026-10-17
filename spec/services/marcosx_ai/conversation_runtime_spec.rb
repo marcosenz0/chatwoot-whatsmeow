@@ -145,8 +145,8 @@ RSpec.describe 'MarcoXIA conversation runtime' do
     expect(state.public_data[:available]).to be(false)
   end
 
-  it 'never times out a permanent human takeover' do
-    state.pause_by_human!(message: message, minutes: 0)
+  it 'never times out an explicit operator pause' do
+    state.pause_by_agent!(reason: 'operator_pause')
     travel 2.days do
       expect(state.active_for_ai?).to be(false)
     end
@@ -160,6 +160,7 @@ RSpec.describe 'MarcoXIA conversation runtime' do
   end
 
   it 'pauses when a human replies and invalidates an in-flight response' do
+    assistant.update!(config: assistant.resolved_config.merge(human_pause_minutes: 15))
     MarcosxAi::ResponseScheduler.perform(message: message)
     token = state.reload.metadata['run_token']
     reply = create(:message, account: account, conversation: conversation, inbox: inbox, message_type: :outgoing)
@@ -331,12 +332,13 @@ RSpec.describe 'MarcoXIA conversation runtime' do
     expect { MarcosxAi::ResponseScheduler.perform(message: message) }.not_to have_enqueued_job(MarcosxAi::ResponseJob)
   end
 
-  it 'keeps a provider failure internal and pauses instead of replying with a technical error' do
+  it 'keeps a provider failure internal without disabling future responses' do
     allow(client).to receive(:chat).and_raise(CustomExceptions::MarcosxAi, 'Provider unavailable')
     MarcosxAi::ResponseScheduler.perform(message: message)
     token = state.reload.metadata['run_token']
     MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, message.id, token)
-    expect(state.reload.status).to eq('error')
+    expect(state.reload.status).to eq('active')
+    expect(state.metadata['last_error']).to eq('Provider unavailable')
     expect(conversation.messages.outgoing.where(private: false)).to be_empty
     expect(conversation.messages.outgoing.where(private: true).last.content).to include('Provider unavailable')
   end

@@ -1,7 +1,7 @@
 name: MarcoXIA validation and image
 on:
   push:
-    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context, codex/marcoxia-audio-delivery, codex/marcoxia-pix-keys, codex/marcoxia-pix-selector, codex/marcoxia-panel-audience, codex/marcoxia-resource-library, codex/marcoxia-pending-replies]
+    branches: [codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context, codex/marcoxia-audio-delivery, codex/marcoxia-pix-keys, codex/marcoxia-pix-selector, codex/marcoxia-panel-audience, codex/marcoxia-resource-library, codex/marcoxia-pending-replies, codex/marcoxia-reliability]
     paths: ['app/**', 'spec/**', 'db/**', 'config/**', 'lib/**', 'Dockerfile', '.github/workflows/marcoxia.yml']
   workflow_dispatch:
 permissions:
@@ -34,11 +34,15 @@ jobs:
           app/javascript/dashboard/components/widgets/conversation/specs/ReplyBoxRecordedAudio.spec.js
           app/javascript/dashboard/components/widgets/conversation/specs/ConversationVoiceDraft.spec.js
           app/javascript/dashboard/composables/spec/useMarcosxAiDraft.spec.js
+          app/javascript/dashboard/components/widgets/conversation/specs/ReplyBatchProgress.spec.js
       - name: Lint agent interface
         run: >-
           pnpm exec eslint
           --ext .js,.vue
           app/javascript/dashboard/routes/dashboard/captain/components
+          app/javascript/dashboard/App.vue
+          app/javascript/dashboard/composables/useMarcosxAiBatches.js
+          app/javascript/dashboard/components/widgets/conversation/ReplyBatchProgress.vue
           app/javascript/dashboard/components/ui/ContextMenu.vue
           app/javascript/dashboard/routes/dashboard/captain/pages/MarcosxAiPage.vue
           app/javascript/dashboard/components-next/avatar/Avatar.vue
