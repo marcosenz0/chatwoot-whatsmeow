@@ -50,6 +50,17 @@ const status = batch => {
     return 'delivery_unconfirmed';
   return batch.status;
 };
+async function recover() {
+  lastDiscovery = Date.now();
+  try {
+    const { data } = await API.getActiveReplyBatches();
+    if (closed) return;
+    data.batches.forEach(batch => rememberBatch(batch));
+    error.value = '';
+  } catch {
+    if (!closed) error.value = text('CONNECTION_ERROR');
+  }
+}
 const poll = async () => {
   if (Date.now() - lastDiscovery >= 15000) {
     await recover();
@@ -68,17 +79,6 @@ const poll = async () => {
   }
   timer = setTimeout(poll, 2000);
 };
-async function recover() {
-  lastDiscovery = Date.now();
-  try {
-    const { data } = await API.getActiveReplyBatches();
-    if (closed) return;
-    data.batches.forEach(batch => rememberBatch(batch));
-    error.value = '';
-  } catch {
-    if (!closed) error.value = text('CONNECTION_ERROR');
-  }
-}
 const stop = async batch => {
   stopping.value = batch.id;
   try {
