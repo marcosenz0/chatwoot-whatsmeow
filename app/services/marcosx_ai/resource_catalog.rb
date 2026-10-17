@@ -21,7 +21,9 @@ class MarcosxAi::ResourceCatalog
 
     messages = MarcosxAi::ConversationContext.raw_public_history(conversation).outgoing.where.not(status: :failed)
     checksums = Attachment.where(message_id: messages.select(:id)).joins(file_attachment: :blob).pluck('active_storage_blobs.checksum')
-    resources.select { |resource| resource.kind.in?(%w[image video]) && resource.file.attached? && checksums.include?(resource.file.checksum) }.map(&:id)
+    resources.select do |resource|
+      resource.kind.in?(%w[image video]) && resource.file.attached? && checksums.include?(resource.file.checksum)
+    end.map(&:id)
   end
 
   def self.without_repeated_media(plan, assistant, conversation)
