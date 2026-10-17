@@ -37,6 +37,7 @@ class MarcosxAi::ConversationState < ApplicationRecord
 
   def active_for_ai?
     return true if status == 'active'
+
     if recoverable_pause?
       resume!
       return true

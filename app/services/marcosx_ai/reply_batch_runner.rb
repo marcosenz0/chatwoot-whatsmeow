@@ -66,6 +66,7 @@ class MarcosxAi::ReplyBatchRunner
     token = SecureRandom.uuid
     state.with_lock do
       return skip(item) unless current?(item) && @batch.reload.status != 'cancelled' && item.reload.status == 'queued'
+
       state.resume! if state.status == 'error'
 
       runtime = MarcosxAi::PromptBuilder.context_for(item.conversation, assistant: @assistant)
