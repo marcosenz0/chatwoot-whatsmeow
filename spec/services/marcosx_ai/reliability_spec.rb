@@ -82,7 +82,7 @@ RSpec.describe 'MarcoXIA activation and media continuity' do
     other_inbox = create(:channel_whatsmeow, account: account).inbox
     other_channel = create(:conversation, account: account, inbox: other_inbox, contact: conversation.contact)
     expect(MarcosxAi::ResourceHistory.for([photo], other_channel)[photo.id][:sent_count]).to eq(0)
-    memory = account.marcosx_ai_contact_memories.create!(contact: conversation.contact)
+    memory = MarcosxAi::ContactMemory.create!(account: account, contact: conversation.contact)
     memory.exclude!(delivered)
     expect(MarcosxAi::ResourceHistory.for([photo], conversation)[photo.id][:sent_count]).to eq(0)
     memory.exclude!(delivered, restore: true)
