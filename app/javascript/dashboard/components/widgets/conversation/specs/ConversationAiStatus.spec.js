@@ -20,6 +20,17 @@ describe('Conversation AI list indicator', () => {
     expect(wrapper.text()).toContain('MARCOX_AI.CONVERSATION.ON');
     expect(wrapper.find('.i-lucide-bot').exists()).toBe(true);
   });
+  it('shows an explicit inactive indicator instead of an unexplained missing badge for an assigned agent', () => {
+    const wrapper = mount(ConversationAiStatus, {
+      props: {
+        chat: {
+          status: 'open',
+          marcosx_ai: { ...state, assistant_id: 3, status: 'paused_by_agent' },
+        },
+      },
+    });
+    expect(wrapper.text()).toContain('MARCOX_AI.CONVERSATION.OFF');
+  });
   it.each([
     { status: 'open', marcosx_ai: { ...state, status: 'paused_by_agent' } },
     { status: 'open', marcosx_ai: { ...state, enabled: false } },
