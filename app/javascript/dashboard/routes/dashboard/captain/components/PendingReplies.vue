@@ -30,7 +30,9 @@ let refreshBatch;
 let load;
 let request = 0;
 let submission;
+let disposed = false;
 const adopt = value => {
+  if (disposed) return;
   batch.value = rememberBatch(value, props.agent.id);
 };
 const count = computed(() => Object.keys(selection.value).length);
@@ -49,6 +51,7 @@ const poll = () => {
   if (running.value && opened.value) timer = setTimeout(refreshBatch, 2000);
 };
 refreshBatch = async () => {
+  if (disposed) return;
   try {
     const { data } = await API.getReplyBatch(props.agent.id, batch.value.id);
     adopt(data.batch);
@@ -59,6 +62,7 @@ refreshBatch = async () => {
   poll();
 };
 load = async (silent = false) => {
+  if (disposed) return;
   request += 1;
   const version = request;
   if (!silent) {
@@ -113,6 +117,7 @@ const start = async mode => {
       request_id: submission.requestId,
       selections,
     });
+    if (disposed) return;
     adopt(data.batch);
     rows.value = rows.value.filter(row => !selection.value[row.id]);
     total.value = Math.max(0, total.value - count.value);
@@ -136,6 +141,7 @@ const operation = async (action, itemId = undefined) => {
       batch.value.id,
       { operation: action, item_id: itemId }
     );
+    if (disposed) return;
     adopt(data.batch);
     await load(true);
     poll();
@@ -166,6 +172,7 @@ watch(
   }
 );
 onBeforeUnmount(() => {
+  disposed = true;
   clearTimeout(timer);
   request += 1;
 });

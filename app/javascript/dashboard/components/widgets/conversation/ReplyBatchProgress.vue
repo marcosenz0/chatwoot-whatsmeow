@@ -13,6 +13,7 @@ const error = ref('');
 const stopping = ref(null);
 let timer;
 let closed = false;
+let lastDiscovery = 0;
 const records = computed(() =>
   Object.values(batches.value).sort((a, b) => b.id - a.id)
 );
@@ -50,6 +51,9 @@ const status = batch => {
   return batch.status;
 };
 const poll = async () => {
+  if (Date.now() - lastDiscovery >= 15000) {
+    await recover();
+  }
   const results = await Promise.allSettled(
     records.value.filter(active).map(async batch => {
       const { data } = await API.getReplyBatch(batch.assistant_id, batch.id);
@@ -64,7 +68,8 @@ const poll = async () => {
   }
   timer = setTimeout(poll, 2000);
 };
-const recover = async () => {
+async function recover() {
+  lastDiscovery = Date.now();
   try {
     const { data } = await API.getActiveReplyBatches();
     if (closed) return;
@@ -73,7 +78,7 @@ const recover = async () => {
   } catch {
     if (!closed) error.value = text('CONNECTION_ERROR');
   }
-};
+}
 const stop = async batch => {
   stopping.value = batch.id;
   try {
