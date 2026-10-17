@@ -36,7 +36,6 @@ class MarcosxAi::ReplyPlan
 
     MarcosxAi::PixCatalog.validate!(plan['pix_key_id'], assistant, conversation: conversation)
     MarcosxAi::ResourceCatalog.validate!(plan['resource_ids'], assistant, conversation: conversation)
-    plan = MarcosxAi::ResourceCatalog.without_repeated_media(plan, assistant, conversation)
     parts = MarcosxAi::ReplyStyle.apply(plan['messages'].map(&:strip).compact_blank,
                                         assistant: assistant, recent_messages: recent_messages)
     limit = assistant.split_messages? ? assistant.max_message_parts : 1

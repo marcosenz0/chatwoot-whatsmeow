@@ -568,7 +568,7 @@
       "URL": "Link address",
       "DESCRIPTION": "Description and when to send",
       "DESCRIPTION_HINT": "This is the information sheet. Send it when someone asks for the sheet or available options.",
-      "DESCRIPTION_HELP": "Explain what this item contains, who or what it shows, and requests it answers. If several items look similar, make their differences clear.",
+      "DESCRIPTION_HELP": "Describe the content, who appears, and when to send it. The AI checks this contact’s history: prefer another item when asked for something different, and allow resending the same item when requested.",
       "ENABLED_HINT": "Disabled items are excluded from the agent catalog and future deliveries.",
       "FILE_LIMIT": "Up to 40 MB: JPG, PNG, WebP, GIF, MP4, WebM, MOV, PDF or TXT.",
       "DELETE_HINT": "Delete “{name}” from this agent? Files already sent remain in the conversation history.",
@@ -643,7 +643,7 @@
       "REVIEWS": "Review replies",
       "REVIEW_HINT": "Check each reply. The trash button removes only this person from the batch; it does not change AI activation. Going back preserves the reviews.",
       "REMOVE": "Remove from this batch:",
-      "BACK": "Back to selection",
+      "BACK": "Back",
       "SEND_REVIEWED": "Send reviewed",
       "ALERT": "May request human assistance:",
       "MANUAL": "Manual sessions",
@@ -674,7 +674,15 @@
       "RESULTS": "Results by contact",
       "CONNECTION_ERROR": "Progress connection interrupted. Sending status is unknown; reconnect before trying again.",
       "STOP_ERROR": "Could not confirm that the batch stopped. Reconnect to check its status.",
-      "RECONNECT": "Refresh status"
+      "RECONNECT": "Refresh status",
+      "CLOSE_MONITOR": "Close monitor",
+      "CLOSE_MONITOR_HINT": "Closes only the panel. Batches remain available in Pending replies.",
+      "READY_HINT": "Replies are prepared but have not been sent. Review or send below.",
+      "SEND_ALL": "Send now",
+      "REVIEW_CONTACT": "Review reply for",
+      "OPEN_CONVERSATION": "Open conversation",
+      "PREPARED": "Prepared",
+      "ACTION_ERROR": "Could not confirm the action. Refresh the status before sending again."
     }
   }
 }

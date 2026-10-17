@@ -1,33 +1,56 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import API from 'dashboard/api/marcosxAi';
 import Button from 'dashboard/components-next/button/Button.vue';
 import { useMarcosxAiBatches } from 'dashboard/composables/useMarcosxAiBatches';
+import ReplyBatchReview from './ReplyBatchReview.vue';
 
 const { t } = useI18n();
-const { batches, rememberBatch, forgetBatch, resetBatches } =
+const { batches, dismissed, rememberBatch, resetBatches, dismissBatch } =
   useMarcosxAiBatches();
 const minimized = ref(false);
 const error = ref('');
 const stopping = ref(null);
+const sending = ref(null);
+const review = ref(null);
+const reviewBatchId = ref(null);
+const reviewBatch = computed(() => batches.value[reviewBatchId.value] || null);
+const errorDismissed = ref(false);
 let timer;
 let closed = false;
 let lastDiscovery = 0;
 const records = computed(() =>
-  Object.values(batches.value).sort((a, b) => b.id - a.id)
+  Object.values(batches.value)
+    .filter(batch => !dismissed.value[batch.id])
+    .sort((a, b) => b.id - a.id)
 );
 const text = key => t(`MARCOX_AI.PENDING.${key}`);
 const active = batch =>
   ['preparing', 'running'].includes(batch.status) ||
   batch.items.some(item => item.delivery_status === 'delivery_pending');
+const readyCount = batch =>
+  batch.items.filter(item => item.status === 'ready').length;
 const finished = batch =>
   batch.items.filter(
     item =>
-      ['sent', 'skipped', 'failed', 'discarded', 'ready'].includes(
-        item.status
-      ) && item.delivery_status !== 'delivery_pending'
+      ['sent', 'skipped', 'failed', 'discarded'].includes(item.status) &&
+      item.delivery_status !== 'delivery_pending'
   ).length;
+const progress = batch =>
+  batch.status === 'ready' || batch.status === 'preparing'
+    ? readyCount(batch) + finished(batch)
+    : finished(batch);
+const openReview = async (batch, itemId = null) => {
+  reviewBatchId.value = batch.id;
+  await nextTick();
+  review.value.open(itemId);
+};
+const closeMonitor = () => {
+  records.value.forEach(batch => dismissBatch(batch.id));
+  errorDismissed.value = true;
+  minimized.value = false;
+};
 const current = batch =>
   batch.items.find(
     item =>
@@ -66,10 +89,12 @@ const poll = async () => {
     await recover();
   }
   const results = await Promise.allSettled(
-    records.value.filter(active).map(async batch => {
-      const { data } = await API.getReplyBatch(batch.assistant_id, batch.id);
-      if (!closed) rememberBatch(data.batch, batch.assistant_id);
-    })
+    Object.values(batches.value)
+      .filter(batch => active(batch) || batch.status === 'ready')
+      .map(async batch => {
+        const { data } = await API.getReplyBatch(batch.assistant_id, batch.id);
+        if (!closed) rememberBatch(data.batch, batch.assistant_id);
+      })
   );
   if (closed) return;
   if (results.length) {
@@ -92,6 +117,24 @@ const stop = async batch => {
     stopping.value = null;
   }
 };
+const send = async batch => {
+  if (sending.value === batch.id) return;
+  sending.value = batch.id;
+  error.value = '';
+  try {
+    const { data } = await API.updateReplyBatch(batch.assistant_id, batch.id, {
+      operation: 'send',
+    });
+    if (!closed) rememberBatch(data.batch, batch.assistant_id);
+  } catch (e) {
+    if (!closed) {
+      errorDismissed.value = false;
+      error.value = e.response?.data?.error || text('ACTION_ERROR');
+    }
+  } finally {
+    sending.value = null;
+  }
+};
 onMounted(async () => {
   await recover();
   if (!closed) poll();
@@ -105,7 +148,7 @@ onBeforeUnmount(() => {
 
 <template>
   <aside
-    v-if="records.length || error"
+    v-if="records.length || (error && !errorDismissed)"
     class="fixed bottom-4 end-4 z-50 max-w-[calc(100vw-2rem)] text-n-slate-12"
     :aria-label="text('MONITOR')"
   >
@@ -128,14 +171,25 @@ onBeforeUnmount(() => {
         class="flex items-center justify-between gap-2 border-b border-n-weak px-3 py-2"
       >
         <p class="m-0 text-sm font-semibold">{{ text('MONITOR') }}</p>
-        <Button
-          size="xs"
-          variant="ghost"
-          color="slate"
-          icon="i-lucide-minus"
-          :aria-label="text('MINIMIZE')"
-          @click="minimized = true"
-        />
+        <div class="flex items-center gap-1">
+          <Button
+            size="xs"
+            variant="ghost"
+            color="slate"
+            icon="i-lucide-minus"
+            :aria-label="text('MINIMIZE')"
+            @click="minimized = true"
+          />
+          <Button
+            size="xs"
+            variant="ghost"
+            color="slate"
+            icon="i-lucide-x"
+            :aria-label="text('CLOSE_MONITOR')"
+            :title="text('CLOSE_MONITOR_HINT')"
+            @click="closeMonitor"
+          />
+        </div>
       </header>
       <div v-if="error" role="alert" class="p-3 text-xs text-n-ruby-11">
         {{ error }}
@@ -153,26 +207,58 @@ onBeforeUnmount(() => {
               {{ batch.assistant_name }} · #{{ batch.id }}
             </p>
             <Button
-              v-if="!active(batch) && batch.status !== 'ready'"
+              v-if="
+                records.length > 1 ||
+                !['preparing', 'running', 'ready'].includes(batch.status)
+              "
               size="xs"
               variant="ghost"
               color="slate"
               icon="i-lucide-x"
               :aria-label="text('DISMISS')"
-              @click="forgetBatch(batch.id)"
+              @click="dismissBatch(batch.id)"
             />
           </div>
           <p class="m-0 text-xs" role="status" aria-live="polite">
-            {{ text(`STATUS.${status(batch)}`) }} · {{ finished(batch) }}/{{
+            {{ text(`STATUS.${status(batch)}`) }} · {{ progress(batch) }}/{{
               batch.items.length
             }}
           </p>
           <progress
             class="h-1.5 w-full accent-n-blue-9"
-            :value="finished(batch)"
+            :value="progress(batch)"
             :max="Math.max(1, batch.items.length)"
-            :aria-label="text('PROGRESS')"
+            :aria-label="
+              text(
+                batch.status === 'ready' || batch.status === 'preparing'
+                  ? 'PREPARED'
+                  : 'PROGRESS'
+              )
+            "
           />
+          <p
+            v-if="batch.status === 'ready'"
+            class="m-0 text-xs text-n-slate-11"
+          >
+            {{ text('READY_HINT') }}
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <Button
+              size="xs"
+              variant="outline"
+              icon="i-lucide-eye"
+              :label="text('REVIEWS')"
+              @click="openReview(batch)"
+            />
+            <Button
+              v-if="batch.status === 'ready' && readyCount(batch)"
+              size="xs"
+              icon="i-lucide-send"
+              :label="`${text('SEND_ALL')} (${readyCount(batch)})`"
+              :disabled="sending === batch.id || stopping === batch.id"
+              @click="send(batch)"
+            />
+          </div>
           <p v-if="current(batch)" class="m-0 truncate text-xs text-n-blue-11">
             {{
               text(
@@ -201,9 +287,25 @@ onBeforeUnmount(() => {
                       : 'text-n-slate-12'
                   "
                 >
-                  {{ item.name }} ·
+                  <button
+                    type="button"
+                    class="text-start font-medium text-n-blue-11 hover:underline"
+                    :aria-label="`${text('REVIEW_CONTACT')} ${item.name}`"
+                    @click="openReview(batch, item.id)"
+                  >
+                    {{ item.name }}
+                  </button>
+                  ·
                   {{ text(`STATUS.${item.delivery_status || item.status}`) }}
                 </p>
+                <a
+                  v-if="batch.account_id && item.conversation_id"
+                  :href="`/app/accounts/${batch.account_id}/conversations/${item.conversation_id}`"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="text-n-blue-11 hover:underline"
+                  >{{ text('OPEN_CONVERSATION') }}</a
+                >
                 <p v-if="item.reason" class="m-0 text-n-slate-11">
                   {{ item.reason }}
                 </p>
@@ -223,4 +325,5 @@ onBeforeUnmount(() => {
       </div>
     </div>
   </aside>
+  <ReplyBatchReview ref="review" :batch="reviewBatch" />
 </template>

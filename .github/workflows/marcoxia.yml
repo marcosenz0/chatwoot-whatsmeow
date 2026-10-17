@@ -43,6 +43,7 @@ jobs:
           app/javascript/dashboard/App.vue
           app/javascript/dashboard/composables/useMarcosxAiBatches.js
           app/javascript/dashboard/components/widgets/conversation/ReplyBatchProgress.vue
+          app/javascript/dashboard/components/widgets/conversation/ReplyBatchReview.vue
           app/javascript/dashboard/components/ui/ContextMenu.vue
           app/javascript/dashboard/routes/dashboard/captain/pages/MarcosxAiPage.vue
           app/javascript/dashboard/components-next/avatar/Avatar.vue

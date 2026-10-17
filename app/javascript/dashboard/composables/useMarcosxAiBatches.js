@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 
 const batches = ref({});
+const dismissed = ref({});
 
 export const useMarcosxAiBatches = () => {
   const rememberBatch = (batch, assistantId) => {
@@ -17,6 +18,23 @@ export const useMarcosxAiBatches = () => {
   };
   const resetBatches = () => {
     batches.value = {};
+    dismissed.value = {};
   };
-  return { batches, rememberBatch, forgetBatch, resetBatches };
+  const dismissBatch = id => {
+    dismissed.value = { ...dismissed.value, [id]: true };
+  };
+  const revealBatch = id => {
+    const next = { ...dismissed.value };
+    delete next[id];
+    dismissed.value = next;
+  };
+  return {
+    batches,
+    dismissed,
+    rememberBatch,
+    forgetBatch,
+    resetBatches,
+    dismissBatch,
+    revealBatch,
+  };
 };

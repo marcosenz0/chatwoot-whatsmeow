@@ -1,12 +1,19 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useMarcosxAiBatches } from 'dashboard/composables/useMarcosxAiBatches';
 import API from 'dashboard/api/marcosxAi';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
-import AudioPlayer from 'dashboard/components-next/audio/AudioPlayer.vue';
+import ReplyBatchReview from 'dashboard/components/widgets/conversation/ReplyBatchReview.vue';
 
 const props = defineProps({ agent: { type: Object, required: true } });
 const { t } = useI18n();
@@ -123,7 +130,10 @@ const start = async mode => {
     total.value = Math.max(0, total.value - count.value);
     selection.value = {};
     submission = null;
-    if (mode === 'review') review.value.open();
+    if (mode === 'review') {
+      await nextTick();
+      if (!disposed) review.value.open();
+    }
     await load(true);
     poll();
   } catch (e) {
@@ -200,6 +210,49 @@ onBeforeUnmount(() => {
       <p v-if="error" role="alert" class="text-sm text-n-ruby-11">
         {{ error }}
       </p>
+      <div
+        v-if="batch"
+        class="space-y-2 rounded-xl border border-n-weak bg-n-solid-2 p-4"
+      >
+        <div class="flex items-center justify-between gap-2">
+          <p class="m-0 text-sm font-semibold">
+            {{ text('BATCH') }} #{{ batch.id }} ·
+            {{ text(`STATUS.${batch.status}`) }}
+          </p>
+          <Button
+            variant="outline"
+            icon="i-lucide-eye"
+            :label="text('VIEW')"
+            @click="review.open()"
+          />
+        </div>
+        <p class="m-0 text-xs text-n-slate-11">
+          {{ text('PROGRESS') }}:
+          {{
+            (batch.counts.sent || 0) +
+            (batch.counts.skipped || 0) +
+            (batch.counts.failed || 0) +
+            (batch.counts.discarded || 0)
+          }}
+          / {{ batch.items.length }}
+        </p>
+        <Button
+          v-if="ready && batch.status === 'ready'"
+          icon="i-lucide-send"
+          :label="`${text('SEND_ALL')} (${ready})`"
+          :disabled="busy"
+          @click="operation('send')"
+        />
+        <Button
+          v-if="running || ready"
+          variant="outline"
+          color="ruby"
+          icon="i-lucide-square"
+          :label="text('STOP')"
+          :disabled="busy"
+          @click="operation('cancel')"
+        />
+      </div>
       <div class="flex items-center gap-2">
         <input
           v-model="search"
@@ -322,37 +375,6 @@ onBeforeUnmount(() => {
           "
         />
       </div>
-      <div
-        v-if="batch"
-        class="space-y-2 rounded-xl border border-n-weak bg-n-solid-2 p-4"
-      >
-        <div class="flex items-center justify-between gap-2">
-          <p class="m-0 text-sm font-semibold">
-            {{ text('BATCH') }} #{{ batch.id }} ·
-            {{ text(`STATUS.${batch.status}`) }}
-          </p>
-          <Button variant="link" :label="text('VIEW')" @click="review.open()" />
-        </div>
-        <p class="m-0 text-xs text-n-slate-11">
-          {{ text('PROGRESS') }}:
-          {{
-            (batch.counts.sent || 0) +
-            (batch.counts.skipped || 0) +
-            (batch.counts.failed || 0) +
-            (batch.counts.discarded || 0)
-          }}
-          / {{ batch.items.length }}
-        </p>
-        <Button
-          v-if="running || ready"
-          variant="outline"
-          color="ruby"
-          icon="i-lucide-square"
-          :label="text('STOP')"
-          :disabled="busy"
-          @click="operation('cancel')"
-        />
-      </div>
     </div>
     <template #footer>
       <div class="w-full space-y-3">
@@ -381,109 +403,7 @@ onBeforeUnmount(() => {
       </div>
     </template>
   </Dialog>
-  <Dialog
-    ref="review"
-    :title="text('REVIEWS')"
-    :description="text('REVIEW_HINT')"
-    width="3xl"
-    :show-confirm-button="false"
-    :show-cancel-button="false"
-  >
-    <div class="max-h-[65vh] space-y-3 overflow-y-auto p-1 text-n-slate-12">
-      <p v-if="error" role="alert" class="text-sm text-n-ruby-11">
-        {{ error }}
-      </p>
-      <article
-        v-for="item in batch?.items || []"
-        :key="item.id"
-        class="rounded-xl border border-n-weak bg-n-solid-2 p-4"
-      >
-        <div class="mb-3 flex items-center gap-3">
-          <Avatar
-            :name="item.name"
-            :src="item.avatar_url"
-            :size="32"
-            rounded-full
-          />
-          <div class="min-w-0 flex-1">
-            <p class="m-0 truncate text-sm font-semibold">{{ item.name }}</p>
-            <p class="m-0 text-xs text-n-slate-11">
-              {{ text(`STATUS.${item.delivery_status || item.status}`) }}
-            </p>
-          </div>
-          <Button
-            v-if="['ready', 'pending', 'analyzing'].includes(item.status)"
-            color="ruby"
-            variant="ghost"
-            icon="i-lucide-trash-2"
-            :aria-label="`${text('REMOVE')} ${item.name}`"
-            :disabled="busy"
-            @click="operation('discard', item.id)"
-          />
-        </div>
-        <div
-          v-if="!['discarded', 'failed', 'skipped'].includes(item.status)"
-          class="space-y-2"
-        >
-          <p
-            v-for="(part, index) in item.plan.messages || []"
-            :key="index"
-            class="m-0 whitespace-pre-wrap text-sm text-n-slate-12"
-          >
-            {{ part }}
-          </p>
-          <p
-            v-if="item.plan.voice_text"
-            class="whitespace-pre-wrap rounded-lg bg-n-alpha-1 p-3 text-sm"
-          >
-            {{ item.plan.voice_text }}
-          </p>
-          <AudioPlayer
-            v-if="item.audio_url"
-            :key="item.audio_url"
-            :src="item.audio_url"
-          />
-          <p
-            v-for="resource in item.resources"
-            :key="resource.title"
-            class="m-0 text-xs text-n-blue-11"
-          >
-            {{ resource.kind }} · {{ resource.title }}
-          </p>
-          <p v-if="item.pix" class="text-xs text-n-teal-11">
-            {{ t('MARCOX_AI.WORKSPACE.PIX') }} · {{ item.pix }}
-          </p>
-          <p
-            v-if="item.plan.handoff || item.plan.alert_rule_ids?.length"
-            class="text-xs text-n-amber-11"
-          >
-            {{ text('ALERT') }} {{ item.plan.handoff_reason }}
-          </p>
-        </div>
-        <p v-if="item.reason" class="m-0 text-sm text-n-slate-11">
-          {{ item.reason }}
-        </p>
-      </article>
-    </div>
-    <template #footer>
-      <div class="flex w-full flex-wrap justify-end gap-2">
-        <Button
-          variant="faded"
-          color="slate"
-          icon="i-lucide-arrow-left"
-          :label="text('BACK')"
-          @click="review.close()"
-        />
-        <Button
-          v-if="ready && batch.status === 'ready'"
-          icon="i-lucide-send"
-          :label="`${text('SEND_REVIEWED')} (${ready})`"
-          :disabled="busy"
-          @click="operation('send')"
-        />
-      </div>
-    </template>
-  </Dialog>
+  <ReplyBatchReview ref="review" :batch="batch" @updated="adopt" />
   <Dialog
     ref="preview"
     :title="previewName"
