@@ -127,6 +127,7 @@ class MarcosxAi::ConversationContext
     if attributes['whatsmeow_pix'].present?
       data[:pix_card] = { shared: true, agent_key_id: message.additional_attributes['marcosx_ai_pix_key_id'] }
     end
+    data[:sent_resource_id] = message.additional_attributes['marcosx_ai_resource_id'] if message.additional_attributes['marcosx_ai_resource_id']
     data[:story_reply] = attributes.slice('story_id', 'story_url', 'story_sender') if attributes['story_id'].present?
     data[:reactions] = attributes['whatsmeow_reactions'] if attributes['whatsmeow_reactions'].present?
     if attributes['in_reply_to'].present?

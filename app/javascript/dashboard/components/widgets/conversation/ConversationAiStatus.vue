@@ -16,7 +16,7 @@ const active = computed(
 <template>
   <span
     v-if="active"
-    v-tooltip.top="chat.marcosx_ai.assistant_name"
+    v-tooltip.top="chat.marcosx_ai.reason || chat.marcosx_ai.assistant_name"
     class="inline-flex shrink-0 items-center gap-1 rounded bg-n-teal-3 px-1 py-0.5 text-[10px] font-medium normal-case leading-3 text-n-teal-11"
   >
     <span class="i-lucide-bot size-3" aria-hidden="true" />
@@ -24,9 +24,21 @@ const active = computed(
   </span>
   <span
     v-else-if="chat.marcosx_ai?.status === 'awaiting_human'"
+    v-tooltip.top="chat.marcosx_ai.reason || chat.marcosx_ai.assistant_name"
     class="inline-flex shrink-0 items-center gap-1 rounded bg-n-amber-3 px-1 py-0.5 text-[10px] font-medium leading-3 text-n-amber-11"
   >
     <span class="i-lucide-user-round size-3" aria-hidden="true" />
     {{ t('MARCOX_AI.AUTOMATION.AWAITING_HUMAN') }}
+  </span>
+  <span
+    v-else-if="
+      chat.marcosx_ai?.assistant_id &&
+      !['resolved', 'snoozed'].includes(chat.status)
+    "
+    v-tooltip.top="chat.marcosx_ai.reason || chat.marcosx_ai.assistant_name"
+    class="inline-flex shrink-0 items-center gap-1 rounded bg-n-slate-3 px-1 py-0.5 text-[10px] font-medium leading-3 text-n-slate-11"
+  >
+    <span class="i-lucide-pause size-3" aria-hidden="true" />
+    {{ t('MARCOX_AI.CONVERSATION.OFF') }}
   </span>
 </template>

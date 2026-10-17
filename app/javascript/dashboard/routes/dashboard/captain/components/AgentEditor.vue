@@ -843,7 +843,7 @@ const channelLabel = inbox =>
                         :options="[
                           {
                             value: 0,
-                            label: t('MARCOX_AI.EDITOR.PAUSE_FOREVER'),
+                            label: t('MARCOX_AI.EDITOR.PAUSE_NONE'),
                           },
                           { value: 15, label: t('MARCOX_AI.EDITOR.PAUSE_15') },
                           { value: 60, label: t('MARCOX_AI.EDITOR.PAUSE_60') },

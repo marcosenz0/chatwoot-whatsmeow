@@ -8,6 +8,7 @@ import { useFontSize } from 'dashboard/composables/useFontSize';
 import ReconnectService from 'dashboard/helper/ReconnectService';
 import { useUISettings } from 'dashboard/composables/useUISettings';
 import LoadingState from './components/widgets/LoadingState.vue';
+import ReplyBatchProgress from './components/widgets/conversation/ReplyBatchProgress.vue';
 import AppLock from './components/widgets/whatsmeow/AppLock.vue';
 import NetworkNotification from './components/NetworkNotification.vue';
 import UpdateBanner from './components/app/UpdateBanner.vue';
@@ -28,6 +29,7 @@ export default {
 
   components: {
     LoadingState,
+    ReplyBatchProgress,
     AppLock,
     NetworkNotification,
     UpdateBanner,
@@ -65,6 +67,7 @@ export default {
       getAccount: 'accounts/getAccount',
       isRTL: 'accounts/isRTL',
       currentUser: 'getCurrentUser',
+      currentRole: 'getCurrentRole',
       authUIFlags: 'getAuthUIFlags',
     }),
     hideOnOnboardingView() {
@@ -162,6 +165,10 @@ export default {
       </transition>
     </router-view>
     <WootSnackbarBox />
+    <ReplyBatchProgress
+      v-if="currentAccountId && currentRole === 'administrator' && !appLocked"
+      :key="`${currentAccountId}-${currentUser.id}`"
+    />
     <NetworkNotification />
   </div>
   <LoadingState v-else />

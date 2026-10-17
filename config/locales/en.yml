@@ -31,6 +31,7 @@
 
 en:
   marcosx_ai:
+    resource_already_sent: This photo or video has already been sent in this conversation.
     human_attention: Human assistance requested
     operational: operational notice
     notification_test: Notification test

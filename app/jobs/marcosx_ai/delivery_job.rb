@@ -168,6 +168,7 @@ class MarcosxAi::DeliveryJob < ApplicationJob
     executed_by = Current.executed_by
     resource = @state.assistant.resources.available.available_to(@state.conversation).find_by(id: id)
     return unless resource
+    return if MarcosxAi::ResourceCatalog.sent_media_ids([resource], @state.conversation).include?(resource.id)
     return create_message(resource.url) if resource.kind == 'link'
 
     Current.executed_by = @state.assistant

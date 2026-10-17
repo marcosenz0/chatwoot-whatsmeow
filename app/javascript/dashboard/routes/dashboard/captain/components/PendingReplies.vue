@@ -1,6 +1,7 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useMarcosxAiBatches } from 'dashboard/composables/useMarcosxAiBatches';
 import API from 'dashboard/api/marcosxAi';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
@@ -9,6 +10,7 @@ import AudioPlayer from 'dashboard/components-next/audio/AudioPlayer.vue';
 
 const props = defineProps({ agent: { type: Object, required: true } });
 const { t } = useI18n();
+const { batches, rememberBatch } = useMarcosxAiBatches();
 const picker = ref(null);
 const review = ref(null);
 const preview = ref(null);
@@ -25,7 +27,14 @@ const busy = ref(false);
 const opened = ref(false);
 let timer;
 let refreshBatch;
+let load;
 let request = 0;
+let submission;
+let disposed = false;
+const adopt = value => {
+  if (disposed) return;
+  batch.value = rememberBatch(value, props.agent.id);
+};
 const count = computed(() => Object.keys(selection.value).length);
 const running = computed(() =>
   ['preparing', 'running'].includes(batch.value?.status)
@@ -42,19 +51,24 @@ const poll = () => {
   if (running.value && opened.value) timer = setTimeout(refreshBatch, 2000);
 };
 refreshBatch = async () => {
+  if (disposed) return;
   try {
     const { data } = await API.getReplyBatch(props.agent.id, batch.value.id);
-    batch.value = data.batch;
+    adopt(data.batch);
+    await load(true);
   } catch (e) {
     fail(e);
   }
   poll();
 };
-const load = async () => {
+load = async (silent = false) => {
+  if (disposed) return;
   request += 1;
   const version = request;
-  busy.value = true;
-  error.value = '';
+  if (!silent) {
+    busy.value = true;
+    error.value = '';
+  }
   try {
     const { data } = await API.getPendingReplies(props.agent.id, {
       page: page.value,
@@ -63,12 +77,13 @@ const load = async () => {
     if (version !== request) return;
     rows.value = data.conversations;
     total.value = data.total;
-    if (data.batch) batch.value = data.batch;
+    if (data.batch && (!batch.value || data.batch.id >= batch.value.id))
+      adopt(data.batch);
     poll();
   } catch (e) {
     fail(e);
   } finally {
-    if (version === request) busy.value = false;
+    if (version === request && !silent) busy.value = false;
   }
 };
 const open = () => {
@@ -89,17 +104,27 @@ const toggle = row => {
   selection.value = next;
 };
 const start = async mode => {
+  if (busy.value || running.value || ready.value || !count.value) return;
   busy.value = true;
   error.value = '';
   try {
+    const selections = Object.values(selection.value);
+    const signature = JSON.stringify({ mode, selections });
+    if (submission?.signature !== signature)
+      submission = { signature, requestId: crypto.randomUUID() };
     const { data } = await API.createReplyBatch(props.agent.id, {
       mode,
-      request_id: crypto.randomUUID(),
-      selections: Object.values(selection.value),
+      request_id: submission.requestId,
+      selections,
     });
-    batch.value = data.batch;
+    if (disposed) return;
+    adopt(data.batch);
+    rows.value = rows.value.filter(row => !selection.value[row.id]);
+    total.value = Math.max(0, total.value - count.value);
     selection.value = {};
+    submission = null;
     if (mode === 'review') review.value.open();
+    await load(true);
     poll();
   } catch (e) {
     fail(e);
@@ -108,6 +133,7 @@ const start = async mode => {
   }
 };
 const operation = async (action, itemId = undefined) => {
+  if (busy.value) return;
   busy.value = true;
   try {
     const { data } = await API.updateReplyBatch(
@@ -115,7 +141,9 @@ const operation = async (action, itemId = undefined) => {
       batch.value.id,
       { operation: action, item_id: itemId }
     );
-    batch.value = data.batch;
+    if (disposed) return;
+    adopt(data.batch);
+    await load(true);
     poll();
   } catch (e) {
     fail(e);
@@ -135,7 +163,16 @@ const showPreview = async row => {
   }
 };
 onMounted(load);
+watch(
+  () => batches.value[batch.value?.id],
+  value => {
+    if (!value || value === batch.value) return;
+    batch.value = value;
+    if (opened.value) load(true);
+  }
+);
 onBeforeUnmount(() => {
+  disposed = true;
   clearTimeout(timer);
   request += 1;
 });
@@ -220,6 +257,7 @@ onBeforeUnmount(() => {
         >
           <input
             type="checkbox"
+            :disabled="busy || running || !!ready"
             :aria-label="row.name"
             :checked="!!selection[row.id]"
             class="size-4 shrink-0 accent-n-blue-9"
@@ -370,7 +408,7 @@ onBeforeUnmount(() => {
           <div class="min-w-0 flex-1">
             <p class="m-0 truncate text-sm font-semibold">{{ item.name }}</p>
             <p class="m-0 text-xs text-n-slate-11">
-              {{ text(`STATUS.${item.status}`) }}
+              {{ text(`STATUS.${item.delivery_status || item.status}`) }}
             </p>
           </div>
           <Button
