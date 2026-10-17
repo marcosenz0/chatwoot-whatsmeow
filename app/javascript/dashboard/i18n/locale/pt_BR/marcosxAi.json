@@ -665,7 +665,8 @@
         "delivery_pending": "Aguardando confirmação do envio",
         "delivery_failed": "Falha na entrega; confira a conversa",
         "delivery_unconfirmed": "Envio sem confirmação; confira a conversa antes de repetir",
-        "delivered": "Entregue"
+        "delivered": "Entregue",
+        "completed_errors": "Concluído com falhas"
       },
       "MONITOR": "Respostas da IA",
       "MINIMIZE": "Ocultar progresso",

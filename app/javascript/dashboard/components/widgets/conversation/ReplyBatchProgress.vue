@@ -28,7 +28,27 @@ const finished = batch =>
       ) && item.delivery_status !== 'delivery_pending'
   ).length;
 const current = batch =>
-  batch.items.find(item => ['analyzing', 'sending'].includes(item.status));
+  batch.items.find(
+    item =>
+      ['analyzing', 'sending'].includes(item.status) ||
+      item.delivery_status === 'delivery_pending'
+  );
+const status = batch => {
+  if (batch.status !== 'completed') return batch.status;
+  if (batch.items.some(item => item.delivery_status === 'delivery_pending'))
+    return 'delivery_pending';
+  if (
+    batch.items.some(item =>
+      ['failed', 'delivery_failed'].includes(
+        item.delivery_status || item.status
+      )
+    )
+  )
+    return 'completed_errors';
+  if (batch.items.some(item => item.delivery_status === 'delivery_unconfirmed'))
+    return 'delivery_unconfirmed';
+  return batch.status;
+};
 const poll = async () => {
   const results = await Promise.allSettled(
     records.value.filter(active).map(async batch => {
@@ -138,7 +158,7 @@ onBeforeUnmount(() => {
             />
           </div>
           <p class="m-0 text-xs" role="status" aria-live="polite">
-            {{ text(`STATUS.${batch.status}`) }} · {{ finished(batch) }}/{{
+            {{ text(`STATUS.${status(batch)}`) }} · {{ finished(batch) }}/{{
               batch.items.length
             }}
           </p>
@@ -149,7 +169,11 @@ onBeforeUnmount(() => {
             :aria-label="text('PROGRESS')"
           />
           <p v-if="current(batch)" class="m-0 truncate text-xs text-n-blue-11">
-            {{ text(`STATUS.${current(batch).status}`) }}:
+            {{
+              text(
+                `STATUS.${current(batch).delivery_status || current(batch).status}`
+              )
+            }}:
             {{ current(batch).name }}
           </p>
           <details class="text-xs">

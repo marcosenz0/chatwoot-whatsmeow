@@ -665,7 +665,8 @@
         "delivery_pending": "Waiting for send confirmation",
         "delivery_failed": "Delivery failed; check conversation",
         "delivery_unconfirmed": "Send unconfirmed; check conversation before retrying",
-        "delivered": "Delivered"
+        "delivered": "Delivered",
+        "completed_errors": "Completed with failures"
       },
       "MONITOR": "AI replies",
       "MINIMIZE": "Minimize progress",

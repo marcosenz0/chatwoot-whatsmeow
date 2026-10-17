@@ -150,7 +150,7 @@ class MarcosxAi::ConversationState < ApplicationRecord
 
   def recoverable_pause?
     (status == 'error' && metadata['last_error'].present?) ||
-      (status == 'paused_by_human' && !metadata['human_wait'] && assistant&.human_pause_minutes == 0)
+      (status == 'paused_by_human' && paused_until.blank? && !metadata['human_wait'] && assistant&.human_pause_minutes == 0)
   end
 
   def superseded?

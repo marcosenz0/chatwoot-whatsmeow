@@ -35,7 +35,7 @@ class MarcosxAiListener < BaseListener
   end
 
   def pause_conversation_for_human(message)
-    assistant = message.conversation.marcosx_ai_assistant
+    assistant = message.conversation.marcosx_ai_assistant&.reload
     return if assistant.blank?
 
     state = MarcosxAi::ConversationState.for_conversation!(message.conversation, assistant: assistant)
