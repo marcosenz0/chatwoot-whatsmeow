@@ -1,14 +1,23 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue';
 import { useI18n } from 'vue-i18n';
+import { useMarcosxAiBatches } from 'dashboard/composables/useMarcosxAiBatches';
 import API from 'dashboard/api/marcosxAi';
 import Button from 'dashboard/components-next/button/Button.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
-import AudioPlayer from 'dashboard/components-next/audio/AudioPlayer.vue';
+import ReplyBatchReview from 'dashboard/components/widgets/conversation/ReplyBatchReview.vue';
 
 const props = defineProps({ agent: { type: Object, required: true } });
 const { t } = useI18n();
+const { batches, rememberBatch } = useMarcosxAiBatches();
 const picker = ref(null);
 const review = ref(null);
 const preview = ref(null);
@@ -25,7 +34,14 @@ const busy = ref(false);
 const opened = ref(false);
 let timer;
 let refreshBatch;
+let load;
 let request = 0;
+let submission;
+let disposed = false;
+const adopt = value => {
+  if (disposed) return;
+  batch.value = rememberBatch(value, props.agent.id);
+};
 const count = computed(() => Object.keys(selection.value).length);
 const running = computed(() =>
   ['preparing', 'running'].includes(batch.value?.status)
@@ -42,19 +58,24 @@ const poll = () => {
   if (running.value && opened.value) timer = setTimeout(refreshBatch, 2000);
 };
 refreshBatch = async () => {
+  if (disposed) return;
   try {
     const { data } = await API.getReplyBatch(props.agent.id, batch.value.id);
-    batch.value = data.batch;
+    adopt(data.batch);
+    await load(true);
   } catch (e) {
     fail(e);
   }
   poll();
 };
-const load = async () => {
+load = async (silent = false) => {
+  if (disposed) return;
   request += 1;
   const version = request;
-  busy.value = true;
-  error.value = '';
+  if (!silent) {
+    busy.value = true;
+    error.value = '';
+  }
   try {
     const { data } = await API.getPendingReplies(props.agent.id, {
       page: page.value,
@@ -63,12 +84,13 @@ const load = async () => {
     if (version !== request) return;
     rows.value = data.conversations;
     total.value = data.total;
-    if (data.batch) batch.value = data.batch;
+    if (data.batch && (!batch.value || data.batch.id >= batch.value.id))
+      adopt(data.batch);
     poll();
   } catch (e) {
     fail(e);
   } finally {
-    if (version === request) busy.value = false;
+    if (version === request && !silent) busy.value = false;
   }
 };
 const open = () => {
@@ -89,17 +111,30 @@ const toggle = row => {
   selection.value = next;
 };
 const start = async mode => {
+  if (busy.value || running.value || ready.value || !count.value) return;
   busy.value = true;
   error.value = '';
   try {
+    const selections = Object.values(selection.value);
+    const signature = JSON.stringify({ mode, selections });
+    if (submission?.signature !== signature)
+      submission = { signature, requestId: crypto.randomUUID() };
     const { data } = await API.createReplyBatch(props.agent.id, {
       mode,
-      request_id: crypto.randomUUID(),
-      selections: Object.values(selection.value),
+      request_id: submission.requestId,
+      selections,
     });
-    batch.value = data.batch;
+    if (disposed) return;
+    adopt(data.batch);
+    rows.value = rows.value.filter(row => !selection.value[row.id]);
+    total.value = Math.max(0, total.value - count.value);
     selection.value = {};
-    if (mode === 'review') review.value.open();
+    submission = null;
+    if (mode === 'review') {
+      await nextTick();
+      if (!disposed) review.value.open();
+    }
+    await load(true);
     poll();
   } catch (e) {
     fail(e);
@@ -108,6 +143,7 @@ const start = async mode => {
   }
 };
 const operation = async (action, itemId = undefined) => {
+  if (busy.value) return;
   busy.value = true;
   try {
     const { data } = await API.updateReplyBatch(
@@ -115,7 +151,9 @@ const operation = async (action, itemId = undefined) => {
       batch.value.id,
       { operation: action, item_id: itemId }
     );
-    batch.value = data.batch;
+    if (disposed) return;
+    adopt(data.batch);
+    await load(true);
     poll();
   } catch (e) {
     fail(e);
@@ -135,7 +173,16 @@ const showPreview = async row => {
   }
 };
 onMounted(load);
+watch(
+  () => batches.value[batch.value?.id],
+  value => {
+    if (!value || value === batch.value) return;
+    batch.value = value;
+    if (opened.value) load(true);
+  }
+);
 onBeforeUnmount(() => {
+  disposed = true;
   clearTimeout(timer);
   request += 1;
 });
@@ -163,6 +210,49 @@ onBeforeUnmount(() => {
       <p v-if="error" role="alert" class="text-sm text-n-ruby-11">
         {{ error }}
       </p>
+      <div
+        v-if="batch"
+        class="space-y-2 rounded-xl border border-n-weak bg-n-solid-2 p-4"
+      >
+        <div class="flex items-center justify-between gap-2">
+          <p class="m-0 text-sm font-semibold">
+            {{ text('BATCH') }} #{{ batch.id }} ·
+            {{ text(`STATUS.${batch.status}`) }}
+          </p>
+          <Button
+            variant="outline"
+            icon="i-lucide-eye"
+            :label="text('VIEW')"
+            @click="review.open()"
+          />
+        </div>
+        <p class="m-0 text-xs text-n-slate-11">
+          {{ text('PROGRESS') }}:
+          {{
+            (batch.counts.sent || 0) +
+            (batch.counts.skipped || 0) +
+            (batch.counts.failed || 0) +
+            (batch.counts.discarded || 0)
+          }}
+          / {{ batch.items.length }}
+        </p>
+        <Button
+          v-if="ready && batch.status === 'ready'"
+          icon="i-lucide-send"
+          :label="`${text('SEND_ALL')} (${ready})`"
+          :disabled="busy"
+          @click="operation('send')"
+        />
+        <Button
+          v-if="running || ready"
+          variant="outline"
+          color="ruby"
+          icon="i-lucide-square"
+          :label="text('STOP')"
+          :disabled="busy"
+          @click="operation('cancel')"
+        />
+      </div>
       <div class="flex items-center gap-2">
         <input
           v-model="search"
@@ -220,6 +310,7 @@ onBeforeUnmount(() => {
         >
           <input
             type="checkbox"
+            :disabled="busy || running || !!ready"
             :aria-label="row.name"
             :checked="!!selection[row.id]"
             class="size-4 shrink-0 accent-n-blue-9"
@@ -284,37 +375,6 @@ onBeforeUnmount(() => {
           "
         />
       </div>
-      <div
-        v-if="batch"
-        class="space-y-2 rounded-xl border border-n-weak bg-n-solid-2 p-4"
-      >
-        <div class="flex items-center justify-between gap-2">
-          <p class="m-0 text-sm font-semibold">
-            {{ text('BATCH') }} #{{ batch.id }} ·
-            {{ text(`STATUS.${batch.status}`) }}
-          </p>
-          <Button variant="link" :label="text('VIEW')" @click="review.open()" />
-        </div>
-        <p class="m-0 text-xs text-n-slate-11">
-          {{ text('PROGRESS') }}:
-          {{
-            (batch.counts.sent || 0) +
-            (batch.counts.skipped || 0) +
-            (batch.counts.failed || 0) +
-            (batch.counts.discarded || 0)
-          }}
-          / {{ batch.items.length }}
-        </p>
-        <Button
-          v-if="running || ready"
-          variant="outline"
-          color="ruby"
-          icon="i-lucide-square"
-          :label="text('STOP')"
-          :disabled="busy"
-          @click="operation('cancel')"
-        />
-      </div>
     </div>
     <template #footer>
       <div class="w-full space-y-3">
@@ -343,109 +403,7 @@ onBeforeUnmount(() => {
       </div>
     </template>
   </Dialog>
-  <Dialog
-    ref="review"
-    :title="text('REVIEWS')"
-    :description="text('REVIEW_HINT')"
-    width="3xl"
-    :show-confirm-button="false"
-    :show-cancel-button="false"
-  >
-    <div class="max-h-[65vh] space-y-3 overflow-y-auto p-1 text-n-slate-12">
-      <p v-if="error" role="alert" class="text-sm text-n-ruby-11">
-        {{ error }}
-      </p>
-      <article
-        v-for="item in batch?.items || []"
-        :key="item.id"
-        class="rounded-xl border border-n-weak bg-n-solid-2 p-4"
-      >
-        <div class="mb-3 flex items-center gap-3">
-          <Avatar
-            :name="item.name"
-            :src="item.avatar_url"
-            :size="32"
-            rounded-full
-          />
-          <div class="min-w-0 flex-1">
-            <p class="m-0 truncate text-sm font-semibold">{{ item.name }}</p>
-            <p class="m-0 text-xs text-n-slate-11">
-              {{ text(`STATUS.${item.status}`) }}
-            </p>
-          </div>
-          <Button
-            v-if="['ready', 'pending', 'analyzing'].includes(item.status)"
-            color="ruby"
-            variant="ghost"
-            icon="i-lucide-trash-2"
-            :aria-label="`${text('REMOVE')} ${item.name}`"
-            :disabled="busy"
-            @click="operation('discard', item.id)"
-          />
-        </div>
-        <div
-          v-if="!['discarded', 'failed', 'skipped'].includes(item.status)"
-          class="space-y-2"
-        >
-          <p
-            v-for="(part, index) in item.plan.messages || []"
-            :key="index"
-            class="m-0 whitespace-pre-wrap text-sm text-n-slate-12"
-          >
-            {{ part }}
-          </p>
-          <p
-            v-if="item.plan.voice_text"
-            class="whitespace-pre-wrap rounded-lg bg-n-alpha-1 p-3 text-sm"
-          >
-            {{ item.plan.voice_text }}
-          </p>
-          <AudioPlayer
-            v-if="item.audio_url"
-            :key="item.audio_url"
-            :src="item.audio_url"
-          />
-          <p
-            v-for="resource in item.resources"
-            :key="resource.title"
-            class="m-0 text-xs text-n-blue-11"
-          >
-            {{ resource.kind }} · {{ resource.title }}
-          </p>
-          <p v-if="item.pix" class="text-xs text-n-teal-11">
-            {{ t('MARCOX_AI.WORKSPACE.PIX') }} · {{ item.pix }}
-          </p>
-          <p
-            v-if="item.plan.handoff || item.plan.alert_rule_ids?.length"
-            class="text-xs text-n-amber-11"
-          >
-            {{ text('ALERT') }} {{ item.plan.handoff_reason }}
-          </p>
-        </div>
-        <p v-if="item.reason" class="m-0 text-sm text-n-slate-11">
-          {{ item.reason }}
-        </p>
-      </article>
-    </div>
-    <template #footer>
-      <div class="flex w-full flex-wrap justify-end gap-2">
-        <Button
-          variant="faded"
-          color="slate"
-          icon="i-lucide-arrow-left"
-          :label="text('BACK')"
-          @click="review.close()"
-        />
-        <Button
-          v-if="ready && batch.status === 'ready'"
-          icon="i-lucide-send"
-          :label="`${text('SEND_REVIEWED')} (${ready})`"
-          :disabled="busy"
-          @click="operation('send')"
-        />
-      </div>
-    </template>
-  </Dialog>
+  <ReplyBatchReview ref="review" :batch="batch" @updated="adopt" />
   <Dialog
     ref="preview"
     :title="previewName"

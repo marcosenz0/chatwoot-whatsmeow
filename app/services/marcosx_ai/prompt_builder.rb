@@ -78,6 +78,8 @@ class MarcosxAi::PromptBuilder
       #{proactive ? 'O atendente pediu para continuar esta conversa agora. Continue a partir do histórico com uma mensagem útil, sem fingir que o cliente enviou uma nova mensagem.' : 'Responda às mensagens recebidas ainda sem resposta, considerando-as em conjunto.'}
       Quando houver mensagens com current_request=true, elas são o pedido atual. Responda a elas primeiro, incluindo o conteúdo transcrito dos anexos.
       As demais mensagens e o resumo são histórico: use-os para contexto, sem tratar pedidos antigos já respondidos como novas solicitações.
+      Uma fala anterior da IA não comprova ação executada. Para arquivos, use os IDs e os registros de envio do catálogo; respeite delivery_status.
+      Se o pedido atual ou a transcrição estiver incompleto ou ambíguo, peça esclarecimento sem preencher lacunas com um assunto antigo.
       Uma mudança de assunto ou de formato, como pedir áudio, não renova um pedido antigo de encontro, agendamento ou outra ação externa.
       Solicite atendimento humano por uma necessidade do pedido atual, não apenas porque esse assunto apareceu no histórico.
     PROMPT

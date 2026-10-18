@@ -37,6 +37,11 @@ class MarcosxAi::ConversationState < ApplicationRecord
 
   def active_for_ai?
     return true if status == 'active'
+
+    if recoverable_pause?
+      resume!
+      return true
+    end
     return false unless status == 'paused_by_human'
     return false if metadata['human_wait'] && assistant.resolved_config[:resume_mode] != 'after_human'
     return false if paused_until.blank?
@@ -47,6 +52,7 @@ class MarcosxAi::ConversationState < ApplicationRecord
   end
 
   def enabled_for_ai?
+    return true if assistant&.auto_response_enabled?
     return false if metadata['manual_activation'] == true && assistant && !assistant.feature_enabled?(:manual_sessions_enabled)
 
     assistant.present? && (assistant.auto_response_enabled? || metadata['manual_activation'] == true)
@@ -69,9 +75,13 @@ class MarcosxAi::ConversationState < ApplicationRecord
   end
 
   def pause_by_human!(message:, minutes:)
-    return if status == 'paused_by_agent'
+    return if status.in?(%w[paused_by_agent handoff])
 
     waiting = metadata['human_wait'] == true
+    if !waiting && minutes.zero?
+      update!(last_human_message_id: message.id, metadata: cancelled_metadata)
+      return
+    end
     if waiting
       minutes = assistant.resolved_config[:resume_mode] == 'after_human' ? assistant.resolved_config[:resume_after_minutes].to_i : 0
     end
@@ -113,10 +123,12 @@ class MarcosxAi::ConversationState < ApplicationRecord
 
   def public_data
     {
-      id: id, assistant_id: assistant_id, assistant_name: assistant&.name, status: status, paused_until: paused_until,
-      enabled: enabled_for_ai?, available: assistant&.available? || false, manual_activation: metadata['manual_activation'] == true,
+      id: id, assistant_id: assistant_id, assistant_name: assistant&.name, status: recoverable_pause? ? 'active' : status, paused_until: paused_until,
+      enabled: enabled_for_ai? && assistant.accepts_conversation?(conversation), available: assistant&.available? || false,
+      manual_activation: metadata['manual_activation'] == true,
       processing: metadata['processing'] == true,
-      manual_sessions_suspended: metadata['manual_activation'] == true && !assistant&.feature_enabled?(:manual_sessions_enabled),
+      manual_sessions_suspended: !assistant&.auto_response_enabled? && metadata['manual_activation'] == true &&
+        !assistant&.feature_enabled?(:manual_sessions_enabled),
       automatic_handoff_enabled: automatic_handoff_enabled?,
       reason: metadata['last_error'] || metadata['handoff_reason'] || metadata['paused_reason'], updated_at: updated_at
     }
@@ -136,6 +148,11 @@ class MarcosxAi::ConversationState < ApplicationRecord
   end
 
   private
+
+  def recoverable_pause?
+    (status == 'error' && metadata['last_error'].present?) ||
+      (status == 'paused_by_human' && paused_until.blank? && !metadata['human_wait'] && assistant&.human_pause_minutes == 0)
+  end
 
   def superseded?
     attributes_sql = MarcosxAi::ConversationContext::CONTENT_ATTRIBUTES_SQL

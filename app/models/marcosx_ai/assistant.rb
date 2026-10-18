@@ -71,6 +71,7 @@ class MarcosxAi::Assistant < ApplicationRecord
   validates :account_id, presence: true
   validate :valid_configuration
   after_commit :cancel_pending_runs, on: :update
+  after_commit :broadcast_coverage, on: :update
 
   scope :ordered, -> { order(created_at: :desc) }
 
@@ -189,6 +190,12 @@ class MarcosxAi::Assistant < ApplicationRecord
   end
 
   private
+
+  def broadcast_coverage
+    account.conversations.where(inbox_id: inboxes.select(:id)).or(
+      account.conversations.where(id: conversation_states.select(:conversation_id))
+    ).includes(:inbox, :contact, :marcosx_ai_conversation_state).find_each(&:dispatch_conversation_updated_event)
+  end
 
   def cancel_pending_runs
     return unless saved_changes?

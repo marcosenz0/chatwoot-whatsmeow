@@ -118,6 +118,7 @@ class MarcosxAi::ConversationContext
       current_request: @state.metadata['pending_since_message_id'].present? && current_message?(message),
       sent_at: message.created_at.in_time_zone(MarcosxAi::PromptBuilder.timezone_for(@conversation, assistant: @assistant)).iso8601,
       sender: message.sender&.name,
+      delivery_status: message.outgoing? ? message.status : nil,
       text: text.to_s.truncate(15_000),
       attachments: message.attachments.map do |attachment|
         { type: attachment.file_type, name: attachment.file.attached? ? attachment.file.filename.to_s : attachment.fallback_title,
@@ -127,6 +128,8 @@ class MarcosxAi::ConversationContext
     if attributes['whatsmeow_pix'].present?
       data[:pix_card] = { shared: true, agent_key_id: message.additional_attributes['marcosx_ai_pix_key_id'] }
     end
+    data[:sent_resource_id] = message.additional_attributes['marcosx_ai_resource_id'] if message.additional_attributes['marcosx_ai_resource_id']
+    data[:resource] = message.additional_attributes['marcosx_ai_resource'] if message.additional_attributes['marcosx_ai_resource']
     data[:story_reply] = attributes.slice('story_id', 'story_url', 'story_sender') if attributes['story_id'].present?
     data[:reactions] = attributes['whatsmeow_reactions'] if attributes['whatsmeow_reactions'].present?
     if attributes['in_reply_to'].present?

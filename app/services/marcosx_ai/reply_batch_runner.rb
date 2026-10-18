@@ -67,9 +67,13 @@ class MarcosxAi::ReplyBatchRunner
     state.with_lock do
       return skip(item) unless current?(item) && @batch.reload.status != 'cancelled' && item.reload.status == 'queued'
 
+      state.resume! if state.status == 'error'
+
       runtime = MarcosxAi::PromptBuilder.context_for(item.conversation, assistant: @assistant)
       plan = MarcosxAi::ReplyPlan.parse(item.plan.to_json, assistant: @assistant, conversation: item.conversation,
                                                            pix_available: runtime[:pix_available])
+      return skip(item) if @batch.mode == 'review' && plan['resource_ids'] != item.plan['resource_ids']
+
       item.update!(status: 'sending', run_token: token)
       @batch.update!(status: 'running')
       state.update!(metadata: state.metadata.merge(

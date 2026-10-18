@@ -37,14 +37,15 @@ RSpec.describe Whatsmeow::OpenConversationMergeService do
     expect(source_state.metadata).not_to include('pending_response', 'conversation_summary', 'summary_cursor')
   end
 
-  it 'keeps a permanent human takeover when the canonical conversation was active' do
+  it 'keeps a human assistance request when the canonical conversation was active' do
     target_state
     human_message = create(:message, message_type: :outgoing, account: account, inbox: inbox, conversation: source)
+    source_state.wait_for_human!(reason: 'Human assistance')
     source_state.pause_by_human!(message: human_message, minutes: 0)
 
     service.perform
 
-    expect(target_state.reload.status).to eq('paused_by_human')
+    expect(target_state.reload.status).to eq('awaiting_human')
     expect(target_state.paused_until).to be_nil
     expect(target_state.last_human_message_id).to eq(human_message.id)
     expect(target_state.metadata['paused_reason']).to eq('human_response')

@@ -109,14 +109,14 @@ class MarcosxAi::DeliveryJob < ApplicationJob
     Whatsmeow::ReactionService.new(message: target, emoji: plan['reaction'], actor: @state.assistant).perform
   end
 
-  def create_message(content)
+  def create_message(content, resource: nil)
     executed_by = Current.executed_by
     Current.executed_by = @state.assistant
     @state.conversation.messages.create!(
       message_type: :outgoing, account: @state.account, inbox: @state.inbox, sender: @state.assistant, content: content,
       additional_attributes: { marcosx_ai: true, provider: @state.assistant.provider, model: @state.assistant.model,
                                assistant_name: @state.assistant.name,
-                               trigger_message_id: @state.metadata['trigger_message_id'] }
+                               trigger_message_id: @state.metadata['trigger_message_id'] }.merge(resource ? resource_attributes(resource) : {})
     )
   ensure
     Current.executed_by = executed_by
@@ -168,18 +168,22 @@ class MarcosxAi::DeliveryJob < ApplicationJob
     executed_by = Current.executed_by
     resource = @state.assistant.resources.available.available_to(@state.conversation).find_by(id: id)
     return unless resource
-    return create_message(resource.url) if resource.kind == 'link'
+    return create_message(resource.url, resource: resource) if resource.kind == 'link'
 
     Current.executed_by = @state.assistant
     message = @state.conversation.messages.new(
       message_type: :outgoing, account: @state.account, inbox: @state.inbox, sender: @state.assistant,
       additional_attributes: { marcosx_ai: true, assistant_name: @state.assistant.name,
-                               marcosx_ai_resource_id: resource.id, trigger_message_id: @state.metadata['trigger_message_id'] }
+                               trigger_message_id: @state.metadata['trigger_message_id'] }.merge(resource_attributes(resource))
     )
     message.attachments.build(account: @state.account, file_type: resource.kind).file.attach(resource.file.blob)
     message.save!
     message
   ensure
     Current.executed_by = executed_by
+  end
+
+  def resource_attributes(resource)
+    { marcosx_ai_resource_id: resource.id, marcosx_ai_resource: resource.catalog_data }
   end
 end

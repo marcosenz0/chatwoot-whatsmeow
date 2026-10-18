@@ -1,8 +1,13 @@
 class Api::V1::Accounts::MarcosxAi::ReplyBatchesController < Api::V1::Accounts::MarcosxAi::BaseController
   before_action :ensure_admin!
-  before_action :set_assistant
+  before_action :set_assistant, except: :active
   rescue_from ArgumentError, ActiveRecord::RecordNotUnique, CustomExceptions::MarcosxAi do
     render json: { error: I18n.t('marcosx_ai.errors.batch_invalid') }, status: :unprocessable_entity
+  end
+
+  def active
+    records = MarcosxAi::ReplyBatch.where(account: Current.account, user: Current.user, status: %w[preparing ready running])
+    render json: { batches: records.includes(:assistant).order(:id).map(&:public_data) }
   end
 
   def index

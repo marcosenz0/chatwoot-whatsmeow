@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { flushPromises, mount } from '@vue/test-utils';
 import API from 'dashboard/api/marcosxAi';
+import { useMarcosxAiBatches } from 'dashboard/composables/useMarcosxAiBatches';
 import PendingReplies from '../PendingReplies.vue';
 
 vi.mock('dashboard/api/marcosxAi', () => ({
@@ -60,6 +61,7 @@ const options = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  useMarcosxAiBatches().resetBatches();
   API.getPendingReplies.mockResolvedValue({
     data: { total: 2, conversations: rows, batch: null },
   });
@@ -69,6 +71,48 @@ beforeEach(() => {
   API.getReplyBatch.mockResolvedValue({
     data: { batch: structuredClone(batch) },
   });
+});
+
+it('refreshes the selection after reserving a batch so the same people cannot be selected again', async () => {
+  const wrapper = mount(PendingReplies, options);
+  await wrapper.find('button').trigger('click');
+  await flushPromises();
+  await Promise.all(
+    wrapper.findAll('input[type="checkbox"]').map(input => input.setValue(true))
+  );
+  API.createReplyBatch.mockImplementationOnce(async () => {
+    API.getPendingReplies.mockResolvedValue({
+      data: { total: 0, conversations: [], batch: null },
+    });
+    return { data: { batch: { ...batch, status: 'running', mode: 'direct' } } };
+  });
+  await wrapper
+    .findAll('button')
+    .find(button => button.text().includes('DIRECT'))
+    .trigger('click');
+  await flushPromises();
+  expect(wrapper.findAll('input[type="checkbox"]')).toHaveLength(0);
+  expect(wrapper.text()).toContain('TOTAL: 0');
+  wrapper.unmount();
+});
+
+it('reuses the same request identity after an ambiguous network failure', async () => {
+  API.createReplyBatch.mockRejectedValueOnce(
+    new Error('Connection lost after submit')
+  );
+  const wrapper = mount(PendingReplies, options);
+  await wrapper.find('button').trigger('click');
+  await flushPromises();
+  await wrapper.findAll('input[type="checkbox"]')[0].setValue(true);
+  const direct = () =>
+    wrapper.findAll('button').find(button => button.text().includes('DIRECT'));
+  await direct().trigger('click');
+  await flushPromises();
+  const firstId = API.createReplyBatch.mock.calls[0][1].request_id;
+  await direct().trigger('click');
+  await flushPromises();
+  expect(API.createReplyBatch.mock.calls[1][1].request_id).toBe(firstId);
+  wrapper.unmount();
 });
 
 it('starts with no selection, previews only on demand and reviews all selected without sending', async () => {

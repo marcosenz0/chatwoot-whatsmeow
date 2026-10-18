@@ -7,9 +7,23 @@ class MarcosxAi::ReplyBatchItem < ApplicationRecord
   def public_data
     audio_path = Rails.application.routes.url_helpers.rails_blob_path(audio, only_path: true) if audio.attached?
     { id: id, conversation_id: conversation.display_id, name: conversation.contact.name, avatar_url: conversation.contact.avatar_url,
-      status: status, reason: reason, plan: plan, audio_url: audio_path,
+      status: status, delivery_status: delivery_status, reason: reason, plan: plan, audio_url: audio_path, trigger_message_id: trigger_message_id,
       resources: reply_batch.assistant.resources.where(id: plan['resource_ids']).map { |r| { title: r.title, kind: r.kind } },
       pix: reply_batch.assistant.pix_keys.find_by(id: plan['pix_key_id'])&.title }
+  end
+
+  def delivery_status
+    return status unless status == 'sent'
+
+    messages = conversation.messages.outgoing.where(private: false, sender: reply_batch.assistant)
+                           .where("additional_attributes ->> 'trigger_message_id' = ?", trigger_message_id.to_s)
+    return 'delivery_failed' if messages.exists?(status: :failed)
+    return 'delivered' if messages.exists? && !messages.where.not(status: [:delivered, :read]).exists?
+    if messages.where(source_id: [nil, '']).exists?
+      return updated_at > 5.minutes.ago ? 'delivery_pending' : 'delivery_unconfirmed'
+    end
+
+    'sent'
   end
 
   def discard!

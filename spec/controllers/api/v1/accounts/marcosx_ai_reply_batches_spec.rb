@@ -48,4 +48,30 @@ RSpec.describe 'MarcoXIA reply batch API', type: :request do
     expect(response).to have_http_status(:unauthorized).or have_http_status(:forbidden)
     expect(assistant.reply_batches).to be_empty
   end
+
+  it 'recovers only the signed-in operator active batches across agents' do
+    post endpoint, params: attributes, headers: admin.create_new_auth_token, as: :json
+    own_id = response.parsed_body['batch']['id']
+    other_admin = create(:user, account: account, role: :administrator)
+    assistant.reply_batches.create!(account: account, user: other_admin, mode: 'direct', request_id: 'other')
+    get "/api/v1/accounts/#{account.id}/marcosx_ai/reply_batches", headers: admin.create_new_auth_token
+    expect(response).to have_http_status(:ok), response.body
+    expect(response.parsed_body['batches'].pluck('id')).to eq([own_id])
+    expect(response.parsed_body['batches'].first['assistant_id']).to eq(assistant.id)
+  end
+
+  it 'removes a reserved turn from pending immediately and reports provider delivery failures separately' do
+    post endpoint, params: attributes, headers: admin.create_new_auth_token, as: :json
+    item = assistant.reply_batches.first.items.first
+    get endpoint, headers: admin.create_new_auth_token
+    expect(response.parsed_body['conversations']).to be_empty
+    outgoing = create(:message, account: account, inbox: inbox, conversation: conversation, message_type: :outgoing, sender: assistant,
+                                additional_attributes: { trigger_message_id: message.id })
+    item.update!(status: 'sent')
+    expect(item.delivery_status).to eq('delivery_pending')
+    outgoing.update!(status: :failed)
+    expect(item.delivery_status).to eq('delivery_failed')
+    outgoing.update!(status: :delivered, source_id: 'provider-confirmed')
+    expect(item.delivery_status).to eq('delivered')
+  end
 end

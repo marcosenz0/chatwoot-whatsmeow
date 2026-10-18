@@ -9,7 +9,8 @@ class MarcosxAi::ReplyBatch < ApplicationRecord
   validates :request_id, presence: true, length: { maximum: 80 }
 
   def public_data
-    { id: id, mode: mode, status: status, counts: items.group(:status).count,
+    { id: id, account_id: account_id, assistant_id: assistant_id, assistant_name: assistant.name, mode: mode, status: status,
+      counts: items.group(:status).count,
       items: items.includes(conversation: [:contact, :inbox]).order(:id).map(&:public_data) }
   end
 

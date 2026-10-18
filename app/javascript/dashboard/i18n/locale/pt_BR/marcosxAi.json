@@ -164,7 +164,8 @@
       "SHOW_TYPING": "Mostrar digitando no WhatsApp",
       "SHOW_TYPING_HINT": "Mostra digitando enquanto o agente prepara a resposta. Ative também o indicador de digitação da caixa de entrada.",
       "SHOW_RECORDING": "Mostrar gravando áudio no WhatsApp",
-      "SHOW_RECORDING_HINT": "Mostra gravando áudio enquanto um atendente usa o microfone. Configure o envio de voz do agente em Voz e áudio."
+      "SHOW_RECORDING_HINT": "Mostra gravando áudio enquanto um atendente usa o microfone. Configure o envio de voz do agente em Voz e áudio.",
+      "PAUSE_NONE": "Manter a IA ligada"
     },
     "PROVIDERS": {
       "TITLE": "Conecte a inteligência dos seus agentes",
@@ -567,7 +568,7 @@
       "URL": "Endereço do link",
       "DESCRIPTION": "Descrição e quando enviar",
       "DESCRIPTION_HINT": "Esta é a tabela de informações. Envie quando a pessoa pedir a tabela ou as opções disponíveis.",
-      "DESCRIPTION_HELP": "Explique o conteúdo, quem ou o que aparece no arquivo e quais pedidos ele atende. Se houver itens parecidos, descreva a diferença.",
+      "DESCRIPTION_HELP": "Explique o conteúdo, quem aparece e quando enviar. A IA consulta o histórico deste contato: prefira outra mídia quando ele pedir algo diferente e permita reenviar a mesma quando ele pedir novamente.",
       "ENABLED_HINT": "Itens desativados ficam fora do catálogo da IA e dos próximos envios.",
       "FILE_LIMIT": "Até 40 MB: JPG, PNG, WebP, GIF, MP4, WebM, MOV, PDF ou TXT.",
       "DELETE_HINT": "Excluir “{name}” deste agente? Arquivos já enviados continuam no histórico das conversas.",
@@ -642,7 +643,7 @@
       "REVIEWS": "Revisar respostas",
       "REVIEW_HINT": "Confira cada resposta. A lixeira retira somente esta pessoa do lote; não altera a ativação da IA. Voltar preserva as revisões.",
       "REMOVE": "Remover deste lote:",
-      "BACK": "Voltar à seleção",
+      "BACK": "Voltar",
       "SEND_REVIEWED": "Enviar revisadas",
       "ALERT": "Pode solicitar ajuda humana:",
       "MANUAL": "Atendimentos manuais",
@@ -660,8 +661,28 @@
         "sent": "Enviada",
         "skipped": "Ignorada: conversa mudou",
         "failed": "Falha; conferir conversa",
-        "discarded": "Removida deste lote"
-      }
+        "discarded": "Removida deste lote",
+        "delivery_pending": "Aguardando confirmação do envio",
+        "delivery_failed": "Falha na entrega; confira a conversa",
+        "delivery_unconfirmed": "Envio sem confirmação; confira a conversa antes de repetir",
+        "delivered": "Entregue",
+        "completed_errors": "Concluído com falhas"
+      },
+      "MONITOR": "Respostas da IA",
+      "MINIMIZE": "Ocultar progresso",
+      "DISMISS": "Fechar resultados",
+      "RESULTS": "Resultado por contato",
+      "CONNECTION_ERROR": "A conexão com o progresso foi interrompida. O envio pode continuar; atualize antes de tentar novamente.",
+      "STOP_ERROR": "Não foi possível confirmar a parada do lote. Atualize para conferir o estado.",
+      "RECONNECT": "Atualizar estado",
+      "CLOSE_MONITOR": "Fechar monitor",
+      "CLOSE_MONITOR_HINT": "Fecha somente o painel. Os lotes continuam disponíveis em Pendentes.",
+      "READY_HINT": "Respostas preparadas, ainda não enviadas. Revise ou envie abaixo.",
+      "SEND_ALL": "Enviar agora",
+      "REVIEW_CONTACT": "Revisar resposta de",
+      "OPEN_CONVERSATION": "Abrir conversa",
+      "PREPARED": "Preparadas",
+      "ACTION_ERROR": "Não foi possível confirmar a ação. Atualize o estado antes de repetir o envio."
     }
   }
 }

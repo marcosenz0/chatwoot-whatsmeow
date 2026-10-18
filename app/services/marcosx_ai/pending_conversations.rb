@@ -25,7 +25,7 @@ class MarcosxAi::PendingConversations
                                  .where(contacts: { blocked: false }, status: [:open, :pending])
                                  .where('pending_message.message_type = ?', Message.message_types[:incoming])
     states = 'marcosx_ai_conversation_states'
-    conversations = conversations.where("#{states}.id IS NULL OR (#{states}.status NOT IN ('handoff', 'awaiting_human', 'error') AND " \
+    conversations = conversations.where("#{states}.id IS NULL OR (#{states}.status NOT IN ('handoff', 'awaiting_human') AND " \
                                         "COALESCE(#{states}.metadata ->> 'processing', 'false') != 'true' AND " \
                                         "COALESCE((#{states}.metadata ->> 'last_processed_trigger_id')::bigint, 0) < pending_message.id)")
                                  .where("COALESCE(#{states}.metadata ->> 'conversation_override', 'false') != 'true' OR #{states}.assistant_id = ?",
@@ -55,7 +55,7 @@ class MarcosxAi::PendingConversations
     return false unless conversation.marcosx_ai_assistant&.id == @assistant.id
 
     state = conversation.marcosx_ai_conversation_state
-    return false if state && (state.status.in?(%w[handoff awaiting_human error]) || state.metadata['processing'] == true)
+    return false if state && (state.status.in?(%w[handoff awaiting_human]) || state.metadata['processing'] == true)
 
     message = latest(conversation)
     message&.incoming? && (!trigger_id || message.id == trigger_id) && state&.metadata&.fetch('last_processed_trigger_id', 0).to_i < message.id

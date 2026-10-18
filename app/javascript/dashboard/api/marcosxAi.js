@@ -10,6 +10,10 @@ class MarcosxAiAPI extends ApiClient {
     return axios.get(`${this.url}/assistants/${id}/reply_batches`, { params });
   }
 
+  getActiveReplyBatches() {
+    return axios.get(`${this.url}/reply_batches`);
+  }
+
   previewPendingReply(id, conversationId) {
     return axios.get(`${this.url}/assistants/${id}/reply_batches/preview`, {
       params: { conversation_id: conversationId },

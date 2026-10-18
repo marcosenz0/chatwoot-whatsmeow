@@ -75,6 +75,22 @@ RSpec.describe MarcosxAi::ReplyBatchRunner do
     expect(state.status).to eq('active')
   end
 
+  it 'preserves an approved resend of the same media instead of replacing or blocking the response' do
+    photo = assistant.resources.new(account: account, title: 'Preview', description: 'A preview', kind: 'image')
+    photo.file.attach(io: File.open(Rails.root.join('spec/assets/sample.png')), filename: 'photo.png', content_type: 'image/png')
+    photo.save!
+    sent = create(:message, :outgoing, account: account, inbox: inbox, conversation: conversation, sender: assistant, status: :delivered)
+    sent.attachments.create!(account: account, file_type: 'image', file: photo.file.blob)
+    latest = create(:message, account: account, inbox: inbox, conversation: conversation, content: 'I lost it; please resend the same preview')
+    approved = plan.merge('resource_ids' => [photo.id])
+    item.update!(status: 'queued', trigger_message_id: latest.id, plan: approved)
+    batch.update!(status: 'running')
+    expect { described_class.new(batch).perform }.not_to change(conversation.messages.outgoing, :count)
+    expect(item.reload.status).to eq('sending')
+    expect(item.plan).to eq(approved)
+    expect(conversation.reload.marcosx_ai_conversation_state.metadata['pending_response']).to include(approved.slice('messages', 'resource_ids'))
+  end
+
   it 'cancels delivery already queued without sending or erasing manual membership' do
     batch.update!(mode: 'direct')
     item
@@ -160,7 +176,7 @@ RSpec.describe MarcosxAi::ReplyBatchRunner do
   it 'suspends and restores manually enabled sessions without changing the selected people or their pauses' do
     state = MarcosxAi::ConversationState.for_conversation!(conversation, assistant: assistant)
     state.resume!(manual: true)
-    assistant.update!(config: assistant.resolved_config.merge(manual_sessions_enabled: false, auto_response_enabled: true))
+    assistant.update!(config: assistant.resolved_config.merge(manual_sessions_enabled: false, auto_response_enabled: false))
     expect(state.reload.enabled_for_ai?).to be(false)
     expect(state.metadata['manual_activation']).to be(true)
     state.pause_by_agent!
