@@ -1,5 +1,19 @@
 # MarcoXIA — coverage, queue feedback and media continuity
 
+## Follow-up after operator feedback
+
+The first monitor lacked direct review/send actions and could not close a ready batch panel. The browser checks had covered recovery/minimize, but missed this complete workflow. Marco also rejected the permanent media reuse block. Follow-up132d59f563b66a5b6323ce94baa60acd09dc393b is published in all six principal/MX/MD web/workers; gate39081083387 passed803 targeted checks (422frontend+381Rails), lint/build/image. The historic release record below describes the first implementation.
+
+The follow-up shares one native review component between Pending replies and the global monitor. Ready batches expose review and immediate enqueue actions; each contact opens their prepared response first and has a conversation link. The monitor can close without cancelling its durable queue or rediscovering the same panel on every poll. Pending batch actions move above the long list. Prepared counts explicitly mean prepared, not delivered.
+
+Media remains available. ResourceHistory builds durable per-contact/per-inbox usage from persisted messages and attachment checksums across conversations, independent of recent context length, honoring memory exclusions/forgetting and existing cross-channel boundaries. The catalog includes descriptions and factual counts/dates/statuses; model guidance distinguishes a different file from a requested resend. Delivery records a resource description snapshot. The same execution still cannot deliver twice. No migration or profile-description rewrite is required. Do not promise that prompting eliminates every hallucination.
+
+Local UI tests11 passed. Actual component/CSS browser checks exercised review/read/back from the monitor and contact name, direct mock sending through completion, closing and640px layouts. New Rails regressions cover explicit resends, reviewed content preservation and contact/inbox/memory isolation. Three published rollback-only API contracts and health200 passed. Four synthetic cases using the configured HOT1 model with candidate code in a disposable Rails process passed (same-file resend, different file, no alternative, money objection without reviving an older call topic). They did not send channel messages or reproduce the historical audio recording; do not claim all hallucinations are eliminated.
+
+Final image ID: `sha256:e3faa2c8fda0d433ead279addb126585a061f71c4ff8fc912f00e1f1bfbe900d`. Published MD browser checks opened all three real batch5 reviews directly from the monitor, brought the selected contact first, verified conversation links and enabled send actions without clicking them, closed the monitor through polling/navigation, and reopened it through Pending replies. The send path through completion was exercised with synthetic browser APIs and published rollback-only contracts, not customer deliveries.
+
+The immediately pre/post audit preserved98states/2profiles, full credentials/voice/resources/memories/Pix/notification hashes, twelve service configurations except six app pins, all six bridge container/image identities and sessions, and batches3/4/5 with their items. MD remains generalON/manual-onlyOFF with four assigned inboxes,111open/pending conversations,102eligible (101active+1human assistance). The count differs from the earlier release because the pre-release live dataset/configuration had evolved; this rollout did not change it. Batch5 retains three reviews. Private evidence: `.codex/feedback-*`; do not publish raw snapshots/settings. HOT operation46 and safe screenshots describe the current workflow. Notion Acompanhamento updated/fetched back in the confirmed workspace; PR52 ready, above51, unmerged.
+
 Marco requested these fixes after exercising PR51 on live contacts. PR52 is stacked on PR51. Editorial response quality and the earlier ambiguous audio investigation are outside this implementation.
 
 ## Behavior
