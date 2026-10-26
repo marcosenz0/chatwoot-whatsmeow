@@ -1,5 +1,12 @@
 # Chatwoot Development Guidelines
 
+## Current MarcoXIA independent transcription and quiet inactive badges — October26,2026
+
+- Principal/MX/MD web/workers run `fork-0bb96e3d3d35c2199532403b4d5bebc5723552a6`. Gate40369441831 passed805 targeted tests (424frontend+381Rails), lint/build/image. Three published rollback contracts and health200 passed; older pins below are historical. PR53 is stacked on52.
+- Incoming transcription is independently selected in Voice and audio. Explicit Groq/OpenAI uses the enabled same-provider MarcoXIA credential or enabled audio integration key, never exposing/copying it or silently switching providers. Retain cached transcripts and legacy behavior when no explicit selection exists. MD now selects Groq/whisper-large-v3-turbo using the existing integration; Luna, ElevenLabs and generalOFF remain unchanged.
+- Hide the inactive badge when general support isOFF. Show it only for an explicit individual pause with generalON; preserve active manual indicators. Explicit individual resume overrides suspended manual attendance only for that conversation. A subsequent manual-group on-to-off clears those overrides. Do not wake the other suspended contacts to activate one.
+- Audit preserved106states, profiles except MD transcription, all stored-data hashes, twelve configs except six pins, six bridges/sessions and MD3batches/16items. No customer messages/batch execution. Actual neutral-speech Groq test ran in an isolated candidate; tested source hashes match deployment. Published UI and390px synthetic CSS checks passed, including keyboard/Escape focus. Read `docs/marcoxia-transcription-status-2026-10-26.md` and HOT operational record. Notion Acompanhamento/Ferramentas updated; preserve unrelated working-tree changes.
+
 ## Current MarcoXIA actionable reviews and contact media history — October17,2026
 
 - Principal/MX/MD web/workers all run `fork-132d59f563b66a5b6323ce94baa60acd09dc393b`, image ID `sha256:e3faa2c8fda0d433ead279addb126585a061f71c4ff8fc912f00e1f1bfbe900d`. Gate39081083387 passed803 targeted tests (422frontend+381Rails), lint/build/image; three published rollback contracts/health200 and four synthetic cases with the configured HOT1 model passed. PR52 is ready above51, unmerged. Prior pins/behaviors below are historical.
