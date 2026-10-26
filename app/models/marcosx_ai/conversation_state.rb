@@ -53,9 +53,14 @@ class MarcosxAi::ConversationState < ApplicationRecord
 
   def enabled_for_ai?
     return true if assistant&.auto_response_enabled?
-    return false if metadata['manual_activation'] == true && assistant && !assistant.feature_enabled?(:manual_sessions_enabled)
+    return false if manual_sessions_suspended?
 
     assistant.present? && (assistant.auto_response_enabled? || metadata['manual_activation'] == true)
+  end
+
+  def manual_sessions_suspended?
+    assistant.present? && !assistant.auto_response_enabled? && metadata['manual_activation'] == true &&
+      !assistant.feature_enabled?(:manual_sessions_enabled) && metadata['manual_session_override'] != true
   end
 
   def automatic_handoff_enabled?
@@ -104,7 +109,10 @@ class MarcosxAi::ConversationState < ApplicationRecord
 
   def resume!(manual: false)
     data = cancelled_metadata.except('last_error', 'paused_reason', 'handoff_reason', 'human_wait', 'pause_ack')
-    data.merge!('manual_activation' => true, 'conversation_override' => true) if manual
+    if manual
+      data.merge!('manual_activation' => true, 'conversation_override' => true)
+      data['manual_session_override'] = true unless assistant.feature_enabled?(:manual_sessions_enabled)
+    end
     update!(status: 'active', paused_until: nil, metadata: data)
   end
 
@@ -126,9 +134,10 @@ class MarcosxAi::ConversationState < ApplicationRecord
       id: id, assistant_id: assistant_id, assistant_name: assistant&.name, status: recoverable_pause? ? 'active' : status, paused_until: paused_until,
       enabled: enabled_for_ai? && assistant.accepts_conversation?(conversation), available: assistant&.available? || false,
       manual_activation: metadata['manual_activation'] == true,
+      general_enabled: assistant&.auto_response_enabled? || false,
+      manually_paused: status == 'paused_by_agent' && metadata['paused_reason'] == 'agent_paused',
       processing: metadata['processing'] == true,
-      manual_sessions_suspended: !assistant&.auto_response_enabled? && metadata['manual_activation'] == true &&
-        !assistant&.feature_enabled?(:manual_sessions_enabled),
+      manual_sessions_suspended: manual_sessions_suspended?,
       automatic_handoff_enabled: automatic_handoff_enabled?,
       reason: metadata['last_error'] || metadata['handoff_reason'] || metadata['paused_reason'], updated_at: updated_at
     }

@@ -42,6 +42,7 @@ class MarcosxAi::Assistant < ApplicationRecord
     allow_reactions: true,
     process_images: true,
     process_audio: true,
+    transcription: { provider: 'agent', model: '' },
     process_files: true,
     process_video: true,
     respond_to_groups: false,
@@ -200,9 +201,15 @@ class MarcosxAi::Assistant < ApplicationRecord
   def cancel_pending_runs
     return unless saved_changes?
 
-    conversation_states.where("metadata ->> 'processing' = 'true'").find_each do |state|
+    suspend_manual = saved_change_to_config? && saved_change_to_config.first.fetch('manual_sessions_enabled', true) &&
+                     !feature_enabled?(:manual_sessions_enabled)
+    states = conversation_states.where("metadata ->> 'processing' = 'true'")
+    states = states.or(conversation_states.where("metadata ->> 'manual_session_override' = 'true'")) if suspend_manual
+    states.find_each do |state|
       state.with_lock do
-        state.update!(metadata: state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft').merge(
+        metadata = state.metadata.except('pending_response', 'pending_since_message_id', 'approved_draft')
+        metadata = metadata.except('manual_session_override') if suspend_manual
+        state.update!(metadata: metadata.merge(
           'run_token' => SecureRandom.uuid, 'processing' => false
         ))
       end

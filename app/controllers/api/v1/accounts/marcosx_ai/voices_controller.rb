@@ -4,7 +4,8 @@ class Api::V1::Accounts::MarcosxAi::VoicesController < Api::V1::Accounts::Marcos
 
   def show
     render json: { credentials: @assistant.voice_credentials.map(&:redacted), models: MarcosxAi::VoiceClient::MODELS,
-                   encryption_ready: Chatwoot.encryption_configured? }
+                   encryption_ready: Chatwoot.encryption_configured?,
+                   transcription: MarcosxAi::TranscriptionClient.options_for(Current.account) }
   end
 
   def update

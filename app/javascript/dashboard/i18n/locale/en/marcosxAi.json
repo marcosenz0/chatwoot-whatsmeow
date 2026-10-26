@@ -434,6 +434,18 @@
       "VIEW_MEMORY": "View memories",
       "NUMBER_HINT": "Add one recipient at a time, with the country code. No digits will be added automatically."
     },
+    "TRANSCRIPTION": {
+      "TITLE": "Understanding incoming audio",
+      "HINT": "Choose who transcribes customer audio before the agent replies. This is separate from the reply model and the generated voice. Existing transcripts are reused.",
+      "ENABLED": "Understand incoming audio",
+      "ENABLED_HINT": "Allow the agent to transcribe new voice messages when processing a reply.",
+      "PROVIDER": "Transcription provider",
+      "MODEL": "Transcription model",
+      "AGENT_PROVIDER": "Use the agent provider",
+      "INTEGRATION_KEY": "Uses the saved key from the audio transcription integration.",
+      "AGENT_KEY": "Uses the saved provider connection in MarcoXIA.",
+      "MISSING": "Configure this provider in the audio transcription integration or MarcoXIA connections. No other provider will be used automatically."
+    },
     "VOICE": {
       "TITLE": "Voice and audio",
       "HINT": "Configure the agent voice. Replies stay in text without a key and voice ID. Audio is available on compatible messaging channels.",

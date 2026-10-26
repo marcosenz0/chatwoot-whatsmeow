@@ -434,6 +434,18 @@
       "VIEW_MEMORY": "Ver memórias",
       "NUMBER_HINT": "Adicione um destinatário por vez, com o código do país. Nenhum dígito será acrescentado automaticamente."
     },
+    "TRANSCRIPTION": {
+      "TITLE": "Entender áudios recebidos",
+      "HINT": "Escolha quem transcreve o áudio do contato antes da resposta. É independente do modelo que responde e da voz gerada. Transcrições existentes são reaproveitadas.",
+      "ENABLED": "Entender áudios recebidos",
+      "ENABLED_HINT": "Permite transcrever novas mensagens de voz ao preparar uma resposta.",
+      "PROVIDER": "Provedor de transcrição",
+      "MODEL": "Modelo de transcrição",
+      "AGENT_PROVIDER": "Usar o provedor do agente",
+      "INTEGRATION_KEY": "Usa a chave já salva na integração de transcrição de áudio.",
+      "AGENT_KEY": "Usa a conexão do provedor já salva no MarcoXIA.",
+      "MISSING": "Configure esse provedor na integração de transcrição ou nas conexões do MarcoXIA. Não haverá troca automática para outro provedor."
+    },
     "VOICE": {
       "TITLE": "Voz e áudio",
       "HINT": "Configure a voz do agente. Sem chave e ID da voz, as respostas continuam por texto. Áudio está disponível nos canais de mensagens compatíveis.",

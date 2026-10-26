@@ -21,11 +21,14 @@ RSpec.describe 'MarcoXIA activation and media continuity' do
   end
 
   it 'lets general support cover manual members even when manual-only attendance is suspended' do
-    state.resume!(manual: true)
+    state.update!(metadata: { manual_activation: true })
     expect(state.enabled_for_ai?).to be(true)
     expect(state.public_data[:manual_sessions_suspended]).to be(false)
     assistant.update!(config: assistant.resolved_config.merge(auto_response_enabled: false))
     expect(state.reload.enabled_for_ai?).to be(false)
+    state.resume!(manual: true)
+    expect(state.enabled_for_ai?).to be(true)
+    expect(state.public_data[:manual_sessions_suspended]).to be(false)
   end
 
   it 'recovers old zero-minute human pauses but preserves explicit pauses and human assistance' do

@@ -20,7 +20,7 @@ import AgentVoice from './AgentVoice.vue';
 import AgentResources from './AgentResources.vue';
 import AgentPixKeys from './AgentPixKeys.vue';
 import AgentSection from './AgentSection.vue';
-import { voiceDefaults } from './agentVoiceDefaults';
+import { transcriptionDefaults, voiceDefaults } from './agentVoiceDefaults';
 
 const props = defineProps({
   agent: { type: Object, required: true },
@@ -221,6 +221,10 @@ watch(
     form.value.config.editorial_instructions ??=
       agent.editorial_instructions || '';
     const savedVoice = form.value.config.voice || {};
+    form.value.config.transcription = {
+      ...transcriptionDefaults,
+      ...form.value.config.transcription,
+    };
     form.value.config.voice = {
       ...voiceDefaults,
       ...savedVoice,
@@ -1011,6 +1015,8 @@ const channelLabel = inbox =>
               <AgentVoice
                 v-if="section === 'voice' && canEdit"
                 v-model="form.config.voice"
+                v-model:transcription="form.config.transcription"
+                v-model:process-audio="form.config.process_audio"
                 :assistant-id="form.id"
                 :unsaved="hasUnsavedChanges"
               />
