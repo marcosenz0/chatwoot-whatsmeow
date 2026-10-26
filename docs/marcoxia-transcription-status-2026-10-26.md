@@ -11,3 +11,5 @@ Local checks: targeted existing Vue specs and scoped ESLint; full MarcoXIA CI/bu
 Deployment scope remains principal first, then the same image on MX and MD, including their workers. Preserve all inboxes, credentials, voice/Pix/resources/contact memories, pending batches and bridge sessions. Do not send customer messages or execute existing batches for verification.
 
 Initial MD inspection confirmed the existing integration is Groq / whisper-large-v3-turbo / fallback none, with a saved key. MarcoXIA currently has only its OpenAI credential, so the new Groq path must reuse the integration key. The agent stays on gpt-6-luna and voice synthesis stays on ElevenLabs. Production validation and the selected MD transcription setting will be recorded after publication.
+
+An explicit individual resume also works while manual-only attendance is suspended. Only that conversation receives an override; existing suspended members remain suspended. A later on-to-off manual-attendance switch clears the overrides so the group pause remains effective. The current MD setting therefore does not require enabling all seven prior manual contacts to activate one person.
