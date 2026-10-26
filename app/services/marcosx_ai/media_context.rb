@@ -64,7 +64,8 @@ class MarcosxAi::MediaContext
   end
 
   def transcribe(file)
-    if @assistant.provider == 'gemini'
+    independent = @assistant.resolved_config[:transcription][:provider] != 'agent'
+    if !independent && @assistant.provider == 'gemini'
       return @client.chat(messages: [{ role: 'user', content: [
                             { type: 'input_text', text: 'Transcreva fielmente este áudio no idioma original. Não invente trechos inaudíveis.' },
                             file_part(file)
@@ -74,7 +75,8 @@ class MarcosxAi::MediaContext
     Dir.mktmpdir('marcosx-audio') do |directory|
       output = File.join(directory, 'voice.mp3')
       convert_media('-i', file.path, '-vn', '-ac', '1', '-ar', '24000', '-b:a', '64k', output)
-      File.open(output, 'rb') { |audio| @client.transcribe(audio) }
+      transcriber = independent ? MarcosxAi::TranscriptionClient.new(assistant: @assistant) : @client
+      File.open(output, 'rb') { |audio| transcriber.transcribe(audio) }
     end
   end
 

@@ -1,3 +1,5 @@
+export const transcriptionDefaults = { provider: 'agent', model: '' };
+
 export const voiceDefaults = {
   enabled: false,
   provider: 'minimax',

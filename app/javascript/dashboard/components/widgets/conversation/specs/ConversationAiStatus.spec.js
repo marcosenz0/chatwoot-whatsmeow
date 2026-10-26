@@ -25,13 +25,39 @@ describe('Conversation AI list indicator', () => {
       props: {
         chat: {
           status: 'open',
-          marcosx_ai: { ...state, assistant_id: 3, status: 'paused_by_agent' },
+          marcosx_ai: {
+            ...state,
+            assistant_id: 3,
+            status: 'paused_by_agent',
+            general_enabled: true,
+            manually_paused: true,
+          },
         },
       },
     });
     expect(wrapper.text()).toContain('MARCOX_AI.CONVERSATION.OFF');
   });
   it.each([
+    {
+      status: 'open',
+      marcosx_ai: {
+        ...state,
+        assistant_id: 3,
+        status: 'paused_by_agent',
+        general_enabled: false,
+        manually_paused: true,
+      },
+    },
+    {
+      status: 'open',
+      marcosx_ai: {
+        ...state,
+        assistant_id: 3,
+        status: 'paused_by_agent',
+        general_enabled: true,
+        manually_paused: false,
+      },
+    },
     { status: 'open', marcosx_ai: { ...state, status: 'paused_by_agent' } },
     { status: 'open', marcosx_ai: { ...state, enabled: false } },
     { status: 'open', marcosx_ai: { ...state, available: false } },

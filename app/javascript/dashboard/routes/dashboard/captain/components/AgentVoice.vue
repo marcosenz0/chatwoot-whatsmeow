@@ -12,9 +12,18 @@ const props = defineProps({
   unsaved: { type: Boolean, default: false },
 });
 const settings = defineModel({ type: Object, required: true });
+const transcription = defineModel('transcription', {
+  type: Object,
+  required: true,
+});
+const processAudio = defineModel('processAudio', {
+  type: Boolean,
+  default: true,
+});
 const { t } = useI18n();
 const credentials = ref([]);
 const models = ref({});
+const transcriptionOptions = ref({ providers: [], models: {} });
 const encryptionReady = ref(false);
 const key = ref('');
 const busy = ref(false);
@@ -40,6 +49,10 @@ const load = async () => {
     if (id !== props.assistantId) return;
     credentials.value = data.credentials;
     models.value = data.models;
+    transcriptionOptions.value = data.transcription || {
+      providers: [],
+      models: {},
+    };
     encryptionReady.value = data.encryption_ready;
   } catch {
     error.value = t('MARCOX_AI.VOICE.ERROR');
@@ -116,11 +129,97 @@ const numericFields = computed(() =>
         { key: 'style', min: 0, max: 1, step: 0.05 },
       ]
 );
+const transcriptionProvider = computed(() =>
+  transcriptionOptions.value.providers.find(
+    item => item.provider === transcription.value.provider
+  )
+);
+const transcriptionProviders = computed(() => [
+  {
+    value: 'agent',
+    label: t('MARCOX_AI.TRANSCRIPTION.AGENT_PROVIDER'),
+    icon: 'i-lucide-bot',
+  },
+  ...['groq', 'openai'].map(provider => ({
+    value: provider,
+    label: provider === 'groq' ? 'Groq' : 'OpenAI',
+    icon: provider === 'groq' ? 'i-lucide-zap' : 'i-lucide-sparkles',
+  })),
+]);
+const changeTranscriptionProvider = provider => {
+  if (provider === transcription.value.provider) return;
+  transcription.value = {
+    provider,
+    model: transcriptionOptions.value.models[provider]?.[0] || '',
+  };
+};
 </script>
 
 <template>
   <div class="space-y-5">
     <p class="text-sm text-n-slate-11">{{ t('MARCOX_AI.VOICE.HINT') }}</p>
+    <AgentSection
+      :title="t('MARCOX_AI.TRANSCRIPTION.TITLE')"
+      icon="i-lucide-mic"
+    >
+      <p class="text-sm text-n-slate-11">
+        {{ t('MARCOX_AI.TRANSCRIPTION.HINT') }}
+      </p>
+      <AiToggleRow
+        v-model="processAudio"
+        :label="t('MARCOX_AI.TRANSCRIPTION.ENABLED')"
+        :description="t('MARCOX_AI.TRANSCRIPTION.ENABLED_HINT')"
+      />
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="text-sm font-medium">
+          {{ t('MARCOX_AI.TRANSCRIPTION.PROVIDER') }}
+          <AiSelect
+            :model-value="transcription.provider"
+            :options="transcriptionProviders"
+            :label="t('MARCOX_AI.TRANSCRIPTION.PROVIDER')"
+            :disabled="!assistantId"
+            @update:model-value="changeTranscriptionProvider"
+          />
+        </label>
+        <label
+          v-if="transcription.provider !== 'agent'"
+          class="text-sm font-medium"
+        >
+          {{ t('MARCOX_AI.TRANSCRIPTION.MODEL') }}
+          <AiSelect
+            v-model="transcription.model"
+            :options="
+              (transcriptionOptions.models[transcription.provider] || []).map(
+                value => ({ value, label: value })
+              )
+            "
+            :label="t('MARCOX_AI.TRANSCRIPTION.MODEL')"
+          />
+        </label>
+      </div>
+      <p
+        v-if="transcription.provider !== 'agent'"
+        class="text-xs"
+        :class="
+          transcriptionProvider?.configured
+            ? 'text-n-teal-11'
+            : 'text-n-amber-11'
+        "
+      >
+        {{
+          t(
+            !transcriptionProvider?.configured
+              ? 'MARCOX_AI.TRANSCRIPTION.MISSING'
+              : transcriptionProvider.source === 'integration'
+                ? 'MARCOX_AI.TRANSCRIPTION.INTEGRATION_KEY'
+                : 'MARCOX_AI.TRANSCRIPTION.AGENT_KEY'
+          )
+        }}
+      </p>
+      <p v-if="!assistantId" class="text-xs text-n-amber-11">
+        {{ t('MARCOX_AI.VOICE.SAVE_FIRST') }}
+      </p>
+    </AgentSection>
     <AiToggleRow
       v-model="settings.enabled"
       :label="t('MARCOX_AI.VOICE.ENABLED')"

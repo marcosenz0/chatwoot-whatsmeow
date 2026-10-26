@@ -6,7 +6,7 @@ import AiModelSelect from '../AiModelSelect.vue';
 import AiPlayground from '../AiPlayground.vue';
 import AiSelect from '../AiSelect.vue';
 import AgentVoice from '../AgentVoice.vue';
-import { voiceDefaults } from '../agentVoiceDefaults';
+import { transcriptionDefaults, voiceDefaults } from '../agentVoiceDefaults';
 
 vi.mock('dashboard/api/marcosxAi', () => ({
   default: {
@@ -106,7 +106,11 @@ describe('MarcoXIA agent configuration', () => {
     MarcosxAiAPI.saveVoiceKey.mockResolvedValue({ data: {} });
     const settings = JSON.parse(JSON.stringify(voiceDefaults));
     const wrapper = mount(AgentVoice, {
-      props: { modelValue: settings, assistantId: 1 },
+      props: {
+        modelValue: settings,
+        transcription: { ...transcriptionDefaults },
+        assistantId: 1,
+      },
     });
     await flushPromises();
     const preview = wrapper

@@ -42,6 +42,7 @@ class MarcosxAi::Assistant < ApplicationRecord
     allow_reactions: true,
     process_images: true,
     process_audio: true,
+    transcription: { provider: 'agent', model: '' },
     process_files: true,
     process_video: true,
     respond_to_groups: false,

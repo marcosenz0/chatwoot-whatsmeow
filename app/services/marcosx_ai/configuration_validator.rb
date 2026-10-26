@@ -9,6 +9,7 @@ class MarcosxAi::ConfigurationValidator
     raise ArgumentError, 'Invalid emoji usage' unless %w[none occasional expressive].include?(config[:emoji_usage])
 
     validate_voice!(config[:voice])
+    validate_transcription!(config[:transcription])
     raise ArgumentError, 'Invalid memory mode' unless %w[legacy summary_recent selected_only].include?(config[:memory_mode])
     raise ArgumentError, 'Invalid resume mode' unless %w[manual after_human].include?(config[:resume_mode])
 
@@ -30,6 +31,14 @@ class MarcosxAi::ConfigurationValidator
       end
 
       validate_destinations!(config[:notifications].merge(rule), account)
+    end
+  end
+
+  def self.validate_transcription!(settings)
+    unless settings.is_a?(Hash) && settings[:model].is_a?(String) &&
+           ((settings[:provider] == 'agent' && settings[:model].empty?) ||
+             MarcosxAi::TranscriptionClient::MODELS[settings[:provider]]&.include?(settings[:model]))
+      raise ArgumentError, 'Invalid transcription provider or model'
     end
   end
 

@@ -126,6 +126,8 @@ class MarcosxAi::ConversationState < ApplicationRecord
       id: id, assistant_id: assistant_id, assistant_name: assistant&.name, status: recoverable_pause? ? 'active' : status, paused_until: paused_until,
       enabled: enabled_for_ai? && assistant.accepts_conversation?(conversation), available: assistant&.available? || false,
       manual_activation: metadata['manual_activation'] == true,
+      general_enabled: assistant&.auto_response_enabled? || false,
+      manually_paused: status == 'paused_by_agent' && metadata['paused_reason'] == 'agent_paused',
       processing: metadata['processing'] == true,
       manual_sessions_suspended: !assistant&.auto_response_enabled? && metadata['manual_activation'] == true &&
         !assistant&.feature_enabled?(:manual_sessions_enabled),

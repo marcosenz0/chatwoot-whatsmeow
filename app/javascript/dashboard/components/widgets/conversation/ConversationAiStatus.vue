@@ -33,6 +33,8 @@ const active = computed(
   <span
     v-else-if="
       chat.marcosx_ai?.assistant_id &&
+      chat.marcosx_ai.general_enabled &&
+      chat.marcosx_ai.manually_paused &&
       !['resolved', 'snoozed'].includes(chat.status)
     "
     v-tooltip.top="chat.marcosx_ai.reason || chat.marcosx_ai.assistant_name"
