@@ -154,7 +154,7 @@ class MarcosxAi::ConversationContext
       last = batch.last
       processed = processed_scope('created_at' => last.created_at.iso8601(6), 'id' => last.id)
       batch_signature = signature(processed)
-      summary = @client.chat(messages: [
+      summary = @client.chat(purpose: 'summary', messages: [
                                { role: 'system',
                                  content: MEMORY_PROMPT },
                                { role: 'user', content: "Memória anterior: #{@summary}\nMensagens: #{batch.map { |m|

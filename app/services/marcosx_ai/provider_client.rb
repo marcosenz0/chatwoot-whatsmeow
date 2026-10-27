@@ -2,7 +2,11 @@ class MarcosxAi::ProviderClient
   TIMEOUT = 120
   attr_reader :usage
 
-  def initialize(account:, provider:, model: nil, temperature: 0.7, reasoning_effort: 'medium')
+  def initialize(account:, provider:, model: nil, temperature: 0.7, reasoning_effort: 'medium', assistant: nil, conversation: nil, purpose: 'other')
+    @account = account
+    @assistant = assistant
+    @conversation = conversation
+    @purpose = purpose
     @provider = provider.to_s
     @credential = account.marcosx_ai_credentials.find_by!(provider: @provider)
     @model = model.presence || @credential.resolved_model
@@ -10,11 +14,11 @@ class MarcosxAi::ProviderClient
     @reasoning_effort = reasoning_effort
   end
 
-  def chat(messages:, schema: nil)
+  def chat(messages:, schema: nil, purpose: nil)
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.credential_missing') unless @credential.enabled && @credential.configured?
 
     case @provider
-    when 'openai' then openai_response(messages, schema)
+    when 'openai' then openai_response(messages, schema, purpose || @purpose)
     when 'groq' then compatible_response(messages, schema)
     when 'gemini' then gemini_response(messages, schema)
     end
@@ -52,8 +56,11 @@ class MarcosxAi::ProviderClient
                                 request_timeout: TIMEOUT, log_errors: false)
   end
 
-  def openai_response(messages, schema)
-    parameters = { model: @model, input: messages, store: false, max_output_tokens: 8000 }
+  def openai_response(messages, schema, purpose)
+    started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    parameters = { model: @model, store: false, max_output_tokens: 8000 }.merge(
+      MarcosxAi::PromptCache.parameters(messages, account_id: @account.id, model: @model, api_base: @credential.resolved_api_base)
+    )
     if reasoning_model?
       parameters[:reasoning] = { effort: @reasoning_effort }
     else
@@ -62,6 +69,8 @@ class MarcosxAi::ProviderClient
     parameters[:text] = { format: { type: 'json_schema', name: 'customer_reply', strict: true, schema: schema } } if schema
     response = sdk.json_post(path: '/responses', parameters: parameters)
     @usage = response['usage']
+    MarcosxAi::ProviderUsage.record(account: @account, assistant: @assistant, conversation: @conversation, model: @model,
+                                    purpose: purpose, response: response, parameters: parameters, started_at: started_at)
     content = response.fetch('output', []).flat_map { |item| item.fetch('content', []) }
     text = content.select { |item| item['type'] == 'output_text' }.pluck('text').join
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response') if text.blank?

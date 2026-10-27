@@ -49,7 +49,8 @@ class MarcosxAi::ComposerDraftService
     version = assistant.updated_at
     state = @conversation.marcosx_ai_conversation_state || MarcosxAi::ConversationState.new(metadata: {})
     client = MarcosxAi::ProviderClient.new(account: @conversation.account, provider: assistant.provider, model: assistant.model,
-                                           temperature: assistant.temperature, reasoning_effort: assistant.reasoning_effort)
+                                           temperature: assistant.temperature, reasoning_effort: assistant.reasoning_effort,
+                                           assistant: assistant, conversation: @conversation, purpose: 'draft')
     history = MarcosxAi::ConversationContext.new(conversation: @conversation, assistant: assistant, state: state, client: client,
                                                  trigger_message: trigger, token: nil, persist_memory: false, valid_run: -> { true }).messages
     prompts = MarcosxAi::PromptBuilder.messages(assistant: assistant, conversation: @conversation,

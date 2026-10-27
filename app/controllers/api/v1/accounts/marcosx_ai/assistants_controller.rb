@@ -44,7 +44,9 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
   def prompt
     messages = MarcosxAi::PromptBuilder.messages(assistant: @assistant, context: { runtime: 'contact, inbox, channel, timezone, now' },
                                                  reactions: @assistant.feature_enabled?(:allow_reactions))
-    render json: { technical: messages.first[:content], editable: messages.last[:content] }
+    technical = messages.select { |message| message[:role] == 'system' }.pluck(:content).join("\n\n")
+    editable = messages.select { |message| message[:role] == 'developer' }.pluck(:content).join("\n\n")
+    render json: { technical: technical, editable: editable }
   end
 
   def test_notification
@@ -97,7 +99,8 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
     }
 
     client = MarcosxAi::ProviderClient.new(account: Current.account, provider: @assistant.provider, model: @assistant.model,
-                                           temperature: @assistant.temperature, reasoning_effort: @assistant.reasoning_effort)
+                                           temperature: @assistant.temperature, reasoning_effort: @assistant.reasoning_effort,
+                                           assistant: @assistant, conversation: nil, purpose: 'playground')
     prompts = MarcosxAi::PromptBuilder.messages(assistant: @assistant,
                                                 context: { pix_available: @assistant.pix_keys.available.available_to(nil).exists? },
                                                 reactions: @assistant.feature_enabled?(:allow_reactions))
@@ -202,6 +205,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
                   { minimax: [:voice_id, :model, :speed, :volume, :pitch],
                     elevenlabs: [:voice_id, :model, :speed, :stability, :similarity_boost, :style] }],
           transcription: [:provider, :model],
+          prompt_cache: [:enabled, :ttl],
           notifications: [:inbox_id, { user_ids: [], whatsapp_numbers: [] }],
           alert_rules: [:id, :name, :description, :message, :action, :inbox_id, { user_ids: [], whatsapp_numbers: [] }] }
       ],

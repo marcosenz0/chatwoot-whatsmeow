@@ -66,7 +66,7 @@ class MarcosxAi::MediaContext
   def transcribe(file)
     independent = @assistant.resolved_config[:transcription][:provider] != 'agent'
     if !independent && @assistant.provider == 'gemini'
-      return @client.chat(messages: [{ role: 'user', content: [
+      return @client.chat(purpose: 'media_description', messages: [{ role: 'user', content: [
                             { type: 'input_text', text: 'Transcreva fielmente este áudio no idioma original. Não invente trechos inaudíveis.' },
                             file_part(file)
                           ] }])
@@ -90,7 +90,7 @@ class MarcosxAi::MediaContext
             else
               return I18n.t('marcosx_ai.media.unsupported')
             end
-    @client.chat(messages: [
+    @client.chat(purpose: 'media_description', messages: [
                    { role: 'system',
                      content: ANALYSIS_PROMPT },
                    { role: 'user', content: [

@@ -8,6 +8,7 @@ class MarcosxAi::Assistant < ApplicationRecord
     reasoning_effort: 'medium',
     response_delay_seconds: 8,
     history_limit: 80,
+    prompt_cache: { enabled: true, ttl: '30m' },
     timezone: nil,
     human_pause_minutes: 0,
     memory_mode: 'legacy',
@@ -79,6 +80,7 @@ class MarcosxAi::Assistant < ApplicationRecord
   def resolved_config
     settings = DEFAULT_CONFIG.merge(config || {}).with_indifferent_access
     settings[:voice] = DEFAULT_CONFIG[:voice].deep_merge(settings[:voice] || {})
+    settings[:prompt_cache] = DEFAULT_CONFIG[:prompt_cache].deep_merge(settings[:prompt_cache] || {})
     settings
   end
 

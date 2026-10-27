@@ -1,0 +1,30 @@
+# MarcoXIA prompt caching — 2026-10-27
+
+## Design
+
+OpenAI Responses prompt caching is enabled by default for official OpenAI endpoints and supported GPT-5.6+ models. `MarcosxAi::PromptCache` supplies an explicit breakpoint after stable system and agent instructions and a cache-accounting key derived from account and assistant IDs. The per-contact runtime context, time, catalogs, histories, transcriptions and latest message follow the breakpoint. Never move person-specific material into the shared prefix. A shared prefix is not shared conversational memory; each request continues to carry its own conversation context.
+
+The Conversation section of the agent editor exposes opt-out and a choice of 30-minute or 12-hour retention. Default is 30 minutes; a 12-hour cache write has the higher published price. Reuse is conditional on matching input, routing and retention, and is not guaranteed. Unsupported models/providers/custom endpoints use the legacy prompt path; the old instruction order was compared byte-for-byte for five real MD conversations without calling an external provider. Unmarked auxiliary operations use explicit mode without a breakpoint so their changing inputs do not become cache writes on supported OpenAI requests.
+
+`MarcosxAi::ProviderUsage` records purpose, model, timing, response ID and returned token/cache counts on successful calls without prompt content or credentials. Failures to record metrics cannot cause a billed call to be retried. Activity displays the counts. Historical records and calls outside this instrumentation are not retroactively reconciled.
+
+## Validation and rollout
+
+Release commit: `c8410cf052115568e641cc8a3bd77d8a5450b291`. [Targeted CI](https://github.com/marcosenz0/chatwoot-whatsmeow/actions/runs/40504788209) passed 393 Rails examples and 429 frontend tests, scoped Ruby lint (93 files), frontend lint and build. The actual candidate test used the configured Luna API with synthetic names: one request wrote 1,797 cache tokens; a subsequent request and five simultaneous requests each read 1,797 with no write, returning the corresponding synthetic name. A 12-hour request recorded the longer TTL. Two further synthetic scenarios exercised audio intent and avoidance of invented Pix/price. No messages were delivered and no test data was committed. Two earlier exploratory requests had ambiguous test identifiers and were corrected.
+
+The matching shared prefix in five real MD conversations was inspected locally without API calls; 14,662 characters are not a token count. Component checks covered the settings, TTL warning, keyboard interaction and a narrow screen. Actual savings vary with model pricing, stable prefix length, cache hits and traffic. Measure `cached_tokens` and `cache_write_tokens` in Activity after real use, and compare costs on the OpenAI usage page.
+
+Principal, MX and MD and all three workers now run `fork-c8410cf052115568e641cc8a3bd77d8a5450b291`. Each published environment passed a rollback-only contract and health returned 200. The published MD made eight real Luna requests with synthetic inputs: the first wrote 1,796 tokens, the next and five concurrent requests each read 1,796 with no suffix write, and the 12-hour request wrote its own cache. No customer deliveries or committed test data. The actual MD editor displayed the enabled control and the recommended 30-minute setting.
+
+The final audit preserved 106 conversation states, profiles, integrations, data, sessions, the three MD batches/16 items, six bridge containers and all service configurations except the six application image pins. MD general support remains OFF and its Groq/whisper-large-v3-turbo transcription remains selected. Before rollout three principal WhatsApp sessions were already disconnected and remained so. Notion Acompanhamento and Ferramentas were updated in the confirmed workspace.
+
+The full repository-wide checks are not green: baseline CE failures and global lint errors remain, and bundle-audit reported advisories in existing locked dependencies, including ruby_llm, crass, rack-proxy and datadog. This change did not alter dependency manifests or locks. Scanner findings alone do not establish exploitability. Review dependency upgrades separately rather than describing the complete CI suite as passing.
+
+References: [Prompt caching](https://developers.openai.com/api/docs/guides/prompt-caching), [OpenAI API pricing](https://developers.openai.com/api/docs/pricing), [PR 54](https://github.com/marcosenz0/chatwoot-whatsmeow/pull/54), HOT ULTRA `operacao/marcoxia-cache-27-10-2026/REGISTRO.md`.
+
+
+## Independent review — 2026-10-27
+
+No functional correction was required. OpenAI Docs confirms the explicit boundary and 30m/12h options. For GPT-5.6+, OpenAI handles routing automatically; the key partitions reuse/accounting rather than pinning a machine. Four frontend spec files were rerun: 28 tests passed. Three published rollback contracts passed again and source hashes matched the tested release. Independent read-only checks confirmed non-mutating serialization, foreign-account marker rejection, legacy opt-out and compatibility. A real PostgreSQL read-only write rejection verified that the metrics savepoint recovers the outer transaction and preserves the answer with exactly one mocked provider call.
+
+Nine actual Luna requests used the saved HOT1 instructions with synthetic customer contexts and a short test directive after the breakpoint. The first 30m request wrote 3,322 of 3,851 input tokens; five simultaneous requests each read 3,322 with no suffix write and returned only their own test code. Opt-out returned zero reads/writes. A 12h write and subsequent 3,322-token read passed. No customer messages, content or committed test data were involved; modes were changed on in-memory objects only. The test does not establish all agent behaviors or production savings. Twelve container/config snapshots and the MD state/data/profile hashes were preserved; health200 in all three. Evidence: HOT `operacao/marcoxia-cache-27-10-2026/REVISAO.json`. The earlier 822-test release gate was not rerun in full for this review.

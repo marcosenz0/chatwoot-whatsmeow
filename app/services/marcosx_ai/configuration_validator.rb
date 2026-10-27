@@ -8,6 +8,11 @@ class MarcosxAi::ConfigurationValidator
     end
     raise ArgumentError, 'Invalid emoji usage' unless %w[none occasional expressive].include?(config[:emoji_usage])
 
+    cache = config[:prompt_cache]
+    unless cache.is_a?(Hash) && [true, false].include?(cache[:enabled]) && MarcosxAi::PromptCache::LIFETIMES.include?(cache[:ttl])
+      raise ArgumentError, 'Invalid prompt cache settings'
+    end
+
     validate_voice!(config[:voice])
     validate_transcription!(config[:transcription])
     raise ArgumentError, 'Invalid memory mode' unless %w[legacy summary_recent selected_only].include?(config[:memory_mode])

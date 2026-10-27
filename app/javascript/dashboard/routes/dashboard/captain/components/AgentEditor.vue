@@ -13,6 +13,7 @@ import AgentConnection from './AgentConnection.vue';
 import AiPlayground from './AiPlayground.vue';
 import AgentAttendance from './AgentAttendance.vue';
 import AgentActivity from './AgentActivity.vue';
+import AgentPromptCache from './AgentPromptCache.vue';
 import AgentNotifications from './AgentNotifications.vue';
 import AgentAlertList from './AgentAlertList.vue';
 import AgentMemories from './AgentMemories.vue';
@@ -220,6 +221,11 @@ watch(
     };
     form.value.config.editorial_instructions ??=
       agent.editorial_instructions || '';
+    form.value.config.prompt_cache = {
+      enabled: true,
+      ttl: '30m',
+      ...form.value.config.prompt_cache,
+    };
     const savedVoice = form.value.config.voice || {};
     form.value.config.transcription = {
       ...transcriptionDefaults,
@@ -790,6 +796,13 @@ const channelLabel = inbox =>
                         :label="t('MARCOX_AI.AUTOMATION.MEMORY_MODE')"
                       />
                     </label>
+                    <AgentPromptCache
+                      v-model="form.config.prompt_cache"
+                      :provider="form.config.provider"
+                      :model="form.config.model"
+                      :api-base="credential?.api_base || ''"
+                      :disabled="!canEdit"
+                    />
                     <AiToggleRow
                       v-model="form.config.auto_start"
                       :label="t('MARCOX_AI.EDITOR.AUTO_START')"

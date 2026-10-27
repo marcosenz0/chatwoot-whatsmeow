@@ -5,7 +5,8 @@ class MarcosxAi::BatchReplyPlanner
     state = conversation.marcosx_ai_conversation_state&.dup || MarcosxAi::ConversationState.new(metadata: {})
     state.metadata = state.metadata.merge('pending_since_message_id' => item.trigger_message_id)
     client = MarcosxAi::ProviderClient.new(account: assistant.account, provider: assistant.provider, model: assistant.model,
-                                           temperature: assistant.temperature, reasoning_effort: assistant.reasoning_effort)
+                                           temperature: assistant.temperature, reasoning_effort: assistant.reasoning_effort,
+                                           assistant: assistant, conversation: conversation, purpose: 'batch_reply')
     history = MarcosxAi::ConversationContext.new(conversation: conversation, assistant: assistant, state: state, client: client,
                                                  trigger_message: conversation.messages.find(item.trigger_message_id), token: nil,
                                                  persist_memory: false, valid_run: -> { item.reply_batch.reload.status != 'cancelled' }).messages

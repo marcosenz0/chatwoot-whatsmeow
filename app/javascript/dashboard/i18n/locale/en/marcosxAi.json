@@ -249,8 +249,13 @@
       "SENT": "Reply sent",
       "HANDOFF": "Passed to a person",
       "FAILED": "Agent paused after an error",
-      "TOKENS": "{count} tokens",
-      "ANALYSIS": "History analyzed"
+      "TOKENS": "Tokens",
+      "ANALYSIS": "History analyzed",
+      "PROVIDER_CALL": "Model call",
+      "INPUT": "Input",
+      "OUTPUT": "Output",
+      "READ": "Cache read",
+      "WRITE": "Cache write"
     },
     "CONVERSATION": {
       "ON": "AI on",
@@ -695,6 +700,16 @@
       "OPEN_CONVERSATION": "Open conversation",
       "PREPARED": "Prepared",
       "ACTION_ERROR": "Could not confirm the action. Refresh the status before sending again."
+    },
+    "CACHE": {
+      "TITLE": "Save with instruction caching",
+      "BODY": "Reuse the agent’s stable instructions across conversations. Each person keeps their own history and context. The first use writes; later requests can read at a discount.",
+      "UNSUPPORTED": "Explicit cache controls are available for GPT-5.6 and later through the official OpenAI connection. Other connections retain their provider’s behavior.",
+      "LIFETIME": "Minimum cache lifetime",
+      "THIRTY_MINUTES": "30 minutes — recommended",
+      "TWELVE_HOURS": "12 hours — less frequent conversations",
+      "SHORT_HINT": "Suitable for frequent or concurrent conversations. Each read refreshes the lifetime. Savings depend on reuse; check tokens in Activity.",
+      "LONG_HINT": "Can help when instructions are reused across longer gaps. Writing costs twice the 30-minute option; reading costs the same. Savings are not guaranteed."
     }
   }
 }

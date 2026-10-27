@@ -39,6 +39,7 @@ watch(
 );
 const eventLabel = event =>
   ({
+    provider_call: 'PROVIDER_CALL',
     response_generated: 'GENERATED',
     response_sent: 'SENT',
     handoff: 'HANDOFF',
@@ -80,7 +81,7 @@ const eventLabel = event =>
           <thead class="border-b border-n-weak text-n-slate-11">
             <tr>
               <th
-                v-for="key in ['EVENT', 'CONVERSATION', 'WHEN']"
+                v-for="key in ['EVENT', 'CONVERSATION', 'TOKENS', 'WHEN']"
                 :key="key"
                 class="p-4 text-start font-medium"
               >
@@ -125,6 +126,27 @@ const eventLabel = event =>
                 >
                   {{ `#${log.conversation_id}` }}
                 </RouterLink>
+              </td>
+              <td class="p-4 text-xs leading-5 text-n-slate-11">
+                <template v-if="log.event === 'provider_call'">
+                  <div>
+                    {{ t('MARCOX_AI.ACTIVITY.INPUT') }}:
+                    {{ log.response.input_tokens ?? '—' }}
+                  </div>
+                  <div>
+                    {{ t('MARCOX_AI.ACTIVITY.OUTPUT') }}:
+                    {{ log.response.output_tokens ?? '—' }}
+                  </div>
+                  <div>
+                    {{ t('MARCOX_AI.ACTIVITY.READ') }}:
+                    {{ log.response.cached_tokens ?? '—' }}
+                  </div>
+                  <div>
+                    {{ t('MARCOX_AI.ACTIVITY.WRITE') }}:
+                    {{ log.response.cache_write_tokens ?? '—' }}
+                  </div>
+                </template>
+                <span v-else>—</span>
               </td>
               <td class="whitespace-nowrap p-4 text-n-slate-11">
                 {{ new Date(log.created_at).toLocaleString() }}

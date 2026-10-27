@@ -29,7 +29,7 @@ RSpec.describe MarcosxAi::MediaContext do
     attachment.file.attach(io: Rails.root.join('spec/assets/avatar.png').open, filename: 'image.png', content_type: 'image/png')
     allow(client).to receive(:chat).and_return('Image description')
     expect(service.describe).to eq('Image description')
-    expect(client).to have_received(:chat).with(messages: array_including(
+    expect(client).to have_received(:chat).with(purpose: 'media_description', messages: array_including(
       hash_including(role: 'user', content: array_including(hash_including(type: 'input_image', image_url: start_with('data:image/jpeg;base64,'))))
     ))
     expect(attachment.reload.meta['marcosx_ai_description']).to eq('Image description')
@@ -40,7 +40,7 @@ RSpec.describe MarcosxAi::MediaContext do
     attachment.file.attach(io: Rails.root.join('spec/assets/sample.pdf').open, filename: 'document.pdf', content_type: 'application/pdf')
     allow(client).to receive(:chat).and_return('PDF details')
     expect(service.describe).to eq('PDF details')
-    expect(client).to have_received(:chat).with(messages: array_including(
+    expect(client).to have_received(:chat).with(purpose: 'media_description', messages: array_including(
       hash_including(role: 'user', content: array_including(hash_including(type: 'input_file', filename: 'document.pdf')))
     ))
   end
@@ -50,7 +50,7 @@ RSpec.describe MarcosxAi::MediaContext do
     attachment.file.attach(io: Rails.root.join('spec/assets/avatar.png').open, filename: 'story.png', content_type: 'image/png')
     allow(client).to receive(:chat).and_return('Story image description')
     expect(service.describe).to eq('Story image description')
-    expect(client).to have_received(:chat).with(messages: array_including(
+    expect(client).to have_received(:chat).with(purpose: 'media_description', messages: array_including(
       hash_including(role: 'user', content: array_including(hash_including(type: 'input_image')))
     ))
   end
@@ -76,7 +76,7 @@ RSpec.describe MarcosxAi::MediaContext do
     attachment.file.attach(io: Rails.root.join('spec/assets/sample.mp4').open, filename: 'video.mp4', content_type: 'video/mp4')
     allow(client).to receive(:chat).and_return('Video sample description')
     expect(service.describe).to eq('Video sample description')
-    expect(client).to have_received(:chat).with(messages: array_including(
+    expect(client).to have_received(:chat).with(purpose: 'media_description', messages: array_including(
       hash_including(role: 'user', content: array_including(hash_including(type: 'input_image')))
     ))
   end

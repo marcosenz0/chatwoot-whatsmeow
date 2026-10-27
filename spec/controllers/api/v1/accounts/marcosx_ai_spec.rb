@@ -104,7 +104,8 @@ RSpec.describe 'MarcoXIA API', type: :request do
     plan = { messages: ['You are welcome'], reaction: nil, reaction_message_id: nil, handoff: false, handoff_reason: nil }
     allow(MarcosxAi::ProviderClient).to receive(:new).and_return(client)
     expect(client).to receive(:chat) do |messages:, schema:|
-      expect(messages.first[:content]).to include('use reaction=null e reaction_message_id=null')
+      system = messages.select { |message| message[:role] == 'system' }.pluck(:content).join("\n")
+      expect(system).to include('use reaction=null e reaction_message_id=null')
       expect(schema).to eq(MarcosxAi::ReplyPlan::SCHEMA)
       plan.to_json
     end
