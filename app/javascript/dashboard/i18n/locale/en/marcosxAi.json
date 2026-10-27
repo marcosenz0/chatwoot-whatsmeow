@@ -317,6 +317,8 @@
       "VOICE_COUNT": "{count} / {max} characters",
       "VOICE_WORKING": "Preparing your voice reply…",
       "VOICE_GENERATE": "Generate audio",
+      "VOICE_AUTO": "Generate audio automatically",
+      "VOICE_AUTO_HINT": "Saved for your user in Chatwoot. Applies the next time you prepare a voice reply; changing this switch does not generate audio now.",
       "VOICE_USE": "Send audio",
       "VOICE_CHANGED": "The text changed. Generate the audio again before using it.",
       "REVIEW_TITLE": "Review reply",

@@ -317,6 +317,8 @@
       "VOICE_COUNT": "{count} / {max} caracteres",
       "VOICE_WORKING": "Preparando a resposta em áudio…",
       "VOICE_GENERATE": "Gerar áudio",
+      "VOICE_AUTO": "Gerar áudio automaticamente",
+      "VOICE_AUTO_HINT": "Salvo para seu usuário no Chatwoot. Vale na próxima preparação de resposta; mudar este botão não gera áudio agora.",
       "VOICE_USE": "Enviar áudio",
       "VOICE_CHANGED": "O texto foi alterado. Gere o áudio novamente antes de usá-lo.",
       "REVIEW_TITLE": "Revisar resposta",

@@ -19,15 +19,15 @@ RSpec.describe MarcosxAi::ReviewedReplyService do
   end
 
   it 'delivers the exact reviewed recording once with native voice metadata without reactivating paused AI' do
-    token = service.token(snapshot: service.snapshot, audio: bytes, content: 'Reviewed words')
+    token = service.token(snapshot: service.snapshot, audio: bytes, content: "Reviewed words\n\nSecond paragraph")
     expect(conversation.messages.outgoing.where(private: false)).to be_empty
-    message = service.send!(token: token, content: 'Reviewed words', audio: upload)
+    message = service.send!(token: token, content: "Reviewed words\r\n\r\nSecond paragraph", audio: upload)
     expect(message.sender).to eq(assistant)
     expect(message.attachments.first.file.download).to eq(bytes)
-    expect(message.content_attributes).to include('whatsmeow_recorded_audio' => true, 'marcosx_ai_voice_transcript' => 'Reviewed words')
-    expect(message.attachments.first.meta['transcribed_text']).to eq('Reviewed words')
+    expect(message.content_attributes).to include('whatsmeow_recorded_audio' => true, 'marcosx_ai_voice_transcript' => "Reviewed words\n\nSecond paragraph")
+    expect(message.attachments.first.meta['transcribed_text']).to eq("Reviewed words\n\nSecond paragraph")
     expect(state.reload.status).to eq('awaiting_human')
-    expect(service.send!(token: token, content: 'Reviewed words', audio: upload).id).to eq(message.id)
+    expect(service.send!(token: token, content: "Reviewed words\r\n\r\nSecond paragraph", audio: upload).id).to eq(message.id)
     expect(conversation.messages.outgoing.where(private: false).count).to eq(1)
   end
 

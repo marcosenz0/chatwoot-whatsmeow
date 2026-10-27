@@ -19,7 +19,7 @@ class MarcosxAi::ReviewedReplyService
   def token(snapshot:, audio: nil, content: nil)
     ensure_current!(snapshot)
     Rails.application.message_verifier(PURPOSE).generate(
-      snapshot.merge('audio_digest' => audio && Digest::SHA256.hexdigest(audio), 'spoken_text' => audio && content),
+      snapshot.merge('audio_digest' => audio && Digest::SHA256.hexdigest(audio), 'spoken_text' => audio && content.gsub("\r\n", "\n")),
       purpose: PURPOSE, expires_in: 30.minutes
     )
   end
@@ -30,6 +30,8 @@ class MarcosxAi::ReviewedReplyService
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.analysis_outdated') unless claims
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_response') unless content.is_a?(String) && content.present?
 
+    # Browser multipart fields normalize LF to CRLF, unlike the JSON preview.
+    content = content.gsub("\r\n", "\n")
     state = @conversation.marcosx_ai_conversation_state
     unless state
       ensure_current!(claims)
@@ -52,7 +54,7 @@ class MarcosxAi::ReviewedReplyService
       bytes = audio&.read
       if claims['audio_digest']
         unless bytes && audio.content_type == 'audio/mpeg' && Digest::SHA256.hexdigest(bytes) == claims['audio_digest'] &&
-               content.strip == claims['spoken_text'] && @assistant.voice_ready? &&
+               content.strip == claims['spoken_text'].gsub("\r\n", "\n") && @assistant.voice_ready? &&
                MarcosxAi::VoiceClient::CHANNELS.include?(@conversation.inbox.channel_type)
           raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.invalid_response')
         end

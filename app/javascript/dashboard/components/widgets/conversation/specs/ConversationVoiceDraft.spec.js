@@ -42,6 +42,7 @@ describe('Conversation voice draft', () => {
         assistant_name: 'Selected agent',
         max_characters: 1200,
         review_token: 'text-review',
+        auto_generate_audio: true,
       },
     });
     MarcosxAiAPI.previewConversationVoice.mockResolvedValue({
