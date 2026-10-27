@@ -26,7 +26,7 @@ RSpec.describe MarcosxAi::PromptCache do
   end
 
   it 'keeps scoped catalogs and delivery history after the cache boundary' do
-    resource = assistant.resources.create!(account: account, title: 'Restricted item', kind: 'link', url: 'https://example.com/private',
+    resource = assistant.resources.create!(account: account, title: 'Restricted item', description: 'Private content', kind: 'link', url: 'https://example.com/private',
                                           audience: 'conversation', conversation: conversation)
     request = request_for(assistant, conversation: conversation)
     expect(request[:input].first(2).to_json).not_to include(resource.title, resource.url, '"contact_history":')
@@ -79,7 +79,7 @@ RSpec.describe MarcosxAi::PromptCache do
   it 'rejects invalid cache configuration without accepting arbitrary provider parameters' do
     [{ enabled: 'true', ttl: '30m' }, { enabled: true, ttl: '24h' }].each do |settings|
       assistant.config = assistant.config.merge(prompt_cache: settings)
-      expect(assistant).not_to be_valid
+      expect { MarcosxAi::ConfigurationValidator.validate!(assistant.resolved_config, account: account) }.to raise_error(ArgumentError)
     end
   end
   it 'does not send OpenAI-specific cache fields to a custom compatible endpoint' do
