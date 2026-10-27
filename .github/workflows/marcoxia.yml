@@ -104,7 +104,7 @@ jobs:
       - name: Install media dependencies
         timeout-minutes: 10
         run: |
-          for media_apt_source in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources; do
+          for media_apt_source in /etc/apt/sources.list /etc/apt/sources.list.d/ubuntu.sources /etc/apt/apt-mirrors.txt; do
             if [ -f "$media_apt_source" ]; then
               sudo sed -i 's|azure.archive.ubuntu.com|archive.ubuntu.com|g' "$media_apt_source"
             fi
