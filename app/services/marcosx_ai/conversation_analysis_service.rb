@@ -39,7 +39,8 @@ class MarcosxAi::ConversationAnalysisService
 
     analysis = @state.metadata.fetch('analysis')
     client = MarcosxAi::ProviderClient.new(account: @state.account, provider: @assistant.provider, model: @assistant.model,
-                                           temperature: @assistant.temperature, reasoning_effort: @assistant.reasoning_effort)
+                                           temperature: @assistant.temperature, reasoning_effort: @assistant.reasoning_effort,
+                                           assistant: @assistant, conversation: @conversation, purpose: 'analysis')
     context = MarcosxAi::ConversationContext.new(
       conversation: @conversation, assistant: @assistant, state: @state, client: client,
       trigger_message: history.find(analysis.fetch('trigger_message_id')), token: token,

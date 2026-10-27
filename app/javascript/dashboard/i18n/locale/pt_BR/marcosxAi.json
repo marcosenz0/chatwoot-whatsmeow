@@ -249,8 +249,13 @@
       "SENT": "Resposta enviada",
       "HANDOFF": "Passou para uma pessoa",
       "FAILED": "Agente pausado após um erro",
-      "TOKENS": "{count} tokens",
-      "ANALYSIS": "Histórico analisado"
+      "TOKENS": "Tokens",
+      "ANALYSIS": "Histórico analisado",
+      "PROVIDER_CALL": "Chamada ao modelo",
+      "INPUT": "Entrada",
+      "OUTPUT": "Saída",
+      "READ": "Leitura de cache",
+      "WRITE": "Gravação de cache"
     },
     "CONVERSATION": {
       "ON": "IA ligada",
@@ -695,6 +700,16 @@
       "OPEN_CONVERSATION": "Abrir conversa",
       "PREPARED": "Preparadas",
       "ACTION_ERROR": "Não foi possível confirmar a ação. Atualize o estado antes de repetir o envio."
+    },
+    "CACHE": {
+      "TITLE": "Economizar com cache de instruções",
+      "BODY": "Reaproveita as instruções estáveis do agente entre atendimentos. Cada pessoa continua com seu próprio histórico e contexto. O primeiro uso grava; os seguintes podem ler com desconto.",
+      "UNSUPPORTED": "O controle explícito de cache está disponível para modelos OpenAI GPT-5.6 e posteriores. Outros modelos mantêm o comportamento do provedor.",
+      "LIFETIME": "Tempo mínimo de cache",
+      "THIRTY_MINUTES": "30 minutos — recomendado",
+      "TWELVE_HOURS": "12 horas — atendimentos espaçados",
+      "SHORT_HINT": "Bom para conversas frequentes ou simultâneas. Cada leitura renova o prazo. A economia depende do reaproveitamento; acompanhe os tokens em Atividade.",
+      "LONG_HINT": "Pode ajudar quando as instruções são reutilizadas após intervalos maiores. Gravar custa o dobro da opção de 30 minutos; a leitura tem o mesmo preço. Não garante economia."
     }
   }
 }

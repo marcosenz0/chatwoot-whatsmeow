@@ -72,5 +72,24 @@ RSpec.describe MarcosxAi::ProviderClient do
       body.dig('generationConfig', 'responseMimeType') == 'application/json' && body.dig('systemInstruction', 'parts', 0, 'text') == 'Be helpful.'
     }).to have_been_made.once
   end
+  it 'records every response usage independently, including auxiliary calls and discarded empty output' do
+    data = { id: 'resp-test', output: [], usage: { input_tokens: 2000, output_tokens: 20,
+      input_tokens_details: { cached_tokens: 1800, cache_write_tokens: 0 }, output_tokens_details: { reasoning_tokens: 12 } } }
+    stub_request(:post, 'https://api.openai.com/v1/responses').to_return(status: 200, body: data.to_json,
+                                                                     headers: { 'Content-Type' => 'application/json' })
+    2.times { expect { client.chat(messages: messages, purpose: 'summary') }.to raise_error(CustomExceptions::MarcosxAi) }
+    logs = account.marcosx_ai_logs.where(event: 'provider_call')
+    expect(logs.count).to eq(2)
+    expect(logs.first.response).to include('purpose' => 'summary', 'input_tokens' => 2000, 'cached_tokens' => 1800,
+                                          'cache_write_tokens' => 0, 'reasoning_tokens' => 12, 'response_id' => 'resp-test')
+    expect(logs.map(&:response).to_json).not_to include('Be helpful', 'sk-test-secret')
+  end
+
+  it 'does not retry or discard a valid answer if usage persistence fails' do
+    allow(MarcosxAi::Log).to receive(:create!).and_raise(ActiveRecord::StatementInvalid)
+    expect(client.chat(messages: messages)).to eq('Hello!')
+    expect(a_request(:post, 'https://api.openai.com/v1/responses')).to have_been_made.once
+  end
+
 end
 

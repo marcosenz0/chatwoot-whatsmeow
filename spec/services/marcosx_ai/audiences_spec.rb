@@ -36,7 +36,7 @@ RSpec.describe 'MarcoXIA scoped catalogs and notices' do
 
   it 'filters the Pix prompt and validation without exposing keys or the selected contact list to the model' do
     key
-    prompt = MarcosxAi::PromptBuilder.messages(assistant: assistant, conversation: conversation).first[:content]
+    prompt = MarcosxAi::PromptBuilder.messages(assistant: assistant, conversation: conversation).map { |message| message[:content] }.join("\n")
     expect(prompt).to include(key.title)
     expect(prompt).not_to include(key.key, 'audience_contacts', 'contact_ids')
     expect(MarcosxAi::PromptBuilder.context_for(conversation, assistant: assistant)[:pix_available]).to be(true)
