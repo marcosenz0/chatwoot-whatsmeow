@@ -82,4 +82,13 @@ RSpec.describe MarcosxAi::PromptCache do
       expect(assistant).not_to be_valid
     end
   end
+  it 'does not send OpenAI-specific cache fields to a custom compatible endpoint' do
+    account.marcosx_ai_credentials.create!(provider: 'openai', api_key: 'test', enabled: true, api_base: 'https://proxy.example.com/v1')
+    messages = MarcosxAi::PromptBuilder.messages(assistant: assistant)
+    expect(messages.size).to eq(2)
+    request = described_class.parameters(messages, account_id: account.id, model: assistant.model, api_base: 'https://proxy.example.com/v1')
+    expect(request).not_to have_key(:prompt_cache_options)
+    expect(request).not_to have_key(:prompt_cache_key)
+  end
+
 end

@@ -3,14 +3,22 @@ require 'digest'
 class MarcosxAi::PromptCache
   MARKER = :marcosx_cache_prefix
   LIFETIMES = %w[30m 12h].freeze
+  OPENAI_API = 'https://api.openai.com/v1'.freeze
 
   def self.supported_model?(model)
     version = model.to_s.match(/\Agpt-(\d+)(?:\.(\d+))?(?:-|$)/)
     version && (version[1].to_i >= 6 || (version[1].to_i == 5 && version[2].to_i >= 6))
   end
 
+  def self.official_endpoint?(api_base)
+    api_base.to_s.chomp('/').casecmp?(OPENAI_API)
+  end
+
   def self.enabled?(assistant)
-    assistant.provider == 'openai' && supported_model?(assistant.model) && assistant.resolved_config.dig(:prompt_cache, :enabled) == true
+    credential = assistant.account.marcosx_ai_credentials.find_by(provider: 'openai')
+    endpoint = credential&.resolved_api_base || OPENAI_API
+    assistant.provider == 'openai' && official_endpoint?(endpoint) && supported_model?(assistant.model) &&
+      assistant.resolved_config.dig(:prompt_cache, :enabled) == true
   end
 
   def self.mark!(message, assistant)
@@ -19,9 +27,9 @@ class MarcosxAi::PromptCache
     message
   end
 
-  def self.parameters(messages, account_id:, model:)
+  def self.parameters(messages, account_id:, model:, api_base: OPENAI_API)
     input = messages.map { |message| message.except(MARKER) }
-    return { input: input } unless supported_model?(model)
+    return { input: input } unless supported_model?(model) && official_endpoint?(api_base)
 
     # Unmarked auxiliary requests and disabled agents must not write their changing suffixes.
     result = { input: input, prompt_cache_options: { mode: 'explicit', ttl: '30m' } }

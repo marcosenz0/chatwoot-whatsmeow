@@ -41,4 +41,12 @@ describe('agent prompt cache settings', () => {
     expect(wrapper.emitted('update:modelValue')).toBeUndefined();
     wrapper.unmount();
   });
+  it('does not enable OpenAI-specific controls for a custom endpoint', () => {
+    const wrapper = mount(AgentPromptCache, {
+      props: { ...props, apiBase: 'https://proxy.example.com/v1' },
+    });
+    expect(wrapper.getComponent(AiToggleRow).props('disabled')).toBe(true);
+    expect(wrapper.text()).toContain('UNSUPPORTED');
+    wrapper.unmount();
+  });
 });

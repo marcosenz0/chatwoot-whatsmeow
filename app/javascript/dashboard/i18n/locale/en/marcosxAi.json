@@ -704,7 +704,7 @@
     "CACHE": {
       "TITLE": "Save with instruction caching",
       "BODY": "Reuse the agent’s stable instructions across conversations. Each person keeps their own history and context. The first use writes; later requests can read at a discount.",
-      "UNSUPPORTED": "Explicit cache controls are available for OpenAI GPT-5.6 and later. Other models retain their provider’s behavior.",
+      "UNSUPPORTED": "Explicit cache controls are available for GPT-5.6 and later through the official OpenAI connection. Other connections retain their provider’s behavior.",
       "LIFETIME": "Minimum cache lifetime",
       "THIRTY_MINUTES": "30 minutes — recommended",
       "TWELVE_HOURS": "12 hours — less frequent conversations",

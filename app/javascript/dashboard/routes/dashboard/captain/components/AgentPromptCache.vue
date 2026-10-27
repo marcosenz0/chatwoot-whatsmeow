@@ -8,6 +8,7 @@ const props = defineProps({
   modelValue: { type: Object, required: true },
   provider: { type: String, required: true },
   model: { type: String, required: true },
+  apiBase: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:modelValue']);
@@ -16,6 +17,8 @@ const supported = computed(() => {
   const version = props.model.match(/^gpt-(\d+)(?:\.(\d+))?(?:-|$)/);
   return (
     props.provider === 'openai' &&
+    (!props.apiBase ||
+      /^https:\/\/api\.openai\.com\/v1\/?$/i.test(props.apiBase)) &&
     version &&
     (Number(version[1]) >= 6 ||
       (Number(version[1]) === 5 && Number(version[2]) >= 6))

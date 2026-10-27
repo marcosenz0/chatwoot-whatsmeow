@@ -800,6 +800,7 @@ const channelLabel = inbox =>
                       v-model="form.config.prompt_cache"
                       :provider="form.config.provider"
                       :model="form.config.model"
+                      :api-base="credential?.api_base || ''"
                       :disabled="!canEdit"
                     />
                     <AiToggleRow

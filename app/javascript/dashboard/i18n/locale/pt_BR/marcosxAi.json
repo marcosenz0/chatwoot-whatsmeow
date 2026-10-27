@@ -704,7 +704,7 @@
     "CACHE": {
       "TITLE": "Economizar com cache de instruções",
       "BODY": "Reaproveita as instruções estáveis do agente entre atendimentos. Cada pessoa continua com seu próprio histórico e contexto. O primeiro uso grava; os seguintes podem ler com desconto.",
-      "UNSUPPORTED": "O controle explícito de cache está disponível para modelos OpenAI GPT-5.6 e posteriores. Outros modelos mantêm o comportamento do provedor.",
+      "UNSUPPORTED": "O controle explícito de cache está disponível para modelos GPT-5.6 e posteriores na conexão oficial da OpenAI. Outras conexões mantêm o comportamento do provedor.",
       "LIFETIME": "Tempo mínimo de cache",
       "THIRTY_MINUTES": "30 minutos — recomendado",
       "TWELVE_HOURS": "12 horas — atendimentos espaçados",

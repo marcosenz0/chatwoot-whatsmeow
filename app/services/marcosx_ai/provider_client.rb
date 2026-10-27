@@ -59,7 +59,7 @@ class MarcosxAi::ProviderClient
   def openai_response(messages, schema, purpose)
     started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
     parameters = { model: @model, store: false, max_output_tokens: 8000 }.merge(
-      MarcosxAi::PromptCache.parameters(messages, account_id: @account.id, model: @model)
+      MarcosxAi::PromptCache.parameters(messages, account_id: @account.id, model: @model, api_base: @credential.resolved_api_base)
     )
     if reasoning_model?
       parameters[:reasoning] = { effort: @reasoning_effort }
