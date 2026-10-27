@@ -60,6 +60,18 @@ RSpec.describe MarcosxAi::PromptCache do
     expect(request[:prompt_cache_options][:mode]).to eq('explicit')
   end
 
+  it 'preserves the original ordering of platform and customer context when caching is disabled' do
+    assistant.update!(config: assistant.config.merge(prompt_cache: { enabled: false, ttl: '30m' }))
+    messages = MarcosxAi::PromptBuilder.messages(assistant: assistant, context: { contact: 'Client' }, conversation: conversation)
+    platform = messages.first[:content]
+    expect(messages.map { |message| message[:role] }).to eq(%w[system developer])
+    expect(platform.index('Regras de alerta disponíveis')).to be < platform.index('Use recall_context=true')
+    expect(platform.index('Use recall_context=true')).to be < platform.index('O responsável cadastrou estes arquivos')
+    expect(platform.index('O responsável cadastrou estes arquivos')).to be < platform.index('Chaves Pix cadastradas')
+    expect(platform.index('Chaves Pix cadastradas')).to be < platform.index('Quando houver mensagens com current_request=true')
+    expect(messages.last[:content]).to include('Client')
+  end
+
   it 'avoids implicit writes for unmarked media, summary and credential requests' do
     request = described_class.parameters([{ role: 'user', content: 'Changing input' }], account_id: account.id, model: 'gpt-6-luna')
     expect(request[:prompt_cache_options]).to eq(mode: 'explicit', ttl: '30m')
