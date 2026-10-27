@@ -92,6 +92,7 @@ RSpec.describe MarcosxAi::ReplyBatchRunner do
   end
 
   it 'cancels delivery already queued without sending or erasing manual membership' do
+    allow_any_instance_of(Whatsmeow::SessionClient).to receive(:typing)
     batch.update!(mode: 'direct')
     item
     described_class.new(batch).perform

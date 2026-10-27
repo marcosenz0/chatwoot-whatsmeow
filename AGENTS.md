@@ -1,5 +1,14 @@
 # Chatwoot Development Guidelines
 
+## Current MarcoXIA manual voice reviews — October27,2026
+
+- Principal/MX/MD web/workers run `fork-3b694b9fa5386d7b2c5e162cc4ac5e0c9f7628fa`. Gate40564378388 passed822 targeted checks, scoped lint/build/image. Three published rollback contracts and health200 passed; PR55 is stacked on54 and unmerged.
+- Prepare voice reply defaults to text-only review. The native switch above the text persists a strict boolean in the current user's server ui_settings. Switching never generates or sends the current review; later openings use the saved choice across conversations/browsers. Keep agent voice policy and activation separate. Save failures retain the last confirmed value.
+- JSON preview text uses LF; browser multipart uses CRLF. Normalize those line endings for signed spoken-text comparison without relaxing file digest, content, scope/context/version/expiry or idempotency. Keep the exact preview on send retries; never resynthesize for sending. Existing paused-state protections remain.
+- Published MD actual neutral-speech endpoint returned41003bytes and passed multipart/upload/checksum/retry validation with full rollback; no test channel delivery. One earlier candidate TTS call returned42674bytes. UI used actual components/CSS with synthetic data at1440/390px; served JS chunks match on all three hosts. This is not a new WhatsApp delivery receipt.
+- Audit:12configs only six pins, six bridges/sessions and user/profile/stored-data hashes unchanged.112states present/111identical; state93/conversation112 had normal production traffic at19:20UTC before MD update19:26UTC, independent of owner92 test. Keep that newer real state; do not restore old snapshots. MD generalOFF, Luna/cache/Groq unchanged. The intermittent internal error had no matching retained trace and was not reproduced: do not claim its cause fixed. Read `docs/marcoxia-audio-review-2026-10-27.md` and the HOT operational record.
+- Notion Acompanhamento/Ferramentas updated in the confirmed MARCOS ENZO workspace; readback retained each entire previous page body. Preserve prior notes and unrelated working-tree changes.
+
 ## Current MarcoXIA prompt caching — October 27, 2026
 
 - Independent review reran 28 UI tests, three published rollback contracts and nine actual Luna calls with saved HOT1 instructions/synthetic customer contexts: 3,322-token cache reads in five parallel calls, working opt-out and 12h write/read. Actual PostgreSQL read-only metric rejection recovered its savepoint without repeating the mocked provider call. No functional change or redeployment needed; twelve configs/containers and MD data preserved. For GPT-5.6+, cache keys partition reuse/accounting, not machine routing. See the handoff review and HOT `REVISAO.json`.

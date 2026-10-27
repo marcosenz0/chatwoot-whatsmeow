@@ -8,6 +8,7 @@ import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import Button from 'dashboard/components-next/button/Button.vue';
 import AudioPlayer from 'dashboard/components-next/audio/AudioPlayer.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
+import Switch from 'dashboard/components-next/switch/Switch.vue';
 
 const props = defineProps({
   conversationId: { type: Number, required: true },
@@ -27,6 +28,8 @@ const visible = ref(false);
 const voiceMode = ref(true);
 const sending = ref(false);
 const reviewToken = ref('');
+const autoGenerateAudio = ref(false);
+const savingPreference = ref(false);
 let generation = 0;
 const canGenerate = computed(
   () => content.value.trim() && content.value.length <= maxCharacters.value
@@ -67,7 +70,7 @@ async function notifyError(error) {
   useAlert(data?.error || t('MARCOX_AI.CONVERSATION.ERROR'));
 }
 async function generateAudio() {
-  if (!canGenerate.value) return;
+  if (!canGenerate.value || request.isPending.value || sending.value) return;
   clearPreview();
   const currentGeneration = generation;
   const text = content.value.trim();
@@ -84,6 +87,23 @@ async function generateAudio() {
     reviewToken.value = response.headers['x-marcoxia-review-token'];
   } catch (error) {
     if (currentGeneration === generation) await notifyError(error);
+  }
+}
+async function saveAutoGenerateAudio(enabled) {
+  const currentGeneration = generation;
+  savingPreference.value = true;
+  try {
+    const response = await MarcosxAiAPI.saveVoiceDraftPreference(
+      props.conversationId,
+      enabled
+    );
+    if (currentGeneration === generation) {
+      autoGenerateAudio.value = response.data.auto_generate_audio;
+    }
+  } catch (error) {
+    if (currentGeneration === generation) await notifyError(error);
+  } finally {
+    savingPreference.value = false;
   }
 }
 async function open(action = 'voice_reply') {
@@ -105,7 +125,8 @@ async function open(action = 'voice_reply') {
       ? response.data.max_characters
       : 15000;
     reviewToken.value = response.data.review_token;
-    if (voiceMode.value) await generateAudio();
+    autoGenerateAudio.value = response.data.auto_generate_audio === true;
+    if (voiceMode.value && autoGenerateAudio.value) await generateAudio();
   } catch (error) {
     if (currentGeneration === generation) await notifyError(error);
   }
@@ -169,6 +190,28 @@ defineExpose({ open });
       <p v-if="assistantName" class="m-0 text-sm font-medium text-n-slate-12">
         {{ t('MARCOX_AI.DECISION.COMPOSER', { name: assistantName }) }}
       </p>
+      <div
+        v-if="voiceMode && assistantName"
+        class="flex items-start justify-between gap-4 rounded-lg border border-n-weak p-3"
+      >
+        <div class="min-w-0">
+          <p
+            id="voice-auto-label"
+            class="m-0 text-sm font-medium text-n-slate-12"
+          >
+            {{ t('MARCOX_AI.COMPOSER.VOICE_AUTO') }}
+          </p>
+          <p class="mb-0 mt-1 text-xs text-n-slate-11">
+            {{ t('MARCOX_AI.COMPOSER.VOICE_AUTO_HINT') }}
+          </p>
+        </div>
+        <Switch
+          :model-value="autoGenerateAudio"
+          :disabled="savingPreference || sending"
+          aria-labelledby="voice-auto-label"
+          @update:model-value="saveAutoGenerateAudio"
+        />
+      </div>
       <label class="flex min-w-0 flex-col gap-2 text-sm text-n-slate-12">
         {{
           t(

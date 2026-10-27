@@ -157,6 +157,7 @@ Rails.application.routes.draw do
               resource :draft, only: [:create], controller: 'conversation_drafts' do
                 post :voice
                 post :send_reply
+                put :voice_preference
               end
               resource :analysis, only: [:show, :create], controller: 'conversation_analyses' do
                 post :send_reply

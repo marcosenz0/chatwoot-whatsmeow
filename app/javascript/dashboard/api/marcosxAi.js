@@ -311,6 +311,13 @@ class MarcosxAiAPI extends ApiClient {
     return axios.get(`${this.url}/conversations/${conversationId}/state`);
   }
 
+  saveVoiceDraftPreference(conversationId, enabled) {
+    return axios.put(
+      `${this.url}/conversations/${conversationId}/draft/voice_preference`,
+      { draft: { auto_generate_audio: enabled } }
+    );
+  }
+
   sendReviewedReply(conversationId, content, reviewToken, audio = null) {
     const data = new FormData();
     data.append('draft[content]', content);
