@@ -1,5 +1,12 @@
 # Chatwoot Development Guidelines
 
+## Current MarcoXIA prompt caching — October 27, 2026
+
+- Principal/MX/MD web/workers run `fork-c8410cf052115568e641cc8a3bd77d8a5450b291`. Gate40504788209 passed 822 targeted tests (429 frontend + 393 Rails), scoped lint/build and image publication. Three rollback-only published contracts, health200 and real synthetic Luna tests passed. Older release pins below are historical; PR54 is stacked on53.
+- The official OpenAI/GPT-5.6+ Responses path uses a marked stable prefix scoped by account and assistant. Keep contact data, conversation history, time, transcripts and per-person catalogs after the breakpoint; no shared client memory. Unmarked auxiliary requests must not write their changing suffix. Unsupported providers/models/custom endpoints preserve the legacy prompt. Agent Conversation settings default to enabled/30m with opt-out and 12h choice; expose cache usage per successful instrumented call without content or secrets. Never retry a billed response because usage logging failed.
+- Published MD synthetic test: 1,796-token write, then six 1,796-token reads including five concurrent conversations; separate 12h write, no customer deliveries or DB writes. Results show a working example, not guaranteed future savings. Actual MD UI displayed enabled/30m. The audit preserved 106 states, profiles/data, three batches/16 items, six bridge containers and session states; MD generalOFF, Luna and Groq/Turbo transcription unchanged. Three principal WhatsApp sessions were already disconnected before the rollout.
+- Repository-wide CE and global lint remain failing, with unrelated baseline failures and some new metric-style offenses; bundle-audit flags existing locked dependencies including ruby_llm. Targeted gate success is not full-suite success. Read `docs/marcoxia-prompt-cache-2026-10-27.md` and HOT operational record. Notion Acompanhamento/Ferramentas updated; preserve unrelated changes.
+
 ## Current MarcoXIA independent transcription and quiet inactive badges — October26,2026
 
 - Principal/MX/MD web/workers run `fork-0bb96e3d3d35c2199532403b4d5bebc5723552a6`. Gate40369441831 passed805 targeted tests (424frontend+381Rails), lint/build/image. Three published rollback contracts and health200 passed; older pins below are historical. PR53 is stacked on52.
