@@ -220,7 +220,8 @@ RSpec.describe 'MarcoXIA operations API', type: :request do
     expect(assistant.reload.resolved_config[:auto_response_enabled]).to be(false)
     get "#{endpoint}/assistants/#{assistant.id}/prompt", headers: admin.create_new_auth_token
     expect(response.parsed_body['editable']).to include('Speak warmly')
-    expect(response.parsed_body['technical']).to include('JSON')
+    expect(response.parsed_body['technical']).to include('JSON', 'Chaves Pix cadastradas')
+    expect(response.parsed_body['editable']).to include('Contexto do atendimento')
   end
 
   it 'rejects cross-account recipients and invalid rule actions atomically' do

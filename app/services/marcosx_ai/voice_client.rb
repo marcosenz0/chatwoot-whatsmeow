@@ -76,7 +76,7 @@ class MarcosxAi::VoiceClient
     if spoken.match?(/\d/)
       client = MarcosxAi::ProviderClient.new(account: @assistant.account, provider: @assistant.provider, model: @assistant.model,
                                              temperature: @assistant.temperature, reasoning_effort: @assistant.reasoning_effort,
-                                           assistant: @assistant, conversation: nil, purpose: 'voice_normalization')
+                                             assistant: @assistant, conversation: nil, purpose: 'voice_normalization')
       schema = { type: 'object', additionalProperties: false, properties: { text: { type: 'string' } }, required: ['text'] }
       result = client.chat(messages: [
                              { role: 'system', content: NORMALIZATION_PROMPT },

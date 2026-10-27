@@ -272,7 +272,8 @@ RSpec.describe 'MarcoXIA conversation runtime' do
     token = state.reload.metadata['run_token']
     MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, incoming.id, token)
     expect(client).to have_received(:chat) do |arguments|
-      expect(arguments[:messages].find { |item| item[:role] == 'developer' }[:content]).to include('"voice_requested":true')
+      developer = arguments[:messages].select { |item| item[:role] == 'developer' }.pluck(:content).join("\n")
+      expect(developer).to include('"voice_requested":true')
       current = arguments[:messages].select { |item| item[:role] == 'user' }.map { |item| JSON.parse(item[:content]) }
       expect(current.select { |item| item['current_request'] }.pluck('message_id')).to eq([incoming.id])
     end

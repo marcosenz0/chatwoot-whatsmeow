@@ -44,7 +44,9 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
   def prompt
     messages = MarcosxAi::PromptBuilder.messages(assistant: @assistant, context: { runtime: 'contact, inbox, channel, timezone, now' },
                                                  reactions: @assistant.feature_enabled?(:allow_reactions))
-    render json: { technical: messages.first[:content], editable: messages.last[:content] }
+    technical = messages.select { |message| message[:role] == 'system' }.pluck(:content).join("\n\n")
+    editable = messages.select { |message| message[:role] == 'developer' }.pluck(:content).join("\n\n")
+    render json: { technical: technical, editable: editable }
   end
 
   def test_notification
