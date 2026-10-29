@@ -103,7 +103,7 @@ watch(
           </p>
         </div>
       </div>
-      <div v-if="canEdit && ready" class="flex items-center gap-1">
+      <div v-if="canEdit && ready" class="flex flex-wrap items-center gap-1">
         <Button
           type="button"
           variant="ghost"
