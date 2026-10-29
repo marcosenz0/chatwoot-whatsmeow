@@ -33,6 +33,7 @@ class MarcosxAi::ModelCatalog
       reasoning: (provider == 'openai' && id.match?(/\A(gpt-[5-9]|o[3-9])/)) ||
         (provider == 'groq' && id.match?(/gpt-oss|qwen3\.[68]-27b/)),
       files: provider != 'groq',
+      structured_outputs: provider == 'groq' && %w[qwen/qwen3.8-27b openai/gpt-oss-120b openai/gpt-oss-20b].include?(id),
       max_images: provider == 'groq' && id.match?(/qwen3\.[68]-27b/) ? 3 : 6
     }
   end

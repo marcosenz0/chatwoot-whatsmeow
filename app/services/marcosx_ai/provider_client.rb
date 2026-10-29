@@ -98,7 +98,13 @@ class MarcosxAi::ProviderClient
   def compatible_response(messages, schema)
     parameters = { model: @model, messages: compatible_messages(messages), temperature: @temperature, max_tokens: 4096 }
     parameters[:reasoning_effort] = @reasoning_effort if MarcosxAi::ModelCatalog.describe(@model, @provider)[:reasoning]
-    parameters[:response_format] = { type: 'json_object' } if schema
+    if schema
+      parameters[:response_format] = if MarcosxAi::ModelCatalog.describe(@model, @provider)[:structured_outputs]
+                                       { type: 'json_schema', json_schema: { name: 'customer_reply', strict: true, schema: schema } }
+                                     else
+                                       { type: 'json_object' }
+                                     end
+    end
     response = sdk.chat(parameters: parameters)
     @usage = response['usage']
     response.dig('choices', 0, 'message', 'content').to_s.presence ||

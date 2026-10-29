@@ -75,7 +75,9 @@ RSpec.describe 'MarcoXIA Groq text and vision' do
     %w[qwen/qwen3.8-27b openai/gpt-oss-120b].each do |model|
       stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').with do |request|
         body = JSON.parse(request.body)
-        body['model'] == model && body['reasoning_effort'] == 'low' && body['response_format'] == { 'type' => 'json_object' }
+        body['model'] == model && body['reasoning_effort'] == 'low' && body.dig('response_format', 'type') == 'json_schema' &&
+          body.dig('response_format', 'json_schema', 'strict') == true &&
+          body.dig('response_format', 'json_schema', 'schema') == MarcosxAi::ReplyPlan::SCHEMA.deep_stringify_keys
       end.to_return(status: 200, body: { choices: [{ message: { content: '{"messages":["Hello"]}' } }] }.to_json,
                     headers: { 'Content-Type' => 'application/json' })
       result = MarcosxAi::ProviderClient.new(account: account, provider: 'groq', model: model, reasoning_effort: 'low')
