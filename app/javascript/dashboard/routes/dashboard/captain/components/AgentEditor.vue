@@ -52,11 +52,13 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const form = ref({});
+const validationError = ref('');
 const connectionDrafts = ref({});
 const connectionChange = (provider, draft) => {
   connectionDrafts.value[provider] = draft;
 };
-const submit = () =>
+const submit = () => {
+  validationError.value = '';
   emit(
     'save',
     form.value,
@@ -64,6 +66,7 @@ const submit = () =>
       .filter(([, draft]) => draft.dirty)
       .map(([provider, draft]) => ({ ...draft, provider }))
   );
+};
 const initialForm = ref('');
 const effectivePrompt = ref(null);
 const directiveText = field =>
@@ -132,7 +135,6 @@ const hasUnsavedChanges = computed(
   () => JSON.stringify(form.value) !== initialForm.value
 );
 const section = ref(props.initialSection);
-const validationError = ref('');
 const showInvalidField = async event => {
   event.preventDefault();
   const field = event.target;
