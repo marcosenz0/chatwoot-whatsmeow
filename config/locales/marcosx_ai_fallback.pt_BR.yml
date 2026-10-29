@@ -7,3 +7,4 @@ pt_BR:
       invalid_fallback: "Escolha provedor, conexão e modelo compatíveis para a reserva."
       same_fallback: "A reserva deve usar uma conexão diferente da principal."
       invalid_output_limit: "Escolha um limite de saída entre 128 e 32768 tokens."
+      output_limit: "O modelo atingiu o limite de saída antes de concluir a resposta. Aumente o orçamento de saída ou confira a conexão reserva."

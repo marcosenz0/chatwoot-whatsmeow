@@ -164,6 +164,27 @@ RSpec.describe MarcosxAi::ConnectionRouter do
     expect(client.chat(messages: messages)).to eq('Configured reserve')
   end
 
+  %w[groq openai gemini].each do |provider|
+    it "does not use a reply cut off by #{provider}'s output budget and tries the reserve" do
+      primary.update!(provider: provider)
+      reserve.update!(provider: provider == 'openai' ? 'groq' : 'openai')
+      assistant
+      urls = { 'openai' => 'https://api.openai.com/v1/responses', 'groq' => 'https://api.groq.com/openai/v1/chat/completions',
+               'gemini' => 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent' }
+      partials = {
+        'openai' => { incomplete_details: { reason: 'max_output_tokens' }, output: [{ content: [{ type: 'output_text', text: '{"messages":[' }] }] },
+        'groq' => { choices: [{ finish_reason: 'length', message: { content: '{"messages":[' } }] },
+        'gemini' => { candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: '{"messages":[' }] } }] }
+      }
+      output = reserve.provider == 'groq' ? { choices: [{ message: { content: 'Complete answer' } }] } :
+        { output: [{ content: [{ type: 'output_text', text: 'Complete answer' }] }] }
+      stub_request(:post, urls.fetch(provider)).to_return(status: 200, body: partials.fetch(provider).to_json, headers: { 'Content-Type' => 'application/json' })
+      stub_request(:post, urls.fetch(reserve.provider)).to_return(status: 200, body: output.to_json, headers: { 'Content-Type' => 'application/json' })
+      expect(client.chat(messages: messages)).to eq('Complete answer')
+      expect(primary.reload.health['state']).to eq('error')
+    end
+  end
+
   it 'treats an empty provider response as a technical failure and tries the reserve' do
     stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').to_return(
       status: 200, body: { choices: [{ message: { content: '' } }] }.to_json, headers: { 'Content-Type' => 'application/json' }

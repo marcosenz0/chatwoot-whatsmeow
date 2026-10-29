@@ -129,6 +129,7 @@ class MarcosxAi::ProviderClient
     end
     parameters[:text] = { format: { type: 'json_schema', name: 'customer_reply', strict: true, schema: schema } } if schema
     response = sdk.json_post(path: '/responses', parameters: parameters)
+    raise_output_limit if response.dig('incomplete_details', 'reason') == 'max_output_tokens'
     @usage = response['usage']
     MarcosxAi::ProviderUsage.record(account: @account, assistant: @assistant, conversation: @conversation, model: @model,
                                     purpose: purpose, response: response, parameters: parameters, started_at: started_at)
@@ -154,6 +155,7 @@ class MarcosxAi::ProviderClient
                                      end
     end
     response = sdk.chat(parameters: parameters)
+    raise_output_limit if response.dig('choices', 0, 'finish_reason') == 'length'
     @usage = response['usage']
     response.dig('choices', 0, 'message', 'content').to_s.presence ||
       raise_empty_response
@@ -188,6 +190,7 @@ class MarcosxAi::ProviderClient
     }
     body[:generationConfig].merge!(responseMimeType: 'application/json', responseJsonSchema: schema) if schema
     response = gemini_request(:post, "models/#{@model}:generateContent", body)
+    raise_output_limit if response.dig('candidates', 0, 'finishReason') == 'MAX_TOKENS'
     @usage = response['usageMetadata']
     response.dig('candidates', 0, 'content', 'parts')&.reject { |part| part['thought'] }&.pluck('text')&.join.presence ||
       raise_empty_response
@@ -223,5 +226,9 @@ class MarcosxAi::ProviderClient
 
   def raise_empty_response
     raise CustomExceptions::MarcosxAi.new(I18n.t('marcosx_ai.errors.empty_response'), provider_failure: true)
+  end
+
+  def raise_output_limit
+    raise CustomExceptions::MarcosxAi.new(I18n.t('marcosx_ai.errors.output_limit'), provider_failure: true)
   end
 end
