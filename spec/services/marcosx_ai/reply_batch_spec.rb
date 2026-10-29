@@ -112,6 +112,7 @@ RSpec.describe MarcosxAi::ReplyBatchRunner do
   end
 
   it 'does not cancel the new automatic reply when an incoming message supersedes a batch' do
+    allow_any_instance_of(Whatsmeow::SessionClient).to receive(:typing)
     assistant.update!(config: assistant.resolved_config.merge(auto_response_enabled: true))
     batch.update!(mode: 'direct')
     item
