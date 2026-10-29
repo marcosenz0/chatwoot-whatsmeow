@@ -42,8 +42,9 @@ class MarcosxAi::Credential < ApplicationRecord
     settings = hook&.settings || {}
     return credential if settings["#{provider}_api_key"].blank?
 
-    account.marcosx_ai_credentials.new(
-      provider: provider, api_key: settings["#{provider}_api_key"], enabled: true, api_base: settings["#{provider}_api_base"].presence,
+    new(
+      account_id: account.id, provider: provider, api_key: settings["#{provider}_api_key"], enabled: true,
+      api_base: settings["#{provider}_api_base"].presence,
       created_at: hook.created_at, updated_at: hook.updated_at
     )
   end
