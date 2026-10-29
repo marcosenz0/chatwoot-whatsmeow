@@ -1,5 +1,7 @@
 class MarcosxAi::ProviderClient
   TIMEOUT = 120
+  MAX_RATE_LIMIT_RETRIES = 2
+  MAX_RATE_LIMIT_WAIT = 60
   attr_reader :usage
 
   def initialize(account:, provider:, model: nil, temperature: 0.7, reasoning_effort: 'medium', assistant: nil, conversation: nil, purpose: 'other')
@@ -17,6 +19,7 @@ class MarcosxAi::ProviderClient
   end
 
   def chat(messages:, schema: nil, purpose: nil)
+    rate_limit_retries ||= 0
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.credential_missing') unless @credential.enabled && @credential.configured?
 
     case @provider
@@ -24,6 +27,14 @@ class MarcosxAi::ProviderClient
     when 'groq' then compatible_response(messages, schema)
     when 'gemini' then gemini_response(messages, schema)
     end
+  rescue Faraday::TooManyRequestsError => e
+    delay = Float(e.response&.dig(:headers, 'retry-after').to_s, exception: false)
+    if @provider == 'groq' && delay&.between?(0, MAX_RATE_LIMIT_WAIT) && rate_limit_retries < MAX_RATE_LIMIT_RETRIES
+      rate_limit_retries += 1
+      Kernel.sleep(delay.ceil)
+      retry
+    end
+    raise_provider_error(e)
   rescue Faraday::Error => e
     raise_provider_error(e)
   end

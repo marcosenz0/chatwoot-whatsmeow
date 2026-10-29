@@ -90,6 +90,45 @@ RSpec.describe 'MarcoXIA Groq text and vision' do
     assistant.update!(description: 'Changed')
   end
 
+  it 'respects a short Groq Retry-After before retrying a rejected request' do
+    stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').to_return(
+      { status: 429, body: { error: { message: 'Temporary token limit' } }.to_json,
+        headers: { 'Content-Type' => 'application/json', 'retry-after' => '0.5' } },
+      { status: 200, body: { choices: [{ message: { content: 'Recovered answer' } }] }.to_json, headers: { 'Content-Type' => 'application/json' } }
+    )
+    expect(Kernel).to receive(:sleep).with(1).once
+    result = MarcosxAi::ProviderClient.new(account: account, provider: 'groq', model: 'qwen/qwen3.8-27b')
+                                     .chat(messages: [{ role: 'user', content: 'Hello' }])
+    expect(result).to eq('Recovered answer')
+    expect(a_request(:post, 'https://api.groq.com/openai/v1/chat/completions')).to have_been_made.twice
+  end
+
+  it 'bounds quota retries and never waits through a daily limit' do
+    stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').to_return(
+      status: 429, body: { error: { message: 'Daily limit' } }.to_json,
+      headers: { 'Content-Type' => 'application/json', 'retry-after' => '3600' }
+    )
+    expect(Kernel).not_to receive(:sleep)
+    expect {
+      MarcosxAi::ProviderClient.new(account: account, provider: 'groq', model: 'qwen/qwen3.8-27b')
+                              .chat(messages: [{ role: 'user', content: 'Hello' }])
+    }.to raise_error { |error| expect(error.class.name).to eq('CustomExceptions::MarcosxAi') }
+    expect(a_request(:post, 'https://api.groq.com/openai/v1/chat/completions')).to have_been_made.once
+  end
+
+  it 'stops after two repeated short quota waits instead of retrying indefinitely' do
+    stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').to_return(
+      status: 429, body: { error: { message: 'Token limit' } }.to_json,
+      headers: { 'Content-Type' => 'application/json', 'retry-after' => '1' }
+    )
+    expect(Kernel).to receive(:sleep).with(1).twice
+    expect {
+      MarcosxAi::ProviderClient.new(account: account, provider: 'groq', model: 'qwen/qwen3.8-27b')
+                              .chat(messages: [{ role: 'user', content: 'Hello' }])
+    }.to raise_error { |error| expect(error.class.name).to eq('CustomExceptions::MarcosxAi') }
+    expect(a_request(:post, 'https://api.groq.com/openai/v1/chat/completions')).to have_been_made.times(3)
+  end
+
   it 'rejects text-only image models and invalid image settings at the configuration boundary' do
     config = assistant.resolved_config
     config[:vision][:model] = 'openai/gpt-oss-120b'
