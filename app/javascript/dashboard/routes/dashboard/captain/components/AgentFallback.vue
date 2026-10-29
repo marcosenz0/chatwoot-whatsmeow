@@ -6,7 +6,7 @@ import AiSelect from './AiSelect.vue';
 import AiModelSelect from './AiModelSelect.vue';
 import AgentConnection from './AgentConnection.vue';
 import AgentConnectionPicker from './AgentConnectionPicker.vue';
-import { providerChoices } from './connectionDefaults';
+import { connectionActive, providerChoices } from './connectionDefaults';
 
 const props = defineProps({
   credentials: { type: Array, default: () => [] },
@@ -58,6 +58,14 @@ const changeProvider = value => {
       : props.providers[value]?.default_model) ||
     '';
 };
+const active = computed(() =>
+  connectionActive(
+    props.status,
+    credential.value,
+    settings.value.provider,
+    'fallback'
+  )
+);
 watch(
   [() => settings.value.provider, () => settings.value.connection_id],
   ([provider, id]) => {
@@ -76,7 +84,7 @@ watch(
     />
     <div v-if="settings.enabled" class="space-y-4">
       <p
-        v-if="status.active_role === 'fallback'"
+        v-if="active"
         role="status"
         class="m-0 flex items-center gap-2 text-sm font-medium text-n-teal-11"
       >
@@ -121,7 +129,7 @@ watch(
         :defaults="providers[settings.provider]"
         :can-edit="canEdit"
         :busy="busyProvider === settings.provider"
-        :active="status.active_role === 'fallback'"
+        :active="active"
         @save="emit('saveConnection', settings.provider, $event)"
         @test="
           emit(

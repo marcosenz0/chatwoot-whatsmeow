@@ -16,6 +16,7 @@ import AgentConnectionPicker from './AgentConnectionPicker.vue';
 import {
   fallbackDefaults,
   transcriptionFallbackDefaults,
+  connectionActive,
 } from './connectionDefaults';
 import AiPlayground from './AiPlayground.vue';
 import AgentAttendance from './AgentAttendance.vue';
@@ -654,7 +655,14 @@ const channelLabel = inbox =>
                     :defaults="providers[form.config.provider]"
                     :can-edit="canEdit"
                     :busy="busyProvider === form.config.provider"
-                    :active="connectionStatus.chat?.active_role === 'primary'"
+                    :active="
+                      connectionActive(
+                        connectionStatus.chat,
+                        credential,
+                        form.config.provider,
+                        'primary'
+                      )
+                    "
                     @save="
                       connection =>
                         emit('saveConnection', form.config.provider, connection)

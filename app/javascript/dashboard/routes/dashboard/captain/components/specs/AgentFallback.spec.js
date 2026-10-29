@@ -148,6 +148,24 @@ it('keeps a failed account creation visible for correction', async () => {
   wrapper.unmount();
 });
 
+it('marks only the exact reserve account used by the saved runtime as active', async () => {
+  const wrapper = mount(AgentFallback, {
+    props: {
+      modelValue: { ...fallback },
+      credentials: [main, reserve],
+      catalogs,
+      canEdit: true,
+      status: { active_role: 'fallback', active_key: 'credential:1' },
+    },
+  });
+  expect(wrapper.text()).not.toContain('MARCOX_AI.FALLBACK.IN_USE');
+  await wrapper.setProps({
+    status: { active_role: 'fallback', active_key: 'credential:2' },
+  });
+  expect(wrapper.text()).toContain('MARCOX_AI.FALLBACK.IN_USE');
+  wrapper.unmount();
+});
+
 it('uses a transcription model when changing the reserve audio provider', async () => {
   const settings = { ...fallback };
   const wrapper = mount(AgentFallback, {

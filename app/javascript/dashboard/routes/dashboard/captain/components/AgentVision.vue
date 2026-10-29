@@ -8,6 +8,7 @@ import AiToggleRow from './AiToggleRow.vue';
 import AgentConnection from './AgentConnection.vue';
 import AgentConnectionPicker from './AgentConnectionPicker.vue';
 import AgentFallback from './AgentFallback.vue';
+import { connectionActive } from './connectionDefaults';
 
 const props = defineProps({
   agentProvider: { type: String, required: true },
@@ -134,7 +135,7 @@ const fields = [
       :defaults="providers[provider]"
       :can-edit="canEdit"
       :busy="busyProvider === provider"
-      :active="status.active_role === 'primary'"
+      :active="connectionActive(status, credential, provider, 'primary')"
       @save="emit('saveConnection', provider, $event)"
       @test="emit('testConnection', provider, credential?.id, settings.model)"
       @refresh="emit('refreshModels', provider, settings.connection_id)"

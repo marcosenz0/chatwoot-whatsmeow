@@ -13,3 +13,10 @@ export const providerChoices = [
   { value: 'groq', label: 'Groq', icon: 'i-lucide-zap' },
   { value: 'gemini', label: 'Google Gemini', icon: 'i-lucide-sparkle' },
 ];
+
+export const connectionActive = (status, credential, provider, role) =>
+  status?.active_role === role &&
+  status.active_key ===
+    (credential?.id
+      ? `credential:${credential.id}`
+      : `integration:${provider}`);
