@@ -588,127 +588,188 @@ const channelLabel = inbox =>
               <div
                 v-show="section === 'identity'"
                 data-agent-section="identity"
-                class="grid grid-cols-1 items-start gap-5 xl:grid-cols-2"
+                class="space-y-6"
               >
                 <AgentSection
                   :title="t('MARCOX_AI.DESIGN.AGENT_IDENTITY')"
                   icon="i-lucide-user-round"
                 >
-                  <label class="block text-sm font-medium text-n-slate-12">
-                    {{ t('MARCOX_AI.EDITOR.NAME') }}
-                    <input
-                      v-model="form.name"
-                      required
-                      maxlength="120"
-                      :placeholder="t('MARCOX_AI.EDITOR.NAME_PLACEHOLDER')"
-                      class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
-                    />
-                  </label>
-                  <label class="block text-sm font-medium text-n-slate-12">
-                    {{ t('MARCOX_AI.EDITOR.DESCRIPTION') }}
-                    <input
-                      v-model="form.description"
-                      :placeholder="
-                        t('MARCOX_AI.EDITOR.DESCRIPTION_PLACEHOLDER')
-                      "
-                      class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
-                    />
-                  </label>
-                </AgentSection>
-                <AgentSection
-                  :title="t('MARCOX_AI.DESIGN.MODEL_CONNECTION')"
-                  icon="i-lucide-sparkles"
-                >
                   <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <label class="block text-sm font-medium text-n-slate-12">
-                      {{ t('MARCOX_AI.EDITOR.PROVIDER') }}
-                      <AiSelect
-                        :model-value="form.config.provider"
-                        :options="providerOptions"
-                        :label="t('MARCOX_AI.EDITOR.PROVIDER')"
-                        :disabled="!canEdit"
-                        class="mt-2"
-                        @update:model-value="changeProvider"
+                      {{ t('MARCOX_AI.EDITOR.NAME') }}
+                      <input
+                        v-model="form.name"
+                        required
+                        maxlength="120"
+                        :placeholder="t('MARCOX_AI.EDITOR.NAME_PLACEHOLDER')"
+                        class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
                       />
                     </label>
                     <label class="block text-sm font-medium text-n-slate-12">
-                      {{ t('MARCOX_AI.EDITOR.MODEL') }}
-                      <AiModelSelect
-                        v-model="form.config.model"
-                        :models="modelOptions"
-                        :disabled="!canEdit"
-                        class="mt-2"
+                      {{ t('MARCOX_AI.EDITOR.DESCRIPTION') }}
+                      <input
+                        v-model="form.description"
+                        :placeholder="
+                          t('MARCOX_AI.EDITOR.DESCRIPTION_PLACEHOLDER')
+                        "
+                        class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
                       />
                     </label>
                   </div>
+                </AgentSection>
+                <AgentSection
+                  :title="t('MARCOX_AI.DESIGN.ATTENDANCE')"
+                  icon="i-lucide-messages-square"
+                >
+                  <AiToggleRow
+                    v-model="form.config.auto_response_enabled"
+                    :label="t('MARCOX_AI.EDITOR.ENABLE')"
+                    :description="t('MARCOX_AI.EDITOR.ENABLE_HINT')"
+                    :disabled="!connectionReady"
+                  />
                   <p
-                    class="m-0 flex items-center gap-2 text-xs text-n-slate-11"
+                    v-if="!connectionReady"
+                    class="pb-3 text-xs text-n-amber-11"
                   >
-                    <span class="i-lucide-scan-eye size-4" />
-                    {{
-                      model?.vision
-                        ? t('MARCOX_AI.EDITOR.MODEL_MEDIA')
-                        : t('MARCOX_AI.EDITOR.MODEL_TEXT')
-                    }}
+                    {{ t('MARCOX_AI.EDITOR.CONNECTION_REQUIRED') }}
                   </p>
-                  <AgentOutputLimit
-                    v-model="form.config.max_output_tokens"
-                    :provider="form.config.provider"
-                    :disabled="!canEdit"
-                  />
-                  <AgentConnection
-                    :provider="form.config.provider"
-                    :credential="credential"
-                    :defaults="providers[form.config.provider]"
-                    :can-edit="canEdit"
-                    :busy="busyProvider === form.config.provider"
-                    :active="
-                      connectionActive(
-                        connectionStatus.chat,
-                        credential,
-                        form.config.provider,
-                        'primary'
-                      )
-                    "
-                    @save="
-                      connection =>
-                        emit('saveConnection', form.config.provider, connection)
-                    "
-                    @test="
-                      emit(
-                        'testConnection',
-                        form.config.provider,
-                        credential?.id,
-                        form.config.model
-                      )
-                    "
-                    @refresh="
-                      emit(
-                        'refreshModels',
-                        form.config.provider,
-                        form.config.connection_id
-                      )
-                    "
-                    @change="
-                      connectionChange(
-                        credential?.id
-                          ? `connection:${credential.id}`
-                          : form.config.provider,
-                        $event
-                      )
-                    "
-                  />
-                  <AgentConnectionPicker
-                    v-model="form.config.connection_id"
-                    :provider="form.config.provider"
-                    :credentials="credentials"
-                    :defaults="providers[form.config.provider]"
-                    :disabled="!canEdit"
-                    @connection-created="emit('connectionCreated', $event)"
-                    @update:model-value="
-                      emit('refreshModels', form.config.provider, $event)
-                    "
-                  />
+                </AgentSection>
+                <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+                  <AgentSection
+                    :title="t('MARCOX_AI.DESIGN.CHAT_PRIMARY')"
+                    icon="i-lucide-sparkles"
+                  >
+                    <p class="m-0 text-sm leading-6 text-n-slate-11">
+                      {{ t('MARCOX_AI.DESIGN.CHAT_PRIMARY_HINT') }}
+                    </p>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <label class="block text-sm font-medium text-n-slate-12">
+                        {{ t('MARCOX_AI.EDITOR.PROVIDER') }}
+                        <AiSelect
+                          :model-value="form.config.provider"
+                          :options="providerOptions"
+                          :label="t('MARCOX_AI.EDITOR.PROVIDER')"
+                          :disabled="!canEdit"
+                          class="mt-2"
+                          @update:model-value="changeProvider"
+                        />
+                      </label>
+                      <label class="block text-sm font-medium text-n-slate-12">
+                        {{ t('MARCOX_AI.EDITOR.MODEL') }}
+                        <AiModelSelect
+                          v-model="form.config.model"
+                          :models="modelOptions"
+                          :disabled="!canEdit"
+                          class="mt-2"
+                        />
+                      </label>
+                    </div>
+                    <p
+                      class="m-0 flex items-center gap-2 text-xs text-n-slate-11"
+                    >
+                      <span class="i-lucide-scan-eye size-4" />
+                      {{
+                        model?.vision
+                          ? t('MARCOX_AI.EDITOR.MODEL_MEDIA')
+                          : t('MARCOX_AI.EDITOR.MODEL_TEXT')
+                      }}
+                    </p>
+                    <AgentOutputLimit
+                      v-model="form.config.max_output_tokens"
+                      :provider="form.config.provider"
+                      :disabled="!canEdit"
+                    />
+                    <AgentConnection
+                      :provider="form.config.provider"
+                      :credential="credential"
+                      :defaults="providers[form.config.provider]"
+                      :can-edit="canEdit"
+                      :busy="busyProvider === form.config.provider"
+                      :active="
+                        connectionActive(
+                          connectionStatus.chat,
+                          credential,
+                          form.config.provider,
+                          'primary'
+                        )
+                      "
+                      @save="
+                        connection =>
+                          emit(
+                            'saveConnection',
+                            form.config.provider,
+                            connection
+                          )
+                      "
+                      @test="
+                        emit(
+                          'testConnection',
+                          form.config.provider,
+                          credential?.id,
+                          form.config.model
+                        )
+                      "
+                      @refresh="
+                        emit(
+                          'refreshModels',
+                          form.config.provider,
+                          form.config.connection_id
+                        )
+                      "
+                      @change="
+                        connectionChange(
+                          credential?.id
+                            ? `connection:${credential.id}`
+                            : form.config.provider,
+                          $event
+                        )
+                      "
+                    />
+                    <AgentConnectionPicker
+                      v-model="form.config.connection_id"
+                      :provider="form.config.provider"
+                      :credentials="credentials"
+                      :defaults="providers[form.config.provider]"
+                      :disabled="!canEdit"
+                      @connection-created="emit('connectionCreated', $event)"
+                      @update:model-value="
+                        emit('refreshModels', form.config.provider, $event)
+                      "
+                    />
+
+                    <label
+                      v-if="model?.reasoning"
+                      class="block text-sm font-medium text-n-slate-12"
+                    >
+                      {{ t('MARCOX_AI.EDITOR.REASONING') }}
+                      <AiSelect
+                        v-model="form.config.reasoning_effort"
+                        :options="
+                          ['low', 'medium', 'high'].map(value => ({
+                            value,
+                            label: t(`MARCOX_AI.EDITOR.${value.toUpperCase()}`),
+                          }))
+                        "
+                        :label="t('MARCOX_AI.EDITOR.REASONING')"
+                        :disabled="!canEdit"
+                        class="mt-2"
+                      />
+                    </label>
+                    <label
+                      v-else
+                      class="block text-sm font-medium text-n-slate-12"
+                    >
+                      {{ t('MARCOX_AI.EDITOR.TEMPERATURE') }}
+                      <input
+                        v-model.number="form.config.temperature"
+                        type="number"
+                        min="0"
+                        max="2"
+                        step="0.1"
+                        class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
+                      />
+                    </label>
+                  </AgentSection>
                   <AgentFallback
                     v-model="form.config.fallback"
                     can-swap
@@ -733,56 +794,8 @@ const channelLabel = inbox =>
                     @connection-change="connectionChange"
                     @connection-created="emit('connectionCreated', $event)"
                   />
-                  <label
-                    v-if="model?.reasoning"
-                    class="block text-sm font-medium text-n-slate-12"
-                  >
-                    {{ t('MARCOX_AI.EDITOR.REASONING') }}
-                    <AiSelect
-                      v-model="form.config.reasoning_effort"
-                      :options="
-                        ['low', 'medium', 'high'].map(value => ({
-                          value,
-                          label: t(`MARCOX_AI.EDITOR.${value.toUpperCase()}`),
-                        }))
-                      "
-                      :label="t('MARCOX_AI.EDITOR.REASONING')"
-                      :disabled="!canEdit"
-                      class="mt-2"
-                    />
-                  </label>
-                  <label
-                    v-else
-                    class="block text-sm font-medium text-n-slate-12"
-                  >
-                    {{ t('MARCOX_AI.EDITOR.TEMPERATURE') }}
-                    <input
-                      v-model.number="form.config.temperature"
-                      type="number"
-                      min="0"
-                      max="2"
-                      step="0.1"
-                      class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
-                    />
-                  </label>
-                  <div
-                    class="rounded-xl border border-n-weak bg-n-alpha-1 px-4"
-                  >
-                    <AiToggleRow
-                      v-model="form.config.auto_response_enabled"
-                      :label="t('MARCOX_AI.EDITOR.ENABLE')"
-                      :description="t('MARCOX_AI.EDITOR.ENABLE_HINT')"
-                      :disabled="!connectionReady"
-                    />
-                    <p
-                      v-if="!connectionReady"
-                      class="pb-3 text-xs text-n-amber-11"
-                    >
-                      {{ t('MARCOX_AI.EDITOR.CONNECTION_REQUIRED') }}
-                    </p>
-                  </div>
-                </AgentSection>
-                <div class="xl:col-span-2">
+                </div>
+                <div>
                   <AgentVision
                     v-model="form.config.vision"
                     v-model:images="form.config.process_images"

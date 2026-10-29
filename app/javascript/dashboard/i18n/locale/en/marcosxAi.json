@@ -521,7 +521,10 @@
       "MEDIA_CHANNELS": "Media and groups",
       "VOICE_SETTINGS": "Voice settings",
       "SPOKEN_TEXT": "Spoken text and pronunciation",
-      "MEMORY_CONTACT": "Contact context"
+      "MEMORY_CONTACT": "Contact context",
+      "CHAT_PRIMARY": "Primary conversation model",
+      "CHAT_PRIMARY_HINT": "Generates text replies to customers. Configure its reserve in the separate reserve card.",
+      "ATTENDANCE": "Inbox support"
     },
     "DECISION": {
       "REVIEW": "Review AI decision",
@@ -715,7 +718,7 @@
       "LONG_HINT": "Can help when instructions are reused across longer gaps. Writing costs twice the 30-minute option; reading costs the same. Savings are not guaranteed."
     },
     "VISION": {
-      "TITLE": "Image reading",
+      "TITLE": "Image and video understanding",
       "HINT": "Choose how images are read independently of the chat model. Visual descriptions are passed to the chat model before it replies.",
       "PROVIDER": "Image provider",
       "MODEL": "Image model",
@@ -752,7 +755,17 @@
       "WARNING": "Connection requiring attention:",
       "RETRY_PRIMARY": "Try the primary on each new execution",
       "RETRY_PRIMARY_HINT": "On: the failed execution uses the reserve; the next starts on the primary. Off: keep using the reserve until it fails or you swap. Switching does not repeat sent messages.",
-      "SWAP": "Swap primary and reserve"
+      "SWAP": "Swap primary and reserve",
+      "TITLES": {
+        "CHAT": "Conversation reserve",
+        "VISION": "Image and video reserve",
+        "TRANSCRIPTION": "Audio transcription reserve"
+      },
+      "SCOPES": {
+        "CHAT": "Used only when the conversation model fails. Images and audio have their own reserves.",
+        "VISION": "Used only when visual understanding fails. It does not change the conversation model or audio transcription.",
+        "TRANSCRIPTION": "Used only when incoming audio transcription fails. It does not change conversation replies or voice generation."
+      }
     },
     "OUTPUT_LIMIT": {
       "TITLE": "Maximum output tokens",

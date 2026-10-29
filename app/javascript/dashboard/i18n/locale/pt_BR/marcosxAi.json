@@ -521,7 +521,10 @@
       "MEDIA_CHANNELS": "Mídias e grupos",
       "VOICE_SETTINGS": "Configurações da voz",
       "SPOKEN_TEXT": "Texto falado e pronúncia",
-      "MEMORY_CONTACT": "Contexto do contato"
+      "MEMORY_CONTACT": "Contexto do contato",
+      "CHAT_PRIMARY": "Modelo principal do atendimento",
+      "CHAT_PRIMARY_HINT": "Gera as respostas de texto ao cliente. Configure a alternativa no card Reserva do atendimento.",
+      "ATTENDANCE": "Atendimento nas caixas de entrada"
     },
     "DECISION": {
       "REVIEW": "Revisar decisão da IA",
@@ -715,7 +718,7 @@
       "LONG_HINT": "Pode ajudar quando as instruções são reutilizadas após intervalos maiores. Gravar custa o dobro da opção de 30 minutos; a leitura tem o mesmo preço. Não garante economia."
     },
     "VISION": {
-      "TITLE": "Leitura de imagens",
+      "TITLE": "Leitura de imagens e vídeos",
       "HINT": "Escolha como ler imagens, independentemente do modelo de conversa. A descrição visual entra no contexto antes da resposta ao cliente.",
       "PROVIDER": "Provedor de imagens",
       "MODEL": "Modelo de leitura de imagem",
@@ -752,7 +755,17 @@
       "WARNING": "Conexão que precisa de atenção:",
       "RETRY_PRIMARY": "Tentar a principal a cada nova execução",
       "RETRY_PRIMARY_HINT": "Ligado: a execução que falhar usa a reserva; a próxima começa na principal. Desligado: continua na reserva até ela falhar ou você inverter. A troca não repete mensagens já enviadas.",
-      "SWAP": "Inverter principal e reserva"
+      "SWAP": "Inverter principal e reserva",
+      "TITLES": {
+        "CHAT": "Reserva do atendimento",
+        "VISION": "Reserva de imagens e vídeos",
+        "TRANSCRIPTION": "Reserva da transcrição de áudio"
+      },
+      "SCOPES": {
+        "CHAT": "Usada somente quando o modelo de atendimento falha. Imagens e áudio têm reservas próprias.",
+        "VISION": "Usada somente se a leitura visual falhar. Não altera o modelo de atendimento nem a transcrição de áudio.",
+        "TRANSCRIPTION": "Usada somente se a transcrição do áudio recebido falhar. Não altera o atendimento nem a geração de voz."
+      }
     },
     "OUTPUT_LIMIT": {
       "TITLE": "Máximo de tokens de saída",

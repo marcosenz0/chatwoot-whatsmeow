@@ -3,6 +3,7 @@ import { computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Button from 'dashboard/components-next/button/Button.vue';
 import AiToggleRow from './AiToggleRow.vue';
+import AgentSection from './AgentSection.vue';
 import AiSelect from './AiSelect.vue';
 import AiModelSelect from './AiModelSelect.vue';
 import AgentConnection from './AgentConnection.vue';
@@ -79,7 +80,21 @@ watch(
 </script>
 
 <template>
-  <section class="space-y-3 rounded-xl border border-n-weak bg-n-alpha-1 p-4">
+  <AgentSection
+    :title="
+      t(
+        `MARCOX_AI.FALLBACK.TITLES.${vision ? 'VISION' : feature.toUpperCase()}`
+      )
+    "
+    icon="i-lucide-shield-check"
+  >
+    <p class="m-0 text-sm leading-6 text-n-slate-11">
+      {{
+        t(
+          `MARCOX_AI.FALLBACK.SCOPES.${vision ? 'VISION' : feature.toUpperCase()}`
+        )
+      }}
+    </p>
     <AiToggleRow
       v-model="settings.enabled"
       :label="t('MARCOX_AI.FALLBACK.ENABLED')"
@@ -178,5 +193,5 @@ watch(
         "
       />
     </div>
-  </section>
+  </AgentSection>
 </template>
