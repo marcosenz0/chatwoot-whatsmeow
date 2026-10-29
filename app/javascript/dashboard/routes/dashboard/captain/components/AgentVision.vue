@@ -78,7 +78,7 @@ const fields = [
       {{ t('MARCOX_AI.VISION.HINT') }}
     </p>
     <AiToggleRow v-model="images" :label="t('MARCOX_AI.EDITOR.IMAGES')" />
-    <div class="grid gap-4 sm:grid-cols-2">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <label class="text-sm font-medium">
         {{ t('MARCOX_AI.EDITOR.PROVIDER') }}
         <AiSelect
@@ -190,7 +190,7 @@ const fields = [
       :label="t('MARCOX_AI.EDITOR.VIDEO')"
       :description="t('MARCOX_AI.VISION.VIDEO_HINT')"
     />
-    <div class="grid gap-4 sm:grid-cols-3">
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <label
         v-for="field in fields"
         :key="field.key"

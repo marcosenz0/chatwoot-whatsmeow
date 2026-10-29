@@ -585,7 +585,7 @@ const channelLabel = inbox =>
               <div
                 v-show="section === 'identity'"
                 data-agent-section="identity"
-                class="grid items-start gap-5 xl:grid-cols-2"
+                class="grid grid-cols-1 items-start gap-5 xl:grid-cols-2"
               >
                 <AgentSection
                   :title="t('MARCOX_AI.DESIGN.AGENT_IDENTITY')"

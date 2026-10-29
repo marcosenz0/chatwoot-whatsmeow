@@ -56,7 +56,7 @@ watch(
 <template>
   <section class="rounded-xl border border-n-weak bg-n-alpha-1">
     <div class="flex flex-wrap items-center justify-between gap-3 p-4">
-      <div class="flex items-center gap-3">
+      <div class="flex min-w-0 flex-1 items-center gap-3">
         <span
           :class="
             credential?.health?.state === 'error'
@@ -67,7 +67,7 @@ watch(
           "
           class="size-5 shrink-0"
         />
-        <div>
+        <div class="min-w-0">
           <p class="m-0 text-sm font-medium text-n-slate-12">
             {{
               t(

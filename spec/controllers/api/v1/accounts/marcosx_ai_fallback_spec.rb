@@ -5,8 +5,8 @@ RSpec.describe 'MarcoXIA named fallback connections API', type: :request do
   let(:admin) { create(:user, account: account, role: :administrator) }
   let(:operator) { create(:user, account: account, role: :agent) }
   let(:endpoint) { "/api/v1/accounts/#{account.id}/marcosx_ai" }
-  let!(:primary) { account.marcosx_ai_credentials.create!(provider: 'groq', name: 'Main account', api_key: 'private-main-key') }
-  let!(:reserve) { account.marcosx_ai_credentials.create!(provider: 'groq', name: 'Reserve account', api_key: 'private-reserve-key') }
+  let!(:primary) { account.marcosx_ai_credentials.create!(provider: 'groq', name: 'Main account', api_key: 'private-main-key', enabled: true) }
+  let!(:reserve) { account.marcosx_ai_credentials.create!(provider: 'groq', name: 'Reserve account', api_key: 'private-reserve-key', enabled: true) }
   let!(:assistant) do
     account.marcosx_ai_assistants.create!(name: 'Support', config: {
       provider: 'groq', model: 'qwen/qwen3.8-27b', connection_id: primary.id,

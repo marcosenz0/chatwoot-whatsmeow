@@ -1,9 +1,9 @@
 import { mount, flushPromises } from '@vue/test-utils';
+import API from 'dashboard/api/marcosxAi';
 import AgentFallback from '../AgentFallback.vue';
 import AgentConnection from '../AgentConnection.vue';
 import AgentConnectionPicker from '../AgentConnectionPicker.vue';
 import AiSelect from '../AiSelect.vue';
-import API from 'dashboard/api/marcosxAi';
 
 vi.mock('dashboard/api/marcosxAi', () => ({
   default: { saveCredential: vi.fn() },

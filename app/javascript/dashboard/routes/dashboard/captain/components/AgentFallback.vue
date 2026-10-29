@@ -84,7 +84,7 @@ watch(
           t('MARCOX_AI.FALLBACK.ACTIVE')
         }}
       </p>
-      <div class="grid gap-4 sm:grid-cols-2">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="text-sm font-medium">
           {{ t('MARCOX_AI.FALLBACK.PROVIDER') }}
           <AiSelect

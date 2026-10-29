@@ -71,6 +71,31 @@ RSpec.describe 'MarcoXIA Groq text and vision' do
     end
   end
 
+  it 'uses the smaller image cap when a Groq reserve protects a six-image primary model' do
+    assistant.update!(config: assistant.resolved_config.deep_merge(vision: {
+      provider: 'openai', model: 'gpt-6-luna', video_frames: 6,
+      fallback: { enabled: true, provider: 'groq', model: 'qwen/qwen3.8-27b' }
+    }))
+    attachment.update!(file_type: :video)
+    attachment.file.attach(io: Rails.root.join('spec/assets/sample.mp4').open, filename: 'video.mp4', content_type: 'video/mp4')
+    allow(MarcosxAi::ProviderClient).to receive(:new).and_return(image_client)
+    allow(image_client).to receive(:chat).and_return('Compatible video sample')
+    expect(service.describe).to eq('Compatible video sample')
+    expect(image_client).to have_received(:chat) do |args|
+      expect(args[:messages].last[:content].count { |part| part[:type] == 'input_image' }).to be_between(1, 3)
+    end
+  end
+
+  it 'retains inherited-connection failures in runtime status and clears them after a successful connection check' do
+    connection = MarcosxAi::Credential.for_provider(account, 'groq')
+    assistant.update_columns(connection_status: { chat: { connections: { 'integration:groq' => { 'role' => 'primary' } } } })
+    connection.record_health!(error: CustomExceptions::MarcosxAi.new('Quota reached', provider_failure: true, provider_status: 429))
+    expect(MarcosxAi::Credential.connections_for(account).find { |item| item[:provider] == 'groq' }[:health]['state']).to eq('error')
+    connection.record_health!
+    expect(MarcosxAi::Credential.connections_for(account).find { |item| item[:provider] == 'groq' }[:health]['state']).to eq('healthy')
+    expect(account.marcosx_ai_credentials).to be_empty
+  end
+
   it 'supports reasoning and JSON replies on both Groq chat models using the integration connection' do
     %w[qwen/qwen3.8-27b openai/gpt-oss-120b].each do |model|
       stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').with do |request|
