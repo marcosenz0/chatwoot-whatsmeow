@@ -6,3 +6,4 @@ en:
       invalid_connection: "Choose a saved connection from this account and provider."
       invalid_fallback: "Choose a compatible reserve provider, connection and model."
       same_fallback: "The reserve must use a different connection from the primary."
+      invalid_output_limit: "Choose an output limit between 128 and 32768 tokens."

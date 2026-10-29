@@ -750,6 +750,11 @@
       "FAILED": "Conexão com erro",
       "IN_USE": "Em uso no momento",
       "WARNING": "Conexão que precisa de atenção:"
+    },
+    "OUTPUT_LIMIT": {
+      "TITLE": "Máximo de tokens de saída",
+      "HINT": "Inclui resposta e raciocínio. Um limite baixo pode cortar a geração; ajuste conforme o modelo e o plano.",
+      "GROQ_HINT": "Padrão Groq: 768, para caber na cota gratuita observada de 1000 tokens de saída por minuto. Inclui raciocínio; chamadas simultâneas compartilham a cota. Aumente conforme seu plano."
     }
   }
 }

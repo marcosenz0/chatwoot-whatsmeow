@@ -141,6 +141,29 @@ RSpec.describe MarcosxAi::ConnectionRouter do
     expect(a_request(:post, 'https://api.openai.com/v1/responses')).not_to have_been_made
   end
 
+  it 'uses the bounded Groq free-tier default without changing OpenAI reserve defaults' do
+    stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').with { |request|
+      JSON.parse(request.body)['max_tokens'] == 768
+    }.to_return(status: 429, body: { error: { message: 'Output quota used' } }.to_json, headers: { 'Content-Type' => 'application/json' })
+    stub_request(:post, 'https://api.openai.com/v1/responses').with { |request|
+      JSON.parse(request.body)['max_output_tokens'] == 8000
+    }.to_return(status: 200, body: { output: [{ content: [{ type: 'output_text', text: 'Quota reserve' }] }] }.to_json,
+                headers: { 'Content-Type' => 'application/json' })
+    expect(client.chat(messages: messages)).to eq('Quota reserve')
+  end
+
+  it 'applies separate explicit output budgets to the principal and reserve' do
+    assistant.update!(config: assistant.resolved_config.deep_merge(max_output_tokens: 512, fallback: { max_output_tokens: 1200 }))
+    stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').with { |request|
+      JSON.parse(request.body)['max_tokens'] == 512
+    }.to_return(status: 503, body: { error: { message: 'Unavailable' } }.to_json, headers: { 'Content-Type' => 'application/json' })
+    stub_request(:post, 'https://api.openai.com/v1/responses').with { |request|
+      JSON.parse(request.body)['max_output_tokens'] == 1200
+    }.to_return(status: 200, body: { output: [{ content: [{ type: 'output_text', text: 'Configured reserve' }] }] }.to_json,
+                headers: { 'Content-Type' => 'application/json' })
+    expect(client.chat(messages: messages)).to eq('Configured reserve')
+  end
+
   it 'treats an empty provider response as a technical failure and tries the reserve' do
     stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').to_return(
       status: 200, body: { choices: [{ message: { content: '' } }] }.to_json, headers: { 'Content-Type' => 'application/json' }

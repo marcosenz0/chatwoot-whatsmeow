@@ -120,4 +120,26 @@ RSpec.describe 'MarcoXIA named fallback connections API', type: :request do
     expect(reserve.reload.health['state']).to eq('healthy')
     expect(primary.reload.health).to eq({})
   end
+
+  it 'persists separate chat and image output limits without changing other route settings' do
+    put "#{endpoint}/assistants/#{assistant.id}", params: { assistant: { config: {
+      max_output_tokens: 700, fallback: { max_output_tokens: 900 },
+      vision: { max_output_tokens: 512, fallback: { max_output_tokens: 600 } }
+    } } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:ok), response.body
+    config = assistant.reload.resolved_config
+    expect(config[:max_output_tokens]).to eq(700)
+    expect(config[:fallback][:max_output_tokens]).to eq(900)
+    expect(config[:vision][:max_output_tokens]).to eq(512)
+    expect(config[:vision][:fallback][:max_output_tokens]).to eq(600)
+    expect(config[:fallback][:connection_id]).to eq(reserve.id)
+  end
+
+  it 'rejects an invalid output limit atomically' do
+    before = assistant.attributes
+    put "#{endpoint}/assistants/#{assistant.id}", params: { assistant: { config: { fallback: { max_output_tokens: 0 } } } },
+                                                headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(assistant.reload.attributes).to eq(before)
+  end
 end

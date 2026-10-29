@@ -65,6 +65,11 @@ class MarcosxAi::ConfigurationValidator
   def self.validate_connections!(config, account)
     %w[chat vision transcription].each do |feature|
       settings = feature == 'chat' ? config : config[feature]
+      [settings, settings[:fallback]].each do |target|
+        limit = target[:max_output_tokens]
+        raise ArgumentError, I18n.t('marcosx_ai.errors.invalid_output_limit') unless limit.nil? || (limit.is_a?(Integer) && limit.between?(128,
+                                                                                                                                           32_768))
+      end
       provider = settings[:provider] == 'agent' ? config[:provider] : settings[:provider]
       validate_connection_id!(settings[:connection_id], provider, account)
       backup = settings[:fallback]

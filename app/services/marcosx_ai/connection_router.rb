@@ -12,7 +12,9 @@ class MarcosxAi::ConnectionRouter
     @reasoning_effort = reasoning_effort
     @purpose = purpose
     @endpoints = MarcosxAi::ConnectionPlan.new(assistant: assistant, feature: feature).endpoints
-    @signature = Digest::SHA256.hexdigest(@endpoints.map { |e| [e[:role], e[:provider], e[:model], e[:key], e[:credential]&.updated_at] }.to_json)
+    @signature = Digest::SHA256.hexdigest(@endpoints.map { |e|
+      [e[:role], e[:provider], e[:model], e[:max_output_tokens], e[:key], e[:credential]&.updated_at]
+    }.to_json)
   end
 
   def perform(task, **arguments)
@@ -24,7 +26,7 @@ class MarcosxAi::ConnectionRouter
         @client = MarcosxAi::ProviderClient.new(account: @assistant.account, assistant: @assistant, conversation: @conversation,
                                                 provider: endpoint[:provider], model: endpoint[:model], credential: endpoint[:credential],
                                                 temperature: @temperature, reasoning_effort: @reasoning_effort, purpose: @purpose,
-                                                routing: false, retry_rate_limits: @endpoints.one?)
+                                                routing: false, retry_rate_limits: @endpoints.one?, max_output_tokens: endpoint[:max_output_tokens])
         result = @client.public_send(task, **arguments)
         record_outcome(endpoint)
         return result

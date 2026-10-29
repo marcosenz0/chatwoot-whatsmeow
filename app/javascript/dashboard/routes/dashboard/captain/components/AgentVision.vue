@@ -8,6 +8,7 @@ import AiToggleRow from './AiToggleRow.vue';
 import AgentConnection from './AgentConnection.vue';
 import AgentConnectionPicker from './AgentConnectionPicker.vue';
 import AgentFallback from './AgentFallback.vue';
+import AgentOutputLimit from './AgentOutputLimit.vue';
 import { connectionActive } from './connectionDefaults';
 
 const props = defineProps({
@@ -125,6 +126,12 @@ const fields = [
     <p v-else class="m-0 text-xs text-n-slate-11">
       {{ t('MARCOX_AI.VISION.LIMIT', { count: currentModel.max_images || 6 }) }}
     </p>
+    <AgentOutputLimit
+      v-if="settings.provider !== 'agent'"
+      v-model="settings.max_output_tokens"
+      :provider="provider"
+      :disabled="!canEdit"
+    />
     <AgentConnection
       v-if="
         settings.provider !== 'agent' &&

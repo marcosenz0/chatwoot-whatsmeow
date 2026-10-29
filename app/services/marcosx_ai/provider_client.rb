@@ -2,10 +2,11 @@ class MarcosxAi::ProviderClient
   TIMEOUT = 120
   MAX_RATE_LIMIT_RETRIES = 2
   MAX_RATE_LIMIT_WAIT = 60
+  OUTPUT_LIMITS = { 'groq' => 768, 'openai' => 8000, 'gemini' => 8192 }.freeze
   attr_reader :usage
 
   def initialize(account:, provider:, model: nil, temperature: 0.7, reasoning_effort: 'medium', assistant: nil, conversation: nil, purpose: 'other',
-                 credential: nil, credential_id: nil, routing: true, retry_rate_limits: true)
+                 credential: nil, credential_id: nil, routing: true, retry_rate_limits: true, max_output_tokens: nil)
     @account = account
     @assistant = assistant
     @conversation = conversation
@@ -19,6 +20,7 @@ class MarcosxAi::ProviderClient
     @reasoning_effort = reasoning_effort
     @routing = routing && assistant.present?
     @retry_rate_limits = retry_rate_limits
+    @max_output_tokens = max_output_tokens || OUTPUT_LIMITS.fetch(@provider, 8000)
   end
 
   def chat(messages:, schema: nil, purpose: nil)
@@ -117,7 +119,7 @@ class MarcosxAi::ProviderClient
 
   def openai_response(messages, schema, purpose)
     started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-    parameters = { model: @model, store: false, max_output_tokens: 8000 }.merge(
+    parameters = { model: @model, store: false, max_output_tokens: @max_output_tokens }.merge(
       MarcosxAi::PromptCache.parameters(messages, account_id: @account.id, model: @model, api_base: @credential.resolved_api_base)
     )
     if reasoning_model?
@@ -142,7 +144,7 @@ class MarcosxAi::ProviderClient
   end
 
   def compatible_response(messages, schema)
-    parameters = { model: @model, messages: compatible_messages(messages), temperature: @temperature, max_tokens: 4096 }
+    parameters = { model: @model, messages: compatible_messages(messages), temperature: @temperature, max_tokens: @max_output_tokens }
     parameters[:reasoning_effort] = @reasoning_effort if MarcosxAi::ModelCatalog.describe(@model, @provider)[:reasoning]
     if schema
       parameters[:response_format] = if MarcosxAi::ModelCatalog.describe(@model, @provider)[:structured_outputs]
@@ -182,7 +184,7 @@ class MarcosxAi::ProviderClient
           parts: item[:content].is_a?(Array) ? item[:content].map { |part| gemini_part(part) } : [{ text: item[:content] }]
         }
       end,
-      generationConfig: { temperature: @temperature, maxOutputTokens: 8192 }
+      generationConfig: { temperature: @temperature, maxOutputTokens: @max_output_tokens }
     }
     body[:generationConfig].merge!(responseMimeType: 'application/json', responseJsonSchema: schema) if schema
     response = gemini_request(:post, "models/#{@model}:generateContent", body)

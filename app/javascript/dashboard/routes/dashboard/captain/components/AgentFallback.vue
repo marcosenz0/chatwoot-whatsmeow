@@ -6,6 +6,7 @@ import AiSelect from './AiSelect.vue';
 import AiModelSelect from './AiModelSelect.vue';
 import AgentConnection from './AgentConnection.vue';
 import AgentConnectionPicker from './AgentConnectionPicker.vue';
+import AgentOutputLimit from './AgentOutputLimit.vue';
 import { connectionActive, providerChoices } from './connectionDefaults';
 
 const props = defineProps({
@@ -115,6 +116,12 @@ watch(
           />
         </label>
       </div>
+      <AgentOutputLimit
+        v-if="feature !== 'transcription'"
+        v-model="settings.max_output_tokens"
+        :provider="settings.provider"
+        :disabled="!canEdit"
+      />
       <AgentConnectionPicker
         v-model="settings.connection_id"
         :provider="settings.provider"

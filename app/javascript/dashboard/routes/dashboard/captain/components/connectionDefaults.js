@@ -2,6 +2,7 @@ export const fallbackDefaults = {
   enabled: false,
   provider: 'openai',
   connection_id: null,
+  max_output_tokens: null,
   model: 'gpt-6-luna',
 };
 export const transcriptionFallbackDefaults = {

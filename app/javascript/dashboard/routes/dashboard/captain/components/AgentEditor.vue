@@ -12,6 +12,7 @@ import AiSelect from './AiSelect.vue';
 import AgentConnection from './AgentConnection.vue';
 import AgentVision from './AgentVision.vue';
 import AgentFallback from './AgentFallback.vue';
+import AgentOutputLimit from './AgentOutputLimit.vue';
 import AgentConnectionPicker from './AgentConnectionPicker.vue';
 import {
   fallbackDefaults,
@@ -649,6 +650,11 @@ const channelLabel = inbox =>
                         : t('MARCOX_AI.EDITOR.MODEL_TEXT')
                     }}
                   </p>
+                  <AgentOutputLimit
+                    v-model="form.config.max_output_tokens"
+                    :provider="form.config.provider"
+                    :disabled="!canEdit"
+                  />
                   <AgentConnection
                     :provider="form.config.provider"
                     :credential="credential"

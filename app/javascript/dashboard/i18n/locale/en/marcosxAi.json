@@ -750,6 +750,11 @@
       "FAILED": "Connection failed",
       "IN_USE": "Currently in use",
       "WARNING": "Connection requiring attention:"
+    },
+    "OUTPUT_LIMIT": {
+      "TITLE": "Maximum output tokens",
+      "HINT": "Includes the reply and reasoning. A low limit can truncate generation; adjust it for the model and plan.",
+      "GROQ_HINT": "Groq default: 768, within the observed free quota of 1000 output tokens per minute. Includes reasoning; simultaneous requests share quota. Increase it for your plan."
     }
   }
 }

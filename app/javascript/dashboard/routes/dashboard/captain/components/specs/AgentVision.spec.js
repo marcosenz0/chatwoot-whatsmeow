@@ -82,9 +82,8 @@ it('puts voice immediately after identity and exposes independent image reading 
 it('keeps Qwen reading images when the chat model is GPT-OSS and saves the complete settings', async () => {
   const wrapper = mount(AgentEditor, { props });
   const vision = wrapper.findComponent(AgentVision);
-  const fields = vision.findAll('input[type="number"]');
-  await fields[0].setValue('1024');
-  await fields[1].setValue('2');
+  await vision.get('input[min="512"]').setValue('1024');
+  await vision.get('input[max="6"]').setValue('2');
   await vision.get('textarea').setValue('Read visible amounts carefully.');
   await wrapper.get('form').trigger('submit');
   expect(wrapper.emitted('save')[0][0].config).toMatchObject({

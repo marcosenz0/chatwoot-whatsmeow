@@ -6,3 +6,4 @@ pt_BR:
       invalid_connection: "Escolha uma conexão salva nesta conta e neste provedor."
       invalid_fallback: "Escolha provedor, conexão e modelo compatíveis para a reserva."
       same_fallback: "A reserva deve usar uma conexão diferente da principal."
+      invalid_output_limit: "Escolha um limite de saída entre 128 e 32768 tokens."

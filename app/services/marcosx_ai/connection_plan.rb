@@ -7,14 +7,14 @@ class MarcosxAi::ConnectionPlan
   def endpoints
     config = @assistant.resolved_config
     settings = @feature == 'chat' ? config : config.fetch(@feature)
-    primary = settings.slice(:provider, :model, :connection_id)
+    primary = settings.slice(:provider, :model, :connection_id, :max_output_tokens)
     if primary[:provider] == 'agent'
-      primary = config.slice(:provider, :model, :connection_id)
+      primary = config.slice(:provider, :model, :connection_id, :max_output_tokens)
       primary[:model] = default_transcription_model(primary[:provider]) if @feature == 'transcription'
     end
     fallback = settings[:fallback]
     targets = [primary.merge(role: 'primary')]
-    targets << fallback.slice(:provider, :model, :connection_id).merge(role: 'fallback') if fallback[:enabled]
+    targets << fallback.slice(:provider, :model, :connection_id, :max_output_tokens).merge(role: 'fallback') if fallback[:enabled]
     targets.filter_map do |target|
       next if @feature == 'vision' && !MarcosxAi::ModelCatalog.describe(target[:model], target[:provider])[:vision]
 
