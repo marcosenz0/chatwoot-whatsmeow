@@ -9,11 +9,12 @@ import AgentConnection from './AgentConnection.vue';
 import AgentConnectionPicker from './AgentConnectionPicker.vue';
 import AgentFallback from './AgentFallback.vue';
 import AgentOutputLimit from './AgentOutputLimit.vue';
-import { connectionActive } from './connectionDefaults';
+import { connectionActive, invertConnections } from './connectionDefaults';
 
 const props = defineProps({
   agentProvider: { type: String, required: true },
   agentModel: { type: String, required: true },
+  agentConfig: { type: Object, default: () => ({}) },
   catalogs: { type: Object, default: () => ({}) },
   credentials: { type: Array, default: () => [] },
   providers: { type: Object, default: () => ({}) },
@@ -172,6 +173,7 @@ const fields = [
     />
     <AgentFallback
       v-model="settings.fallback"
+      can-swap
       :credentials="credentials"
       :providers="providers"
       :catalogs="catalogs"
@@ -179,6 +181,13 @@ const fields = [
       :busy-provider="busyProvider"
       :status="status"
       vision
+      @swap="
+        invertConnections(settings, settings.fallback, {
+          ...agentConfig,
+          provider: agentProvider,
+          model: agentModel,
+        })
+      "
       @save-connection="
         (selectedProvider, connection) =>
           emit('saveConnection', selectedProvider, connection)

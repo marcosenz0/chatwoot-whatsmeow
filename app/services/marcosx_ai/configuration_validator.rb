@@ -74,7 +74,7 @@ class MarcosxAi::ConfigurationValidator
       provider = settings[:provider] == 'agent' ? config[:provider] : settings[:provider]
       validate_connection_id!(settings[:connection_id], provider, account)
       backup = settings[:fallback]
-      unless backup.is_a?(Hash) && [true, false].include?(backup[:enabled]) &&
+      unless backup.is_a?(Hash) && [true, false].include?(backup[:enabled]) && [true, false].include?(backup[:retry_primary]) &&
              MarcosxAi::Credential::PROVIDERS.key?(backup[:provider]) && backup[:model].is_a?(String) && backup[:model].present?
         raise ArgumentError, I18n.t('marcosx_ai.errors.invalid_fallback')
       end

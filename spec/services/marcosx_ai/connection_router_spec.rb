@@ -48,7 +48,8 @@ RSpec.describe MarcosxAi::ConnectionRouter do
     end
   end
 
-  it 'stays on the working reserve during cooldown, then returns to a repaired primary' do
+  it 'keeps the reserve in use with automatic return off, even after time passes and the primary key is repaired' do
+    assistant.update!(config: assistant.resolved_config.deep_merge(fallback: { retry_primary: false }))
     stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').to_return(
       status: 401, body: { error: { message: 'Invalid key' } }.to_json, headers: { 'Content-Type' => 'application/json' }
     )
@@ -61,11 +62,15 @@ RSpec.describe MarcosxAi::ConnectionRouter do
     stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').with(headers: { 'Authorization' => 'Bearer repaired-key' }).to_return(
       status: 200, body: { choices: [{ message: { content: 'Repaired' } }] }.to_json, headers: { 'Content-Type' => 'application/json' }
     )
-    expect(client.chat(messages: messages)).to eq('Repaired')
-    expect(assistant.reload.connection_status.dig('chat', 'active_role')).to eq('primary')
+    travel_to 10.minutes.from_now do
+      expect(client.chat(messages: messages)).to eq('Reserve')
+    end
+    expect(assistant.reload.connection_status.dig('chat', 'active_role')).to eq('fallback')
+    expect(a_request(:post, 'https://api.groq.com/openai/v1/chat/completions')).to have_been_made.once
   end
 
   it 'can reverse to the repaired primary if the currently active reserve fails' do
+    assistant.update!(config: assistant.resolved_config.deep_merge(fallback: { retry_primary: false }))
     primary.record_health!(error: CustomExceptions::MarcosxAi.new('Old failure', provider_failure: true, provider_status: 401))
     first = described_class.new(assistant: assistant, feature: 'chat')
     first.send(:record, { key: "credential:#{reserve.id}", provider: reserve.provider, name: reserve.name, role: 'fallback', model: reserve.resolved_model },
@@ -77,6 +82,39 @@ RSpec.describe MarcosxAi::ConnectionRouter do
     expect(client.chat(messages: messages)).to eq('Primary recovered')
     expect(reserve.reload.health['state']).to eq('error')
     expect(primary.reload.health['state']).to eq('healthy')
+  end
+
+  it 'retries the same failed input on the reserve, then starts the next execution on the primary when automatic return is on' do
+    primary_body = nil
+    reserve_body = nil
+    stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').with { |request|
+      primary_body = JSON.parse(request.body)
+    }.to_return({ status: 429, body: { error: { message: 'Minute quota' } }.to_json, headers: { 'Content-Type' => 'application/json' } },
+                { status: 200, body: { choices: [{ message: { content: 'Next primary answer' } }] }.to_json,
+                  headers: { 'Content-Type' => 'application/json' } })
+    stub_request(:post, 'https://api.openai.com/v1/responses').with { |request|
+      reserve_body = JSON.parse(request.body)
+    }.to_return(status: 200, body: { output: [{ content: [{ type: 'output_text', text: 'Same execution on reserve' }] }] }.to_json,
+                headers: { 'Content-Type' => 'application/json' })
+    expect(client.chat(messages: messages)).to eq('Same execution on reserve')
+    expect(primary_body['messages']).to eq(reserve_body['input'])
+    expect(client.chat(messages: [{ role: 'user', content: 'A later execution' }])).to eq('Next primary answer')
+    expect(assistant.reload.connection_status.dig('chat', 'active_role')).to eq('primary')
+    expect(a_request(:post, 'https://api.groq.com/openai/v1/chat/completions')).to have_been_made.twice
+    expect(a_request(:post, 'https://api.openai.com/v1/responses')).to have_been_made.once
+  end
+
+  it 'can use the reserve again for repeated primary limits while testing the primary on every new execution' do
+    stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').to_return(
+      status: 429, body: { error: { message: 'Minute quota', } }.to_json, headers: { 'Content-Type' => 'application/json', 'retry-after' => '60' }
+    )
+    stub_request(:post, 'https://api.openai.com/v1/responses').to_return(
+      status: 200, body: { output: [{ content: [{ type: 'output_text', text: 'Reserve' }] }] }.to_json, headers: { 'Content-Type' => 'application/json' }
+    )
+    expect(Kernel).not_to receive(:sleep)
+    2.times { expect(client.chat(messages: messages)).to eq('Reserve') }
+    expect(a_request(:post, 'https://api.groq.com/openai/v1/chat/completions')).to have_been_made.twice
+    expect(a_request(:post, 'https://api.openai.com/v1/responses')).to have_been_made.twice
   end
 
   it 'supports two separately identified Groq connections, even when a test deliberately clones the key' do

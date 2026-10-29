@@ -1,6 +1,7 @@
 <script setup>
 import { computed, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
+import Button from 'dashboard/components-next/button/Button.vue';
 import AiToggleRow from './AiToggleRow.vue';
 import AiSelect from './AiSelect.vue';
 import AiModelSelect from './AiModelSelect.vue';
@@ -18,6 +19,7 @@ const props = defineProps({
   busyProvider: { type: String, default: '' },
   status: { type: Object, default: () => ({}) },
   feature: { type: String, default: 'chat' },
+  canSwap: { type: Boolean, default: false },
 });
 const emit = defineEmits([
   'saveConnection',
@@ -25,6 +27,7 @@ const emit = defineEmits([
   'refreshModels',
   'connectionChange',
   'connectionCreated',
+  'swap',
 ]);
 const settings = defineModel({ type: Object, required: true });
 const { t } = useI18n();
@@ -84,6 +87,23 @@ watch(
       :disabled="!canEdit"
     />
     <div v-if="settings.enabled" class="space-y-4">
+      <AiToggleRow
+        v-model="settings.retry_primary"
+        :label="t('MARCOX_AI.FALLBACK.RETRY_PRIMARY')"
+        :description="t('MARCOX_AI.FALLBACK.RETRY_PRIMARY_HINT')"
+        :disabled="!canEdit"
+      />
+      <Button
+        v-if="canSwap"
+        type="button"
+        size="sm"
+        variant="outline"
+        color="slate"
+        icon="i-lucide-arrow-right-left"
+        :label="t('MARCOX_AI.FALLBACK.SWAP')"
+        :disabled="!canEdit"
+        @click="emit('swap')"
+      />
       <p
         v-if="active"
         role="status"

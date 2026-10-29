@@ -27,4 +27,10 @@ class MarcosxAi::ConnectionPlan
   def default_transcription_model(provider)
     { 'openai' => 'gpt-4o-transcribe', 'groq' => 'whisper-large-v3-turbo', 'gemini' => 'gemini-2.5-flash' }.fetch(provider)
   end
+
+  def retry_primary?
+    config = @assistant.resolved_config
+    settings = @feature == 'chat' ? config : config.fetch(@feature)
+    settings[:fallback][:retry_primary] == true
+  end
 end

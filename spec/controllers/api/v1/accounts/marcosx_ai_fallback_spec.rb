@@ -142,4 +142,33 @@ RSpec.describe 'MarcoXIA named fallback connections API', type: :request do
     expect(response).to have_http_status(:unprocessable_entity)
     expect(assistant.reload.attributes).to eq(before)
   end
+
+  it 'saves independent automatic-return modes for chat, images and transcription' do
+    put "#{endpoint}/assistants/#{assistant.id}", params: { assistant: { config: {
+      fallback: { retry_primary: false }, vision: { fallback: { retry_primary: true } }, transcription: { fallback: { retry_primary: false } }
+    } } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:ok), response.body
+    expect(assistant.reload.resolved_config[:fallback][:retry_primary]).to be(false)
+    expect(assistant.resolved_config[:vision][:fallback][:retry_primary]).to be(true)
+    expect(assistant.resolved_config[:transcription][:fallback][:retry_primary]).to be(false)
+    put "#{endpoint}/assistants/#{assistant.id}", params: { assistant: { config: { fallback: { retry_primary: 'yes' } } } },
+                                                headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unprocessable_entity)
+    expect(assistant.reload.resolved_config[:fallback][:retry_primary]).to be(false)
+  end
+
+  it 'atomically persists an inversion of the principal and reserve while preserving instructions and activation' do
+    openai = account.marcosx_ai_credentials.create!(provider: 'openai', api_key: 'qa-openai', enabled: true)
+    assistant.update!(instructions: 'Preserve these instructions')
+    put "#{endpoint}/assistants/#{assistant.id}", params: { assistant: { config: {
+      provider: 'openai', model: 'gpt-6-luna', connection_id: openai.id, max_output_tokens: 8000,
+      fallback: { enabled: true, retry_primary: true, provider: 'groq', model: 'qwen/qwen3.8-27b', connection_id: primary.id, max_output_tokens: 768 }
+    } } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:ok), response.body
+    expect(assistant.reload.provider).to eq('openai')
+    expect(assistant.resolved_config[:fallback][:provider]).to eq('groq')
+    expect(assistant.resolved_config[:fallback][:connection_id]).to eq(primary.id)
+    expect(assistant.auto_response_enabled?).to be(false)
+    expect(assistant.instructions).to eq('Preserve these instructions')
+  end
 end

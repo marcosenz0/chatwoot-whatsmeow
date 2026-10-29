@@ -749,7 +749,10 @@
       "MODEL": "Reserve model",
       "FAILED": "Connection failed",
       "IN_USE": "Currently in use",
-      "WARNING": "Connection requiring attention:"
+      "WARNING": "Connection requiring attention:",
+      "RETRY_PRIMARY": "Try the primary on each new execution",
+      "RETRY_PRIMARY_HINT": "On: the failed execution uses the reserve; the next starts on the primary. Off: keep using the reserve until it fails or you swap. Switching does not repeat sent messages.",
+      "SWAP": "Swap primary and reserve"
     },
     "OUTPUT_LIMIT": {
       "TITLE": "Maximum output tokens",

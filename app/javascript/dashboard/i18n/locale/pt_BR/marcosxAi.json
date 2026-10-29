@@ -749,7 +749,10 @@
       "MODEL": "Modelo da reserva",
       "FAILED": "Conexão com erro",
       "IN_USE": "Em uso no momento",
-      "WARNING": "Conexão que precisa de atenção:"
+      "WARNING": "Conexão que precisa de atenção:",
+      "RETRY_PRIMARY": "Tentar a principal a cada nova execução",
+      "RETRY_PRIMARY_HINT": "Ligado: a execução que falhar usa a reserva; a próxima começa na principal. Desligado: continua na reserva até ela falhar ou você inverter. A troca não repete mensagens já enviadas.",
+      "SWAP": "Inverter principal e reserva"
     },
     "OUTPUT_LIMIT": {
       "TITLE": "Máximo de tokens de saída",

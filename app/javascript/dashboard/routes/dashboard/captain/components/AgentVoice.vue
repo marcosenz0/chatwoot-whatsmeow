@@ -8,6 +8,7 @@ import AgentSection from './AgentSection.vue';
 import AiToggleRow from './AiToggleRow.vue';
 import AgentFallback from './AgentFallback.vue';
 import AgentConnectionPicker from './AgentConnectionPicker.vue';
+import { invertConnections } from './connectionDefaults';
 
 const props = defineProps({
   assistantId: { type: Number, default: null },
@@ -17,6 +18,7 @@ const props = defineProps({
   canEdit: { type: Boolean, default: false },
   busyProvider: { type: String, default: '' },
   connectionStatus: { type: Object, default: () => ({}) },
+  agentConfig: { type: Object, default: () => ({}) },
 });
 const emit = defineEmits([
   'saveConnection',
@@ -171,6 +173,21 @@ const changeTranscriptionProvider = provider => {
     fallback: transcription.value.fallback,
   };
 };
+const swapTranscription = () => {
+  const inherited = {
+    ...props.agentConfig,
+    model: {
+      groq: 'whisper-large-v3-turbo',
+      openai: 'gpt-4o-transcribe',
+      gemini: 'gemini-2.5-flash',
+    }[props.agentConfig.provider],
+  };
+  invertConnections(
+    transcription.value,
+    transcription.value.fallback,
+    inherited
+  );
+};
 </script>
 
 <template>
@@ -252,6 +269,7 @@ const changeTranscriptionProvider = provider => {
         :credentials="connections"
         :providers="providers"
         feature="transcription"
+        can-swap
         :catalogs="
           Object.fromEntries(
             Object.entries(transcriptionOptions.models).map(
@@ -265,6 +283,7 @@ const changeTranscriptionProvider = provider => {
         :can-edit="canEdit"
         :busy-provider="busyProvider"
         :status="connectionStatus"
+        @swap="swapTranscription"
         @save-connection="
           (provider, connection) => emit('saveConnection', provider, connection)
         "

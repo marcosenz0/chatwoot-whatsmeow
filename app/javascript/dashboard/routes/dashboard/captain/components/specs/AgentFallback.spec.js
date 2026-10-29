@@ -4,6 +4,19 @@ import AgentFallback from '../AgentFallback.vue';
 import AgentConnection from '../AgentConnection.vue';
 import AgentConnectionPicker from '../AgentConnectionPicker.vue';
 import AiSelect from '../AiSelect.vue';
+import AiToggleRow from '../AiToggleRow.vue';
+import AgentEditor from '../AgentEditor.vue';
+import AgentVision from '../AgentVision.vue';
+import AgentVoice from '../AgentVoice.vue';
+import { voiceDefaults } from '../agentVoiceDefaults';
+
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: {} }),
+  useRouter: () => ({ replace: vi.fn() }),
+}));
+vi.mock('dashboard/components-next/TeleportWithDirection.vue', () => ({
+  default: { template: '<slot />' },
+}));
 
 vi.mock('dashboard/api/marcosxAi', () => ({
   default: { saveCredential: vi.fn() },
@@ -199,5 +212,166 @@ it('filters out text-only models for the visual reserve and hides its fields whe
   ).toEqual(['qwen/qwen3.8-27b']);
   await wrapper.setProps({ modelValue: { ...settings, enabled: false } });
   expect(wrapper.findComponent(AgentConnection).exists()).toBe(false);
+  wrapper.unmount();
+});
+
+it('lets the operator enable or disable returning to the primary for future executions', async () => {
+  const settings = { ...fallback, retry_primary: true };
+  const wrapper = mount(AgentFallback, {
+    props: {
+      modelValue: settings,
+      credentials: [main, reserve],
+      canEdit: true,
+    },
+  });
+  wrapper
+    .findAllComponents(AiToggleRow)[1]
+    .vm.$emit('update:modelValue', false);
+  await flushPromises();
+  expect(settings.retry_primary).toBe(false);
+  wrapper.unmount();
+});
+
+it('inverts named chat connections and output budgets, preserves the visual route and saves the full configuration', async () => {
+  const wrapper = mount(AgentEditor, {
+    props: {
+      canEdit: true,
+      credentials: [main, { ...reserve, provider: 'openai' }],
+      catalogs,
+      agent: {
+        id: 1,
+        name: 'Support',
+        instructions: 'Keep this',
+        inbox_ids: [],
+        config: {
+          provider: 'groq',
+          model: 'qwen/qwen3.8-27b',
+          connection_id: 1,
+          max_output_tokens: 768,
+          auto_response_enabled: false,
+          fallback: {
+            enabled: true,
+            retry_primary: true,
+            provider: 'openai',
+            model: 'gpt-6-luna',
+            connection_id: 2,
+            max_output_tokens: 8000,
+          },
+          vision: {
+            provider: 'groq',
+            model: 'qwen/qwen3.8-27b',
+            connection_id: 1,
+          },
+        },
+      },
+    },
+  });
+  const backup = wrapper.findAllComponents(AgentFallback)[0];
+  await backup
+    .findAll('button')
+    .find(button => button.text().includes('FALLBACK.SWAP'))
+    .trigger('click');
+  await wrapper.get('form').trigger('submit');
+  const saved = wrapper.emitted('save')[0][0];
+  expect(saved.instructions).toBe('Keep this');
+  expect(saved.config).toMatchObject({
+    provider: 'openai',
+    model: 'gpt-6-luna',
+    connection_id: 2,
+    max_output_tokens: 8000,
+    auto_response_enabled: false,
+    fallback: {
+      enabled: true,
+      retry_primary: true,
+      provider: 'groq',
+      model: 'qwen/qwen3.8-27b',
+      connection_id: 1,
+      max_output_tokens: 768,
+    },
+    vision: { provider: 'groq', model: 'qwen/qwen3.8-27b', connection_id: 1 },
+  });
+  wrapper.unmount();
+});
+
+it('inverts an inherited visual primary into explicit compatible image settings', async () => {
+  const settings = {
+    provider: 'agent',
+    model: '',
+    fallback: {
+      enabled: true,
+      retry_primary: false,
+      provider: 'openai',
+      model: 'gpt-6-luna',
+      connection_id: 2,
+    },
+  };
+  const wrapper = mount(AgentVision, {
+    props: {
+      modelValue: settings,
+      agentProvider: 'groq',
+      agentModel: 'qwen/qwen3.8-27b',
+      agentConfig: {
+        provider: 'groq',
+        model: 'qwen/qwen3.8-27b',
+        connection_id: 1,
+        max_output_tokens: 768,
+      },
+      catalogs,
+      canEdit: true,
+    },
+  });
+  wrapper.findComponent(AgentFallback).vm.$emit('swap');
+  await flushPromises();
+  expect(settings).toMatchObject({
+    provider: 'openai',
+    model: 'gpt-6-luna',
+    connection_id: 2,
+    fallback: {
+      provider: 'groq',
+      model: 'qwen/qwen3.8-27b',
+      connection_id: 1,
+      max_output_tokens: 768,
+      retry_primary: false,
+    },
+  });
+  wrapper.unmount();
+});
+
+it('inverts inherited audio connections using a transcription model instead of the chat model', async () => {
+  const transcription = {
+    provider: 'agent',
+    model: '',
+    fallback: {
+      enabled: true,
+      retry_primary: true,
+      provider: 'openai',
+      model: 'gpt-4o-transcribe',
+      connection_id: 2,
+    },
+  };
+  const wrapper = mount(AgentVoice, {
+    props: {
+      modelValue: structuredClone(voiceDefaults),
+      transcription,
+      canEdit: true,
+      agentConfig: {
+        provider: 'groq',
+        model: 'qwen/qwen3.8-27b',
+        connection_id: 1,
+      },
+    },
+  });
+  wrapper.findComponent(AgentFallback).vm.$emit('swap');
+  await flushPromises();
+  expect(transcription).toMatchObject({
+    provider: 'openai',
+    model: 'gpt-4o-transcribe',
+    connection_id: 2,
+    fallback: {
+      provider: 'groq',
+      model: 'whisper-large-v3-turbo',
+      connection_id: 1,
+    },
+  });
   wrapper.unmount();
 });

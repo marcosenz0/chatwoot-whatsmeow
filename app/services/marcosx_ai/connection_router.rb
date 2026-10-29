@@ -11,9 +11,11 @@ class MarcosxAi::ConnectionRouter
     @temperature = temperature
     @reasoning_effort = reasoning_effort
     @purpose = purpose
-    @endpoints = MarcosxAi::ConnectionPlan.new(assistant: assistant, feature: feature).endpoints
+    plan = MarcosxAi::ConnectionPlan.new(assistant: assistant, feature: feature)
+    @endpoints = plan.endpoints
+    @retry_primary = plan.retry_primary?
     @signature = Digest::SHA256.hexdigest(@endpoints.map { |e|
-      [e[:role], e[:provider], e[:model], e[:max_output_tokens], e[:key], e[:credential]&.updated_at]
+      [e[:role], e[:provider], e[:model], e[:max_output_tokens], e[:key]]
     }.to_json)
   end
 
@@ -46,11 +48,8 @@ class MarcosxAi::ConnectionRouter
 
   def ordered_endpoints
     status = @assistant.connection_status[@feature] || {}
-    primary = @endpoints.first
-    health = primary[:credential]&.health.presence || status.dig('connections', primary[:key]) || {}
-    retry_at = Time.iso8601(health['retry_at']) if health['retry_at']
     if @endpoints.size > 1 && status['signature'] == @signature && status['active_role'] == 'fallback' &&
-       health['state'] == 'error' && retry_at && retry_at > Time.current
+       !@retry_primary
       return @endpoints.reverse
     end
 

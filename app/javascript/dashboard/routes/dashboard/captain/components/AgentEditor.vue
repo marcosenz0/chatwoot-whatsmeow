@@ -18,6 +18,7 @@ import {
   fallbackDefaults,
   transcriptionFallbackDefaults,
   connectionActive,
+  invertConnections,
 } from './connectionDefaults';
 import AiPlayground from './AiPlayground.vue';
 import AgentAttendance from './AgentAttendance.vue';
@@ -710,12 +711,14 @@ const channelLabel = inbox =>
                   />
                   <AgentFallback
                     v-model="form.config.fallback"
+                    can-swap
                     :credentials="credentials"
                     :providers="providers"
                     :catalogs="catalogs"
                     :can-edit="canEdit"
                     :busy-provider="busyProvider"
                     :status="connectionStatus.chat"
+                    @swap="invertConnections(form.config, form.config.fallback)"
                     @save-connection="
                       (provider, connection) =>
                         emit('saveConnection', provider, connection)
@@ -786,6 +789,7 @@ const channelLabel = inbox =>
                     v-model:video="form.config.process_video"
                     :agent-provider="form.config.provider"
                     :agent-model="form.config.model"
+                    :agent-config="form.config"
                     :catalogs="catalogs"
                     :credentials="credentials"
                     :providers="providers"
@@ -1244,6 +1248,7 @@ const channelLabel = inbox =>
                 :can-edit="canEdit"
                 :busy-provider="busyProvider"
                 :connection-status="connectionStatus.transcription"
+                :agent-config="form.config"
                 @save-connection="
                   (provider, connection) =>
                     emit('saveConnection', provider, connection)

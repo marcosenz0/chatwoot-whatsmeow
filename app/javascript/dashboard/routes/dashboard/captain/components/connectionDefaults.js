@@ -1,5 +1,6 @@
 export const fallbackDefaults = {
   enabled: false,
+  retry_primary: true,
   provider: 'openai',
   connection_id: null,
   max_output_tokens: null,
@@ -21,3 +22,13 @@ export const connectionActive = (status, credential, provider, role) =>
     (credential?.id
       ? `credential:${credential.id}`
       : `integration:${provider}`);
+
+export const invertConnections = (primary, fallback, inherited = {}) => {
+  const fields = ['provider', 'model', 'connection_id', 'max_output_tokens'];
+  const route = source =>
+    Object.fromEntries(fields.map(field => [field, source[field] ?? null]));
+  const previous = route(primary.provider === 'agent' ? inherited : primary);
+  const next = route(fallback);
+  Object.assign(primary, next);
+  Object.assign(fallback, previous);
+};
