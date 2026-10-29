@@ -1,0 +1,8 @@
+en:
+  marcosx_ai:
+    errors:
+      connections_failed: "The primary and reserve connections failed. Check their keys, balance and availability in the agent settings."
+      connection_in_use: "Choose another connection in the agent settings before deleting this one."
+      invalid_connection: "Choose a saved connection from this account and provider."
+      invalid_fallback: "Choose a compatible reserve provider, connection and model."
+      same_fallback: "The reserve must use a different connection from the primary."

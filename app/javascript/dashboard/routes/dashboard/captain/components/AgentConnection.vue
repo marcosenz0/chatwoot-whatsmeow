@@ -9,6 +9,7 @@ const props = defineProps({
   credential: { type: Object, default: null },
   canEdit: { type: Boolean, default: false },
   busy: { type: Boolean, default: false },
+  active: { type: Boolean, default: false },
 });
 const emit = defineEmits(['save', 'test', 'refresh', 'change']);
 const { t } = useI18n();
@@ -22,6 +23,7 @@ watch(
   value =>
     emit('change', {
       ...value,
+      provider: props.provider,
       dirty:
         !!value.api_key?.trim() ||
         (ready.value && value.api_base !== props.credential?.api_base),
@@ -29,10 +31,17 @@ watch(
   { deep: true }
 );
 watch(
-  () => [props.provider, props.credential],
+  [
+    () => props.provider,
+    () => props.credential?.id,
+    () => props.credential?.updated_at,
+    () => props.credential?.configured,
+    () => props.credential?.enabled,
+  ],
   () => {
     form.value = {
       id: props.credential?.id,
+      name: props.credential?.name || 'Principal',
       api_key: '',
       api_base: props.credential?.api_base || props.defaults.default_api_base,
       model: props.credential?.model || props.defaults.default_model,
@@ -50,9 +59,11 @@ watch(
       <div class="flex items-center gap-3">
         <span
           :class="
-            ready
-              ? 'i-lucide-circle-check text-n-teal-11'
-              : 'i-lucide-key-round text-n-slate-11'
+            credential?.health?.state === 'error'
+              ? 'i-lucide-circle-x text-n-ruby-11'
+              : ready
+                ? 'i-lucide-circle-check text-n-teal-11'
+                : 'i-lucide-key-round text-n-slate-11'
           "
           class="size-5 shrink-0"
         />
@@ -60,11 +71,22 @@ watch(
           <p class="m-0 text-sm font-medium text-n-slate-12">
             {{
               t(
-                ready
-                  ? 'MARCOX_AI.PROVIDERS.CONNECTED'
-                  : 'MARCOX_AI.PROVIDERS.MISSING'
+                credential?.health?.state === 'error'
+                  ? 'MARCOX_AI.FALLBACK.FAILED'
+                  : ready
+                    ? 'MARCOX_AI.PROVIDERS.CONNECTED'
+                    : 'MARCOX_AI.PROVIDERS.MISSING'
               )
             }}
+          </p>
+          <p v-if="active" class="m-0 mt-1 text-xs font-medium text-n-teal-11">
+            {{ t('MARCOX_AI.FALLBACK.IN_USE') }}
+          </p>
+          <p
+            v-if="credential?.health?.state === 'error'"
+            class="m-0 mt-1 break-words text-xs text-n-ruby-11"
+          >
+            {{ credential.health.error }}
           </p>
           <p class="m-0 mt-1 text-xs text-n-slate-11">
             {{

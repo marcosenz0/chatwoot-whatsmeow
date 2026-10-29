@@ -65,13 +65,6 @@ class MarcosxAi::MediaContext
 
   def transcribe(file)
     independent = @assistant.resolved_config[:transcription][:provider] != 'agent'
-    if !independent && @assistant.provider == 'gemini'
-      return @client.chat(purpose: 'media_description', messages: [{ role: 'user', content: [
-                            { type: 'input_text', text: 'Transcreva fielmente este áudio no idioma original. Não invente trechos inaudíveis.' },
-                            file_part(file)
-                          ] }])
-    end
-
     Dir.mktmpdir('marcosx-audio') do |directory|
       output = File.join(directory, 'voice.mp3')
       convert_media('-i', file.path, '-vn', '-ac', '1', '-ar', '24000', '-b:a', '64k', output)
@@ -97,7 +90,7 @@ class MarcosxAi::MediaContext
         { type: 'input_text', text: "Tipo: #{@attachment.file_type}. Legenda: #{@attachment.message.content}" }, *parts
       ] }
     ]
-    client.chat(purpose: 'media_description', messages: messages)
+    client.chat(purpose: media_type == 'file' ? 'file_description' : 'media_description', messages: messages)
   end
 
   def image_part
@@ -133,9 +126,10 @@ class MarcosxAi::MediaContext
   end
 
   def vision_capabilities
-    provider = vision_settings[:provider] == 'agent' ? @assistant.provider : vision_settings[:provider]
-    model = vision_settings[:provider] == 'agent' ? @assistant.model : vision_settings[:model]
-    MarcosxAi::ModelCatalog.describe(model, provider)
+    capabilities = MarcosxAi::ConnectionPlan.new(assistant: @assistant, feature: 'vision').endpoints.map do |endpoint|
+      MarcosxAi::ModelCatalog.describe(endpoint[:model], endpoint[:provider])
+    end
+    { vision: capabilities.any?, max_images: capabilities.map { |item| item[:max_images] }.min || 1 }
   end
 
   def vision_client

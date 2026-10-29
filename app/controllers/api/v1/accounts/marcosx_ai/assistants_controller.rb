@@ -186,6 +186,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
       config: [
         :provider,
         :model,
+        :connection_id,
         :temperature,
         :reasoning_effort,
         :response_delay_seconds,
@@ -204,8 +205,10 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
         { voice: [:enabled, :provider, :mode, :send_text, :max_characters, :min_text_turns, :long_message_characters, :instructions, :pronunciation,
                   { minimax: [:voice_id, :model, :speed, :volume, :pitch],
                     elevenlabs: [:voice_id, :model, :speed, :stability, :similarity_boost, :style] }],
-          transcription: [:provider, :model],
-          vision: [:provider, :model, :max_dimension, :video_frames, :video_interval_seconds, :instructions],
+          fallback: [:enabled, :provider, :connection_id, :model],
+          transcription: [:provider, :model, :connection_id, { fallback: [:enabled, :provider, :connection_id, :model] }],
+          vision: [:provider, :model, :connection_id, :max_dimension, :video_frames, :video_interval_seconds, :instructions,
+                   { fallback: [:enabled, :provider, :connection_id, :model] }],
           prompt_cache: [:enabled, :ttl],
           notifications: [:inbox_id, { user_ids: [], whatsapp_numbers: [] }],
           alert_rules: [:id, :name, :description, :message, :action, :inbox_id, { user_ids: [], whatsapp_numbers: [] }] }
@@ -231,6 +234,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
       instructions: assistant.instructions,
       editorial_instructions: assistant.resolved_config[:editorial_instructions] || MarcosxAi::PromptBuilder::EDITORIAL_INSTRUCTIONS,
       config: assistant.resolved_config,
+      connection_status: assistant.connection_status,
       response_guidelines: assistant.response_guidelines || [],
       guardrails: assistant.guardrails || [],
       inboxes_count: assistant.marcosx_ai_inboxes.count,

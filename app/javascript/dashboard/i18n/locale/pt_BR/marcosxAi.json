@@ -735,6 +735,21 @@
       "ENABLING": "Ativando atendimento geral…",
       "DISABLING": "Desativando atendimento geral…",
       "MANUAL": "Atualizando atendimentos manuais…"
+    },
+    "FALLBACK": {
+      "DEFAULT_CONNECTION": "Conexão padrão do provedor",
+      "CONNECTION": "Conexão salva",
+      "ADD_CONNECTION": "Adicionar outra conexão",
+      "NAME": "Nome da conexão",
+      "NEW_HINT": "Use a chave da outra conta. A conexão é salva separadamente; depois salve o agente para aplicar a escolha. Chaves da mesma organização do provedor podem compartilhar limites.",
+      "ENABLED": "Ativar reserva automática",
+      "HINT": "Se a geração pela principal falhar, use a reserva. Escolha outra conexão, inclusive de outra conta do mesmo provedor.",
+      "ACTIVE": "Conexão reserva em uso",
+      "PROVIDER": "Provedor da reserva",
+      "MODEL": "Modelo da reserva",
+      "FAILED": "Conexão com erro",
+      "IN_USE": "Em uso no momento",
+      "WARNING": "Conexão que precisa de atenção:"
     }
   }
 }

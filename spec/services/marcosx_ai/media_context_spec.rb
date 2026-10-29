@@ -40,7 +40,7 @@ RSpec.describe MarcosxAi::MediaContext do
     attachment.file.attach(io: Rails.root.join('spec/assets/sample.pdf').open, filename: 'document.pdf', content_type: 'application/pdf')
     allow(client).to receive(:chat).and_return('PDF details')
     expect(service.describe).to eq('PDF details')
-    expect(client).to have_received(:chat).with(purpose: 'media_description', messages: array_including(
+    expect(client).to have_received(:chat).with(purpose: 'file_description', messages: array_including(
       hash_including(role: 'user', content: array_including(hash_including(type: 'input_file', filename: 'document.pdf')))
     ))
   end

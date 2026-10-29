@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import { useI18n } from 'vue-i18n';
@@ -22,6 +22,30 @@ const canEdit = computed(
 const preferences = ref({});
 const agents = ref([]);
 const credentials = ref([]);
+const connectionStatuses = ref({});
+let healthTimer;
+let disposed = false;
+const refreshHealth = async () => {
+  if (!canEdit.value) return;
+  try {
+    const { data } = await MarcosxAiAPI.getConnectionHealth();
+    if (disposed) return;
+    credentials.value = data.credentials;
+    connectionStatuses.value = Object.fromEntries(
+      data.assistants.map(item => [item.id, item.connection_status])
+    );
+  } catch {
+    // Keep the last confirmed connection state during a temporary dashboard disconnect.
+  }
+};
+const connectionErrors = computed(() =>
+  credentials.value.filter(item => item.health?.state === 'error')
+);
+const fallbackActive = computed(() =>
+  Object.values(connectionStatuses.value).some(status =>
+    Object.values(status || {}).some(item => item.active_role === 'fallback')
+  )
+);
 const catalogs = ref({});
 const loading = ref(true);
 const saving = ref(false);
@@ -97,10 +121,15 @@ const enabledAgentCount = computed(
 );
 const notifyError = error =>
   useAlert(error.response?.data?.error || t('MARCOX_AI.ERROR'));
-const loadModels = async (provider, refresh = false) => {
+const loadModels = async (provider, refresh = false, credentialId = null) => {
   try {
-    const { data } = await MarcosxAiAPI.getModels(provider, refresh);
-    catalogs.value[provider] = data;
+    const { data } = await MarcosxAiAPI.getModels(
+      provider,
+      refresh,
+      credentialId
+    );
+    catalogs.value[credentialId ? `${provider}:${credentialId}` : provider] =
+      data;
   } catch (error) {
     if (refresh) notifyError(error);
   }
@@ -116,6 +145,9 @@ const refresh = async () => {
     preferences.value = settings.data;
     credentials.value = settings.data.credentials;
     agents.value = profiles.data.assistants;
+    connectionStatuses.value = Object.fromEntries(
+      agents.value.map(item => [item.id, item.connection_status || {}])
+    );
     editing.value =
       agents.value.find(agent => agent.id === editing.value?.id) ||
       agents.value.find(agent => agent.id === Number(route.query.agent)) ||
@@ -133,7 +165,21 @@ const refresh = async () => {
     loading.value = false;
   }
 };
-onMounted(refresh);
+onMounted(() => {
+  refresh();
+  healthTimer = setInterval(refreshHealth, 10000);
+});
+onBeforeUnmount(() => {
+  disposed = true;
+  clearInterval(healthTimer);
+});
+const connectionCreated = connection => {
+  credentials.value = [
+    ...credentials.value.filter(item => item.id !== connection.id),
+    connection,
+  ];
+  loadModels(connection.provider, true, connection.id);
+};
 const newAgent = () =>
   reviewNavigation(() => {
     editing.value = {
@@ -163,6 +209,7 @@ const saveAgent = async (form, connections = []) => {
         MarcosxAiAPI.saveCredential(connection.id, {
           credential: {
             provider: connection.provider,
+            name: connection.name,
             api_key: connection.api_key,
             api_base: connection.api_base,
             model: connection.model,
@@ -218,9 +265,18 @@ const saveAgent = async (form, connections = []) => {
   }
 };
 const connectionReady = agent =>
-  credentials.value.some(
-    item =>
-      item.provider === agent.config.provider && item.enabled && item.configured
+  [
+    agent.config,
+    ...(agent.config.fallback?.enabled ? [agent.config.fallback] : []),
+  ].some(settings =>
+    (() => {
+      const connection = credentials.value.find(
+        item =>
+          item.provider === settings.provider &&
+          (!settings.connection_id || item.id === settings.connection_id)
+      );
+      return connection?.enabled && connection.configured;
+    })()
   );
 const toggleManual = async agent => {
   if (togglingId.value !== null) return;
@@ -313,6 +369,7 @@ const saveConnection = async (provider, form) => {
     await MarcosxAiAPI.saveCredential(form.id, {
       credential: {
         provider,
+        name: form.name,
         api_key: form.api_key,
         api_base: form.api_base,
         model: form.model,
@@ -321,7 +378,7 @@ const saveConnection = async (provider, form) => {
     });
     const { data } = await MarcosxAiAPI.getCredentials();
     credentials.value = data.credentials;
-    await loadModels(provider, true);
+    await loadModels(provider, true, form.id);
     useAlert(t('MARCOX_AI.SAVED'));
   } catch (error) {
     notifyError(error);
@@ -329,14 +386,15 @@ const saveConnection = async (provider, form) => {
     busyProvider.value = '';
   }
 };
-const testConnection = async provider => {
+const testConnection = async (provider, credentialId = null, model = null) => {
   busyProvider.value = provider;
   try {
-    await MarcosxAiAPI.testCredential(provider);
+    await MarcosxAiAPI.testCredential(provider, credentialId, model);
     useAlert(t('MARCOX_AI.PROVIDERS.TEST_OK'));
   } catch (error) {
     notifyError(error);
   } finally {
+    await refreshHealth();
     busyProvider.value = '';
   }
 };
@@ -345,6 +403,24 @@ const testConnection = async provider => {
 <template>
   <div class="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-n-solid-1">
     <h1 class="sr-only">{{ t('MARCOX_AI.TITLE') }}</h1>
+    <div
+      v-if="canEdit && connectionErrors.length"
+      role="alert"
+      class="flex flex-wrap items-center gap-2 border-b border-n-ruby-7 bg-n-ruby-2 px-6 py-3 text-sm text-n-ruby-11"
+    >
+      <span class="i-lucide-circle-x size-4 shrink-0" />
+      <span
+        >{{ t('MARCOX_AI.FALLBACK.WARNING') }}
+        {{
+          connectionErrors
+            .map(item => `${item.display_name || item.provider} · ${item.name}`)
+            .join(', ')
+        }}</span
+      >
+      <span v-if="fallbackActive" class="font-medium text-n-teal-11">{{
+        t('MARCOX_AI.FALLBACK.ACTIVE')
+      }}</span>
+    </div>
     <div v-if="loading" class="flex flex-1 items-center justify-center">
       <Spinner />
     </div>
@@ -620,6 +696,7 @@ const testConnection = async provider => {
         :providers="preferences.providers"
         :busy-provider="busyProvider"
         :error="actionError"
+        :connection-status="connectionStatuses[editing.id] || {}"
         :default-prompt="preferences.default_prompt"
         :can-edit="canEdit"
         :saving="saving || togglingId !== null"
@@ -632,7 +709,8 @@ const testConnection = async provider => {
         "
         @save-connection="saveConnection"
         @test-connection="testConnection"
-        @refresh-models="provider => loadModels(provider, true)"
+        @refresh-models="(provider, id) => loadModels(provider, true, id)"
+        @connection-created="connectionCreated"
         @back="backToAgents"
       />
       <div

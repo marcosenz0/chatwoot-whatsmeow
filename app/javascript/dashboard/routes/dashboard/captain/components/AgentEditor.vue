@@ -11,6 +11,12 @@ import AiModelSelect from './AiModelSelect.vue';
 import AiSelect from './AiSelect.vue';
 import AgentConnection from './AgentConnection.vue';
 import AgentVision from './AgentVision.vue';
+import AgentFallback from './AgentFallback.vue';
+import AgentConnectionPicker from './AgentConnectionPicker.vue';
+import {
+  fallbackDefaults,
+  transcriptionFallbackDefaults,
+} from './connectionDefaults';
 import AiPlayground from './AiPlayground.vue';
 import AgentAttendance from './AgentAttendance.vue';
 import AgentActivity from './AgentActivity.vue';
@@ -36,6 +42,7 @@ const props = defineProps({
   canEdit: { type: Boolean, default: false },
   saving: { type: Boolean, default: false },
   error: { type: String, default: '' },
+  connectionStatus: { type: Object, default: () => ({}) },
   initialSection: { type: String, default: 'identity' },
 });
 const emit = defineEmits([
@@ -47,6 +54,7 @@ const emit = defineEmits([
   'testConnection',
   'refreshModels',
   'back',
+  'connectionCreated',
 ]);
 const { t } = useI18n();
 const route = useRoute();
@@ -64,7 +72,10 @@ const submit = () => {
     form.value,
     Object.entries(connectionDrafts.value)
       .filter(([, draft]) => draft.dirty)
-      .map(([provider, draft]) => ({ ...draft, provider }))
+      .map(([provider, draft]) => ({
+        ...draft,
+        provider: draft.provider || provider,
+      }))
   );
 };
 const initialForm = ref('');
@@ -261,17 +272,32 @@ watch(
     form.value.config.vision = {
       provider: 'agent',
       model: '',
+      connection_id: null,
       max_dimension: 1600,
       video_frames: 3,
       video_interval_seconds: 5,
       instructions: '',
       ...form.value.config.vision,
     };
+    form.value.config.connection_id ??= null;
+    form.value.config.fallback = {
+      ...fallbackDefaults,
+      ...form.value.config.fallback,
+    };
+    form.value.config.vision.fallback = {
+      ...fallbackDefaults,
+      ...form.value.config.vision.fallback,
+    };
     connectionDrafts.value = {};
     const savedVoice = form.value.config.voice || {};
     form.value.config.transcription = {
       ...transcriptionDefaults,
       ...form.value.config.transcription,
+    };
+    form.value.config.transcription.connection_id ??= null;
+    form.value.config.transcription.fallback = {
+      ...transcriptionFallbackDefaults,
+      ...form.value.config.transcription.fallback,
     };
     form.value.config.voice = {
       ...voiceDefaults,
@@ -298,7 +324,12 @@ watch(
 );
 watch(form, value => emit('change', value), { deep: true });
 const modelOptions = computed(
-  () => props.catalogs[form.value.config.provider]?.models || []
+  () =>
+    (
+      props.catalogs[
+        `${form.value.config.provider}:${form.value.config.connection_id}`
+      ] || props.catalogs[form.value.config.provider]
+    )?.models || []
 );
 const model = computed(() =>
   modelOptions.value.find(item => item.id === form.value.config.model)
@@ -311,11 +342,18 @@ const visionModel = computed(() =>
       )
 );
 const connectionReady = computed(() =>
-  props.credentials.some(
-    item =>
-      item.provider === form.value.config.provider &&
-      item.enabled &&
-      item.configured
+  [
+    form.value.config,
+    ...(form.value.config.fallback.enabled ? [form.value.config.fallback] : []),
+  ].some(settings =>
+    (() => {
+      const connection = props.credentials.find(
+        item =>
+          item.provider === settings.provider &&
+          (!settings.connection_id || item.id === settings.connection_id)
+      );
+      return connection?.enabled && connection.configured;
+    })()
   )
 );
 const providerOptions = [
@@ -324,11 +362,17 @@ const providerOptions = [
   { value: 'gemini', label: 'Google Gemini', icon: 'i-lucide-sparkle' },
 ];
 const credential = computed(() =>
-  props.credentials.find(item => item.provider === form.value.config.provider)
+  props.credentials.find(
+    item =>
+      item.provider === form.value.config.provider &&
+      (!form.value.config.connection_id ||
+        item.id === form.value.config.connection_id)
+  )
 );
 const changeProvider = provider => {
   if (provider === form.value.config.provider) return;
   form.value.config.provider = provider;
+  form.value.config.connection_id = null;
   const connection = props.credentials.find(item => item.provider === provider);
   form.value.config.model =
     connection?.model || props.catalogs[provider]?.models?.[0]?.id || '';
@@ -610,13 +654,67 @@ const channelLabel = inbox =>
                     :defaults="providers[form.config.provider]"
                     :can-edit="canEdit"
                     :busy="busyProvider === form.config.provider"
+                    :active="connectionStatus.chat?.active_role === 'primary'"
                     @save="
                       connection =>
                         emit('saveConnection', form.config.provider, connection)
                     "
-                    @test="emit('testConnection', form.config.provider)"
-                    @refresh="emit('refreshModels', form.config.provider)"
-                    @change="connectionChange(form.config.provider, $event)"
+                    @test="
+                      emit(
+                        'testConnection',
+                        form.config.provider,
+                        credential?.id,
+                        form.config.model
+                      )
+                    "
+                    @refresh="
+                      emit(
+                        'refreshModels',
+                        form.config.provider,
+                        form.config.connection_id
+                      )
+                    "
+                    @change="
+                      connectionChange(
+                        credential?.id
+                          ? `connection:${credential.id}`
+                          : form.config.provider,
+                        $event
+                      )
+                    "
+                  />
+                  <AgentConnectionPicker
+                    v-model="form.config.connection_id"
+                    :provider="form.config.provider"
+                    :credentials="credentials"
+                    :defaults="providers[form.config.provider]"
+                    :disabled="!canEdit"
+                    @connection-created="emit('connectionCreated', $event)"
+                    @update:model-value="
+                      emit('refreshModels', form.config.provider, $event)
+                    "
+                  />
+                  <AgentFallback
+                    v-model="form.config.fallback"
+                    :credentials="credentials"
+                    :providers="providers"
+                    :catalogs="catalogs"
+                    :can-edit="canEdit"
+                    :busy-provider="busyProvider"
+                    :status="connectionStatus.chat"
+                    @save-connection="
+                      (provider, connection) =>
+                        emit('saveConnection', provider, connection)
+                    "
+                    @test-connection="
+                      (provider, id, selectedModel) =>
+                        emit('testConnection', provider, id, selectedModel)
+                    "
+                    @refresh-models="
+                      (provider, id) => emit('refreshModels', provider, id)
+                    "
+                    @connection-change="connectionChange"
+                    @connection-created="emit('connectionCreated', $event)"
                   />
                   <label
                     v-if="model?.reasoning"
@@ -679,13 +777,20 @@ const channelLabel = inbox =>
                     :providers="providers"
                     :can-edit="canEdit"
                     :busy-provider="busyProvider"
+                    :status="connectionStatus.vision"
                     @save-connection="
                       (provider, connection) =>
                         emit('saveConnection', provider, connection)
                     "
-                    @test-connection="emit('testConnection', $event)"
-                    @refresh-models="emit('refreshModels', $event)"
+                    @test-connection="
+                      (provider, id, selectedModel) =>
+                        emit('testConnection', provider, id, selectedModel)
+                    "
+                    @refresh-models="
+                      (provider, id) => emit('refreshModels', provider, id)
+                    "
                     @connection-change="connectionChange"
+                    @connection-created="emit('connectionCreated', $event)"
                   />
                 </div>
               </div>
@@ -1120,6 +1225,24 @@ const channelLabel = inbox =>
                 v-model:process-audio="form.config.process_audio"
                 :assistant-id="form.id"
                 :unsaved="hasUnsavedChanges"
+                :connections="credentials"
+                :providers="providers"
+                :can-edit="canEdit"
+                :busy-provider="busyProvider"
+                :connection-status="connectionStatus.transcription"
+                @save-connection="
+                  (provider, connection) =>
+                    emit('saveConnection', provider, connection)
+                "
+                @test-connection="
+                  (provider, id, selectedModel) =>
+                    emit('testConnection', provider, id, selectedModel)
+                "
+                @refresh-models="
+                  (provider, id) => emit('refreshModels', provider, id)
+                "
+                @connection-change="connectionChange"
+                @connection-created="emit('connectionCreated', $event)"
               />
               <AgentNotifications
                 v-if="section === 'notifications' && canEdit"

@@ -5,14 +5,14 @@ class MarcosxAi::ModelCatalog
     'gemini' => %w[gemini-2.5-pro gemini-2.5-flash]
   }.freeze
 
-  def self.for_provider(account:, provider:, refresh: false)
-    credential = MarcosxAi::Credential.for_provider(account, provider)
+  def self.for_provider(account:, provider:, refresh: false, credential_id: nil)
+    credential = MarcosxAi::Credential.for_provider(account, provider, id: credential_id)
     return { models: SUGGESTED.fetch(provider).map { |id| describe(id, provider) }, verified: false } unless credential&.configured?
 
     key = ['marcosx-ai-models', account.id, provider, Digest::SHA256.hexdigest(credential.api_key), credential.resolved_api_base]
     Rails.cache.delete(key) if refresh
     ids = Rails.cache.fetch(key, expires_in: 30.minutes) do
-      MarcosxAi::ProviderClient.new(account: account, provider: provider).models
+      MarcosxAi::ProviderClient.new(account: account, provider: provider, credential: credential).models
     end
     ids = ids.select { |id| conversational?(id, provider) }.sort_by { |id| [SUGGESTED.fetch(provider).index(id) || 100, id] }
     { models: ids.map { |id| describe(id, provider) }, verified: true }

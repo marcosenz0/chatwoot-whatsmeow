@@ -16,6 +16,7 @@ class MarcosxAi::ConfigurationValidator
     validate_voice!(config[:voice])
     validate_transcription!(config[:transcription])
     validate_vision!(config[:vision])
+    validate_connections!(config, account)
     raise ArgumentError, 'Invalid memory mode' unless %w[legacy summary_recent selected_only].include?(config[:memory_mode])
     raise ArgumentError, 'Invalid resume mode' unless %w[manual after_human].include?(config[:resume_mode])
 
@@ -59,6 +60,43 @@ class MarcosxAi::ConfigurationValidator
            settings[:instructions].is_a?(String) && settings[:instructions].length <= 4000
       raise ArgumentError, 'Invalid image reading settings'
     end
+  end
+
+  def self.validate_connections!(config, account)
+    %w[chat vision transcription].each do |feature|
+      settings = feature == 'chat' ? config : config[feature]
+      provider = settings[:provider] == 'agent' ? config[:provider] : settings[:provider]
+      validate_connection_id!(settings[:connection_id], provider, account)
+      backup = settings[:fallback]
+      unless backup.is_a?(Hash) && [true, false].include?(backup[:enabled]) &&
+             MarcosxAi::Credential::PROVIDERS.key?(backup[:provider]) && backup[:model].is_a?(String) && backup[:model].present?
+        raise ArgumentError, I18n.t('marcosx_ai.errors.invalid_fallback')
+      end
+
+      validate_connection_id!(backup[:connection_id], backup[:provider], account)
+      next unless backup[:enabled]
+
+      if feature == 'vision' && !MarcosxAi::ModelCatalog.describe(backup[:model], backup[:provider])[:vision]
+        raise ArgumentError, I18n.t('marcosx_ai.errors.invalid_fallback')
+      end
+      if feature == 'transcription' && !MarcosxAi::TranscriptionClient::MODELS.fetch(backup[:provider]).include?(backup[:model])
+        raise ArgumentError, I18n.t('marcosx_ai.errors.invalid_fallback')
+      end
+
+      main_id = settings[:connection_id] || (settings[:provider] == 'agent' ? config[:connection_id] : nil)
+      main = MarcosxAi::Credential.for_provider(account, provider, id: main_id)
+      reserve = MarcosxAi::Credential.for_provider(account, backup[:provider], id: backup[:connection_id])
+      if provider == backup[:provider] && main&.id == reserve&.id
+        raise ArgumentError, I18n.t('marcosx_ai.errors.same_fallback')
+      end
+    end
+  end
+
+  def self.validate_connection_id!(id, provider, account)
+    return if id.nil?
+    return if id.is_a?(Integer) && account.marcosx_ai_credentials.where(id: id, provider: provider).exists?
+
+    raise ArgumentError, I18n.t('marcosx_ai.errors.invalid_connection')
   end
 
   def self.validate_voice!(settings)

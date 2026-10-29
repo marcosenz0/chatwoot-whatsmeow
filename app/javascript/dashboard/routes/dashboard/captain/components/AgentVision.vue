@@ -6,6 +6,8 @@ import AiSelect from './AiSelect.vue';
 import AiModelSelect from './AiModelSelect.vue';
 import AiToggleRow from './AiToggleRow.vue';
 import AgentConnection from './AgentConnection.vue';
+import AgentConnectionPicker from './AgentConnectionPicker.vue';
+import AgentFallback from './AgentFallback.vue';
 
 const props = defineProps({
   agentProvider: { type: String, required: true },
@@ -15,12 +17,14 @@ const props = defineProps({
   providers: { type: Object, default: () => ({}) },
   canEdit: { type: Boolean, default: false },
   busyProvider: { type: String, default: '' },
+  status: { type: Object, default: () => ({}) },
 });
 const emit = defineEmits([
   'saveConnection',
   'testConnection',
   'refreshModels',
   'connectionChange',
+  'connectionCreated',
 ]);
 const settings = defineModel({ type: Object, required: true });
 const images = defineModel('images', { type: Boolean, default: true });
@@ -32,10 +36,15 @@ const provider = computed(() =>
     : settings.value.provider
 );
 const models = computed(() =>
-  (props.catalogs[provider.value]?.models || []).filter(model => model.vision)
+  (
+    (
+      props.catalogs[`${provider.value}:${settings.value.connection_id}`] ||
+      props.catalogs[provider.value]
+    )?.models || []
+  ).filter(model => model.vision)
 );
 const currentModel = computed(() =>
-  props.catalogs[provider.value]?.models?.find(
+  models.value.find(
     model =>
       model.id ===
       (settings.value.provider === 'agent'
@@ -44,10 +53,16 @@ const currentModel = computed(() =>
   )
 );
 const credential = computed(() =>
-  props.credentials.find(item => item.provider === provider.value)
+  props.credentials.find(
+    item =>
+      item.provider === provider.value &&
+      (!settings.value.connection_id ||
+        item.id === settings.value.connection_id)
+  )
 );
 const changeProvider = value => {
   settings.value.provider = value;
+  settings.value.connection_id = null;
   settings.value.model = value === 'agent' ? '' : models.value[0]?.id || '';
 };
 const fields = [
@@ -110,16 +125,26 @@ const fields = [
       {{ t('MARCOX_AI.VISION.LIMIT', { count: currentModel.max_images || 6 }) }}
     </p>
     <AgentConnection
-      v-if="settings.provider !== 'agent' && provider !== agentProvider"
+      v-if="
+        settings.provider !== 'agent' &&
+        (provider !== agentProvider || settings.connection_id)
+      "
       :provider="provider"
       :credential="credential"
       :defaults="providers[provider]"
       :can-edit="canEdit"
       :busy="busyProvider === provider"
+      :active="status.active_role === 'primary'"
       @save="emit('saveConnection', provider, $event)"
-      @test="emit('testConnection', provider)"
-      @refresh="emit('refreshModels', provider)"
-      @change="emit('connectionChange', provider, $event)"
+      @test="emit('testConnection', provider, credential?.id, settings.model)"
+      @refresh="emit('refreshModels', provider, settings.connection_id)"
+      @change="
+        emit(
+          'connectionChange',
+          credential?.id ? `connection:${credential.id}` : provider,
+          $event
+        )
+      "
     />
     <p
       v-else-if="settings.provider !== 'agent'"
@@ -127,6 +152,39 @@ const fields = [
     >
       {{ t('MARCOX_AI.VISION.SHARED') }}
     </p>
+    <AgentConnectionPicker
+      v-if="settings.provider !== 'agent'"
+      v-model="settings.connection_id"
+      :provider="provider"
+      :credentials="credentials"
+      :defaults="providers[provider]"
+      :disabled="!canEdit"
+      @connection-created="emit('connectionCreated', $event)"
+      @update:model-value="emit('refreshModels', provider, $event)"
+    />
+    <AgentFallback
+      v-model="settings.fallback"
+      :credentials="credentials"
+      :providers="providers"
+      :catalogs="catalogs"
+      :can-edit="canEdit"
+      :busy-provider="busyProvider"
+      :status="status"
+      vision
+      @save-connection="
+        (selectedProvider, connection) =>
+          emit('saveConnection', selectedProvider, connection)
+      "
+      @test-connection="
+        (selectedProvider, id, selectedModel) =>
+          emit('testConnection', selectedProvider, id, selectedModel)
+      "
+      @refresh-models="
+        (selectedProvider, id) => emit('refreshModels', selectedProvider, id)
+      "
+      @connection-change="(key, draft) => emit('connectionChange', key, draft)"
+      @connection-created="emit('connectionCreated', $event)"
+    />
     <AiToggleRow
       v-model="video"
       :label="t('MARCOX_AI.EDITOR.VIDEO')"

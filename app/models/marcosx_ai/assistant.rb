@@ -4,6 +4,8 @@ class MarcosxAi::Assistant < ApplicationRecord
   DEFAULT_CONFIG = {
     provider: 'openai',
     model: 'gpt-6.1-sol',
+    connection_id: nil,
+    fallback: { enabled: false, provider: 'openai', connection_id: nil, model: 'gpt-6-luna' },
     temperature: 0.7,
     reasoning_effort: 'medium',
     response_delay_seconds: 8,
@@ -42,9 +44,11 @@ class MarcosxAi::Assistant < ApplicationRecord
     message_interval_seconds: 2,
     allow_reactions: true,
     process_images: true,
-    vision: { provider: 'agent', model: '', max_dimension: 1600, video_frames: 3, video_interval_seconds: 5, instructions: '' },
+    vision: { provider: 'agent', model: '', connection_id: nil, max_dimension: 1600, video_frames: 3, video_interval_seconds: 5, instructions: '',
+              fallback: { enabled: false, provider: 'openai', connection_id: nil, model: 'gpt-6-luna' } },
     process_audio: true,
-    transcription: { provider: 'agent', model: '' },
+    transcription: { provider: 'agent', model: '', connection_id: nil,
+                     fallback: { enabled: false, provider: 'openai', connection_id: nil, model: 'gpt-4o-transcribe' } },
     process_files: true,
     process_video: true,
     respond_to_groups: false,
@@ -83,6 +87,8 @@ class MarcosxAi::Assistant < ApplicationRecord
     settings[:voice] = DEFAULT_CONFIG[:voice].deep_merge(settings[:voice] || {})
     settings[:prompt_cache] = DEFAULT_CONFIG[:prompt_cache].deep_merge(settings[:prompt_cache] || {})
     settings[:vision] = DEFAULT_CONFIG[:vision].deep_merge(settings[:vision] || {})
+    settings[:fallback] = DEFAULT_CONFIG[:fallback].deep_merge(settings[:fallback] || {})
+    settings[:transcription] = DEFAULT_CONFIG[:transcription].deep_merge(settings[:transcription] || {})
     settings
   end
 
@@ -129,8 +135,9 @@ class MarcosxAi::Assistant < ApplicationRecord
   end
 
   def available?
-    credential = MarcosxAi::Credential.for_provider(account, provider)
-    (credential&.enabled && credential.configured?) || false
+    MarcosxAi::ConnectionPlan.new(assistant: self, feature: 'chat').endpoints.any? do |endpoint|
+      endpoint[:credential]&.enabled && endpoint[:credential].configured?
+    end
   end
 
   def reasoning_effort

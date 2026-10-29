@@ -6,11 +6,25 @@ import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import AiSelect from './AiSelect.vue';
 import AgentSection from './AgentSection.vue';
 import AiToggleRow from './AiToggleRow.vue';
+import AgentFallback from './AgentFallback.vue';
+import AgentConnectionPicker from './AgentConnectionPicker.vue';
 
 const props = defineProps({
   assistantId: { type: Number, default: null },
   unsaved: { type: Boolean, default: false },
+  connections: { type: Array, default: () => [] },
+  providers: { type: Object, default: () => ({}) },
+  canEdit: { type: Boolean, default: false },
+  busyProvider: { type: String, default: '' },
+  connectionStatus: { type: Object, default: () => ({}) },
 });
+const emit = defineEmits([
+  'saveConnection',
+  'testConnection',
+  'refreshModels',
+  'connectionChange',
+  'connectionCreated',
+]);
 const settings = defineModel({ type: Object, required: true });
 const transcription = defineModel('transcription', {
   type: Object,
@@ -140,9 +154,11 @@ const transcriptionProviders = computed(() => [
     label: t('MARCOX_AI.TRANSCRIPTION.AGENT_PROVIDER'),
     icon: 'i-lucide-bot',
   },
-  ...['groq', 'openai'].map(provider => ({
+  ...['groq', 'openai', 'gemini'].map(provider => ({
     value: provider,
-    label: provider === 'groq' ? 'Groq' : 'OpenAI',
+    label: { groq: 'Groq', openai: 'OpenAI', gemini: 'Google Gemini' }[
+      provider
+    ],
     icon: provider === 'groq' ? 'i-lucide-zap' : 'i-lucide-sparkles',
   })),
 ]);
@@ -150,7 +166,9 @@ const changeTranscriptionProvider = provider => {
   if (provider === transcription.value.provider) return;
   transcription.value = {
     provider,
+    connection_id: null,
     model: transcriptionOptions.value.models[provider]?.[0] || '',
+    fallback: transcription.value.fallback,
   };
 };
 </script>
@@ -219,6 +237,47 @@ const changeTranscriptionProvider = provider => {
       <p v-if="!assistantId" class="text-xs text-n-amber-11">
         {{ t('MARCOX_AI.VOICE.SAVE_FIRST') }}
       </p>
+      <AgentConnectionPicker
+        v-if="transcription.provider !== 'agent'"
+        v-model="transcription.connection_id"
+        :provider="transcription.provider"
+        :credentials="connections"
+        :defaults="providers[transcription.provider]"
+        :disabled="!canEdit"
+        @connection-created="emit('connectionCreated', $event)"
+      />
+      <AgentFallback
+        v-if="transcription.fallback"
+        v-model="transcription.fallback"
+        :credentials="connections"
+        :providers="providers"
+        feature="transcription"
+        :catalogs="
+          Object.fromEntries(
+            Object.entries(transcriptionOptions.models).map(
+              ([provider, ids]) => [
+                provider,
+                { models: ids.map(id => ({ id, name: id })) },
+              ]
+            )
+          )
+        "
+        :can-edit="canEdit"
+        :busy-provider="busyProvider"
+        :status="connectionStatus"
+        @save-connection="
+          (provider, connection) => emit('saveConnection', provider, connection)
+        "
+        @test-connection="
+          (provider, id, selectedModel) =>
+            emit('testConnection', provider, id, selectedModel)
+        "
+        @refresh-models="(provider, id) => emit('refreshModels', provider, id)"
+        @connection-change="
+          (key, draft) => emit('connectionChange', key, draft)
+        "
+        @connection-created="emit('connectionCreated', $event)"
+      />
     </AgentSection>
     <AiToggleRow
       v-model="settings.enabled"

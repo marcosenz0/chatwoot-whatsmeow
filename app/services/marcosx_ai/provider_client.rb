@@ -4,23 +4,30 @@ class MarcosxAi::ProviderClient
   MAX_RATE_LIMIT_WAIT = 60
   attr_reader :usage
 
-  def initialize(account:, provider:, model: nil, temperature: 0.7, reasoning_effort: 'medium', assistant: nil, conversation: nil, purpose: 'other')
+  def initialize(account:, provider:, model: nil, temperature: 0.7, reasoning_effort: 'medium', assistant: nil, conversation: nil, purpose: 'other',
+                 credential: nil, credential_id: nil, routing: true, retry_rate_limits: true)
     @account = account
     @assistant = assistant
     @conversation = conversation
     @purpose = purpose
     @provider = provider.to_s
-    @credential = MarcosxAi::Credential.for_provider(account, @provider)
-    raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.credential_missing') unless @credential
+    @credential = credential || MarcosxAi::Credential.for_provider(account, @provider, id: credential_id)
+    raise ArgumentError, 'Invalid connection account' if @credential && @credential.account_id != account.id
 
-    @model = model.presence || @credential.resolved_model
+    @model = model.presence || @credential&.resolved_model
     @temperature = temperature.to_f
     @reasoning_effort = reasoning_effort
+    @routing = routing && assistant.present?
+    @retry_rate_limits = retry_rate_limits
   end
 
   def chat(messages:, schema: nil, purpose: nil)
+    if @routing
+      feature = (purpose || @purpose) == 'media_description' ? 'vision' : 'chat'
+      return routed(:chat, feature, messages: messages, schema: schema, purpose: purpose)
+    end
     rate_limit_retries ||= 0
-    raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.credential_missing') unless @credential.enabled && @credential.configured?
+    ensure_credential!
 
     case @provider
     when 'openai' then openai_response(messages, schema, purpose || @purpose)
@@ -29,7 +36,7 @@ class MarcosxAi::ProviderClient
     end
   rescue Faraday::TooManyRequestsError => e
     delay = Float(e.response&.dig(:headers, 'retry-after').to_s, exception: false)
-    if @provider == 'groq' && delay&.between?(0, MAX_RATE_LIMIT_WAIT) && rate_limit_retries < MAX_RATE_LIMIT_RETRIES
+    if @retry_rate_limits && @provider == 'groq' && delay&.between?(0, MAX_RATE_LIMIT_WAIT) && rate_limit_retries < MAX_RATE_LIMIT_RETRIES
       rate_limit_retries += 1
       Kernel.sleep(delay.ceil)
       retry
@@ -44,6 +51,7 @@ class MarcosxAi::ProviderClient
   end
 
   def models
+    ensure_credential!
     if @provider == 'gemini'
       gemini_request(:get, 'models').fetch('models', [])
                                     .select { |item| item.fetch('supportedGenerationMethods', []).include?('generateContent') }
@@ -55,14 +63,52 @@ class MarcosxAi::ProviderClient
     raise_provider_error(e)
   end
 
-  def transcribe(file)
-    model = @provider == 'groq' ? 'whisper-large-v3-turbo' : 'gpt-4o-transcribe'
-    sdk.audio.transcribe(parameters: { model: model, file: file, response_format: 'json' }).fetch('text')
+  def transcribe(file = nil, audio: nil)
+    file ||= audio
+    return routed(:transcribe, 'transcription', audio: file) if @routing
+
+    ensure_credential!
+    file.rewind
+    if @provider == 'gemini'
+      return chat(messages: [{ role: 'user', content: [
+                    { type: 'input_text', text: 'Transcreva fielmente este áudio no idioma original. Não invente trechos inaudíveis.' },
+                    { type: 'input_file', file_data: "data:audio/mpeg;base64,#{Base64.strict_encode64(file.read)}" }
+                  ] }])
+    end
+    model = MarcosxAi::TranscriptionClient::MODELS.fetch(@provider).include?(@model) ? @model :
+      MarcosxAi::TranscriptionClient::MODELS.fetch(@provider).first
+    response = sdk.audio.transcribe(parameters: { model: model, file: file, response_format: 'json' })
+    @usage = response['usage']
+    response['text'].to_s.presence || raise_empty_response
   rescue Faraday::Error => e
     raise_provider_error(e)
   end
 
+  def provider
+    @actual_provider || @provider
+  end
+
+  def model
+    @actual_model || @model
+  end
+
   private
+
+  def routed(task, feature, **arguments)
+    router = MarcosxAi::ConnectionRouter.new(assistant: @assistant, feature: feature, conversation: @conversation,
+                                             temperature: @temperature, reasoning_effort: @reasoning_effort, purpose: @purpose)
+    result = router.perform(task, **arguments)
+    @usage = router.client.usage
+    @actual_provider = router.client.provider
+    @actual_model = router.client.model
+    result
+  end
+
+  def ensure_credential!
+    return if @credential&.enabled && @credential.configured?
+
+    raise CustomExceptions::MarcosxAi.new(I18n.t('marcosx_ai.errors.credential_missing'), provider_failure: true)
+  end
 
   def sdk
     @sdk ||= OpenAI::Client.new(access_token: @credential.api_key, uri_base: @credential.resolved_api_base,
@@ -86,7 +132,7 @@ class MarcosxAi::ProviderClient
                                     purpose: purpose, response: response, parameters: parameters, started_at: started_at)
     content = response.fetch('output', []).flat_map { |item| item.fetch('content', []) }
     text = content.select { |item| item['type'] == 'output_text' }.pluck('text').join
-    raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response') if text.blank?
+    raise_empty_response if text.blank?
 
     text
   end
@@ -108,7 +154,7 @@ class MarcosxAi::ProviderClient
     response = sdk.chat(parameters: parameters)
     @usage = response['usage']
     response.dig('choices', 0, 'message', 'content').to_s.presence ||
-      raise(CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response'))
+      raise_empty_response
   end
 
   def compatible_messages(messages)
@@ -142,7 +188,7 @@ class MarcosxAi::ProviderClient
     response = gemini_request(:post, "models/#{@model}:generateContent", body)
     @usage = response['usageMetadata']
     response.dig('candidates', 0, 'content', 'parts')&.reject { |part| part['thought'] }&.pluck('text')&.join.presence ||
-      raise(CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.empty_response'))
+      raise_empty_response
   end
 
   def gemini_part(part)
@@ -167,8 +213,13 @@ class MarcosxAi::ProviderClient
   def raise_provider_error(error)
     status = error.response&.dig(:status)
     message = error.response&.dig(:body, 'error', 'message') if error.response&.dig(:body).is_a?(Hash)
-    message = message.to_s.gsub(@credential.api_key.to_s, '[redacted]').gsub(/sk-[\w-]+/, '[redacted]')
-    raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.provider', provider: @credential.display_name,
-                                                                            status: status || 'timeout', detail: message.truncate(300))
+    message = message.to_s.gsub(@credential.api_key.to_s, '[redacted]').gsub(/(?:sk-|gsk_)[\w-]+/, '[redacted]')
+    detail = I18n.t('marcosx_ai.errors.provider', provider: @credential.display_name, status: status || 'timeout', detail: message.truncate(300))
+    delay = Float(error.response&.dig(:headers, 'retry-after').to_s, exception: false)
+    raise CustomExceptions::MarcosxAi.new(detail, provider_failure: true, provider_status: status, retry_after: delay)
+  end
+
+  def raise_empty_response
+    raise CustomExceptions::MarcosxAi.new(I18n.t('marcosx_ai.errors.empty_response'), provider_failure: true)
   end
 end

@@ -735,6 +735,21 @@
       "ENABLING": "Enabling general support…",
       "DISABLING": "Disabling general support…",
       "MANUAL": "Updating manual sessions…"
+    },
+    "FALLBACK": {
+      "DEFAULT_CONNECTION": "Default provider connection",
+      "CONNECTION": "Saved connection",
+      "ADD_CONNECTION": "Add another connection",
+      "NAME": "Connection name",
+      "NEW_HINT": "Use the key for the other account. Connections are saved separately; then save the agent to apply the selection. Keys in the same provider organization may share quotas.",
+      "ENABLED": "Enable automatic reserve",
+      "HINT": "If the primary generation fails, use the reserve. Choose a different connection, including another account from the same provider.",
+      "ACTIVE": "Reserve connection in use",
+      "PROVIDER": "Reserve provider",
+      "MODEL": "Reserve model",
+      "FAILED": "Connection failed",
+      "IN_USE": "Currently in use",
+      "WARNING": "Connection requiring attention:"
     }
   }
 }

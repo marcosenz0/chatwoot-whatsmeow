@@ -126,6 +126,7 @@ jobs:
           spec/services/marcosx_ai
           spec/controllers/api/v1/accounts/marcosx_ai_spec.rb
           spec/controllers/api/v1/accounts/marcosx_ai_vision_spec.rb
+          spec/controllers/api/v1/accounts/marcosx_ai_fallback_spec.rb
           spec/controllers/api/v1/accounts/marcosx_ai_operations_spec.rb
           spec/controllers/api/v1/accounts/marcosx_ai_resources_spec.rb
           spec/controllers/api/v1/accounts/marcosx_ai_pix_keys_spec.rb
@@ -157,6 +158,7 @@ jobs:
           db/migrate/20261014180000_create_marcosx_ai_pix_keys.rb
           db/migrate/20261014230000_add_marcosx_ai_audiences.rb
           db/migrate/20261016190000_create_marcosx_ai_reply_batches.rb
+          db/migrate/20261029200000_add_marcosx_ai_connection_fallbacks.rb
           app/services/whatsmeow/pix_message_builder.rb
           lib/custom_exceptions/marcosx_ai.rb
   publish:

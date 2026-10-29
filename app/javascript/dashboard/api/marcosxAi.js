@@ -47,9 +47,13 @@ class MarcosxAiAPI extends ApiClient {
     return axios.get(`${this.url}/credentials`);
   }
 
-  getModels(provider, refresh = false) {
+  getConnectionHealth() {
+    return axios.get(`${this.url}/credentials/health`);
+  }
+
+  getModels(provider, refresh = false, credentialId = null) {
     return axios.get(`${this.url}/credentials/models`, {
-      params: { provider, refresh },
+      params: { provider, refresh, credential_id: credentialId },
     });
   }
 
@@ -72,8 +76,12 @@ class MarcosxAiAPI extends ApiClient {
     return axios.delete(`${this.url}/credentials/${id}`);
   }
 
-  testCredential(provider) {
-    return axios.post(`${this.url}/credentials/test`, { provider });
+  testCredential(provider, credentialId = null, model = null) {
+    return axios.post(`${this.url}/credentials/test`, {
+      provider,
+      credential_id: credentialId,
+      model,
+    });
   }
 
   getAssistants() {
