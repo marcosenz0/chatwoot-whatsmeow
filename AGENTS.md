@@ -1,5 +1,14 @@
 # Chatwoot Development Guidelines
 
+## Current MarcoXIA Qwen, vision and fallback — October29,2026
+
+- Principal/MX/MD web/workers run `fork-a32e6a402b718730c6d0646746b6fc7cb76951a0`, imageID2f79a33a34fb. Gate40959876756 passed917 targeted tests (450frontend+467Rails), scoped lint/build/image. Three published rollback API contracts, nine actual reserve calls, five actual return/swap replies and both HOT1 chat models passed; health200. PR56 is stacked on55, unmerged. Read `docs/marcoxia-groq-vision-fallback-2026-10-29.md` and the HOT record.
+- Qwen3.8 27B is Marco's preference for chat and vision; retain GPT-OSS120B for chat comparison. Independent vision settings live in Identity; Voice and audio is second. Preserve sampling limits, actual pixels and untrusted-attachment instructions. Groq output defaults768 after a real free-tier estimated-output rejection; expose independent primary/reserve budgets, preserve OpenAI8000/Gemini8192 defaults, and fail over on truncated output before parsing/sending. OpenAI billed usage must be recorded even on an incomplete reply.
+- Named credentials allow several accounts per provider. Preserve legacy keys/integration reuse and disabled-default semantics; scope every selected ID to account/provider and redact secrets. Do not append virtual inherited credentials to an autosave association. Migration20261029200000 preserves rows and allows account/provider/name uniqueness; never undo it by deleting keys.
+- Marco's latest return decision supersedes the earlier cooldown proposal: returnON starts every new execution at the primary and retries the same failed generation on the reserve; returnOFF keeps the working reserve across time/key repairs until it fails or the operator changes/inverts the route. Invert exchanges provider/model/connection/output budget per service and requires Save. Keep instructions, activation and other services unchanged. Record red failure and exact green active connection without invalidating draft versions; never repeat a successful generation because health persistence failed.
+- MD HOT1 uses named Groq45/Qwen for chat/vision with OpenAI1/Luna reserve; GroqWhisperTurbo/OpenAIgpt4otranscribe for ASR. ReturnON, generalOFF. Existing voice review and paused-state/idempotency rules remain. Keys, stored data,126 state hashes, bridge identities/sessions and server audio preferences verified. One principal user36 UI-settings hash changed during work, audiofalse unchanged; no snapshot restored and cause unconfirmed. Gemini only mocked; same-key Groq tests only rolled back. Video is sampled and visual accuracy is not guaranteed.
+
+
 ## Current MarcoXIA manual voice reviews — October27,2026
 
 - Principal/MX/MD web/workers run `fork-3b694b9fa5386d7b2c5e162cc4ac5e0c9f7628fa`. Gate40564378388 passed822 targeted checks, scoped lint/build/image. Three published rollback contracts and health200 passed; PR55 is stacked on54 and unmerged.
