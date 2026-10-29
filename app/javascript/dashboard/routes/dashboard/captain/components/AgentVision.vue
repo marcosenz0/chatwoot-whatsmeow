@@ -92,6 +92,7 @@ const fields = [
         {{ t('MARCOX_AI.VISION.MODEL') }}
         <AiModelSelect
           v-model="settings.model"
+          :label="t('MARCOX_AI.VISION.MODEL')"
           :models="models"
           :disabled="!canEdit"
           class="mt-2"

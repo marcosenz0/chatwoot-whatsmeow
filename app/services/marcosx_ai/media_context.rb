@@ -91,13 +91,13 @@ class MarcosxAi::MediaContext
               return I18n.t('marcosx_ai.media.unsupported')
             end
     client = media_type.in?(%w[image video]) ? vision_client : @client
-    client.chat(purpose: 'media_description', messages: [
-                   { role: 'system',
-                     content: [ANALYSIS_PROMPT, vision_settings[:instructions].presence].compact.join("\n\n") },
-                   { role: 'user', content: [
-                     { type: 'input_text', text: "Tipo: #{@attachment.file_type}. Legenda: #{@attachment.message.content}" }, *parts
-                   ] }
-                 ])
+    messages = [
+      { role: 'system', content: [ANALYSIS_PROMPT, vision_settings[:instructions].presence].compact.join("\n\n") },
+      { role: 'user', content: [
+        { type: 'input_text', text: "Tipo: #{@attachment.file_type}. Legenda: #{@attachment.message.content}" }, *parts
+      ] }
+    ]
+    client.chat(purpose: 'media_description', messages: messages)
   end
 
   def image_part

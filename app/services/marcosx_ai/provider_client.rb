@@ -10,6 +10,7 @@ class MarcosxAi::ProviderClient
     @provider = provider.to_s
     @credential = MarcosxAi::Credential.for_provider(account, @provider)
     raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.credential_missing') unless @credential
+
     @model = model.presence || @credential.resolved_model
     @temperature = temperature.to_f
     @reasoning_effort = reasoning_effort

@@ -144,7 +144,7 @@
       "INBOX_HINT": "One agent can serve many inboxes. Each inbox has one agent, so replies never compete.",
       "INBOX_OTHER": "Served by {name}",
       "INBOX_EMPTY": "No inboxes available.",
-      "MODEL_MEDIA": "This model supports images and documents.",
+      "MODEL_MEDIA": "This model accepts images. Configure image reading below.",
       "MODEL_TEXT": "This model handles text. Configure image reading below.",
       "CONNECTION_REQUIRED": "Connect this provider before enabling the agent.",
       "SAVED_REQUIRED": "Save the agent to test it.",

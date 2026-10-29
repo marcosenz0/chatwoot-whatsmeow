@@ -39,8 +39,9 @@ class MarcosxAi::Credential < ApplicationRecord
     settings = account.hooks.enabled.find_by(app_id: 'audio_transcription')&.settings || {}
     return credential if settings['groq_api_key'].blank?
 
-    account.marcosx_ai_credentials.new(provider: provider, api_key: settings['groq_api_key'], enabled: true,
-                                      api_base: settings['groq_api_base'].presence)
+    account.marcosx_ai_credentials.new(
+      provider: provider, api_key: settings['groq_api_key'], enabled: true, api_base: settings['groq_api_base'].presence
+    )
   end
 
   def self.connections_for(account)

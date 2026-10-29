@@ -14,7 +14,9 @@ class Api::V1::Accounts::MarcosxAi::CredentialsController < Api::V1::Accounts::M
     credential = Current.account.marcosx_ai_credentials.find_or_initialize_by(provider: credential_params[:provider])
     attrs = credential_params.except(:provider)
     attrs.delete(:api_key) if attrs[:api_key].blank?
-    attrs[:api_key] = MarcosxAi::Credential.for_provider(Current.account, credential.provider)&.api_key if !credential.configured? && attrs[:api_key].blank?
+    if !credential.configured? && attrs[:api_key].blank?
+      attrs[:api_key] = MarcosxAi::Credential.for_provider(Current.account, credential.provider)&.api_key
+    end
     attrs.delete_if { |_, value| value.blank? && value != false }
     credential.assign_attributes(attrs)
     credential.enabled = true unless credential_params.key?(:enabled)
@@ -44,6 +46,7 @@ class Api::V1::Accounts::MarcosxAi::CredentialsController < Api::V1::Accounts::M
     provider = params[:provider].presence || params.dig(:credential, :provider)
     credential = MarcosxAi::Credential.for_provider(Current.account, provider)
     raise ActiveRecord::RecordNotFound unless credential
+
     ok = MarcosxAi::ProviderClient.new(
       account: Current.account,
       provider: credential.provider,

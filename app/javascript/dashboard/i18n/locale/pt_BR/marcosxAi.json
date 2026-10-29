@@ -144,7 +144,7 @@
       "INBOX_HINT": "Um agente pode atender várias caixas. Cada caixa tem um agente, para evitar respostas concorrentes.",
       "INBOX_OTHER": "Atendida por {name}",
       "INBOX_EMPTY": "Nenhuma caixa de entrada disponível.",
-      "MODEL_MEDIA": "Este modelo entende imagens e documentos.",
+      "MODEL_MEDIA": "Este modelo aceita imagens. Configure a leitura abaixo.",
       "MODEL_TEXT": "Este modelo atende por texto. Configure a leitura de imagens abaixo.",
       "CONNECTION_REQUIRED": "Conecte este provedor antes de ativar o agente.",
       "SAVED_REQUIRED": "Salve o agente para testá-lo.",
