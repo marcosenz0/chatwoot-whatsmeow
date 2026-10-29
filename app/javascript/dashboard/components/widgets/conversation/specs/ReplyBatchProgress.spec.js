@@ -233,3 +233,73 @@ it('keeps a send failure actionable without declaring success or automatically r
   expect(wrapper.text()).toContain('STATUS.ready');
   wrapper.unmount();
 });
+
+it('does not show a completed historical batch adopted by Pending while idle', async () => {
+  API.getActiveReplyBatches.mockResolvedValue({ data: { batches: [] } });
+  useMarcosxAiBatches().rememberBatch({
+    ...record,
+    status: 'completed',
+    items: [{ id: 1, status: 'sent', delivery_status: 'delivered' }],
+  });
+  const wrapper = mount(ReplyBatchProgress, options);
+  await flushPromises();
+  expect(wrapper.find('aside').exists()).toBe(false);
+  wrapper.unmount();
+});
+
+it('automatically hides a newly completed batch and does not rediscover its old result', async () => {
+  const wrapper = mount(ReplyBatchProgress, options);
+  await flushPromises();
+  API.getReplyBatch.mockResolvedValue({
+    data: {
+      batch: {
+        ...record,
+        status: 'completed',
+        items: [
+          {
+            id: 1,
+            name: 'Person 1',
+            status: 'sent',
+            delivery_status: 'delivered',
+          },
+        ],
+      },
+    },
+  });
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(wrapper.text()).toContain('STATUS.completed');
+  await vi.advanceTimersByTimeAsync(8000);
+  expect(wrapper.find('aside').exists()).toBe(false);
+  wrapper.unmount();
+});
+
+it('shows activation work only while the request is pending and includes the contact avatar in results', async () => {
+  API.getActiveReplyBatches.mockResolvedValue({ data: { batches: [] } });
+  const state = useMarcosxAiBatches();
+  const wrapper = mount(ReplyBatchProgress, options);
+  await flushPromises();
+  state.beginOperation('toggle-1', 'Support', 'Enabling general support');
+  await flushPromises();
+  expect(wrapper.get('[role="status"]').text()).toContain(
+    'Enabling general support'
+  );
+  state.finishOperation('toggle-1');
+  await flushPromises();
+  expect(wrapper.find('aside').exists()).toBe(false);
+  state.rememberBatch({
+    ...record,
+    items: [
+      {
+        id: 1,
+        name: 'Person 1',
+        status: 'sending',
+        avatar_url: 'https://example.com/person.png',
+      },
+    ],
+  });
+  await flushPromises();
+  expect(wrapper.get('avatar-stub').attributes('src')).toBe(
+    'https://example.com/person.png'
+  );
+  wrapper.unmount();
+});

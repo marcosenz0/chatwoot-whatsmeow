@@ -9,7 +9,7 @@ class MarcosxAi::Credential < ApplicationRecord
     },
     'groq' => {
       display_name: 'Groq',
-      default_model: 'llama-3.3-70b-versatile',
+      default_model: 'qwen/qwen3.8-27b',
       default_api_base: 'https://api.groq.com/openai/v1'
     },
     'gemini' => {
@@ -30,6 +30,22 @@ class MarcosxAi::Credential < ApplicationRecord
   validates :provider, uniqueness: { scope: :account_id }
 
   scope :enabled, -> { where(enabled: true) }
+
+  def self.for_provider(account, provider)
+    credential = account.marcosx_ai_credentials.find_by(provider: provider)
+    return credential if credential&.configured? || credential&.enabled == false
+    return credential unless provider == 'groq'
+
+    settings = account.hooks.enabled.find_by(app_id: 'audio_transcription')&.settings || {}
+    return credential if settings['groq_api_key'].blank?
+
+    account.marcosx_ai_credentials.new(provider: provider, api_key: settings['groq_api_key'], enabled: true,
+                                      api_base: settings['groq_api_base'].presence)
+  end
+
+  def self.connections_for(account)
+    PROVIDERS.keys.filter_map { |provider| for_provider(account, provider)&.redacted }
+  end
 
   def configured?
     api_key.present?
@@ -56,6 +72,7 @@ class MarcosxAi::Credential < ApplicationRecord
       api_base: resolved_api_base,
       enabled: enabled,
       configured: configured?,
+      source: persisted? ? 'marcosx_ai' : 'integration',
       created_at: created_at,
       updated_at: updated_at
     }

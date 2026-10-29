@@ -3,12 +3,23 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import API from 'dashboard/api/marcosxAi';
 import Button from 'dashboard/components-next/button/Button.vue';
+import Avatar from 'dashboard/components-next/avatar/Avatar.vue';
 import { useMarcosxAiBatches } from 'dashboard/composables/useMarcosxAiBatches';
 import ReplyBatchReview from './ReplyBatchReview.vue';
 
 const { t } = useI18n();
-const { batches, dismissed, rememberBatch, resetBatches, dismissBatch } =
-  useMarcosxAiBatches();
+const {
+  batches,
+  dismissed,
+  visibleUntil,
+  operations,
+  dismissOperation,
+  rememberBatch,
+  resetBatches,
+  dismissBatch,
+} = useMarcosxAiBatches();
+const now = ref(Date.now());
+const operationRecords = computed(() => Object.values(operations.value));
 const minimized = ref(false);
 const error = ref('');
 const stopping = ref(null);
@@ -22,7 +33,10 @@ let closed = false;
 let lastDiscovery = 0;
 const records = computed(() =>
   Object.values(batches.value)
-    .filter(batch => !dismissed.value[batch.id])
+    .filter(
+      batch =>
+        !dismissed.value[batch.id] && visibleUntil.value[batch.id] >= now.value
+    )
     .sort((a, b) => b.id - a.id)
 );
 const text = key => t(`MARCOX_AI.PENDING.${key}`);
@@ -48,6 +62,7 @@ const openReview = async (batch, itemId = null) => {
 };
 const closeMonitor = () => {
   records.value.forEach(batch => dismissBatch(batch.id));
+  operationRecords.value.forEach(operation => dismissOperation(operation.id));
   errorDismissed.value = true;
   minimized.value = false;
 };
@@ -81,10 +96,11 @@ async function recover() {
     data.batches.forEach(batch => rememberBatch(batch));
     error.value = '';
   } catch {
-    if (!closed) error.value = text('CONNECTION_ERROR');
+    if (!closed && records.value.length) error.value = text('CONNECTION_ERROR');
   }
 }
 const poll = async () => {
+  now.value = Date.now();
   if (Date.now() - lastDiscovery >= 15000) {
     await recover();
   }
@@ -148,7 +164,7 @@ onBeforeUnmount(() => {
 
 <template>
   <aside
-    v-if="records.length || (error && !errorDismissed)"
+    v-if="records.length || operationRecords.length"
     class="fixed bottom-4 end-4 z-50 max-w-[calc(100vw-2rem)] text-n-slate-12"
     :aria-label="text('MONITOR')"
   >
@@ -191,7 +207,11 @@ onBeforeUnmount(() => {
           />
         </div>
       </header>
-      <div v-if="error" role="alert" class="p-3 text-xs text-n-ruby-11">
+      <div
+        v-if="error && !errorDismissed"
+        role="alert"
+        class="p-3 text-xs text-n-ruby-11"
+      >
         {{ error }}
         <Button
           size="xs"
@@ -201,6 +221,25 @@ onBeforeUnmount(() => {
         />
       </div>
       <div class="max-h-[50vh] divide-y divide-n-weak overflow-y-auto">
+        <section
+          v-for="operation in operationRecords"
+          :key="operation.id"
+          class="space-y-2 p-3"
+          role="status"
+          aria-live="polite"
+        >
+          <p class="m-0 text-xs font-semibold">{{ operation.name }}</p>
+          <p
+            class="m-0 flex items-center gap-2 text-xs"
+            :class="operation.error ? 'text-n-ruby-11' : 'text-n-slate-11'"
+          >
+            <span
+              v-if="!operation.error"
+              class="i-lucide-loader-circle size-4 shrink-0 animate-spin"
+            />
+            {{ operation.error || operation.label }}
+          </p>
+        </section>
         <section v-for="batch in records" :key="batch.id" class="space-y-2 p-3">
           <div class="flex items-start justify-between gap-2">
             <p class="m-0 text-xs font-semibold">
@@ -275,40 +314,48 @@ onBeforeUnmount(() => {
               <li
                 v-for="item in batch.items"
                 :key="item.id"
-                class="space-y-0.5"
+                class="flex items-start gap-2"
               >
-                <p
-                  class="m-0"
-                  :class="
-                    ['failed', 'delivery_failed'].includes(
-                      item.delivery_status || item.status
-                    )
-                      ? 'text-n-ruby-11'
-                      : 'text-n-slate-12'
-                  "
-                >
-                  <button
-                    type="button"
-                    class="text-start font-medium text-n-blue-11 hover:underline"
-                    :aria-label="`${text('REVIEW_CONTACT')} ${item.name}`"
-                    @click="openReview(batch, item.id)"
+                <Avatar
+                  :src="item.avatar_url"
+                  :name="item.name"
+                  :size="28"
+                  rounded-full
+                />
+                <div class="min-w-0 flex-1 space-y-0.5">
+                  <p
+                    class="m-0"
+                    :class="
+                      ['failed', 'delivery_failed'].includes(
+                        item.delivery_status || item.status
+                      )
+                        ? 'text-n-ruby-11'
+                        : 'text-n-slate-12'
+                    "
                   >
-                    {{ item.name }}
-                  </button>
-                  ·
-                  {{ text(`STATUS.${item.delivery_status || item.status}`) }}
-                </p>
-                <a
-                  v-if="batch.account_id && item.conversation_id"
-                  :href="`/app/accounts/${batch.account_id}/conversations/${item.conversation_id}`"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="text-n-blue-11 hover:underline"
-                  >{{ text('OPEN_CONVERSATION') }}</a
-                >
-                <p v-if="item.reason" class="m-0 text-n-slate-11">
-                  {{ item.reason }}
-                </p>
+                    <button
+                      type="button"
+                      class="text-start font-medium text-n-blue-11 hover:underline"
+                      :aria-label="`${text('REVIEW_CONTACT')} ${item.name}`"
+                      @click="openReview(batch, item.id)"
+                    >
+                      {{ item.name }}
+                    </button>
+                    ·
+                    {{ text(`STATUS.${item.delivery_status || item.status}`) }}
+                  </p>
+                  <a
+                    v-if="batch.account_id && item.conversation_id"
+                    :href="`/app/accounts/${batch.account_id}/conversations/${item.conversation_id}`"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-n-blue-11 hover:underline"
+                    >{{ text('OPEN_CONVERSATION') }}</a
+                  >
+                  <p v-if="item.reason" class="m-0 text-n-slate-11">
+                    {{ item.reason }}
+                  </p>
+                </div>
               </li>
             </ul>
           </details>

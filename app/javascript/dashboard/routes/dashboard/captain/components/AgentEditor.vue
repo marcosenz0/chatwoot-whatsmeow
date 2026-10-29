@@ -10,6 +10,7 @@ import AiToggleRow from './AiToggleRow.vue';
 import AiModelSelect from './AiModelSelect.vue';
 import AiSelect from './AiSelect.vue';
 import AgentConnection from './AgentConnection.vue';
+import AgentVision from './AgentVision.vue';
 import AiPlayground from './AiPlayground.vue';
 import AgentAttendance from './AgentAttendance.vue';
 import AgentActivity from './AgentActivity.vue';
@@ -34,6 +35,7 @@ const props = defineProps({
   defaultPrompt: { type: String, default: '' },
   canEdit: { type: Boolean, default: false },
   saving: { type: Boolean, default: false },
+  error: { type: String, default: '' },
   initialSection: { type: String, default: 'identity' },
 });
 const emit = defineEmits([
@@ -50,6 +52,18 @@ const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const form = ref({});
+const connectionDrafts = ref({});
+const connectionChange = (provider, draft) => {
+  connectionDrafts.value[provider] = draft;
+};
+const submit = () =>
+  emit(
+    'save',
+    form.value,
+    Object.entries(connectionDrafts.value)
+      .filter(([, draft]) => draft.dirty)
+      .map(([provider, draft]) => ({ ...draft, provider }))
+  );
 const initialForm = ref('');
 const effectivePrompt = ref(null);
 const directiveText = field =>
@@ -118,6 +132,18 @@ const hasUnsavedChanges = computed(
   () => JSON.stringify(form.value) !== initialForm.value
 );
 const section = ref(props.initialSection);
+const validationError = ref('');
+const showInvalidField = async event => {
+  event.preventDefault();
+  const field = event.target;
+  section.value =
+    field.closest('[data-agent-section]')?.dataset.agentSection ||
+    section.value;
+  validationError.value = field.validationMessage;
+  await nextTick();
+  field.focus();
+  field.scrollIntoView?.({ block: 'center' });
+};
 const inboxSearch = ref('');
 const sections = computed(() => [
   {
@@ -125,6 +151,15 @@ const sections = computed(() => [
     icon: 'i-lucide-bot',
     label: t('MARCOX_AI.EDITOR.IDENTITY'),
   },
+  ...(props.canEdit
+    ? [
+        {
+          id: 'voice',
+          icon: 'i-lucide-audio-lines',
+          label: t('MARCOX_AI.VOICE.TITLE'),
+        },
+      ]
+    : []),
   {
     id: 'prompt',
     icon: 'i-lucide-notebook-pen',
@@ -157,11 +192,6 @@ const sections = computed(() => [
   { id: 'test', icon: 'i-lucide-flask-conical', label: t('MARCOX_AI.TEST') },
   ...(props.canEdit
     ? [
-        {
-          id: 'voice',
-          icon: 'i-lucide-audio-lines',
-          label: t('MARCOX_AI.VOICE.TITLE'),
-        },
         {
           id: 'notifications',
           icon: 'i-lucide-bell',
@@ -226,6 +256,16 @@ watch(
       ttl: '30m',
       ...form.value.config.prompt_cache,
     };
+    form.value.config.vision = {
+      provider: 'agent',
+      model: '',
+      max_dimension: 1600,
+      video_frames: 3,
+      video_interval_seconds: 5,
+      instructions: '',
+      ...form.value.config.vision,
+    };
+    connectionDrafts.value = {};
     const savedVoice = form.value.config.voice || {};
     form.value.config.transcription = {
       ...transcriptionDefaults,
@@ -260,6 +300,13 @@ const modelOptions = computed(
 );
 const model = computed(() =>
   modelOptions.value.find(item => item.id === form.value.config.model)
+);
+const visionModel = computed(() =>
+  form.value.config.vision.provider === 'agent'
+    ? model.value
+    : props.catalogs[form.value.config.vision.provider]?.models?.find(
+        item => item.id === form.value.config.vision.model
+      )
 );
 const connectionReady = computed(() =>
   props.credentials.some(
@@ -311,7 +358,7 @@ const mediaOptions = computed(() => [
     key: 'process_images',
     icon: 'i-lucide-image',
     label: t('MARCOX_AI.EDITOR.IMAGES'),
-    disabled: model.value?.vision === false,
+    disabled: visionModel.value?.vision === false,
   },
   {
     key: 'process_audio',
@@ -329,7 +376,7 @@ const mediaOptions = computed(() => [
     key: 'process_video',
     icon: 'i-lucide-video',
     label: t('MARCOX_AI.EDITOR.VIDEO'),
-    disabled: model.value?.vision === false,
+    disabled: visionModel.value?.vision === false,
   },
 ]);
 const channelLabel = inbox =>
@@ -460,9 +507,24 @@ const channelLabel = inbox =>
           "
           id="marcosx-agent-editor"
           class="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6"
-          @submit.prevent="emit('save', form)"
+          @submit.prevent="submit"
+          @invalid.capture="showInvalidField"
         >
           <div class="mx-auto w-full max-w-6xl">
+            <p
+              v-if="validationError"
+              role="alert"
+              class="mb-4 text-sm text-n-ruby-11"
+            >
+              {{ validationError }}
+            </p>
+            <p
+              v-if="error"
+              role="alert"
+              class="mb-4 rounded-lg border border-n-ruby-7 bg-n-ruby-2 p-3 text-sm text-n-ruby-11"
+            >
+              {{ error }}
+            </p>
             <div class="mb-6">
               <h3 class="m-0 text-lg font-semibold text-n-slate-12">
                 {{ sections.find(item => item.id === section)?.label }}
@@ -476,6 +538,7 @@ const channelLabel = inbox =>
             <fieldset :disabled="!canEdit" class="m-0 min-w-0 border-0 p-0">
               <div
                 v-show="section === 'identity'"
+                data-agent-section="identity"
                 class="grid items-start gap-5 xl:grid-cols-2"
               >
                 <AgentSection
@@ -551,6 +614,7 @@ const channelLabel = inbox =>
                     "
                     @test="emit('testConnection', form.config.provider)"
                     @refresh="emit('refreshModels', form.config.provider)"
+                    @change="connectionChange(form.config.provider, $event)"
                   />
                   <label
                     v-if="model?.reasoning"
@@ -601,6 +665,27 @@ const channelLabel = inbox =>
                     </p>
                   </div>
                 </AgentSection>
+                <div class="xl:col-span-2">
+                  <AgentVision
+                    v-model="form.config.vision"
+                    v-model:images="form.config.process_images"
+                    v-model:video="form.config.process_video"
+                    :agent-provider="form.config.provider"
+                    :agent-model="form.config.model"
+                    :catalogs="catalogs"
+                    :credentials="credentials"
+                    :providers="providers"
+                    :can-edit="canEdit"
+                    :busy-provider="busyProvider"
+                    @save-connection="
+                      (provider, connection) =>
+                        emit('saveConnection', provider, connection)
+                    "
+                    @test-connection="emit('testConnection', $event)"
+                    @refresh-models="emit('refreshModels', $event)"
+                    @connection-change="connectionChange"
+                  />
+                </div>
               </div>
               <div v-show="section === 'prompt'" class="space-y-4">
                 <label class="block text-sm font-semibold">
@@ -771,6 +856,7 @@ const channelLabel = inbox =>
               </div>
               <div
                 v-show="section === 'behavior'"
+                data-agent-section="behavior"
                 class="grid items-start gap-5 xl:grid-cols-2"
               >
                 <div class="min-w-0 space-y-5">

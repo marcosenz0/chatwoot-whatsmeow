@@ -205,6 +205,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
                   { minimax: [:voice_id, :model, :speed, :volume, :pitch],
                     elevenlabs: [:voice_id, :model, :speed, :stability, :similarity_boost, :style] }],
           transcription: [:provider, :model],
+          vision: [:provider, :model, :max_dimension, :video_frames, :video_interval_seconds, :instructions],
           prompt_cache: [:enabled, :ttl],
           notifications: [:inbox_id, { user_ids: [], whatsapp_numbers: [] }],
           alert_rules: [:id, :name, :description, :message, :action, :inbox_id, { user_ids: [], whatsapp_numbers: [] }] }

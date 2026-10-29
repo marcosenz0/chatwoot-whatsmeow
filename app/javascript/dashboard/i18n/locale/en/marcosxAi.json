@@ -145,7 +145,7 @@
       "INBOX_OTHER": "Served by {name}",
       "INBOX_EMPTY": "No inboxes available.",
       "MODEL_MEDIA": "This model supports images and documents.",
-      "MODEL_TEXT": "This model supports text. Choose a vision model for images.",
+      "MODEL_TEXT": "This model handles text. Configure image reading below.",
       "CONNECTION_REQUIRED": "Connect this provider before enabling the agent.",
       "SAVED_REQUIRED": "Save the agent to test it.",
       "CONFIRM_DELETE": "Delete this agent and remove its inbox connections?",
@@ -194,7 +194,8 @@
       "GEMINI_HINT": "Google models for text, images and documents.",
       "IN_AGENT": "Connection for this agent's model",
       "EDIT_KEY": "Change key",
-      "SHARED_KEY": "This provider key is shared by agents in this account. Each agent has its own model and instructions."
+      "SHARED_KEY": "This provider key is shared by agents in this account. Each agent has its own model and instructions.",
+      "INTEGRATION_KEY": "Using the Groq key already saved in the transcription integration."
     },
     "PLAYGROUND": {
       "TITLE": "Make it sound like you",
@@ -712,6 +713,28 @@
       "TWELVE_HOURS": "12 hours — less frequent conversations",
       "SHORT_HINT": "Suitable for frequent or concurrent conversations. Each read refreshes the lifetime. Savings depend on reuse; check tokens in Activity.",
       "LONG_HINT": "Can help when instructions are reused across longer gaps. Writing costs twice the 30-minute option; reading costs the same. Savings are not guaranteed."
+    },
+    "VISION": {
+      "TITLE": "Image reading",
+      "HINT": "Choose how images are read independently of the chat model. Visual descriptions are passed to the chat model before it replies.",
+      "PROVIDER": "Image provider",
+      "MODEL": "Image model",
+      "AGENT": "Use the chat model",
+      "UNSUPPORTED": "The selected model does not read images. Choose a vision model, such as Qwen 3.8 27B on Groq.",
+      "LIMIT": "This model accepts up to {count} images per request. Video samples respect this limit.",
+      "SHARED": "Uses the same saved provider connection shown above.",
+      "VIDEO_HINT": "Reads sampled frames; this is not a full video or audio analysis.",
+      "MAX_DIMENSION": "Maximum image dimension (px)",
+      "VIDEO_FRAMES": "Maximum video frames",
+      "VIDEO_INTERVAL_SECONDS": "Seconds between frames",
+      "INSTRUCTIONS": "Additional reading instructions",
+      "INSTRUCTIONS_HINT": "Optional guidance for describing images. Attachment text is treated as untrusted data. It cannot override the agent instructions."
+    },
+    "OPERATIONS": {
+      "SAVING": "Saving settings…",
+      "ENABLING": "Enabling general support…",
+      "DISABLING": "Disabling general support…",
+      "MANUAL": "Updating manual sessions…"
     }
   }
 }

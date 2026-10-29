@@ -1,15 +1,15 @@
 class MarcosxAi::ModelCatalog
   SUGGESTED = {
     'openai' => %w[gpt-6.1-sol gpt-6-astra gpt-6-luna gpt-5.4 gpt-4.1 gpt-4.1-mini gpt-4o],
-    'groq' => %w[llama-3.3-70b-versatile openai/gpt-oss-120b],
+    'groq' => %w[qwen/qwen3.8-27b openai/gpt-oss-120b openai/gpt-oss-20b llama-3.3-70b-versatile],
     'gemini' => %w[gemini-2.5-pro gemini-2.5-flash]
   }.freeze
 
   def self.for_provider(account:, provider:, refresh: false)
-    credential = account.marcosx_ai_credentials.find_by(provider: provider)
+    credential = MarcosxAi::Credential.for_provider(account, provider)
     return { models: SUGGESTED.fetch(provider).map { |id| describe(id, provider) }, verified: false } unless credential&.configured?
 
-    key = ['marcosx-ai-models', credential.id, credential.updated_at.to_i]
+    key = ['marcosx-ai-models', account.id, provider, Digest::SHA256.hexdigest(credential.api_key), credential.resolved_api_base]
     Rails.cache.delete(key) if refresh
     ids = Rails.cache.fetch(key, expires_in: 30.minutes) do
       MarcosxAi::ProviderClient.new(account: account, provider: provider).models
@@ -20,7 +20,7 @@ class MarcosxAi::ModelCatalog
 
   def self.conversational?(id, provider)
     return id.start_with?('gemini-') && !id.match?(/embedding|image|tts|robotics|live|computer|audio/) if provider == 'gemini'
-    return !id.match?(/whisper|guard|tts|embed|playai/) if provider == 'groq'
+    return !id.match?(/whisper|guard|tts|embed|playai|orpheus/) if provider == 'groq'
 
     id.match?(/\A(gpt-[4-9]|o[3-9])/) && !id.match?(/audio|realtime|transcrib|tts|image|codex|search|deep-research|instruct|pro(?:-|$)/)
   end
@@ -29,9 +29,11 @@ class MarcosxAi::ModelCatalog
     {
       id: id, name: id,
       recommended: id == SUGGESTED.fetch(provider).first,
-      vision: provider != 'groq' || id.match?(/llama-4|vision/),
-      reasoning: provider == 'openai' && id.match?(/\A(gpt-[5-9]|o[3-9])/),
-      files: provider != 'groq'
+      vision: provider != 'groq' || id.match?(/llama-4|vision|qwen3\.[68]-27b|qwen3-vl|muse-spark/),
+      reasoning: (provider == 'openai' && id.match?(/\A(gpt-[5-9]|o[3-9])/)) ||
+        (provider == 'groq' && id.match?(/gpt-oss|qwen3\.[68]-27b/)),
+      files: provider != 'groq',
+      max_images: provider == 'groq' && id.match?(/qwen3\.[68]-27b/) ? 3 : 6
     }
   end
 end

@@ -36,7 +36,7 @@ class Api::V1::Accounts::MarcosxAi::PreferencesController < Api::V1::Accounts::M
       default_prompt: I18n.t('marcosx_ai.default_prompt'),
       features: DEFAULT_FEATURES.deep_merge(account_preferences[:features] || {}),
       settings: DEFAULT_SETTINGS.deep_merge(account_preferences[:settings] || {}),
-      credentials: Current.account.marcosx_ai_credentials.order(:provider).map(&:redacted),
+      credentials: MarcosxAi::Credential.connections_for(Current.account),
       google_connection: Current.account.marcosx_ai_google_connection&.redacted
     }
   end

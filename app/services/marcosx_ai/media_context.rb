@@ -41,7 +41,7 @@ class MarcosxAi::MediaContext
 
   def processing_enabled?
     capabilities = MarcosxAi::ModelCatalog.describe(@assistant.model, @assistant.provider)
-    return false if media_type.in?(%w[image video]) && !capabilities[:vision]
+    return false if media_type.in?(%w[image video]) && !vision_capabilities[:vision]
     return false if media_type == 'file' && !capabilities[:files]
 
     feature = { 'image' => :process_images, 'audio' => :process_audio, 'video' => :process_video, 'file' => :process_files }[media_type]
@@ -90,9 +90,10 @@ class MarcosxAi::MediaContext
             else
               return I18n.t('marcosx_ai.media.unsupported')
             end
-    @client.chat(purpose: 'media_description', messages: [
+    client = media_type.in?(%w[image video]) ? vision_client : @client
+    client.chat(purpose: 'media_description', messages: [
                    { role: 'system',
-                     content: ANALYSIS_PROMPT },
+                     content: [ANALYSIS_PROMPT, vision_settings[:instructions].presence].compact.join("\n\n") },
                    { role: 'user', content: [
                      { type: 'input_text', text: "Tipo: #{@attachment.file_type}. Legenda: #{@attachment.message.content}" }, *parts
                    ] }
@@ -100,7 +101,8 @@ class MarcosxAi::MediaContext
   end
 
   def image_part
-    image = @attachment.file.variant(resize_to_limit: [1600, 1600], format: :jpeg).processed
+    size = vision_settings[:max_dimension]
+    image = @attachment.file.variant(resize_to_limit: [size, size], format: :jpeg).processed
     { type: 'input_image', image_url: "data:image/jpeg;base64,#{Base64.strict_encode64(image.download)}" }
   end
 
@@ -112,13 +114,37 @@ class MarcosxAi::MediaContext
   def video_parts(file)
     Dir.mktmpdir('marcosx-video') do |directory|
       pattern = File.join(directory, 'frame-%02d.jpg')
-      convert_media('-i', file.path, '-vf', 'fps=1/5,scale=1280:-2', '-frames:v', '6', pattern)
+      interval = vision_settings[:video_interval_seconds]
+      count = [vision_settings[:video_frames], vision_capabilities[:max_images]].min
+      size = vision_settings[:max_dimension]
+      convert_media('-i', file.path, '-vf', "fps=1/#{interval},scale=#{size}:#{size}:force_original_aspect_ratio=decrease",
+                    '-frames:v', count.to_s, pattern)
       frames = Dir.glob(File.join(directory, 'frame-*.jpg')).map do |path|
         { type: 'input_image', image_url: "data:image/jpeg;base64,#{Base64.strict_encode64(File.binread(path))}" }
       end
       frames.prepend(type: 'input_text',
-                     text: 'Amostra visual do vídeo: até seis quadros, um a cada cinco segundos. Não afirme ter visto trechos além da amostra.')
+                     text: "Amostra visual do vídeo: até #{count} quadros, um a cada #{interval} segundos. " \
+                           'Não afirme ter visto trechos além da amostra.')
     end
+  end
+
+  def vision_settings
+    @assistant.resolved_config[:vision]
+  end
+
+  def vision_capabilities
+    provider = vision_settings[:provider] == 'agent' ? @assistant.provider : vision_settings[:provider]
+    model = vision_settings[:provider] == 'agent' ? @assistant.model : vision_settings[:model]
+    MarcosxAi::ModelCatalog.describe(model, provider)
+  end
+
+  def vision_client
+    return @client if vision_settings[:provider] == 'agent'
+
+    @vision_client ||= MarcosxAi::ProviderClient.new(account: @assistant.account, assistant: @assistant,
+                                                     conversation: @attachment.message.conversation, purpose: 'media_description',
+                                                     provider: vision_settings[:provider], model: vision_settings[:model],
+                                                     temperature: @assistant.temperature, reasoning_effort: @assistant.reasoning_effort)
   end
 
   def convert_media(*arguments)

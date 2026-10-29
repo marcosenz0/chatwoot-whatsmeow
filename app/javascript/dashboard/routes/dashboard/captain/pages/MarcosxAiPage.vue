@@ -8,6 +8,7 @@ import Button from 'dashboard/components-next/button/Button.vue';
 import Spinner from 'dashboard/components-next/spinner/Spinner.vue';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MarcosxAiAPI from 'dashboard/api/marcosxAi';
+import { useMarcosxAiBatches } from 'dashboard/composables/useMarcosxAiBatches';
 import AgentEditor from '../components/AgentEditor.vue';
 import PendingReplies from '../components/PendingReplies.vue';
 
@@ -29,6 +30,10 @@ const busyProvider = ref('');
 const editing = ref(null);
 const search = ref('');
 const dirty = ref(false);
+const actionError = ref('');
+const { beginOperation, finishOperation } = useMarcosxAiBatches();
+const errorMessage = error =>
+  error.response?.data?.error || t('MARCOX_AI.ERROR');
 const discardDialog = ref(null);
 const deleteDialog = ref(null);
 const deletingId = ref(null);
@@ -116,7 +121,7 @@ const refresh = async () => {
       agents.value.find(agent => agent.id === Number(route.query.agent)) ||
       null;
     if (canEdit.value) {
-      await Promise.all(
+      Promise.all(
         Object.keys(settings.data.providers).map(provider =>
           loadModels(provider)
         )
@@ -146,9 +151,31 @@ const newAgent = () =>
     };
     dirty.value = false;
   });
-const saveAgent = async form => {
+const saveAgent = async (form, connections = []) => {
+  if (saving.value) return;
   saving.value = true;
+  actionError.value = '';
+  const operationId = `save-${form.id || 'new'}`;
+  beginOperation(operationId, form.name, t('MARCOX_AI.OPERATIONS.SAVING'));
   try {
+    await Promise.all(
+      connections.map(connection =>
+        MarcosxAiAPI.saveCredential(connection.id, {
+          credential: {
+            provider: connection.provider,
+            api_key: connection.api_key,
+            api_base: connection.api_base,
+            model: connection.model,
+            enabled: connection.enabled,
+          },
+        })
+      )
+    );
+    if (connections.length) {
+      const { data } = await MarcosxAiAPI.getCredentials();
+      credentials.value = data.credentials;
+      connections.forEach(connection => loadModels(connection.provider, true));
+    }
     const {
       id,
       name,
@@ -181,7 +208,10 @@ const saveAgent = async form => {
     router.replace({ query: { ...route.query, agent: data.assistant.id } });
     dirty.value = false;
     useAlert(t('MARCOX_AI.SAVED'));
+    finishOperation(operationId);
   } catch (error) {
+    actionError.value = errorMessage(error);
+    finishOperation(operationId, actionError.value);
     notifyError(error);
   } finally {
     saving.value = false;
@@ -193,7 +223,10 @@ const connectionReady = agent =>
       item.provider === agent.config.provider && item.enabled && item.configured
   );
 const toggleManual = async agent => {
+  if (togglingId.value !== null) return;
   togglingId.value = agent.id;
+  const operationId = `manual-${agent.id}`;
+  beginOperation(operationId, agent.name, t('MARCOX_AI.OPERATIONS.MANUAL'));
   try {
     const { data } = await MarcosxAiAPI.updateAssistant(agent.id, {
       assistant: {
@@ -206,14 +239,27 @@ const toggleManual = async agent => {
     agents.value = agents.value.map(item =>
       item.id === agent.id ? data.assistant : item
     );
+    finishOperation(operationId);
   } catch (error) {
+    finishOperation(operationId, errorMessage(error));
     notifyError(error);
   } finally {
     togglingId.value = null;
   }
 };
 const toggleAgent = async agent => {
+  if (togglingId.value !== null) return;
   togglingId.value = agent.id;
+  const operationId = `toggle-${agent.id}`;
+  beginOperation(
+    operationId,
+    agent.name,
+    t(
+      agent.config.auto_response_enabled
+        ? 'MARCOX_AI.OPERATIONS.DISABLING'
+        : 'MARCOX_AI.OPERATIONS.ENABLING'
+    )
+  );
   try {
     const { data } = await MarcosxAiAPI.updateAssistant(agent.id, {
       assistant: {
@@ -235,7 +281,9 @@ const toggleAgent = async agent => {
           : 'MARCOX_AI.COVERAGE.DISABLED'
       )
     );
+    finishOperation(operationId);
   } catch (error) {
+    finishOperation(operationId, errorMessage(error));
     notifyError(error);
   } finally {
     togglingId.value = null;
@@ -571,6 +619,7 @@ const testConnection = async provider => {
         :catalogs="catalogs"
         :providers="preferences.providers"
         :busy-provider="busyProvider"
+        :error="actionError"
         :default-prompt="preferences.default_prompt"
         :can-edit="canEdit"
         :saving="saving || togglingId !== null"

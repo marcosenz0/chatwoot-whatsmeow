@@ -15,6 +15,7 @@ class MarcosxAi::ConfigurationValidator
 
     validate_voice!(config[:voice])
     validate_transcription!(config[:transcription])
+    validate_vision!(config[:vision])
     raise ArgumentError, 'Invalid memory mode' unless %w[legacy summary_recent selected_only].include?(config[:memory_mode])
     raise ArgumentError, 'Invalid resume mode' unless %w[manual after_human].include?(config[:resume_mode])
 
@@ -44,6 +45,19 @@ class MarcosxAi::ConfigurationValidator
            ((settings[:provider] == 'agent' && settings[:model].empty?) ||
              MarcosxAi::TranscriptionClient::MODELS[settings[:provider]]&.include?(settings[:model]))
       raise ArgumentError, 'Invalid transcription provider or model'
+    end
+  end
+
+  def self.validate_vision!(settings)
+    unless settings.is_a?(Hash) && settings[:model].is_a?(String) &&
+           ((settings[:provider] == 'agent' && settings[:model].empty?) ||
+             (MarcosxAi::Credential::PROVIDERS.key?(settings[:provider]) && settings[:model].present? &&
+               MarcosxAi::ModelCatalog.describe(settings[:model], settings[:provider])[:vision])) &&
+           settings[:max_dimension].is_a?(Integer) && settings[:max_dimension].between?(512, 1600) &&
+           settings[:video_frames].is_a?(Integer) && settings[:video_frames].between?(1, 6) &&
+           settings[:video_interval_seconds].is_a?(Integer) && settings[:video_interval_seconds].between?(1, 30) &&
+           settings[:instructions].is_a?(String) && settings[:instructions].length <= 4000
+      raise ArgumentError, 'Invalid image reading settings'
     end
   end
 

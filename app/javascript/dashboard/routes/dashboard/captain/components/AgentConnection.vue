@@ -10,12 +10,23 @@ const props = defineProps({
   canEdit: { type: Boolean, default: false },
   busy: { type: Boolean, default: false },
 });
-const emit = defineEmits(['save', 'test', 'refresh']);
+const emit = defineEmits(['save', 'test', 'refresh', 'change']);
 const { t } = useI18n();
 const form = ref({});
 const editing = ref(false);
 const ready = computed(
   () => props.credential?.configured && props.credential?.enabled
+);
+watch(
+  form,
+  value =>
+    emit('change', {
+      ...value,
+      dirty:
+        !!value.api_key?.trim() ||
+        (ready.value && value.api_base !== props.credential?.api_base),
+    }),
+  { deep: true }
 );
 watch(
   () => [props.provider, props.credential],
@@ -61,6 +72,12 @@ watch(
                 provider: t(`MARCOX_AI.PROVIDERS.${provider.toUpperCase()}`),
               })
             }}
+          </p>
+          <p
+            v-if="credential?.source === 'integration'"
+            class="m-0 mt-1 text-xs text-n-teal-11"
+          >
+            {{ t('MARCOX_AI.PROVIDERS.INTEGRATION_KEY') }}
           </p>
         </div>
       </div>

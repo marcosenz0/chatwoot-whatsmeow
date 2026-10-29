@@ -8,7 +8,8 @@ class MarcosxAi::ProviderClient
     @conversation = conversation
     @purpose = purpose
     @provider = provider.to_s
-    @credential = account.marcosx_ai_credentials.find_by!(provider: @provider)
+    @credential = MarcosxAi::Credential.for_provider(account, @provider)
+    raise CustomExceptions::MarcosxAi, I18n.t('marcosx_ai.errors.credential_missing') unless @credential
     @model = model.presence || @credential.resolved_model
     @temperature = temperature.to_f
     @reasoning_effort = reasoning_effort
@@ -84,6 +85,7 @@ class MarcosxAi::ProviderClient
 
   def compatible_response(messages, schema)
     parameters = { model: @model, messages: compatible_messages(messages), temperature: @temperature, max_tokens: 4096 }
+    parameters[:reasoning_effort] = @reasoning_effort if MarcosxAi::ModelCatalog.describe(@model, @provider)[:reasoning]
     parameters[:response_format] = { type: 'json_object' } if schema
     response = sdk.chat(parameters: parameters)
     @usage = response['usage']
