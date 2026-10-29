@@ -129,10 +129,10 @@ class MarcosxAi::ProviderClient
     end
     parameters[:text] = { format: { type: 'json_schema', name: 'customer_reply', strict: true, schema: schema } } if schema
     response = sdk.json_post(path: '/responses', parameters: parameters)
-    raise_output_limit if response.dig('incomplete_details', 'reason') == 'max_output_tokens'
     @usage = response['usage']
     MarcosxAi::ProviderUsage.record(account: @account, assistant: @assistant, conversation: @conversation, model: @model,
                                     purpose: purpose, response: response, parameters: parameters, started_at: started_at)
+    raise_output_limit if response.dig('incomplete_details', 'reason') == 'max_output_tokens'
     content = response.fetch('output', []).flat_map { |item| item.fetch('content', []) }
     text = content.select { |item| item['type'] == 'output_text' }.pluck('text').join
     raise_empty_response if text.blank?
