@@ -47,7 +47,7 @@ RSpec.describe 'MarcoXIA editable execution instructions', type: :request do
     expect(response).to have_http_status(:unprocessable_entity)
     expect(assistant.reload.attributes).to eq(before)
     post "#{endpoint}/#{assistant.id}/prompt", params: { assistant: { config: { prompt_rules: rules } } }, headers: operator.create_new_auth_token, as: :json
-    expect(response).to have_http_status(:forbidden)
+    expect(response).to have_http_status(:unauthorized)
     other = create(:account).marcosx_ai_assistants.create!(name: 'Other')
     post "#{endpoint}/#{other.id}/prompt", params: { assistant: { config: {} } }, headers: admin.create_new_auth_token, as: :json
     expect(response).to have_http_status(:not_found)

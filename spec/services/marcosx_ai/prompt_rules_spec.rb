@@ -27,7 +27,8 @@ RSpec.describe MarcosxAi::PromptRules do
   end
 
   it 'keeps scoped catalog data after the cache boundary and substitutes values only once' do
-    resource = assistant.resources.create!(account: account, title: 'Private {{pix_catalog}}', kind: 'link', url: 'https://example.com/item',
+    resource = assistant.resources.create!(account: account, title: 'Private {{pix_catalog}}', description: 'Scoped test resource',
+                                          kind: 'link', url: 'https://example.com/item',
                                           audience: 'conversation', conversation: conversation)
     assistant.update!(config: assistant.config.merge(prompt_rules: { platform: 'Rules {{resource_catalog}}; Pix {{pix_catalog}}' }))
     messages = MarcosxAi::PromptBuilder.messages(assistant: assistant, conversation: conversation)
@@ -43,7 +44,7 @@ RSpec.describe MarcosxAi::PromptRules do
     assistant.update!(config: assistant.config.merge(provider: 'groq', model: 'qwen/qwen3.8-27b',
                                                      prompt_rules: { platform: '{{resource_catalog}}', current_request: '', memory: '' }))
     before = MarcosxAi::PromptBuilder.messages(assistant: assistant).first[:content]
-    assistant.resources.create!(account: account, title: 'New file', kind: 'link', url: 'https://example.com/new')
+    assistant.resources.create!(account: account, title: 'New file', description: 'New test resource', kind: 'link', url: 'https://example.com/new')
     after = MarcosxAi::PromptBuilder.messages(assistant: assistant).first[:content]
     expect(before).not_to include('New file')
     expect(after).to include('New file')
