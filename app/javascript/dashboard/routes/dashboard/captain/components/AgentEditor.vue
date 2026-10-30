@@ -885,7 +885,7 @@ const channelLabel = inbox =>
                   </label>
                 </div>
                 <AgentExecutionInstructions
-                  v-if="section === 'prompt'"
+                  v-if="section === 'prompt' && canEdit"
                   v-model="form.config.prompt_rules"
                   v-model:presets="form.config.prompt_presets"
                   v-model:preset-id="form.config.prompt_preset_id"

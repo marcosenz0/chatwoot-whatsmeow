@@ -133,6 +133,17 @@ describe('MarcoXIA agent configuration', () => {
     expect(MarcosxAiAPI.previewVoice).not.toHaveBeenCalled();
     wrapper.unmount();
   });
+  it('does not request administrative rule previews for a read-only operator', async () => {
+    MarcosxAiAPI.getEffectivePrompt.mockClear();
+    const wrapper = mount(AgentEditor, {
+      props: { ...props, canEdit: false, initialSection: 'prompt' },
+    });
+    await flushPromises();
+    expect(wrapper.find('#ai-platform-prompt').exists()).toBe(false);
+    expect(MarcosxAiAPI.getEffectivePrompt).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
   it('previews the current editor without persisting unsaved agent edits', async () => {
     MarcosxAiAPI.getEffectivePrompt.mockResolvedValue({
       data: {
