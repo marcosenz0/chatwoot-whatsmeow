@@ -214,7 +214,8 @@ onMounted(loadDefaults);
         :rows="field.rows"
         :maxlength="field.limit"
         :disabled="!canEdit || loading || !defaults.platform"
-        class="reset-base !mb-0 w-full rounded-xl border border-n-weak bg-n-background p-3 font-mono text-xs leading-5"
+        class="reset-base !mb-0 w-full resize-y rounded-xl border border-n-weak bg-n-background p-3 font-mono text-xs leading-5"
+        :class="field.key === 'platform' ? '!min-h-[24rem]' : '!min-h-[8rem]'"
         @input="updateField(field.key, $event.target.value)"
       />
       <p class="m-0 text-xs text-n-slate-10">
