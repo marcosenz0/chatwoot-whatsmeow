@@ -1,3 +1,5 @@
+> Layout follow-up: principal/MX/MD web/workers now run `fork-c777b831fb14be8ba093a92568f49f0d9d1807e1` with six independent configuration cards. The runtime below is unchanged. See [layout and final verification](marcoxia-identity-layout-2026-10-29.md).
+
 # MarcoXIA: Groq, independent vision and fallback connections
 
 The release supports `qwen/qwen3.8-27b` as the preferred Groq chat and vision model, with `openai/gpt-oss-120b` retained for chat comparison. Vision settings in Identity and model select the provider/model independently, image size, video frame count/interval and description instructions. Video analysis is sampled; the frame count respects the smallest image cap among compatible primary/reserve models. Qwen accepts three images per request. Text in attachments remains untrusted data.

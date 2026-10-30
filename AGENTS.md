@@ -1,6 +1,13 @@
 # Chatwoot Development Guidelines
 
-## Current MarcoXIA Qwen, vision and fallback — October29,2026
+## Current MarcoXIA identity layout — October29,2026
+
+- Principal/MX/MD web/workers run `fork-c777b831fb14be8ba093a92568f49f0d9d1807e1`. Gate40968385657 passed917 targeted tests, lint/build/image; three published rollback HTTP contracts, verified served assets and health200 passed. Only the six app image pins changed; six bridges, profiles/routes/credentials/stored data/hooks and all126 states matched before/after. No new paid model calls or channel deliveries.
+- Identity is compact and full width; inbox support has a separate card. Conversation primary/reserve and visual primary/reserve are sibling cards in responsive desktop pairs, stacking on narrow screens. Keep video sampling/dimensions/instructions inside the visual primary card, and explicit reserve titles/scopes. Do not reintroduce a tall model column beside a short identity card or nest a reserve configuration card inside its primary.
+- Actual components/CSS passed1680/390px review, three-provider menu keyboard/Escape/focus, independent chat reserve save and visual inversion. Routing/audio behavior and saved settings are unchanged; HOT1 remains Qwen/Groq with OpenAI reserve, returnON/generalOFF. Read `docs/marcoxia-identity-layout-2026-10-29.md` and the HOT record. PR56 remains unmerged.
+
+
+## Previous MarcoXIA Qwen, vision and fallback — October29,2026
 
 - Principal/MX/MD web/workers run `fork-a32e6a402b718730c6d0646746b6fc7cb76951a0`, imageID2f79a33a34fb. Gate40959876756 passed917 targeted tests (450frontend+467Rails), scoped lint/build/image. Three published rollback API contracts, nine actual reserve calls, five actual return/swap replies and both HOT1 chat models passed; health200. PR56 is stacked on55, unmerged. Read `docs/marcoxia-groq-vision-fallback-2026-10-29.md` and the HOT record.
 - Qwen3.8 27B is Marco's preference for chat and vision; retain GPT-OSS120B for chat comparison. Independent vision settings live in Identity; Voice and audio is second. Preserve sampling limits, actual pixels and untrusted-attachment instructions. Groq output defaults768 after a real free-tier estimated-output rejection; expose independent primary/reserve budgets, preserve OpenAI8000/Gemini8192 defaults, and fail over on truncated output before parsing/sending. OpenAI billed usage must be recorded even on an incomplete reply.
