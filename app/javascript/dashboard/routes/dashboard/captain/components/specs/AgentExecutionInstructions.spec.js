@@ -11,6 +11,39 @@ vi.mock('dashboard/components-next/TeleportWithDirection.vue', () => ({
 }));
 
 describe('Execution instruction presets', () => {
+  it('loads defaults for the newly selected agent instead of reusing another agent rules', async () => {
+    const wrapper = mount(AgentExecutionInstructions, {
+      props: {
+        assistant: { id: 1, config: {} },
+        canEdit: true,
+        modelValue: { platform: null, current_request: null, memory: null },
+        presets: [],
+        presetId: 'system',
+      },
+    });
+    await flushPromises();
+    API.getEffectivePrompt.mockResolvedValue({
+      data: {
+        rules_defaults: {
+          platform: 'Second agent rules',
+          current_request: 'Second focus',
+          memory: 'Second memory',
+        },
+        placeholders: [],
+      },
+    });
+    await wrapper.setProps({ assistant: { id: 2, config: {} } });
+    await flushPromises();
+    expect(wrapper.get('#ai-platform-prompt').element.value).toBe(
+      'Second agent rules'
+    );
+    expect(API.getEffectivePrompt).toHaveBeenLastCalledWith(
+      2,
+      expect.objectContaining({ id: 2 })
+    );
+    wrapper.unmount();
+  });
+
   beforeEach(() => {
     API.getEffectivePrompt.mockResolvedValue({
       data: {

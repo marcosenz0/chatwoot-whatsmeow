@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import Button from 'dashboard/components-next/button/Button.vue';
 import API from 'dashboard/api/marcosxAi';
@@ -57,6 +57,7 @@ const selected = computed(() =>
   presets.value.find(preset => preset.id === presetId.value)
 );
 const loadDefaults = async () => {
+  const assistantId = props.assistant.id;
   loading.value = true;
   error.value = '';
   try {
@@ -73,6 +74,7 @@ const loadDefaults = async () => {
       props.assistant.id,
       assistant
     );
+    if (assistantId !== props.assistant.id) return;
     defaults.value = data.rules_defaults || {};
     placeholders.value = data.placeholders || [];
   } catch (e) {
@@ -121,6 +123,14 @@ const remove = () => {
 };
 const formatPlaceholder = placeholder => `{{${placeholder}}}`;
 onMounted(loadDefaults);
+watch(
+  () => props.assistant.id,
+  () => {
+    defaults.value = {};
+    name.value = '';
+    loadDefaults();
+  }
+);
 </script>
 
 <template>

@@ -17,8 +17,9 @@ class MarcosxAi::PromptRules
 
   def self.defaults(assistant)
     {
-      platform: MarcosxAi::PromptBuilder.platform_instructions(assistant, assistant.feature_enabled?(:allow_reactions), false,
-                                                              use_override: false, template: true),
+      platform: MarcosxAi::PromptBuilder.platform_instructions(
+        assistant, assistant.feature_enabled?(:allow_reactions), false, use_override: false, template: true
+      ),
       current_request: MarcosxAi::PromptBuilder::CURRENT_REQUEST_INSTRUCTIONS,
       memory: MarcosxAi::ConversationContext::MEMORY_PROMPT
     }
@@ -60,11 +61,13 @@ class MarcosxAi::PromptRules
     unless presets.is_a?(Array) && presets.size <= 20 && presets.map { |preset| preset.is_a?(Hash) ? preset[:id] : nil }.uniq.size == presets.size
       raise ArgumentError, I18n.t('marcosx_ai.errors.invalid_prompt_presets')
     end
+
     presets.each do |preset|
       unless preset.is_a?(Hash) && preset[:id].is_a?(String) && preset[:id].match?(/\A[a-zA-Z0-9_-]{1,80}\z/) &&
              !%w[system custom].include?(preset[:id]) && preset[:name].is_a?(String) && preset[:name].strip.length.between?(1, 80)
         raise ArgumentError, I18n.t('marcosx_ai.errors.invalid_prompt_presets')
       end
+
       validate_rules!(preset[:rules], complete: true)
     end
     id = config[:prompt_preset_id]
@@ -78,6 +81,7 @@ class MarcosxAi::PromptRules
            (!complete || FIELDS.all? { |field| rules.key?(field) || rules.key?(field.to_sym) })
       raise ArgumentError, I18n.t('marcosx_ai.errors.invalid_prompt_rules')
     end
+
     rules.each do |field, text|
       next if text.nil? && !complete
 
