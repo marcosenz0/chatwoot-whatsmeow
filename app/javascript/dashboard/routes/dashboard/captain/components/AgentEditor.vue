@@ -31,6 +31,7 @@ import AgentVoice from './AgentVoice.vue';
 import AgentResources from './AgentResources.vue';
 import AgentPixKeys from './AgentPixKeys.vue';
 import AgentSection from './AgentSection.vue';
+import AgentExecutionInstructions from './AgentExecutionInstructions.vue';
 import { transcriptionDefaults, voiceDefaults } from './agentVoiceDefaults';
 
 const props = defineProps({
@@ -101,6 +102,7 @@ watch(
       editorial: 'ai-editorial-prompt',
       guidelines: 'ai-guidelines',
       guardrails: 'ai-guardrails',
+      platform: 'ai-platform-prompt',
     };
     if (props.initialSection === 'prompt' && fields[route.query.focus]) {
       const field = document.getElementById(fields[route.query.focus]);
@@ -120,7 +122,10 @@ watch(
 const alertsDialog = ref(null);
 const showPrompt = async () => {
   try {
-    const { data } = await MarcosxAiAPI.getEffectivePrompt(form.value.id);
+    const { data } = await MarcosxAiAPI.getEffectivePrompt(
+      form.value.id,
+      form.value
+    );
     effectivePrompt.value = data;
   } catch (error) {
     useAlert(error.response?.data?.error || t('MARCOX_AI.CONVERSATION.ERROR'));
@@ -291,6 +296,14 @@ watch(
       ...fallbackDefaults,
       ...form.value.config.vision.fallback,
     };
+    form.value.config.prompt_rules = {
+      platform: null,
+      current_request: null,
+      memory: null,
+      ...form.value.config.prompt_rules,
+    };
+    form.value.config.prompt_presets ??= [];
+    form.value.config.prompt_preset_id ??= 'system';
     connectionDrafts.value = {};
     const savedVoice = form.value.config.voice || {};
     form.value.config.transcription = {
@@ -871,6 +884,14 @@ const channelLabel = inbox =>
                     />
                   </label>
                 </div>
+                <AgentExecutionInstructions
+                  v-if="section === 'prompt'"
+                  v-model="form.config.prompt_rules"
+                  v-model:presets="form.config.prompt_presets"
+                  v-model:preset-id="form.config.prompt_preset_id"
+                  :assistant="form"
+                  :can-edit="canEdit"
+                />
                 <Button
                   v-if="form.id"
                   type="button"

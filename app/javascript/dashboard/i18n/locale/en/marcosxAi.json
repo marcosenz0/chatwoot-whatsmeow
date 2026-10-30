@@ -372,7 +372,7 @@
       "TEST_QUEUED": "Notification test queued.",
       "EDITORIAL": "Personality, presentation and response guidelines",
       "EFFECTIVE_PROMPT": "View effective prompt",
-      "PROMPT_SAVED_HINT": "Shows saved instructions and runtime placeholders. Save your edits before inspecting. Credentials are excluded.",
+      "PROMPT_SAVED_HINT": "Shows the instructions from this editor and runtime data. Does not include credentials.",
       "PROMPT_EDITABLE": "Editable instructions",
       "PROMPT_TECHNICAL": "Format, permissions and execution",
       "MEMORY_MODE": "Conversation memory",
@@ -771,6 +771,27 @@
       "TITLE": "Maximum output tokens",
       "HINT": "Includes the reply and reasoning. A low limit can truncate generation; adjust it for the model and plan.",
       "GROQ_HINT": "Groq default: 768, within the observed free quota of 1000 output tokens per minute. Includes reasoning; simultaneous requests share quota. Increase it for your plan."
+    },
+    "PROMPT_RULES": {
+      "TITLE": "Format, permissions and execution",
+      "HINT": "Edit the rules the system sends to the model. The original system default remains available to restore. Catalog data replaces placeholders during each execution.",
+      "SYSTEM": "System default",
+      "CUSTOM": "Custom",
+      "PRESET": "Rules preset",
+      "RESTORE": "Restore system default",
+      "NAME": "Preset name",
+      "ADD": "Add preset",
+      "UPDATE": "Update preset",
+      "DELETE": "Delete preset",
+      "SAVE_HINT": "Selecting a preset or restoring the default fills the editor. Save changes applies the text and stores presets for this agent. Update preset stores the current text in the selected version.",
+      "CHARACTERS": "{count} characters",
+      "PLACEHOLDERS": "Automatically populated data",
+      "PLACEHOLDERS_HINT": "Use these placeholders to keep catalogs and configuration values current. Do not paste customer data into presets. Presets store text; placeholders are replaced during execution.",
+      "FIELDS": {
+        "PLATFORM": "Format, permissions and execution — text sent to the model",
+        "CURRENT_REQUEST": "Focus on the current request",
+        "MEMORY": "Instructions for summarizing memory"
+      }
     }
   }
 }

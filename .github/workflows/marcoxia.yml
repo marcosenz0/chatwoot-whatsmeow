@@ -1,7 +1,7 @@
 name: MarcoXIA validation and image
 on:
   push:
-    branches: [codex/marcoxia-groq-vision, codex/marcoxia-audio-draft-fix, codex/marcoxia-prompt-cache, codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context, codex/marcoxia-audio-delivery, codex/marcoxia-pix-keys, codex/marcoxia-pix-selector, codex/marcoxia-panel-audience, codex/marcoxia-resource-library, codex/marcoxia-pending-replies, codex/marcoxia-reliability]
+    branches: [codex/marcoxia-prompt-presets, codex/marcoxia-groq-vision, codex/marcoxia-audio-draft-fix, codex/marcoxia-prompt-cache, codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context, codex/marcoxia-audio-delivery, codex/marcoxia-pix-keys, codex/marcoxia-pix-selector, codex/marcoxia-panel-audience, codex/marcoxia-resource-library, codex/marcoxia-pending-replies, codex/marcoxia-reliability]
     paths: ['app/**', 'spec/**', 'db/**', 'config/**', 'lib/**', 'Dockerfile', '.github/workflows/marcoxia.yml']
   workflow_dispatch:
 permissions:
@@ -125,6 +125,7 @@ jobs:
           bundle exec rspec
           spec/services/marcosx_ai
           spec/controllers/api/v1/accounts/marcosx_ai_spec.rb
+          spec/controllers/api/v1/accounts/marcosx_ai_prompt_rules_spec.rb
           spec/controllers/api/v1/accounts/marcosx_ai_vision_spec.rb
           spec/controllers/api/v1/accounts/marcosx_ai_fallback_spec.rb
           spec/controllers/api/v1/accounts/marcosx_ai_operations_spec.rb

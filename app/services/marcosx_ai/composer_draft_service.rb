@@ -69,7 +69,7 @@ class MarcosxAi::ComposerDraftService
     if @action == 'reply_review'
       task += ' For a voice preference, also return the complete spoken reply in voice_text. The operator must listen before sending.'
     end
-    messages = [*prompts, { role: 'system', content: task }, *MarcosxAi::PromptBuilder.focused_history(history)]
+    messages = [*prompts, { role: 'system', content: task }, *MarcosxAi::PromptBuilder.focused_history(history, assistant: assistant)]
     if @content.present?
       draft = { draft_to_edit: @content.to_s.truncate(15_000), operator_request: @instruction.to_s.truncate(2000) }
       messages << { role: 'user', content: draft.to_json }

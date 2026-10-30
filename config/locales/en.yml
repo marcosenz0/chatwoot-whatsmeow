@@ -44,6 +44,8 @@ en:
       Do not pressure someone who declines or asks to stop. Use emojis and reactions sparingly, when appropriate.
       If asked, explain honestly that you are an AI assistant.
     errors:
+      invalid_prompt_rules: "Invalid rules. Check text limits and available placeholders."
+      invalid_prompt_presets: "Invalid presets. Use names up to 80 characters and at most 20 presets."
       conversation_unavailable: 'This conversation cannot receive an AI reply right now. Check the channel reply window and agent settings.'
       credential_missing: 'Save and enable a provider connection first.'
       transcription_failed: 'Could not transcribe the audio. Check the selected transcription provider, saved key, balance and limits.'

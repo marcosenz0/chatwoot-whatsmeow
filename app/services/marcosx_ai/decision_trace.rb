@@ -29,7 +29,7 @@ class MarcosxAi::DecisionTrace
       { field: 'guidelines', text: assistant.response_guidelines.join("\n"), section: 'prompt', editable: true },
       { field: 'guardrails', text: assistant.guardrails.join("\n"), section: 'prompt', editable: true },
       { field: 'platform', text: MarcosxAi::PromptBuilder.platform_instructions(assistant, false, false, automatic_handoff_enabled)
-                                                         .lines.grep(/externa|fora|humano|action=pause/).join, editable: false }
+                                                         .lines.grep(/externa|fora|humano|action=pause/).join, section: 'prompt', editable: true }
     ].reject { |source| source[:text].blank? }
     {
       note: message.content, assistant: { id: assistant.id, name: assistant.name }, snapshot: trace,

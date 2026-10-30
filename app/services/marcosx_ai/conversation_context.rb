@@ -156,7 +156,7 @@ class MarcosxAi::ConversationContext
       batch_signature = signature(processed)
       summary = @client.chat(purpose: 'summary', messages: [
                                { role: 'system',
-                                 content: MEMORY_PROMPT },
+                                 content: MarcosxAi::PromptRules.value(@assistant, :memory, MEMORY_PROMPT) },
                                { role: 'user', content: "Memória anterior: #{@summary}\nMensagens: #{batch.map { |m|
                                  serialize(m)
                                }.to_json}" }

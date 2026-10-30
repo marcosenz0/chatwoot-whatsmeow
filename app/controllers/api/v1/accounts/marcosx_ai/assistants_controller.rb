@@ -42,11 +42,16 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
   end
 
   def prompt
+    @assistant.assign_attributes(assistant_params.except(:inbox_ids)) if request.post?
     messages = MarcosxAi::PromptBuilder.messages(assistant: @assistant, context: { runtime: 'contact, inbox, channel, timezone, now' },
                                                  reactions: @assistant.feature_enabled?(:allow_reactions))
     technical = messages.select { |message| message[:role] == 'system' }.pluck(:content).join("\n\n")
     editable = messages.select { |message| message[:role] == 'developer' }.pluck(:content).join("\n\n")
-    render json: { technical: technical, editable: editable }
+    render json: { technical: technical, editable: editable, rules_defaults: MarcosxAi::PromptRules.defaults(@assistant),
+                   placeholders: MarcosxAi::PromptRules::PLACEHOLDERS,
+                   characters: { technical: technical.length, editable: editable.length } }
+  rescue ArgumentError => e
+    render json: { error: e.message }, status: :unprocessable_entity
   end
 
   def test_notification
@@ -175,7 +180,11 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
   end
 
   def set_assistant
-    @assistant = Current.account.marcosx_ai_assistants.find(params[:id])
+    @assistant = if action_name == 'prompt' && params[:id].blank?
+                   Current.account.marcosx_ai_assistants.new
+                 else
+                   Current.account.marcosx_ai_assistants.find(params[:id])
+                 end
   end
 
   def assistant_params
@@ -184,7 +193,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
       :description,
       :instructions,
       config: [
-        :provider,
+        :provider, :prompt_preset_id,
         :model,
         :connection_id, :max_output_tokens,
         :temperature,
@@ -211,6 +220,8 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
           vision: [:provider, :model, :connection_id, :max_output_tokens, :max_dimension, :video_frames, :video_interval_seconds, :instructions,
                    { fallback: [:enabled, :retry_primary, :provider, :connection_id, :model, :max_output_tokens] }],
           prompt_cache: [:enabled, :ttl],
+          prompt_rules: [:platform, :current_request, :memory],
+          prompt_presets: [:id, :name, { rules: [:platform, :current_request, :memory] }],
           notifications: [:inbox_id, { user_ids: [], whatsapp_numbers: [] }],
           alert_rules: [:id, :name, :description, :message, :action, :inbox_id, { user_ids: [], whatsapp_numbers: [] }] }
       ],
