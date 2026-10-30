@@ -118,6 +118,7 @@ Rails.application.routes.draw do
             get 'reply_batches', to: 'reply_batches#active'
             resource :preferences, only: [:show, :update]
             resources :credentials, only: [:index, :show, :create, :update, :destroy] do
+              get :health, on: :collection
               post :test, on: :collection
               get :models, on: :collection
             end

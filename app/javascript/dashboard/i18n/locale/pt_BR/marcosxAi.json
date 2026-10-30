@@ -144,8 +144,8 @@
       "INBOX_HINT": "Um agente pode atender várias caixas. Cada caixa tem um agente, para evitar respostas concorrentes.",
       "INBOX_OTHER": "Atendida por {name}",
       "INBOX_EMPTY": "Nenhuma caixa de entrada disponível.",
-      "MODEL_MEDIA": "Este modelo entende imagens e documentos.",
-      "MODEL_TEXT": "Este modelo atende por texto. Escolha um modelo com visão para imagens.",
+      "MODEL_MEDIA": "Este modelo aceita imagens. Configure a leitura abaixo.",
+      "MODEL_TEXT": "Este modelo atende por texto. Configure a leitura de imagens abaixo.",
       "CONNECTION_REQUIRED": "Conecte este provedor antes de ativar o agente.",
       "SAVED_REQUIRED": "Salve o agente para testá-lo.",
       "CONFIRM_DELETE": "Excluir este agente e desvincular suas caixas de entrada?",
@@ -194,7 +194,8 @@
       "GEMINI_HINT": "Modelos Google para texto, imagens e documentos.",
       "IN_AGENT": "Conexão do modelo deste agente",
       "EDIT_KEY": "Alterar chave",
-      "SHARED_KEY": "A chave deste provedor é compartilhada pelos agentes da conta. O modelo e as instruções são próprios de cada agente."
+      "SHARED_KEY": "A chave deste provedor é compartilhada pelos agentes da conta. O modelo e as instruções são próprios de cada agente.",
+      "INTEGRATION_KEY": "Usando a chave Groq já salva na integração de transcrição."
     },
     "PLAYGROUND": {
       "TITLE": "Deixe o agente com o seu jeito",
@@ -520,7 +521,10 @@
       "MEDIA_CHANNELS": "Mídias e grupos",
       "VOICE_SETTINGS": "Configurações da voz",
       "SPOKEN_TEXT": "Texto falado e pronúncia",
-      "MEMORY_CONTACT": "Contexto do contato"
+      "MEMORY_CONTACT": "Contexto do contato",
+      "CHAT_PRIMARY": "Modelo principal do atendimento",
+      "CHAT_PRIMARY_HINT": "Gera as respostas de texto ao cliente. Configure a alternativa no card Reserva do atendimento.",
+      "ATTENDANCE": "Atendimento nas caixas de entrada"
     },
     "DECISION": {
       "REVIEW": "Revisar decisão da IA",
@@ -712,6 +716,61 @@
       "TWELVE_HOURS": "12 horas — atendimentos espaçados",
       "SHORT_HINT": "Bom para conversas frequentes ou simultâneas. Cada leitura renova o prazo. A economia depende do reaproveitamento; acompanhe os tokens em Atividade.",
       "LONG_HINT": "Pode ajudar quando as instruções são reutilizadas após intervalos maiores. Gravar custa o dobro da opção de 30 minutos; a leitura tem o mesmo preço. Não garante economia."
+    },
+    "VISION": {
+      "TITLE": "Leitura de imagens e vídeos",
+      "HINT": "Escolha como ler imagens, independentemente do modelo de conversa. A descrição visual entra no contexto antes da resposta ao cliente.",
+      "PROVIDER": "Provedor de imagens",
+      "MODEL": "Modelo de leitura de imagem",
+      "AGENT": "Usar o modelo de conversa",
+      "UNSUPPORTED": "O modelo selecionado não lê imagens. Escolha um modelo com visão, como Qwen 3.8 27B no Groq.",
+      "LIMIT": "Este modelo aceita até {count} imagens por requisição. A amostragem de vídeo respeita esse limite.",
+      "SHARED": "Usa a mesma conexão salva do provedor mostrada acima.",
+      "VIDEO_HINT": "Lê amostras de quadros; não representa análise integral do vídeo ou do áudio.",
+      "MAX_DIMENSION": "Dimensão máxima da imagem (px)",
+      "VIDEO_FRAMES": "Máximo de quadros do vídeo",
+      "VIDEO_INTERVAL_SECONDS": "Segundos entre quadros",
+      "INSTRUCTIONS": "Instruções adicionais de leitura",
+      "INSTRUCTIONS_HINT": "Orientação opcional para descrever imagens. O texto nos anexos é tratado como dado não confiável e não substitui as instruções do agente."
+    },
+    "OPERATIONS": {
+      "SAVING": "Salvando configurações…",
+      "ENABLING": "Ativando atendimento geral…",
+      "DISABLING": "Desativando atendimento geral…",
+      "MANUAL": "Atualizando atendimentos manuais…"
+    },
+    "FALLBACK": {
+      "DEFAULT_CONNECTION": "Conexão padrão do provedor",
+      "CONNECTION": "Conexão salva",
+      "ADD_CONNECTION": "Adicionar outra conexão",
+      "NAME": "Nome da conexão",
+      "NEW_HINT": "Use a chave da outra conta. A conexão é salva separadamente; depois salve o agente para aplicar a escolha. Chaves da mesma organização do provedor podem compartilhar limites.",
+      "ENABLED": "Ativar reserva automática",
+      "HINT": "Se a geração pela principal falhar, use a reserva. Escolha outra conexão, inclusive de outra conta do mesmo provedor.",
+      "ACTIVE": "Conexão reserva em uso",
+      "PROVIDER": "Provedor da reserva",
+      "MODEL": "Modelo da reserva",
+      "FAILED": "Conexão com erro",
+      "IN_USE": "Em uso no momento",
+      "WARNING": "Conexão que precisa de atenção:",
+      "RETRY_PRIMARY": "Tentar a principal a cada nova execução",
+      "RETRY_PRIMARY_HINT": "Ligado: a execução que falhar usa a reserva; a próxima começa na principal. Desligado: continua na reserva até ela falhar ou você inverter. A troca não repete mensagens já enviadas.",
+      "SWAP": "Inverter principal e reserva",
+      "TITLES": {
+        "CHAT": "Reserva do atendimento",
+        "VISION": "Reserva de imagens e vídeos",
+        "TRANSCRIPTION": "Reserva da transcrição de áudio"
+      },
+      "SCOPES": {
+        "CHAT": "Usada somente quando o modelo de atendimento falha. Imagens e áudio têm reservas próprias.",
+        "VISION": "Usada somente se a leitura visual falhar. Não altera o modelo de atendimento nem a transcrição de áudio.",
+        "TRANSCRIPTION": "Usada somente se a transcrição do áudio recebido falhar. Não altera o atendimento nem a geração de voz."
+      }
+    },
+    "OUTPUT_LIMIT": {
+      "TITLE": "Máximo de tokens de saída",
+      "HINT": "Inclui resposta e raciocínio. Um limite baixo pode cortar a geração; ajuste conforme o modelo e o plano.",
+      "GROQ_HINT": "Padrão Groq: 768, para caber na cota gratuita observada de 1000 tokens de saída por minuto. Inclui raciocínio; chamadas simultâneas compartilham a cota. Aumente conforme seu plano."
     }
   }
 }

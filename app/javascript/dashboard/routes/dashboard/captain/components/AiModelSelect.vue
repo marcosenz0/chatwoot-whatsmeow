@@ -7,6 +7,7 @@ const props = defineProps({
   modelValue: { type: String, default: '' },
   models: { type: Array, default: () => [] },
   disabled: { type: Boolean, default: false },
+  label: { type: String, default: '' },
 });
 const emit = defineEmits(['update:modelValue']);
 const { t } = useI18n();
@@ -24,7 +25,7 @@ const options = computed(() => {
   <AiSelect
     :model-value="modelValue"
     :disabled="disabled"
-    :label="t('MARCOX_AI.EDITOR.MODEL')"
+    :label="label || t('MARCOX_AI.EDITOR.MODEL')"
     searchable
     :options="
       options.map(model => ({

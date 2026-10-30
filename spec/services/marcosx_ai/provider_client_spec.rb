@@ -55,7 +55,7 @@ RSpec.describe MarcosxAi::ProviderClient do
     account.marcosx_ai_credentials.create!(provider: 'groq', api_key: 'groq-test', enabled: true)
     stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').to_return(status: 200,
       body: { choices: [{ message: { content: '{}' } }] }.to_json, headers: { 'Content-Type' => 'application/json' })
-    described_class.new(account: account, provider: 'groq').chat(messages: messages, schema: MarcosxAi::ReplyPlan::SCHEMA)
+    described_class.new(account: account, provider: 'groq', model: 'llama-3.3-70b-versatile').chat(messages: messages, schema: MarcosxAi::ReplyPlan::SCHEMA)
     expect(a_request(:post, 'https://api.groq.com/openai/v1/chat/completions').with { |request|
       body = JSON.parse(request.body)
       body['response_format'] == { 'type' => 'json_object' } && body.dig('messages', 0, 'role') == 'system'

@@ -144,8 +144,8 @@
       "INBOX_HINT": "One agent can serve many inboxes. Each inbox has one agent, so replies never compete.",
       "INBOX_OTHER": "Served by {name}",
       "INBOX_EMPTY": "No inboxes available.",
-      "MODEL_MEDIA": "This model supports images and documents.",
-      "MODEL_TEXT": "This model supports text. Choose a vision model for images.",
+      "MODEL_MEDIA": "This model accepts images. Configure image reading below.",
+      "MODEL_TEXT": "This model handles text. Configure image reading below.",
       "CONNECTION_REQUIRED": "Connect this provider before enabling the agent.",
       "SAVED_REQUIRED": "Save the agent to test it.",
       "CONFIRM_DELETE": "Delete this agent and remove its inbox connections?",
@@ -194,7 +194,8 @@
       "GEMINI_HINT": "Google models for text, images and documents.",
       "IN_AGENT": "Connection for this agent's model",
       "EDIT_KEY": "Change key",
-      "SHARED_KEY": "This provider key is shared by agents in this account. Each agent has its own model and instructions."
+      "SHARED_KEY": "This provider key is shared by agents in this account. Each agent has its own model and instructions.",
+      "INTEGRATION_KEY": "Using the Groq key already saved in the transcription integration."
     },
     "PLAYGROUND": {
       "TITLE": "Make it sound like you",
@@ -520,7 +521,10 @@
       "MEDIA_CHANNELS": "Media and groups",
       "VOICE_SETTINGS": "Voice settings",
       "SPOKEN_TEXT": "Spoken text and pronunciation",
-      "MEMORY_CONTACT": "Contact context"
+      "MEMORY_CONTACT": "Contact context",
+      "CHAT_PRIMARY": "Primary conversation model",
+      "CHAT_PRIMARY_HINT": "Generates text replies to customers. Configure its reserve in the separate reserve card.",
+      "ATTENDANCE": "Inbox support"
     },
     "DECISION": {
       "REVIEW": "Review AI decision",
@@ -712,6 +716,61 @@
       "TWELVE_HOURS": "12 hours — less frequent conversations",
       "SHORT_HINT": "Suitable for frequent or concurrent conversations. Each read refreshes the lifetime. Savings depend on reuse; check tokens in Activity.",
       "LONG_HINT": "Can help when instructions are reused across longer gaps. Writing costs twice the 30-minute option; reading costs the same. Savings are not guaranteed."
+    },
+    "VISION": {
+      "TITLE": "Image and video understanding",
+      "HINT": "Choose how images are read independently of the chat model. Visual descriptions are passed to the chat model before it replies.",
+      "PROVIDER": "Image provider",
+      "MODEL": "Image model",
+      "AGENT": "Use the chat model",
+      "UNSUPPORTED": "The selected model does not read images. Choose a vision model, such as Qwen 3.8 27B on Groq.",
+      "LIMIT": "This model accepts up to {count} images per request. Video samples respect this limit.",
+      "SHARED": "Uses the same saved provider connection shown above.",
+      "VIDEO_HINT": "Reads sampled frames; this is not a full video or audio analysis.",
+      "MAX_DIMENSION": "Maximum image dimension (px)",
+      "VIDEO_FRAMES": "Maximum video frames",
+      "VIDEO_INTERVAL_SECONDS": "Seconds between frames",
+      "INSTRUCTIONS": "Additional reading instructions",
+      "INSTRUCTIONS_HINT": "Optional guidance for describing images. Attachment text is treated as untrusted data. It cannot override the agent instructions."
+    },
+    "OPERATIONS": {
+      "SAVING": "Saving settings…",
+      "ENABLING": "Enabling general support…",
+      "DISABLING": "Disabling general support…",
+      "MANUAL": "Updating manual sessions…"
+    },
+    "FALLBACK": {
+      "DEFAULT_CONNECTION": "Default provider connection",
+      "CONNECTION": "Saved connection",
+      "ADD_CONNECTION": "Add another connection",
+      "NAME": "Connection name",
+      "NEW_HINT": "Use the key for the other account. Connections are saved separately; then save the agent to apply the selection. Keys in the same provider organization may share quotas.",
+      "ENABLED": "Enable automatic reserve",
+      "HINT": "If the primary generation fails, use the reserve. Choose a different connection, including another account from the same provider.",
+      "ACTIVE": "Reserve connection in use",
+      "PROVIDER": "Reserve provider",
+      "MODEL": "Reserve model",
+      "FAILED": "Connection failed",
+      "IN_USE": "Currently in use",
+      "WARNING": "Connection requiring attention:",
+      "RETRY_PRIMARY": "Try the primary on each new execution",
+      "RETRY_PRIMARY_HINT": "On: the failed execution uses the reserve; the next starts on the primary. Off: keep using the reserve until it fails or you swap. Switching does not repeat sent messages.",
+      "SWAP": "Swap primary and reserve",
+      "TITLES": {
+        "CHAT": "Conversation reserve",
+        "VISION": "Image and video reserve",
+        "TRANSCRIPTION": "Audio transcription reserve"
+      },
+      "SCOPES": {
+        "CHAT": "Used only when the conversation model fails. Images and audio have their own reserves.",
+        "VISION": "Used only when visual understanding fails. It does not change the conversation model or audio transcription.",
+        "TRANSCRIPTION": "Used only when incoming audio transcription fails. It does not change conversation replies or voice generation."
+      }
+    },
+    "OUTPUT_LIMIT": {
+      "TITLE": "Maximum output tokens",
+      "HINT": "Includes the reply and reasoning. A low limit can truncate generation; adjust it for the model and plan.",
+      "GROQ_HINT": "Groq default: 768, within the observed free quota of 1000 output tokens per minute. Includes reasoning; simultaneous requests share quota. Increase it for your plan."
     }
   }
 }

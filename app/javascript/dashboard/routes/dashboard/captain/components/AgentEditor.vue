@@ -10,6 +10,16 @@ import AiToggleRow from './AiToggleRow.vue';
 import AiModelSelect from './AiModelSelect.vue';
 import AiSelect from './AiSelect.vue';
 import AgentConnection from './AgentConnection.vue';
+import AgentVision from './AgentVision.vue';
+import AgentFallback from './AgentFallback.vue';
+import AgentOutputLimit from './AgentOutputLimit.vue';
+import AgentConnectionPicker from './AgentConnectionPicker.vue';
+import {
+  fallbackDefaults,
+  transcriptionFallbackDefaults,
+  connectionActive,
+  invertConnections,
+} from './connectionDefaults';
 import AiPlayground from './AiPlayground.vue';
 import AgentAttendance from './AgentAttendance.vue';
 import AgentActivity from './AgentActivity.vue';
@@ -34,6 +44,8 @@ const props = defineProps({
   defaultPrompt: { type: String, default: '' },
   canEdit: { type: Boolean, default: false },
   saving: { type: Boolean, default: false },
+  error: { type: String, default: '' },
+  connectionStatus: { type: Object, default: () => ({}) },
   initialSection: { type: String, default: 'identity' },
 });
 const emit = defineEmits([
@@ -45,11 +57,30 @@ const emit = defineEmits([
   'testConnection',
   'refreshModels',
   'back',
+  'connectionCreated',
 ]);
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
 const form = ref({});
+const validationError = ref('');
+const connectionDrafts = ref({});
+const connectionChange = (provider, draft) => {
+  connectionDrafts.value[provider] = draft;
+};
+const submit = () => {
+  validationError.value = '';
+  emit(
+    'save',
+    form.value,
+    Object.entries(connectionDrafts.value)
+      .filter(([, draft]) => draft.dirty)
+      .map(([provider, draft]) => ({
+        ...draft,
+        provider: draft.provider || provider,
+      }))
+  );
+};
 const initialForm = ref('');
 const effectivePrompt = ref(null);
 const directiveText = field =>
@@ -118,6 +149,17 @@ const hasUnsavedChanges = computed(
   () => JSON.stringify(form.value) !== initialForm.value
 );
 const section = ref(props.initialSection);
+const showInvalidField = async event => {
+  event.preventDefault();
+  const field = event.target;
+  section.value =
+    field.closest('[data-agent-section]')?.dataset.agentSection ||
+    section.value;
+  validationError.value = field.validationMessage;
+  await nextTick();
+  field.focus();
+  field.scrollIntoView?.({ block: 'center' });
+};
 const inboxSearch = ref('');
 const sections = computed(() => [
   {
@@ -125,6 +167,15 @@ const sections = computed(() => [
     icon: 'i-lucide-bot',
     label: t('MARCOX_AI.EDITOR.IDENTITY'),
   },
+  ...(props.canEdit
+    ? [
+        {
+          id: 'voice',
+          icon: 'i-lucide-audio-lines',
+          label: t('MARCOX_AI.VOICE.TITLE'),
+        },
+      ]
+    : []),
   {
     id: 'prompt',
     icon: 'i-lucide-notebook-pen',
@@ -157,11 +208,6 @@ const sections = computed(() => [
   { id: 'test', icon: 'i-lucide-flask-conical', label: t('MARCOX_AI.TEST') },
   ...(props.canEdit
     ? [
-        {
-          id: 'voice',
-          icon: 'i-lucide-audio-lines',
-          label: t('MARCOX_AI.VOICE.TITLE'),
-        },
         {
           id: 'notifications',
           icon: 'i-lucide-bell',
@@ -226,10 +272,35 @@ watch(
       ttl: '30m',
       ...form.value.config.prompt_cache,
     };
+    form.value.config.vision = {
+      provider: 'agent',
+      model: '',
+      connection_id: null,
+      max_dimension: 1600,
+      video_frames: 3,
+      video_interval_seconds: 5,
+      instructions: '',
+      ...form.value.config.vision,
+    };
+    form.value.config.connection_id ??= null;
+    form.value.config.fallback = {
+      ...fallbackDefaults,
+      ...form.value.config.fallback,
+    };
+    form.value.config.vision.fallback = {
+      ...fallbackDefaults,
+      ...form.value.config.vision.fallback,
+    };
+    connectionDrafts.value = {};
     const savedVoice = form.value.config.voice || {};
     form.value.config.transcription = {
       ...transcriptionDefaults,
       ...form.value.config.transcription,
+    };
+    form.value.config.transcription.connection_id ??= null;
+    form.value.config.transcription.fallback = {
+      ...transcriptionFallbackDefaults,
+      ...form.value.config.transcription.fallback,
     };
     form.value.config.voice = {
       ...voiceDefaults,
@@ -256,17 +327,36 @@ watch(
 );
 watch(form, value => emit('change', value), { deep: true });
 const modelOptions = computed(
-  () => props.catalogs[form.value.config.provider]?.models || []
+  () =>
+    (
+      props.catalogs[
+        `${form.value.config.provider}:${form.value.config.connection_id}`
+      ] || props.catalogs[form.value.config.provider]
+    )?.models || []
 );
 const model = computed(() =>
   modelOptions.value.find(item => item.id === form.value.config.model)
 );
+const visionModel = computed(() =>
+  form.value.config.vision.provider === 'agent'
+    ? model.value
+    : props.catalogs[form.value.config.vision.provider]?.models?.find(
+        item => item.id === form.value.config.vision.model
+      )
+);
 const connectionReady = computed(() =>
-  props.credentials.some(
-    item =>
-      item.provider === form.value.config.provider &&
-      item.enabled &&
-      item.configured
+  [
+    form.value.config,
+    ...(form.value.config.fallback.enabled ? [form.value.config.fallback] : []),
+  ].some(settings =>
+    (() => {
+      const connection = props.credentials.find(
+        item =>
+          item.provider === settings.provider &&
+          (!settings.connection_id || item.id === settings.connection_id)
+      );
+      return connection?.enabled && connection.configured;
+    })()
   )
 );
 const providerOptions = [
@@ -275,11 +365,17 @@ const providerOptions = [
   { value: 'gemini', label: 'Google Gemini', icon: 'i-lucide-sparkle' },
 ];
 const credential = computed(() =>
-  props.credentials.find(item => item.provider === form.value.config.provider)
+  props.credentials.find(
+    item =>
+      item.provider === form.value.config.provider &&
+      (!form.value.config.connection_id ||
+        item.id === form.value.config.connection_id)
+  )
 );
 const changeProvider = provider => {
   if (provider === form.value.config.provider) return;
   form.value.config.provider = provider;
+  form.value.config.connection_id = null;
   const connection = props.credentials.find(item => item.provider === provider);
   form.value.config.model =
     connection?.model || props.catalogs[provider]?.models?.[0]?.id || '';
@@ -311,7 +407,7 @@ const mediaOptions = computed(() => [
     key: 'process_images',
     icon: 'i-lucide-image',
     label: t('MARCOX_AI.EDITOR.IMAGES'),
-    disabled: model.value?.vision === false,
+    disabled: visionModel.value?.vision === false,
   },
   {
     key: 'process_audio',
@@ -329,7 +425,7 @@ const mediaOptions = computed(() => [
     key: 'process_video',
     icon: 'i-lucide-video',
     label: t('MARCOX_AI.EDITOR.VIDEO'),
-    disabled: model.value?.vision === false,
+    disabled: visionModel.value?.vision === false,
   },
 ]);
 const channelLabel = inbox =>
@@ -460,9 +556,24 @@ const channelLabel = inbox =>
           "
           id="marcosx-agent-editor"
           class="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6"
-          @submit.prevent="emit('save', form)"
+          @submit.prevent="submit"
+          @invalid.capture="showInvalidField"
         >
           <div class="mx-auto w-full max-w-6xl">
+            <p
+              v-if="validationError"
+              role="alert"
+              class="mb-4 text-sm text-n-ruby-11"
+            >
+              {{ validationError }}
+            </p>
+            <p
+              v-if="error"
+              role="alert"
+              class="mb-4 rounded-lg border border-n-ruby-7 bg-n-ruby-2 p-3 text-sm text-n-ruby-11"
+            >
+              {{ error }}
+            </p>
             <div class="mb-6">
               <h3 class="m-0 text-lg font-semibold text-n-slate-12">
                 {{ sections.find(item => item.id === section)?.label }}
@@ -476,131 +587,243 @@ const channelLabel = inbox =>
             <fieldset :disabled="!canEdit" class="m-0 min-w-0 border-0 p-0">
               <div
                 v-show="section === 'identity'"
-                class="grid items-start gap-5 xl:grid-cols-2"
+                data-agent-section="identity"
+                class="space-y-6"
               >
                 <AgentSection
                   :title="t('MARCOX_AI.DESIGN.AGENT_IDENTITY')"
                   icon="i-lucide-user-round"
                 >
-                  <label class="block text-sm font-medium text-n-slate-12">
-                    {{ t('MARCOX_AI.EDITOR.NAME') }}
-                    <input
-                      v-model="form.name"
-                      required
-                      maxlength="120"
-                      :placeholder="t('MARCOX_AI.EDITOR.NAME_PLACEHOLDER')"
-                      class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
-                    />
-                  </label>
-                  <label class="block text-sm font-medium text-n-slate-12">
-                    {{ t('MARCOX_AI.EDITOR.DESCRIPTION') }}
-                    <input
-                      v-model="form.description"
-                      :placeholder="
-                        t('MARCOX_AI.EDITOR.DESCRIPTION_PLACEHOLDER')
-                      "
-                      class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
-                    />
-                  </label>
-                </AgentSection>
-                <AgentSection
-                  :title="t('MARCOX_AI.DESIGN.MODEL_CONNECTION')"
-                  icon="i-lucide-sparkles"
-                >
                   <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <label class="block text-sm font-medium text-n-slate-12">
-                      {{ t('MARCOX_AI.EDITOR.PROVIDER') }}
-                      <AiSelect
-                        :model-value="form.config.provider"
-                        :options="providerOptions"
-                        :label="t('MARCOX_AI.EDITOR.PROVIDER')"
-                        :disabled="!canEdit"
-                        class="mt-2"
-                        @update:model-value="changeProvider"
+                      {{ t('MARCOX_AI.EDITOR.NAME') }}
+                      <input
+                        v-model="form.name"
+                        required
+                        maxlength="120"
+                        :placeholder="t('MARCOX_AI.EDITOR.NAME_PLACEHOLDER')"
+                        class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
                       />
                     </label>
                     <label class="block text-sm font-medium text-n-slate-12">
-                      {{ t('MARCOX_AI.EDITOR.MODEL') }}
-                      <AiModelSelect
-                        v-model="form.config.model"
-                        :models="modelOptions"
+                      {{ t('MARCOX_AI.EDITOR.DESCRIPTION') }}
+                      <input
+                        v-model="form.description"
+                        :placeholder="
+                          t('MARCOX_AI.EDITOR.DESCRIPTION_PLACEHOLDER')
+                        "
+                        class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
+                      />
+                    </label>
+                  </div>
+                </AgentSection>
+                <AgentSection
+                  :title="t('MARCOX_AI.DESIGN.ATTENDANCE')"
+                  icon="i-lucide-messages-square"
+                >
+                  <AiToggleRow
+                    v-model="form.config.auto_response_enabled"
+                    :label="t('MARCOX_AI.EDITOR.ENABLE')"
+                    :description="t('MARCOX_AI.EDITOR.ENABLE_HINT')"
+                    :disabled="!connectionReady"
+                  />
+                  <p
+                    v-if="!connectionReady"
+                    class="pb-3 text-xs text-n-amber-11"
+                  >
+                    {{ t('MARCOX_AI.EDITOR.CONNECTION_REQUIRED') }}
+                  </p>
+                </AgentSection>
+                <div class="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+                  <AgentSection
+                    :title="t('MARCOX_AI.DESIGN.CHAT_PRIMARY')"
+                    icon="i-lucide-sparkles"
+                  >
+                    <p class="m-0 text-sm leading-6 text-n-slate-11">
+                      {{ t('MARCOX_AI.DESIGN.CHAT_PRIMARY_HINT') }}
+                    </p>
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <label class="block text-sm font-medium text-n-slate-12">
+                        {{ t('MARCOX_AI.EDITOR.PROVIDER') }}
+                        <AiSelect
+                          :model-value="form.config.provider"
+                          :options="providerOptions"
+                          :label="t('MARCOX_AI.EDITOR.PROVIDER')"
+                          :disabled="!canEdit"
+                          class="mt-2"
+                          @update:model-value="changeProvider"
+                        />
+                      </label>
+                      <label class="block text-sm font-medium text-n-slate-12">
+                        {{ t('MARCOX_AI.EDITOR.MODEL') }}
+                        <AiModelSelect
+                          v-model="form.config.model"
+                          :models="modelOptions"
+                          :disabled="!canEdit"
+                          class="mt-2"
+                        />
+                      </label>
+                    </div>
+                    <p
+                      class="m-0 flex items-center gap-2 text-xs text-n-slate-11"
+                    >
+                      <span class="i-lucide-scan-eye size-4" />
+                      {{
+                        model?.vision
+                          ? t('MARCOX_AI.EDITOR.MODEL_MEDIA')
+                          : t('MARCOX_AI.EDITOR.MODEL_TEXT')
+                      }}
+                    </p>
+                    <AgentOutputLimit
+                      v-model="form.config.max_output_tokens"
+                      :provider="form.config.provider"
+                      :disabled="!canEdit"
+                    />
+                    <AgentConnection
+                      :provider="form.config.provider"
+                      :credential="credential"
+                      :defaults="providers[form.config.provider]"
+                      :can-edit="canEdit"
+                      :busy="busyProvider === form.config.provider"
+                      :active="
+                        connectionActive(
+                          connectionStatus.chat,
+                          credential,
+                          form.config.provider,
+                          'primary'
+                        )
+                      "
+                      @save="
+                        connection =>
+                          emit(
+                            'saveConnection',
+                            form.config.provider,
+                            connection
+                          )
+                      "
+                      @test="
+                        emit(
+                          'testConnection',
+                          form.config.provider,
+                          credential?.id,
+                          form.config.model
+                        )
+                      "
+                      @refresh="
+                        emit(
+                          'refreshModels',
+                          form.config.provider,
+                          form.config.connection_id
+                        )
+                      "
+                      @change="
+                        connectionChange(
+                          credential?.id
+                            ? `connection:${credential.id}`
+                            : form.config.provider,
+                          $event
+                        )
+                      "
+                    />
+                    <AgentConnectionPicker
+                      v-model="form.config.connection_id"
+                      :provider="form.config.provider"
+                      :credentials="credentials"
+                      :defaults="providers[form.config.provider]"
+                      :disabled="!canEdit"
+                      @connection-created="emit('connectionCreated', $event)"
+                      @update:model-value="
+                        emit('refreshModels', form.config.provider, $event)
+                      "
+                    />
+
+                    <label
+                      v-if="model?.reasoning"
+                      class="block text-sm font-medium text-n-slate-12"
+                    >
+                      {{ t('MARCOX_AI.EDITOR.REASONING') }}
+                      <AiSelect
+                        v-model="form.config.reasoning_effort"
+                        :options="
+                          ['low', 'medium', 'high'].map(value => ({
+                            value,
+                            label: t(`MARCOX_AI.EDITOR.${value.toUpperCase()}`),
+                          }))
+                        "
+                        :label="t('MARCOX_AI.EDITOR.REASONING')"
                         :disabled="!canEdit"
                         class="mt-2"
                       />
                     </label>
-                  </div>
-                  <p
-                    class="m-0 flex items-center gap-2 text-xs text-n-slate-11"
-                  >
-                    <span class="i-lucide-scan-eye size-4" />
-                    {{
-                      model?.vision
-                        ? t('MARCOX_AI.EDITOR.MODEL_MEDIA')
-                        : t('MARCOX_AI.EDITOR.MODEL_TEXT')
-                    }}
-                  </p>
-                  <AgentConnection
-                    :provider="form.config.provider"
-                    :credential="credential"
-                    :defaults="providers[form.config.provider]"
-                    :can-edit="canEdit"
-                    :busy="busyProvider === form.config.provider"
-                    @save="
-                      connection =>
-                        emit('saveConnection', form.config.provider, connection)
-                    "
-                    @test="emit('testConnection', form.config.provider)"
-                    @refresh="emit('refreshModels', form.config.provider)"
-                  />
-                  <label
-                    v-if="model?.reasoning"
-                    class="block text-sm font-medium text-n-slate-12"
-                  >
-                    {{ t('MARCOX_AI.EDITOR.REASONING') }}
-                    <AiSelect
-                      v-model="form.config.reasoning_effort"
-                      :options="
-                        ['low', 'medium', 'high'].map(value => ({
-                          value,
-                          label: t(`MARCOX_AI.EDITOR.${value.toUpperCase()}`),
-                        }))
-                      "
-                      :label="t('MARCOX_AI.EDITOR.REASONING')"
-                      :disabled="!canEdit"
-                      class="mt-2"
-                    />
-                  </label>
-                  <label
-                    v-else
-                    class="block text-sm font-medium text-n-slate-12"
-                  >
-                    {{ t('MARCOX_AI.EDITOR.TEMPERATURE') }}
-                    <input
-                      v-model.number="form.config.temperature"
-                      type="number"
-                      min="0"
-                      max="2"
-                      step="0.1"
-                      class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
-                    />
-                  </label>
-                  <div
-                    class="rounded-xl border border-n-weak bg-n-alpha-1 px-4"
-                  >
-                    <AiToggleRow
-                      v-model="form.config.auto_response_enabled"
-                      :label="t('MARCOX_AI.EDITOR.ENABLE')"
-                      :description="t('MARCOX_AI.EDITOR.ENABLE_HINT')"
-                      :disabled="!connectionReady"
-                    />
-                    <p
-                      v-if="!connectionReady"
-                      class="pb-3 text-xs text-n-amber-11"
+                    <label
+                      v-else
+                      class="block text-sm font-medium text-n-slate-12"
                     >
-                      {{ t('MARCOX_AI.EDITOR.CONNECTION_REQUIRED') }}
-                    </p>
-                  </div>
-                </AgentSection>
+                      {{ t('MARCOX_AI.EDITOR.TEMPERATURE') }}
+                      <input
+                        v-model.number="form.config.temperature"
+                        type="number"
+                        min="0"
+                        max="2"
+                        step="0.1"
+                        class="!mb-0 mt-2 !block !w-full !h-10 rounded-lg border border-n-weak bg-n-background px-3 text-sm"
+                      />
+                    </label>
+                  </AgentSection>
+                  <AgentFallback
+                    v-model="form.config.fallback"
+                    can-swap
+                    :credentials="credentials"
+                    :providers="providers"
+                    :catalogs="catalogs"
+                    :can-edit="canEdit"
+                    :busy-provider="busyProvider"
+                    :status="connectionStatus.chat"
+                    @swap="invertConnections(form.config, form.config.fallback)"
+                    @save-connection="
+                      (provider, connection) =>
+                        emit('saveConnection', provider, connection)
+                    "
+                    @test-connection="
+                      (provider, id, selectedModel) =>
+                        emit('testConnection', provider, id, selectedModel)
+                    "
+                    @refresh-models="
+                      (provider, id) => emit('refreshModels', provider, id)
+                    "
+                    @connection-change="connectionChange"
+                    @connection-created="emit('connectionCreated', $event)"
+                  />
+                </div>
+                <div>
+                  <AgentVision
+                    v-model="form.config.vision"
+                    v-model:images="form.config.process_images"
+                    v-model:video="form.config.process_video"
+                    :agent-provider="form.config.provider"
+                    :agent-model="form.config.model"
+                    :agent-config="form.config"
+                    :catalogs="catalogs"
+                    :credentials="credentials"
+                    :providers="providers"
+                    :can-edit="canEdit"
+                    :busy-provider="busyProvider"
+                    :status="connectionStatus.vision"
+                    @save-connection="
+                      (provider, connection) =>
+                        emit('saveConnection', provider, connection)
+                    "
+                    @test-connection="
+                      (provider, id, selectedModel) =>
+                        emit('testConnection', provider, id, selectedModel)
+                    "
+                    @refresh-models="
+                      (provider, id) => emit('refreshModels', provider, id)
+                    "
+                    @connection-change="connectionChange"
+                    @connection-created="emit('connectionCreated', $event)"
+                  />
+                </div>
               </div>
               <div v-show="section === 'prompt'" class="space-y-4">
                 <label class="block text-sm font-semibold">
@@ -771,6 +994,7 @@ const channelLabel = inbox =>
               </div>
               <div
                 v-show="section === 'behavior'"
+                data-agent-section="behavior"
                 class="grid items-start gap-5 xl:grid-cols-2"
               >
                 <div class="min-w-0 space-y-5">
@@ -1032,6 +1256,25 @@ const channelLabel = inbox =>
                 v-model:process-audio="form.config.process_audio"
                 :assistant-id="form.id"
                 :unsaved="hasUnsavedChanges"
+                :connections="credentials"
+                :providers="providers"
+                :can-edit="canEdit"
+                :busy-provider="busyProvider"
+                :connection-status="connectionStatus.transcription"
+                :agent-config="form.config"
+                @save-connection="
+                  (provider, connection) =>
+                    emit('saveConnection', provider, connection)
+                "
+                @test-connection="
+                  (provider, id, selectedModel) =>
+                    emit('testConnection', provider, id, selectedModel)
+                "
+                @refresh-models="
+                  (provider, id) => emit('refreshModels', provider, id)
+                "
+                @connection-change="connectionChange"
+                @connection-created="emit('connectionCreated', $event)"
               />
               <AgentNotifications
                 v-if="section === 'notifications' && canEdit"

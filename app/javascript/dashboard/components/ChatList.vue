@@ -798,15 +798,19 @@ function onToggleAdvanceFiltersModal() {
   showAdvancedFilters.value = true;
 }
 
-async function fetchConversations() {
+async function fetchConversations(replaceExisting = false) {
   const filters = conversationFilters.value;
   store.dispatch('updateChatListFilters', filters);
 
-  const loaded = await store.dispatch('fetchAllConversations');
+  const loaded = await store.dispatch('fetchAllConversations', {
+    ...filters,
+    replaceExisting,
+  });
   if (!loaded && props.conversationInbox && filters.hideGroupTabs.length) {
     await store.dispatch('fetchAllConversations', {
       ...filters,
       hideGroupTabs: [],
+      replaceExisting,
     });
   }
 
@@ -823,7 +827,8 @@ function resetAndFetchData() {
   appliedFilter.value = [];
   resetBulkActions();
   store.dispatch('conversationPage/reset');
-  store.dispatch('emptyAllConversations');
+  if (hasActiveFolders.value || props.foldersId)
+    store.dispatch('emptyAllConversations');
   store.dispatch('clearConversationFilters');
   if (hasActiveFolders.value) {
     const payload = activeFolder.value.query;
@@ -832,7 +837,7 @@ function resetAndFetchData() {
   if (props.foldersId) {
     return;
   }
-  fetchConversations();
+  fetchConversations(true);
 }
 
 function onClearAdvancedFilters() {

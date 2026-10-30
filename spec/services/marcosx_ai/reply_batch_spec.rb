@@ -19,6 +19,7 @@ RSpec.describe MarcosxAi::ReplyBatchRunner do
     assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
     account.marcosx_ai_credentials.create!(provider: 'openai', api_key: 'test', enabled: true)
     allow(MarcosxAi::BatchReplyPlanner).to receive(:perform).and_return(plan)
+    allow_any_instance_of(Whatsmeow::SessionClient).to receive(:typing)
   end
 
   it 'prepares reviews without enabling support or sending messages' do
@@ -92,7 +93,6 @@ RSpec.describe MarcosxAi::ReplyBatchRunner do
   end
 
   it 'cancels delivery already queued without sending or erasing manual membership' do
-    allow_any_instance_of(Whatsmeow::SessionClient).to receive(:typing)
     batch.update!(mode: 'direct')
     item
     described_class.new(batch).perform

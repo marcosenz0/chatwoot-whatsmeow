@@ -1,0 +1,17 @@
+# MarcoXIA — identity and model card layout, October 29, 2026
+
+Marco found the identity page hard to understand: the short identity card left a large empty column beside the entire conversation configuration, reserves were nested inside their primary cards, and video options followed the visual reserve without a clear boundary.
+
+The identity page now has six independent cards: agent identity, inbox support, primary conversation model, conversation reserve, image/video understanding, and image/video reserve. Name and objective share a compact full-width card. Global activation has its own card. Each primary/reserve pair shares a responsive two-column row on desktop and stacks on narrow screens. All visual sampling settings, video activation, dimensions, frame limits, interval and reading instructions remain together in the visual primary card, above its separate reserve. Reserve headings use the shipped Lucide shield icon and explain their exact service scope. The shared transcription reserve also has its own explicit title.
+
+This is a presentation-only change: providers, models, credentials, budgets, routing, toggle semantics, save events, manual audio review and sending behavior are unchanged. UI checks use synthetic APIs and do not change real profiles or send customer messages.
+
+Application commit: `c777b831fb14be8ba093a92568f49f0d9d1807e1`. Gate: <https://github.com/marcosenz0/chatwoot-whatsmeow/actions/runs/40968385657>. PR56 continues the existing Qwen/vision/fallback release.
+
+Local validation passed 83 existing agent-component tests and scoped lint with no errors. Actual Chatwoot components/CSS were reviewed at 1680px and 390px. The six card headings have no parent configuration card; primary and reserve align on desktop, stack without form overflow on narrow screens, and header SVG masks render. Keyboard opens the provider menu with three choices; the menu fits 390px and Escape closes it and returns focus. Synthetic saves confirmed independent chat reserve activation and visual inversion, with chat, media controls and generalOFF preserved. Null/absent output-budget values are compared using the existing route normalization.
+
+Published on principal/MX/MD and all three workers using the application commit above, with one identical Docker imageID and health200. Gate passed917 targeted tests (450 frontend+467 Rails), scoped lint/build/image. Three published native HTTP contracts passed with rollback and zero real provider calls or channel deliveries. Final audit confirmed only six app image pins changed; six bridge identities, profiles/routes/credentials/stored data/hooks and all126 conversation states stayed identical. The preceding runtime validation and live-provider limitations remain recorded in `marcoxia-groq-vision-fallback-2026-10-29.md`. This layout change requires no new paid model calls.
+
+The MX worker source update briefly returned panel404 after the web deployment was accepted. Reading actual image pins confirmed the web was updated and the worker was pending; retrying only the worker succeeded. No panel/proxy restart or unrelated service change was needed.
+
+HOT evidence and operational record: `operacao/marcoxia-groq-visao-29-10-2026/REGISTRO.md`, `INTERFACE-CARDS.json` and `VERIFICACAO-CARDS.json`. The existing Notion Acompanhamento/Ferramentas pages were updated in the confirmed MARCOS ENZO workspace; readback confirmed the new text and both entire previous prefixes/suffixes were preserved (`NOTION-CARDS.json`).

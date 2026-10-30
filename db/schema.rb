@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_10_16_190000) do
+ActiveRecord::Schema[7.2].define(version: 2026_10_29_200000) do
   # These extensions should be enabled to support this database
   enable_extension "pg_stat_statements"
   enable_extension "pg_trgm"
@@ -1362,6 +1362,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_16_190000) do
     t.jsonb "guardrails", default: [], null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.jsonb "connection_status", default: {}, null: false
     t.index ["account_id"], name: "index_marcosx_ai_assistants_on_account_id"
   end
 
@@ -1406,7 +1407,9 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_16_190000) do
     t.boolean "enabled", default: false, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["account_id", "provider"], name: "index_marcosx_ai_credentials_on_account_id_and_provider", unique: true
+    t.string "name", default: "Principal", null: false
+    t.jsonb "health", default: {}, null: false
+    t.index ["account_id", "provider", "name"], name: "index_marcosx_ai_credentials_named_connections", unique: true
     t.index ["account_id"], name: "index_marcosx_ai_credentials_on_account_id"
   end
 
@@ -1508,7 +1511,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_10_16_190000) do
     t.string "reason"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["conversation_id", "trigger_message_id"], name: "marcoxia_reply_batch_unique_turn", unique: true, where: "((status)::text <> ALL ((ARRAY['discarded'::character varying, 'failed'::character varying, 'skipped'::character varying])::text[]))"
+    t.index ["conversation_id", "trigger_message_id"], name: "marcoxia_reply_batch_unique_turn", unique: true, where: "((status)::text <> ALL (ARRAY[('discarded'::character varying)::text, ('failed'::character varying)::text, ('skipped'::character varying)::text]))"
     t.index ["conversation_id"], name: "index_marcosx_ai_reply_batch_items_on_conversation_id"
     t.index ["reply_batch_id"], name: "marcoxia_reply_batch_items_batch"
   end

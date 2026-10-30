@@ -4,6 +4,8 @@ class MarcosxAi::Assistant < ApplicationRecord
   DEFAULT_CONFIG = {
     provider: 'openai',
     model: 'gpt-6.1-sol',
+    connection_id: nil, max_output_tokens: nil,
+    fallback: { enabled: false, retry_primary: true, provider: 'openai', connection_id: nil, max_output_tokens: nil, model: 'gpt-6-luna' },
     temperature: 0.7,
     reasoning_effort: 'medium',
     response_delay_seconds: 8,
@@ -42,8 +44,14 @@ class MarcosxAi::Assistant < ApplicationRecord
     message_interval_seconds: 2,
     allow_reactions: true,
     process_images: true,
+    vision: { provider: 'agent', model: '', connection_id: nil, max_output_tokens: nil, max_dimension: 1600, video_frames: 3,
+              video_interval_seconds: 5, instructions: '',
+              fallback: { enabled: false, retry_primary: true, provider: 'openai', connection_id: nil, max_output_tokens: nil,
+                          model: 'gpt-6-luna' } },
     process_audio: true,
-    transcription: { provider: 'agent', model: '' },
+    transcription: { provider: 'agent', model: '', connection_id: nil, max_output_tokens: nil,
+                     fallback: { enabled: false, retry_primary: true, provider: 'openai', connection_id: nil, max_output_tokens: nil,
+                                 model: 'gpt-4o-transcribe' } },
     process_files: true,
     process_video: true,
     respond_to_groups: false,
@@ -81,6 +89,9 @@ class MarcosxAi::Assistant < ApplicationRecord
     settings = DEFAULT_CONFIG.merge(config || {}).with_indifferent_access
     settings[:voice] = DEFAULT_CONFIG[:voice].deep_merge(settings[:voice] || {})
     settings[:prompt_cache] = DEFAULT_CONFIG[:prompt_cache].deep_merge(settings[:prompt_cache] || {})
+    settings[:vision] = DEFAULT_CONFIG[:vision].deep_merge(settings[:vision] || {})
+    settings[:fallback] = DEFAULT_CONFIG[:fallback].deep_merge(settings[:fallback] || {})
+    settings[:transcription] = DEFAULT_CONFIG[:transcription].deep_merge(settings[:transcription] || {})
     settings
   end
 
@@ -127,7 +138,9 @@ class MarcosxAi::Assistant < ApplicationRecord
   end
 
   def available?
-    account.marcosx_ai_credentials.find_by(provider: provider, enabled: true)&.configured? || false
+    MarcosxAi::ConnectionPlan.new(assistant: self, feature: 'chat').endpoints.any? do |endpoint|
+      endpoint[:credential]&.enabled && endpoint[:credential].configured?
+    end
   end
 
   def reasoning_effort
@@ -195,9 +208,7 @@ class MarcosxAi::Assistant < ApplicationRecord
   private
 
   def broadcast_coverage
-    account.conversations.where(inbox_id: inboxes.select(:id)).or(
-      account.conversations.where(id: conversation_states.select(:conversation_id))
-    ).includes(:inbox, :contact, :marcosx_ai_conversation_state).find_each(&:dispatch_conversation_updated_event)
+    MarcosxAi::CoverageRefreshJob.perform_later(id)
   end
 
   def cancel_pending_runs

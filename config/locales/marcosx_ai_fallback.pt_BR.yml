@@ -1,0 +1,10 @@
+pt_BR:
+  marcosx_ai:
+    errors:
+      connections_failed: "A conexão principal e a reserva falharam. Confira as chaves, o saldo e a disponibilidade nas configurações do agente."
+      connection_in_use: "Escolha outra conexão nas configurações do agente antes de excluir esta."
+      invalid_connection: "Escolha uma conexão salva nesta conta e neste provedor."
+      invalid_fallback: "Escolha provedor, conexão e modelo compatíveis para a reserva."
+      same_fallback: "A reserva deve usar uma conexão diferente da principal."
+      invalid_output_limit: "Escolha um limite de saída entre 128 e 32768 tokens."
+      output_limit: "O modelo atingiu o limite de saída antes de concluir a resposta. Aumente o orçamento de saída ou confira a conexão reserva."

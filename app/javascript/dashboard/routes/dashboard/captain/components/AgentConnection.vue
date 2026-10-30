@@ -9,8 +9,9 @@ const props = defineProps({
   credential: { type: Object, default: null },
   canEdit: { type: Boolean, default: false },
   busy: { type: Boolean, default: false },
+  active: { type: Boolean, default: false },
 });
-const emit = defineEmits(['save', 'test', 'refresh']);
+const emit = defineEmits(['save', 'test', 'refresh', 'change']);
 const { t } = useI18n();
 const form = ref({});
 const editing = ref(false);
@@ -18,10 +19,29 @@ const ready = computed(
   () => props.credential?.configured && props.credential?.enabled
 );
 watch(
-  () => [props.provider, props.credential],
+  form,
+  value =>
+    emit('change', {
+      ...value,
+      provider: props.provider,
+      dirty:
+        !!value.api_key?.trim() ||
+        (ready.value && value.api_base !== props.credential?.api_base),
+    }),
+  { deep: true }
+);
+watch(
+  [
+    () => props.provider,
+    () => props.credential?.id,
+    () => props.credential?.updated_at,
+    () => props.credential?.configured,
+    () => props.credential?.enabled,
+  ],
   () => {
     form.value = {
       id: props.credential?.id,
+      name: props.credential?.name || 'Principal',
       api_key: '',
       api_base: props.credential?.api_base || props.defaults.default_api_base,
       model: props.credential?.model || props.defaults.default_model,
@@ -36,24 +56,37 @@ watch(
 <template>
   <section class="rounded-xl border border-n-weak bg-n-alpha-1">
     <div class="flex flex-wrap items-center justify-between gap-3 p-4">
-      <div class="flex items-center gap-3">
+      <div class="flex min-w-0 flex-1 items-center gap-3">
         <span
           :class="
-            ready
-              ? 'i-lucide-circle-check text-n-teal-11'
-              : 'i-lucide-key-round text-n-slate-11'
+            credential?.health?.state === 'error'
+              ? 'i-lucide-circle-x text-n-ruby-11'
+              : ready
+                ? 'i-lucide-circle-check text-n-teal-11'
+                : 'i-lucide-key-round text-n-slate-11'
           "
           class="size-5 shrink-0"
         />
-        <div>
+        <div class="min-w-0">
           <p class="m-0 text-sm font-medium text-n-slate-12">
             {{
               t(
-                ready
-                  ? 'MARCOX_AI.PROVIDERS.CONNECTED'
-                  : 'MARCOX_AI.PROVIDERS.MISSING'
+                credential?.health?.state === 'error'
+                  ? 'MARCOX_AI.FALLBACK.FAILED'
+                  : ready
+                    ? 'MARCOX_AI.PROVIDERS.CONNECTED'
+                    : 'MARCOX_AI.PROVIDERS.MISSING'
               )
             }}
+          </p>
+          <p v-if="active" class="m-0 mt-1 text-xs font-medium text-n-teal-11">
+            {{ t('MARCOX_AI.FALLBACK.IN_USE') }}
+          </p>
+          <p
+            v-if="credential?.health?.state === 'error'"
+            class="m-0 mt-1 break-words text-xs text-n-ruby-11"
+          >
+            {{ credential.health.error }}
           </p>
           <p class="m-0 mt-1 text-xs text-n-slate-11">
             {{
@@ -62,9 +95,15 @@ watch(
               })
             }}
           </p>
+          <p
+            v-if="credential?.source === 'integration'"
+            class="m-0 mt-1 text-xs text-n-teal-11"
+          >
+            {{ t('MARCOX_AI.PROVIDERS.INTEGRATION_KEY') }}
+          </p>
         </div>
       </div>
-      <div v-if="canEdit && ready" class="flex items-center gap-1">
+      <div v-if="canEdit && ready" class="flex flex-wrap items-center gap-1">
         <Button
           type="button"
           variant="ghost"
