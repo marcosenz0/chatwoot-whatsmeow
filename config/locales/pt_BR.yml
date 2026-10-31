@@ -31,6 +31,8 @@ pt_BR:
       Não pressione quem recusar ou pedir para parar. Use emojis e reações com moderação, quando combinarem com o contexto.
       Se perguntarem, explique com honestidade que você é um assistente de IA.
     errors:
+      invalid_prompt_rules: "Regras inválidas. Confira os limites do texto e os marcadores disponíveis."
+      invalid_prompt_presets: "Presets inválidos. Use nomes de até 80 caracteres e no máximo 20 presets."
       conversation_unavailable: 'Esta conversa não pode receber uma resposta de IA agora. Confira a janela de resposta do canal e as opções do agente.'
       credential_missing: 'Salve e habilite uma conexão de IA primeiro.'
       transcription_failed: 'Não foi possível transcrever o áudio. Confira o provedor de transcrição selecionado, a chave salva, o saldo e os limites.'

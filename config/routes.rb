@@ -130,7 +130,9 @@ Rails.application.routes.draw do
             resources :assistants do
               post :playground, on: :member
               get :coverage, on: :member
+              post :prompt, on: :collection
               get :prompt, on: :member
+              post :prompt, on: :member
               post :test_notification, on: :member
               get :notification_options, on: :collection
               resources :inboxes, only: [:index, :create, :destroy], param: :inbox_id

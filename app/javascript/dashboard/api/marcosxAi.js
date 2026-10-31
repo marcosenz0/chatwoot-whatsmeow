@@ -135,8 +135,11 @@ class MarcosxAiAPI extends ApiClient {
     );
   }
 
-  getEffectivePrompt(id) {
-    return axios.get(`${this.url}/assistants/${id}/prompt`);
+  getEffectivePrompt(id, assistant) {
+    const url = id
+      ? `${this.url}/assistants/${id}/prompt`
+      : `${this.url}/assistants/prompt`;
+    return assistant ? axios.post(url, { assistant }) : axios.get(url);
   }
 
   getNotificationOptions() {

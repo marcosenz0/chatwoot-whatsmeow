@@ -62,7 +62,7 @@ class MarcosxAi::ConversationAnalysisService
         Este rascunho revisado envia somente texto: use resource_ids=[] e pix_key_id=null; não digite chave Pix e não diga que um arquivo foi enviado ou anexado.
       PROMPT
     }
-    result = JSON.parse(client.chat(messages: [*prompts, *MarcosxAi::PromptBuilder.focused_history(context)], schema: SCHEMA))
+    result = JSON.parse(client.chat(messages: [*prompts, *MarcosxAi::PromptBuilder.focused_history(context, assistant: @assistant)], schema: SCHEMA))
     recent = MarcosxAi::ReplyStyle.recent_text(context)
     plan = MarcosxAi::ReplyPlan.parse(result.to_json, assistant: @assistant, conversation: @conversation, recent_messages: recent)
     unless result['summary'].is_a?(String) && result['next_step'].is_a?(String)

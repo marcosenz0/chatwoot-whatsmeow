@@ -14,7 +14,8 @@ class MarcosxAi::BatchReplyPlanner
     prompts = MarcosxAi::PromptBuilder.messages(assistant: assistant, conversation: conversation, context: runtime, reactions: false, proactive: true)
     prompts << { role: 'developer', content: 'O operador selecionou este pedido ainda sem resposta. Prepare uma resposta ao pedido atual. ' \
                                              'Não execute ações agora. Reações devem ser null. Arquivos e Pix somente pelos catálogos autorizados.' }
-    response = client.chat(messages: [*prompts, *MarcosxAi::PromptBuilder.focused_history(history)], schema: MarcosxAi::ReplyPlan::SCHEMA)
+    response = client.chat(messages: [*prompts, *MarcosxAi::PromptBuilder.focused_history(history, assistant: assistant)],
+                           schema: MarcosxAi::ReplyPlan::SCHEMA)
     plan = MarcosxAi::ReplyPlan.parse(response, assistant: assistant, conversation: conversation,
                                                 recent_messages: MarcosxAi::ReplyStyle.recent_text(history),
                                                 voice_context: runtime[:voice], pix_available: runtime[:pix_available])

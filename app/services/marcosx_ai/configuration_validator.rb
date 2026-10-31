@@ -13,6 +13,7 @@ class MarcosxAi::ConfigurationValidator
       raise ArgumentError, 'Invalid prompt cache settings'
     end
 
+    MarcosxAi::PromptRules.validate!(config)
     validate_voice!(config[:voice])
     validate_transcription!(config[:transcription])
     validate_vision!(config[:vision])

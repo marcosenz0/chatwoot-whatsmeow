@@ -16,7 +16,7 @@ class MarcosxAi::VoiceClient
   CHANNELS = %w[Channel::Whatsmeow Channel::Whatsapp Channel::Telegram Channel::TelegramPersonal
                 Channel::Instagram Channel::FacebookPage].freeze
 
-  def self.instructions(assistant)
+  def self.instructions(assistant, template: false)
     return 'O envio de voz está indisponível: use voice_text=null e responda por texto. Não prometa enviar um áudio.' unless assistant.voice_ready?
 
     settings = assistant.resolved_config[:voice]
@@ -28,13 +28,13 @@ class MarcosxAi::VoiceClient
       A preferência de formato é resolvida pelo servidor a partir de pedidos e transcrições recentes, inclusive dificuldade de leitura.
       Não peça que o contato repita uma preferência por voz ainda vigente. Uma recusa de áudio ou pedido de texto substitui essa preferência.
       latest_contact_medium indica apenas o formato recebido: não transforme todo áudio recebido em uma regra obrigatória de resposta por voz.
-      Para áudios espontâneos, respeite pelo menos #{settings[:min_text_turns]} respostas por texto entre áudios.
-      Prefira áudio para uma explicação com cerca de #{settings[:long_message_characters]} caracteres ou mais,
+      Para áudios espontâneos, respeite pelo menos #{template ? '{{min_text_turns}}' : settings[:min_text_turns]} respostas por texto entre áudios.
+      Prefira áudio para uma explicação com cerca de #{template ? '{{long_message_characters}}' : settings[:long_message_characters]} caracteres ou mais,
       ou para uma resposta casual em que a voz ajudar. Não transforme saudações rotineiras em áudio.
-      O áudio deve conter a mesma informação da resposta textual, em no máximo #{settings[:max_characters]} caracteres.
+      O áudio deve conter a mesma informação da resposta textual, em no máximo #{template ? '{{max_voice_characters}}' : settings[:max_characters]} caracteres.
       Escreva números, valores, datas e horários como são falados, por extenso. Não inclua URLs, emojis, Markdown ou instruções técnicas.
       Links e dados que precisam ser copiados devem ficar em mensagens de texto separadas.
-      Orientações de voz do responsável: #{settings[:instructions]}
+      Orientações de voz do responsável: #{template ? '{{voice_instructions}}' : settings[:instructions]}
     PROMPT
   end
 

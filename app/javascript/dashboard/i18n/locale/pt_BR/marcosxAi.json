@@ -372,7 +372,7 @@
       "TEST_QUEUED": "Teste de notificação colocado na fila.",
       "EDITORIAL": "Personalidade, apresentação e orientações de resposta",
       "EFFECTIVE_PROMPT": "Ver prompt efetivo",
-      "PROMPT_SAVED_HINT": "Mostra as instruções salvas e os campos preenchidos em execução. Salve suas alterações antes de consultar. Não inclui credenciais.",
+      "PROMPT_SAVED_HINT": "Mostra as instruções deste editor e os dados preenchidos na execução. Não inclui credenciais.",
       "PROMPT_EDITABLE": "Instruções editáveis",
       "PROMPT_TECHNICAL": "Formato, permissões e execução",
       "MEMORY_MODE": "Memória da conversa",
@@ -771,6 +771,27 @@
       "TITLE": "Máximo de tokens de saída",
       "HINT": "Inclui resposta e raciocínio. Um limite baixo pode cortar a geração; ajuste conforme o modelo e o plano.",
       "GROQ_HINT": "Padrão Groq: 768, para caber na cota gratuita observada de 1000 tokens de saída por minuto. Inclui raciocínio; chamadas simultâneas compartilham a cota. Aumente conforme seu plano."
+    },
+    "PROMPT_RULES": {
+      "TITLE": "Formato, permissões e execução",
+      "HINT": "Edite as regras que o sistema envia ao modelo. O padrão original continua disponível para restaurar. Os dados dos catálogos são preenchidos nos marcadores durante cada execução.",
+      "SYSTEM": "Padrão do sistema",
+      "CUSTOM": "Personalizado",
+      "PRESET": "Preset das regras",
+      "RESTORE": "Restaurar padrão do sistema",
+      "NAME": "Nome do preset",
+      "ADD": "Adicionar preset",
+      "UPDATE": "Atualizar preset",
+      "DELETE": "Excluir preset",
+      "SAVE_HINT": "Selecionar um preset ou restaurar o padrão preenche o editor. Salvar alterações aplica os textos e guarda seus presets neste agente. Atualizar preset guarda os textos atuais na versão selecionada.",
+      "CHARACTERS": "{count} caracteres",
+      "PLACEHOLDERS": "Dados preenchidos automaticamente",
+      "PLACEHOLDERS_HINT": "Use estes marcadores para manter catálogos e valores das configurações atualizados. Não cole dados de clientes no preset. Os presets guardam os textos; os marcadores são substituídos na execução.",
+      "FIELDS": {
+        "PLATFORM": "Formato, permissões e execução — texto enviado ao modelo",
+        "CURRENT_REQUEST": "Foco no pedido atual",
+        "MEMORY": "Instruções para resumir a memória"
+      }
     }
   }
 }

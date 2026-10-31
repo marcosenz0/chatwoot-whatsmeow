@@ -133,7 +133,18 @@ describe('MarcoXIA agent configuration', () => {
     expect(MarcosxAiAPI.previewVoice).not.toHaveBeenCalled();
     wrapper.unmount();
   });
-  it('previews saved instructions without submitting unsaved agent edits', async () => {
+  it('does not request administrative rule previews for a read-only operator', async () => {
+    MarcosxAiAPI.getEffectivePrompt.mockClear();
+    const wrapper = mount(AgentEditor, {
+      props: { ...props, canEdit: false, initialSection: 'prompt' },
+    });
+    await flushPromises();
+    expect(wrapper.find('#ai-platform-prompt').exists()).toBe(false);
+    expect(MarcosxAiAPI.getEffectivePrompt).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it('previews the current editor without persisting unsaved agent edits', async () => {
     MarcosxAiAPI.getEffectivePrompt.mockResolvedValue({
       data: {
         editable: 'Saved instructions',
@@ -150,7 +161,10 @@ describe('MarcoXIA agent configuration', () => {
       .find(button => button.text().includes('EFFECTIVE_PROMPT'))
       .element.click();
     await flushPromises();
-    expect(MarcosxAiAPI.getEffectivePrompt).toHaveBeenCalledWith(1);
+    expect(MarcosxAiAPI.getEffectivePrompt).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({ instructions: 'Unsaved instructions' })
+    );
     expect(wrapper.emitted('save')).toBeUndefined();
     expect(wrapper.text()).toContain('Saved technical rules');
     expect(wrapper.get('#ai-system-prompt').element.value).toBe(

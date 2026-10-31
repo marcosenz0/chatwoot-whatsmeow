@@ -1,6 +1,12 @@
 # Chatwoot Development Guidelines
 
-## Current MarcoXIA identity layout — October29,2026
+## Current MarcoXIA editable execution rules — October 30, 2026
+
+- Principal/MX/MD web and workers run `fork-4b88e434dd4fa91277adb1fa5043dbaabc4a938c`. Gate 41107645824 passed 929 targeted tests (454 frontend and 475 Rails), lint of 98 Ruby files, frontend lint, build and image publication. Three published native HTTP rollback contracts, runtime source hashes, public asset ranges and health 200 passed. Only six image pins changed; six bridges and all 127 states, profiles, routes, credentials, stored data and hooks matched. No provider calls or channel deliveries were made for this feature validation.
+- Instructions exposes platform execution text, current-request focus and memory-summary text. Custom text replaces defaults; null restores the generated original. Presets are stored per agent. Selecting loads the editor; Save applies and persists. Restore retains versions. Data/settings placeholders are allowlisted, substituted once, scoped to the conversation and kept after the cache boundary. Do not append the hidden old rule block to a custom override.
+- Preserve JSON delivery validation, actual permissions, paused-state/audio/idempotency checks and existing agent settings. HOT1 remains Groq/Qwen with OpenAI reserve, return enabled and general support disabled; no custom preset was applied automatically. Exposing edits does not guarantee a particular token budget. Read `docs/marcoxia-execution-presets-2026-10-30.md` and the HOT record. PR57 is stacked on PR56, unmerged. CI is pinned to Ubuntu 24.04 because 26.04 lacked Ruby 3.4.4 support. Notion Acompanhamento/Ferramentas was updated and read back with surrounding content preserved.
+
+## Previous MarcoXIA identity layout — October29,2026
 
 - Principal/MX/MD web/workers run `fork-c777b831fb14be8ba093a92568f49f0d9d1807e1`. Gate40968385657 passed917 targeted tests, lint/build/image; three published rollback HTTP contracts, verified served assets and health200 passed. Only the six app image pins changed; six bridges, profiles/routes/credentials/stored data/hooks and all126 states matched before/after. No new paid model calls or channel deliveries.
 - Identity is compact and full width; inbox support has a separate card. Conversation primary/reserve and visual primary/reserve are sibling cards in responsive desktop pairs, stacking on narrow screens. Keep video sampling/dimensions/instructions inside the visual primary card, and explicit reserve titles/scopes. Do not reintroduce a tall model column beside a short identity card or nest a reserve configuration card inside its primary.
