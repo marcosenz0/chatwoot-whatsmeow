@@ -238,7 +238,7 @@ const sections = computed(() => [
     : []),
 ]);
 watch(section, value => {
-  if (form.value.id)
+  if (form.value.id && route.query.section !== value)
     router.replace({
       query: {
         ...route.query,

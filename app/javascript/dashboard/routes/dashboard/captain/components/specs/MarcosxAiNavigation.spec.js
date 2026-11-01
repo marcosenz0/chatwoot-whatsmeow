@@ -5,6 +5,7 @@ import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import Dialog from 'dashboard/components-next/dialog/Dialog.vue';
 import MarcosxAiPage from '../../pages/MarcosxAiPage.vue';
 import AgentEditor from '../AgentEditor.vue';
+import AgentAttendance from '../AgentAttendance.vue';
 
 vi.mock('dashboard/composables', () => ({ useAlert: vi.fn() }));
 vi.mock('dashboard/api/marcosxAi', () => ({
@@ -15,6 +16,7 @@ vi.mock('dashboard/api/marcosxAi', () => ({
     getConnectionHealth: vi.fn(),
     setManualSessions: vi.fn(),
     updateAssistant: vi.fn(),
+    getAssistantCoverage: vi.fn(),
   },
 }));
 const agent = {
@@ -41,6 +43,11 @@ beforeEach(async () => {
   router = createRouter({
     history: createMemoryHistory(),
     routes: [
+      {
+        path: '/app/accounts/:accountId/conversations/:conversation_id',
+        name: 'inbox_conversation',
+        component: { template: '<div />' },
+      },
       {
         path: '/app/accounts/:accountId/captain/:navigationPath',
         component: MarcosxAiPage,
@@ -158,6 +165,33 @@ it('keeps the confirmed active state after a failed pause', async () => {
   expect(toggle.attributes('aria-checked')).toBe('true');
   expect(toggle.attributes('disabled')).toBeUndefined();
   expect(wrapper.find('article').exists()).toBe(true);
+});
+
+it('keeps the manual filter when the real editor synchronizes its attendance section with the URL', async () => {
+  wrapper.unmount();
+  MarcosxAiAPI.getAssistantCoverage.mockResolvedValue({
+    data: {
+      mode: 'individual',
+      total: 1,
+      page: 1,
+      conversations: [
+        { id: 12, contact_name: 'Manual contact', inbox_name: 'Inbox' },
+      ],
+    },
+  });
+  wrapper = mount(
+    { template: '<router-view />' },
+    { global: { ...global, stubs: { ...global.stubs, AgentEditor: false } } }
+  );
+  await flushPromises();
+  await wrapper
+    .findAll('article button')
+    .find(button => button.text().includes('MARCOX_AI.PENDING.MANUAL'))
+    .trigger('click');
+  await flushPromises();
+  expect(router.currentRoute.value.query.manual).toBe('true');
+  expect(wrapper.findComponent(AgentAttendance).props('manualOnly')).toBe(true);
+  expect(wrapper.text()).toContain('Manual contact');
 });
 
 it('refreshes attendance counts without replacing an open draft', async () => {
