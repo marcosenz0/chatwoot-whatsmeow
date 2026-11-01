@@ -91,6 +91,16 @@ RSpec.describe 'MarcoXIA manual attendance controls', type: :request do
     expect(other.reload.attributes).to eq(original)
   end
 
+  it 'keeps a suspended recoverable provider error available for group resumption' do
+    state.update!(status: 'error', metadata: { manual_activation: true, conversation_override: true, last_error: 'Rate limit' })
+    expect(assistant.manual_sessions_summary).to eq(manual_sessions_count: 0, manual_sessions_paused_count: 1)
+    patch endpoint, params: { enabled: true }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:ok), response.body
+    expect(response.parsed_body['assistant']['manual_sessions_count']).to eq(1)
+    expect(state.reload.status).to eq('error')
+    expect(conversation.messages.outgoing).to be_empty
+  end
+
   it 'clears a delayed individual override without resuming a human pause or a closed group member' do
     state.resume!(manual: true)
     state.update!(status: 'paused_by_human', paused_until: 10.minutes.from_now, metadata: state.metadata.merge(human_wait: true))

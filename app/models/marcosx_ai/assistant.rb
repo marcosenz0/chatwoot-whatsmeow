@@ -160,7 +160,9 @@ class MarcosxAi::Assistant < ApplicationRecord
   def manual_sessions_summary
     paused = conversation_states.where(status: 'paused_by_agent').where("metadata ->> 'paused_reason' = 'manual_sessions'")
     if !auto_response_enabled? && !feature_enabled?(:manual_sessions_enabled)
-      paused = paused.or(conversation_states.where(status: 'active').where("COALESCE(metadata ->> 'manual_session_override', 'false') != 'true'"))
+      legacy = conversation_states.where(status: 'active')
+                                  .or(conversation_states.where(status: 'error').where("NULLIF(metadata ->> 'last_error', '') IS NOT NULL"))
+      paused = paused.or(legacy.where("COALESCE(metadata ->> 'manual_session_override', 'false') != 'true'"))
     end
     paused = paused.joins(conversation: :contact).where("metadata ->> 'manual_activation' = 'true'")
                    .where(conversations: { status: [Conversation.statuses[:open], Conversation.statuses[:pending]] }, contacts: { blocked: false })
