@@ -7,7 +7,7 @@ defineProps({
 
 <template>
   <section
-    class="min-w-0 space-y-4 rounded-xl border border-n-weak bg-n-solid-2 p-5"
+    class="min-w-0 space-y-4 rounded-xl border border-n-weak bg-n-solid-1 p-5"
   >
     <h4
       class="m-0 flex items-center gap-2 text-sm font-semibold text-n-slate-12"

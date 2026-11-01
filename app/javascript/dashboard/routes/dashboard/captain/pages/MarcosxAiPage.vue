@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import { useI18n } from 'vue-i18n';
 import { useAlert } from 'dashboard/composables';
@@ -21,6 +21,7 @@ const canEdit = computed(
 );
 const preferences = ref({});
 const agents = ref([]);
+const togglingId = ref(null);
 const credentials = ref([]);
 const connectionStatuses = ref({});
 let healthTimer;
@@ -34,6 +35,15 @@ const refreshHealth = async () => {
     connectionStatuses.value = Object.fromEntries(
       data.assistants.map(item => [item.id, item.connection_status])
     );
+    agents.value = agents.value.map(agent => {
+      const current = data.assistants.find(item => item.id === agent.id);
+      if (!current || togglingId.value === agent.id) return agent;
+      return {
+        ...agent,
+        manual_sessions_count: current.manual_sessions_count,
+        manual_sessions_paused_count: current.manual_sessions_paused_count,
+      };
+    });
   } catch {
     // Keep the last confirmed connection state during a temporary dashboard disconnect.
   }
@@ -49,7 +59,6 @@ const fallbackActive = computed(() =>
 const catalogs = ref({});
 const loading = ref(true);
 const saving = ref(false);
-const togglingId = ref(null);
 const busyProvider = ref('');
 const editing = ref(null);
 const search = ref('');
@@ -74,11 +83,11 @@ const discardChanges = () => {
   pendingNavigation = null;
   discardDialog.value.close();
 };
-const selectAgent = (agent, section = undefined) =>
+const selectAgent = (agent, section = undefined, manual = undefined) =>
   reviewNavigation(() => {
     editing.value = agent;
     router.replace({
-      query: { ...route.query, agent: agent.id, section },
+      query: { ...route.query, agent: agent.id, section, manual },
     });
     dirty.value = false;
   });
@@ -87,9 +96,34 @@ const backToAgents = () =>
     editing.value = null;
     dirty.value = false;
     router.replace({
-      query: { ...route.query, agent: undefined, section: undefined },
+      query: {
+        ...route.query,
+        agent: undefined,
+        section: undefined,
+        manual: undefined,
+      },
     });
   });
+onBeforeRouteUpdate(to => {
+  if (
+    to.params.navigationPath !== 'overview' ||
+    to.query.agent ||
+    !editing.value
+  )
+    return true;
+  if (dirty.value) {
+    reviewNavigation(() => {
+      editing.value = null;
+      router.push(to);
+    });
+    return false;
+  }
+  editing.value = null;
+  return true;
+});
+const openCard = (event, agent) => {
+  if (!event.target.closest('button, a, input, textarea')) selectAgent(agent);
+};
 const cancelAgent = () => {
   const saved =
     agents.value.find(agent => agent.id === editing.value?.id) ||
@@ -284,14 +318,10 @@ const toggleManual = async agent => {
   const operationId = `manual-${agent.id}`;
   beginOperation(operationId, agent.name, t('MARCOX_AI.OPERATIONS.MANUAL'));
   try {
-    const { data } = await MarcosxAiAPI.updateAssistant(agent.id, {
-      assistant: {
-        config: {
-          manual_sessions_enabled:
-            agent.config.manual_sessions_enabled === false,
-        },
-      },
-    });
+    const { data } = await MarcosxAiAPI.setManualSessions(
+      agent.id,
+      !agent.manual_sessions_count
+    );
     agents.value = agents.value.map(item =>
       item.id === agent.id ? data.assistant : item
     );
@@ -466,7 +496,7 @@ const testConnection = async (provider, credentialId = null, model = null) => {
                 },
               ]"
               :key="metric.label"
-              class="flex items-center gap-3 rounded-xl border border-n-weak bg-n-solid-2 p-4"
+              class="flex items-center gap-3 rounded-xl border border-n-weak bg-n-solid-1 p-4"
             >
               <div
                 class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-n-alpha-2 text-n-slate-11"
@@ -507,9 +537,10 @@ const testConnection = async (provider, credentialId = null, model = null) => {
             <article
               v-for="agent in visibleAgents"
               :key="agent.id"
-              class="min-w-0 rounded-xl border border-n-weak bg-n-solid-2"
+              class="min-w-0 cursor-pointer rounded-xl border border-n-weak bg-n-solid-1 transition-colors hover:border-n-slate-6"
+              @click="openCard($event, agent)"
             >
-              <div class="flex items-start gap-3 p-5">
+              <div class="flex items-start gap-3 px-4 pb-2 pt-4">
                 <button
                   type="button"
                   class="flex min-w-0 flex-1 items-start gap-3 text-start"
@@ -517,7 +548,7 @@ const testConnection = async (provider, credentialId = null, model = null) => {
                 >
                   <div
                     aria-hidden="true"
-                    class="flex size-10 shrink-0 items-center justify-center rounded-xl bg-n-blue-3 text-n-blue-11"
+                    class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-n-weak text-n-slate-11"
                   >
                     <span class="i-lucide-bot size-5" />
                   </div>
@@ -564,7 +595,7 @@ const testConnection = async (provider, credentialId = null, model = null) => {
                   />
                 </button>
               </div>
-              <div class="space-y-3 px-5 pb-5">
+              <div class="space-y-2 px-4 pb-3">
                 <p
                   v-if="agent.description"
                   class="m-0 line-clamp-2 text-sm leading-6 text-n-slate-11"
@@ -581,32 +612,9 @@ const testConnection = async (provider, credentialId = null, model = null) => {
                     )
                   }}
                 </p>
-                <p
-                  class="m-0 flex items-center gap-2 text-xs"
-                  :class="
-                    agent.config.auto_response_enabled
-                      ? 'text-n-teal-11'
-                      : 'text-n-slate-11'
-                  "
-                >
-                  <span
-                    class="size-1.5 rounded-full"
-                    :class="
-                      agent.config.auto_response_enabled
-                        ? 'bg-n-teal-9'
-                        : 'bg-n-slate-7'
-                    "
-                  />{{
-                    t(
-                      agent.config.auto_response_enabled
-                        ? 'MARCOX_AI.DESIGN.GENERAL_ON'
-                        : 'MARCOX_AI.DESIGN.GENERAL_OFF'
-                    )
-                  }}
-                </p>
               </div>
               <div
-                class="flex flex-wrap items-center gap-2 border-t border-n-weak px-4 py-3"
+                class="flex flex-wrap items-center gap-2 border-t border-n-weak px-3 py-2"
               >
                 <Button
                   size="sm"
@@ -637,40 +645,44 @@ const testConnection = async (provider, credentialId = null, model = null) => {
               </div>
               <div
                 v-if="canEdit"
-                class="mt-3 flex flex-wrap items-center gap-2 border-t border-n-weak pt-3"
+                class="flex flex-wrap items-center justify-between gap-2 border-t border-n-weak px-3 py-2"
               >
                 <PendingReplies :agent="agent" />
                 <button
                   type="button"
+                  class="reset-base min-w-0 flex-1 truncate text-start text-xs text-n-slate-11 hover:text-n-slate-12"
+                  @click="selectAgent(agent, 'attendance', 'true')"
+                >
+                  {{ t('MARCOX_AI.PENDING.MANUAL') }} ({{
+                    agent.manual_sessions_count || 0
+                  }})
+                </button>
+                <button
+                  type="button"
                   role="switch"
-                  :aria-checked="agent.config.manual_sessions_enabled !== false"
+                  :aria-checked="Boolean(agent.manual_sessions_count)"
                   :aria-label="t('MARCOX_AI.PENDING.MANUAL')"
-                  :disabled="togglingId === agent.id"
-                  class="reset-base flex items-center gap-2 rounded-lg px-2 py-2 text-xs text-n-slate-11 hover:bg-n-alpha-1"
+                  :disabled="
+                    togglingId !== null ||
+                    (!agent.manual_sessions_count &&
+                      !agent.manual_sessions_paused_count)
+                  "
+                  class="reset-base inline-flex shrink-0 items-center rounded-lg p-1 disabled:opacity-40"
                   :title="t('MARCOX_AI.PENDING.MANUAL_HINT')"
                   @click="toggleManual(agent)"
                 >
                   <span
-                    aria-hidden="true"
-                    class="i-lucide-mouse-pointer-2 size-4"
-                  />
-                  {{ t('MARCOX_AI.PENDING.MANUAL') }} ({{
-                    agent.manual_sessions_count || 0
-                  }})
-                  <span
                     class="relative h-5 w-9 rounded-full"
                     :class="
-                      agent.config.manual_sessions_enabled === false
-                        ? 'bg-n-slate-5'
-                        : 'bg-n-blue-9'
+                      agent.manual_sessions_count
+                        ? 'bg-n-blue-9'
+                        : 'bg-n-slate-5'
                     "
                   >
                     <span
                       class="absolute top-0.5 size-4 rounded-full bg-white"
                       :class="
-                        agent.config.manual_sessions_enabled === false
-                          ? 'start-0.5'
-                          : 'end-0.5'
+                        agent.manual_sessions_count ? 'end-0.5' : 'start-0.5'
                       "
                     />
                   </span>
@@ -704,9 +716,7 @@ const testConnection = async (provider, credentialId = null, model = null) => {
         @save="saveAgent"
         @cancel="cancelAgent"
         @delete="deleteAgent"
-        @change="
-          form => (dirty = JSON.stringify(form) !== JSON.stringify(editing))
-        "
+        @dirty-change="dirty = $event"
         @save-connection="saveConnection"
         @test-connection="testConnection"
         @refresh-models="(provider, id) => loadModels(provider, true, id)"

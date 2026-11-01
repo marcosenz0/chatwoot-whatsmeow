@@ -224,8 +224,8 @@ watch(
         :rows="field.rows"
         :maxlength="field.limit"
         :disabled="!canEdit || loading || !defaults.platform"
-        class="reset-base !mb-0 w-full resize-y rounded-xl border border-n-weak bg-n-background p-3 font-mono text-xs leading-5"
-        :class="field.key === 'platform' ? '!min-h-[24rem]' : '!min-h-[8rem]'"
+        class="reset-base !mb-0 w-full resize-y rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6"
+        :class="field.key === 'platform' ? '!min-h-[28rem]' : '!min-h-[12rem]'"
         @input="updateField(field.key, $event.target.value)"
       />
       <p class="m-0 text-xs text-n-slate-10">

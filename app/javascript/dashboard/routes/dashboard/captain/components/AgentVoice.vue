@@ -206,9 +206,10 @@ const swapTranscription = () => {
         :description="t('MARCOX_AI.TRANSCRIPTION.ENABLED_HINT')"
       />
       <div class="grid gap-4 sm:grid-cols-2">
-        <label class="text-sm font-medium">
+        <label class="block min-w-0 text-sm font-medium">
           {{ t('MARCOX_AI.TRANSCRIPTION.PROVIDER') }}
           <AiSelect
+            class="mt-2"
             :model-value="transcription.provider"
             :options="transcriptionProviders"
             :label="t('MARCOX_AI.TRANSCRIPTION.PROVIDER')"
@@ -218,11 +219,12 @@ const swapTranscription = () => {
         </label>
         <label
           v-if="transcription.provider !== 'agent'"
-          class="text-sm font-medium"
+          class="block min-w-0 text-sm font-medium"
         >
           {{ t('MARCOX_AI.TRANSCRIPTION.MODEL') }}
           <AiSelect
             v-model="transcription.model"
+            class="mt-2"
             :options="
               (transcriptionOptions.models[transcription.provider] || []).map(
                 value => ({ value, label: value })
@@ -310,10 +312,11 @@ const swapTranscription = () => {
           icon="i-lucide-audio-lines"
         >
           <div class="grid gap-4 sm:grid-cols-2">
-            <label class="text-sm font-medium">
+            <label class="block min-w-0 text-sm font-medium">
               {{ t('MARCOX_AI.VOICE.PROVIDER') }}
               <AiSelect
                 v-model="settings.provider"
+                class="mt-2"
                 :options="[
                   { value: 'minimax', label: 'MiniMax' },
                   { value: 'elevenlabs', label: 'ElevenLabs' },
@@ -321,10 +324,11 @@ const swapTranscription = () => {
                 :label="t('MARCOX_AI.VOICE.PROVIDER')"
               />
             </label>
-            <label class="text-sm font-medium">
+            <label class="block min-w-0 text-sm font-medium">
               {{ t('MARCOX_AI.VOICE.MODE') }}
               <AiSelect
                 v-model="settings.mode"
+                class="mt-2"
                 :options="
                   ['requested', 'contextual'].map(value => ({
                     value,
@@ -336,21 +340,22 @@ const swapTranscription = () => {
             </label>
           </div>
           <div class="grid gap-4 sm:grid-cols-2">
-            <label class="text-sm font-medium">
+            <label class="block min-w-0 text-sm font-medium">
               {{ t('MARCOX_AI.VOICE.VOICE_ID') }}
               <input
                 v-model="options.voice_id"
                 type="text"
-                class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+                class="reset-base !mb-0 mt-2 !h-10 w-full rounded-lg border border-n-weak bg-n-background px-3 py-2 text-sm leading-5"
               />
               <span class="mt-1 block text-xs font-normal text-n-slate-11">{{
                 t('MARCOX_AI.VOICE.ID_HINT')
               }}</span>
             </label>
-            <label class="text-sm font-medium">
+            <label class="block min-w-0 text-sm font-medium">
               {{ t('MARCOX_AI.VOICE.MODEL') }}
               <AiSelect
                 v-model="options.model"
+                class="mt-2"
                 :options="
                   (models[settings.provider] || [options.model]).map(value => ({
                     value,
@@ -363,7 +368,7 @@ const swapTranscription = () => {
             <label
               v-for="field in numericFields"
               :key="field.key"
-              class="text-sm font-medium"
+              class="block min-w-0 text-sm font-medium"
             >
               {{ t(`MARCOX_AI.VOICE.${field.key.toUpperCase()}`) }}
               <input
@@ -372,17 +377,17 @@ const swapTranscription = () => {
                 :min="field.min"
                 :max="field.max"
                 :step="field.step"
-                class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+                class="reset-base !mb-0 mt-2 !h-10 w-full rounded-lg border border-n-weak bg-n-background px-3 py-2 text-sm leading-5"
               />
             </label>
-            <label class="text-sm font-medium">
+            <label class="block min-w-0 text-sm font-medium">
               {{ t('MARCOX_AI.VOICE.MAX_CHARACTERS') }}
               <input
                 v-model.number="settings.max_characters"
                 type="number"
                 min="100"
                 max="3000"
-                class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+                class="reset-base !mb-0 mt-2 !h-10 w-full rounded-lg border border-n-weak bg-n-background px-3 py-2 text-sm leading-5"
               />
             </label>
           </div>
@@ -395,28 +400,28 @@ const swapTranscription = () => {
             v-if="settings.mode === 'contextual'"
             class="grid gap-4 sm:grid-cols-2"
           >
-            <label class="text-sm font-medium">
+            <label class="block min-w-0 text-sm font-medium">
               {{ t('MARCOX_AI.VOICE.MIN_TEXT_TURNS') }}
               <input
                 v-model.number="settings.min_text_turns"
                 type="number"
                 min="1"
                 max="30"
-                class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+                class="reset-base !mb-0 mt-2 !h-10 w-full rounded-lg border border-n-weak bg-n-background px-3 py-2 text-sm leading-5"
               />
               <span
                 class="mt-2 block text-xs font-normal leading-5 text-n-slate-11"
                 >{{ t('MARCOX_AI.VOICE.MIN_TEXT_TURNS_HINT') }}</span
               >
             </label>
-            <label class="text-sm font-medium">
+            <label class="block min-w-0 text-sm font-medium">
               {{ t('MARCOX_AI.VOICE.LONG_MESSAGE') }}
               <input
                 v-model.number="settings.long_message_characters"
                 type="number"
                 min="100"
                 max="2000"
-                class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+                class="reset-base !mb-0 mt-2 !h-10 w-full rounded-lg border border-n-weak bg-n-background px-3 py-2 text-sm leading-5"
               />
               <span
                 class="mt-2 block text-xs font-normal leading-5 text-n-slate-11"
@@ -433,24 +438,24 @@ const swapTranscription = () => {
             {{ t('MARCOX_AI.VOICE.INSTRUCTIONS') }}
             <textarea
               v-model="settings.instructions"
-              rows="4"
-              class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+              rows="10"
+              class="reset-base !mb-0 mt-2 !min-h-[13rem] w-full resize-y rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6"
             />
           </label>
           <label class="block text-sm font-medium">
             {{ t('MARCOX_AI.VOICE.PRONUNCIATION') }}
             <textarea
               v-model="settings.pronunciation"
-              rows="3"
+              rows="8"
               :placeholder="t('MARCOX_AI.VOICE.PRONUNCIATION_HINT')"
-              class="reset-base mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+              class="reset-base !mb-0 mt-2 !min-h-[12rem] w-full resize-y rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6"
             />
           </label>
         </AgentSection>
       </div>
       <div class="min-w-0 space-y-5">
         <div
-          class="min-w-0 space-y-3 rounded-xl border border-n-weak bg-n-solid-2 p-5"
+          class="min-w-0 space-y-3 rounded-xl border border-n-weak bg-n-solid-1 p-5"
         >
           <p class="m-0 text-sm font-medium">
             {{ t('MARCOX_AI.VOICE.CREDENTIAL') }}
@@ -487,7 +492,7 @@ const swapTranscription = () => {
             type="password"
             autocomplete="new-password"
             :aria-label="t('MARCOX_AI.VOICE.CREDENTIAL')"
-            class="reset-base w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+            class="reset-base !mb-0 !h-10 w-full rounded-lg border border-n-weak bg-n-background px-3 py-2 text-sm leading-5"
           />
           <div class="flex gap-3">
             <Button
@@ -510,17 +515,19 @@ const swapTranscription = () => {
           </div>
         </div>
         <div
-          class="min-w-0 space-y-3 rounded-xl border border-n-weak bg-n-solid-2 p-5"
+          class="min-w-0 space-y-3 rounded-xl border border-n-weak bg-n-solid-1 p-5"
         >
-          <p class="text-sm font-medium">{{ t('MARCOX_AI.VOICE.PREVIEW') }}</p>
+          <p class="block min-w-0 text-sm font-medium">
+            {{ t('MARCOX_AI.VOICE.PREVIEW') }}
+          </p>
           <p class="text-xs text-n-slate-11">
             {{ t('MARCOX_AI.VOICE.PREVIEW_HINT') }}
           </p>
           <textarea
             v-model="sample"
-            rows="3"
+            rows="8"
             :aria-label="t('MARCOX_AI.VOICE.PREVIEW')"
-            class="reset-base w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+            class="reset-base !mb-0 !min-h-[10rem] w-full resize-y rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6"
           />
           <p v-if="unsaved" class="text-xs text-n-amber-11">
             {{ t('MARCOX_AI.VOICE.SAVE_FIRST') }}

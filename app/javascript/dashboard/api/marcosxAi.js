@@ -193,8 +193,17 @@ class MarcosxAiAPI extends ApiClient {
   getAssistantCoverage(assistantId, page = 1, options = {}) {
     return axios.get(`${this.url}/assistants/${assistantId}/coverage`, {
       ...options,
-      params: { page },
+      params: { page, ...options.params },
     });
+  }
+
+  setManualSessions(assistantId, enabled) {
+    return axios.patch(
+      `${this.url}/assistants/${assistantId}/manual_sessions`,
+      {
+        enabled,
+      }
+    );
   }
 
   createAssistant(data) {

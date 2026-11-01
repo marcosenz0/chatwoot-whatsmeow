@@ -4,6 +4,7 @@ import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 import MarcosxAiPage from '../../pages/MarcosxAiPage.vue';
 
 vi.mock('vue-router', () => ({
+  onBeforeRouteUpdate: vi.fn(),
   useRoute: () => ({
     params: { accountId: 2, navigationPath: 'overview' },
     query: {},
@@ -18,6 +19,8 @@ vi.mock('dashboard/api/marcosxAi', () => ({
     getModels: vi.fn(),
     updateAssistant: vi.fn(),
     getLogs: vi.fn(),
+    setManualSessions: vi.fn(),
+    getConnectionHealth: vi.fn(),
   },
 }));
 const agent = {

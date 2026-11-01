@@ -54,6 +54,7 @@ const emit = defineEmits([
   'cancel',
   'delete',
   'change',
+  'dirtyChange',
   'saveConnection',
   'testConnection',
   'refreshModels',
@@ -237,9 +238,14 @@ const sections = computed(() => [
     : []),
 ]);
 watch(section, value => {
-  if (form.value.id)
+  if (form.value.id && route.query.section !== value)
     router.replace({
-      query: { ...route.query, agent: form.value.id, section: value },
+      query: {
+        ...route.query,
+        agent: form.value.id,
+        section: value,
+        manual: undefined,
+      },
     });
 });
 watch(
@@ -339,6 +345,12 @@ watch(
   }
 );
 watch(form, value => emit('change', value), { deep: true });
+watch(
+  () =>
+    hasUnsavedChanges.value ||
+    Object.values(connectionDrafts.value).some(draft => draft.dirty),
+  value => emit('dirtyChange', value)
+);
 const modelOptions = computed(
   () =>
     (
@@ -845,7 +857,7 @@ const channelLabel = inbox =>
                     id="ai-editorial-prompt"
                     v-model="form.config.editorial_instructions"
                     rows="8"
-                    class="reset-base mt-2 w-full rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6"
+                    class="reset-base !mb-0 mt-2 !min-h-[13rem] w-full resize-y rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6"
                   />
                 </label>
                 <div>
@@ -861,7 +873,7 @@ const channelLabel = inbox =>
                     id="ai-system-prompt"
                     v-model="form.instructions"
                     :placeholder="t('MARCOX_AI.EDITOR.PROMPT_PLACEHOLDER')"
-                    class="!mb-0 min-h-[22rem] w-full resize-y rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6 text-n-slate-12"
+                    class="!mb-0 !min-h-[28rem] w-full resize-y rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6 text-n-slate-12"
                   />
                 </div>
                 <div class="grid gap-4 xl:grid-cols-2">
@@ -870,8 +882,8 @@ const channelLabel = inbox =>
                     <textarea
                       id="ai-guidelines"
                       v-model="guidelinesText"
-                      rows="4"
-                      class="reset-base mt-2 w-full rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6"
+                      rows="10"
+                      class="reset-base !min-h-[13rem] mt-2 w-full rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6"
                     />
                   </label>
                   <label class="block text-sm font-semibold">
@@ -879,8 +891,8 @@ const channelLabel = inbox =>
                     <textarea
                       id="ai-guardrails"
                       v-model="guardrailsText"
-                      rows="4"
-                      class="reset-base mt-2 w-full rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6"
+                      rows="10"
+                      class="reset-base !min-h-[13rem] mt-2 w-full rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6"
                     />
                   </label>
                 </div>
@@ -1262,9 +1274,9 @@ const channelLabel = inbox =>
                       />
                       <textarea
                         v-model="form.config.missed_call_instructions"
-                        rows="4"
+                        rows="8"
                         :aria-label="t('MARCOX_AI.AUTOMATION.CALL_PROMPT')"
-                        class="reset-base w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+                        class="reset-base !mb-0 !min-h-[13rem] w-full resize-y rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6"
                       />
                     </div>
                   </AgentSection>
@@ -1328,6 +1340,7 @@ const channelLabel = inbox =>
           v-if="section === 'attendance' && form.id && canEdit"
           :agent="agent"
           :inboxes="inboxes"
+          :manual-only="route.query.manual === 'true'"
         />
         <AgentActivity
           v-if="section === 'activity' && form.id && canEdit"

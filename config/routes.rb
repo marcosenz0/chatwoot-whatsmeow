@@ -130,6 +130,7 @@ Rails.application.routes.draw do
             resources :assistants do
               post :playground, on: :member
               get :coverage, on: :member
+              patch :manual_sessions, on: :member
               post :prompt, on: :collection
               get :prompt, on: :member
               post :prompt, on: :member
