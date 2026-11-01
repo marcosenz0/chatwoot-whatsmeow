@@ -158,7 +158,8 @@ watch(
         <summary class="cursor-pointer">
           {{ t('MARCOX_AI.PROVIDERS.ADVANCED') }}
         </summary>
-        <label class="mt-3 block">{{ t('MARCOX_AI.PROVIDERS.ENDPOINT') }}
+        <label class="mt-3 block"
+          >{{ t('MARCOX_AI.PROVIDERS.ENDPOINT') }}
           <input
             v-model="form.api_base"
             type="url"

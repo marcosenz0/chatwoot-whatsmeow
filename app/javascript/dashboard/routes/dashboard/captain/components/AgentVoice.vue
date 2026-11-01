@@ -492,7 +492,7 @@ const swapTranscription = () => {
             type="password"
             autocomplete="new-password"
             :aria-label="t('MARCOX_AI.VOICE.CREDENTIAL')"
-            class="reset-base !mb-0 !min-h-[10rem] w-full resize-y rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6"
+            class="reset-base !mb-0 !h-10 w-full rounded-lg border border-n-weak bg-n-background px-3 py-2 text-sm leading-5"
           />
           <div class="flex gap-3">
             <Button

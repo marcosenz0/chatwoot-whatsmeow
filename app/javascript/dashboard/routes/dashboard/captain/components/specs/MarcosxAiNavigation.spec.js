@@ -100,9 +100,7 @@ it('opens configuration from the card description and returns to all agents thro
 it('protects unsaved changes when returning through the sidebar and allows discard to complete the navigation', async () => {
   await wrapper.get('article').trigger('click');
   await flushPromises();
-  wrapper
-    .findComponent(AgentEditor)
-    .vm.$emit('change', { ...agent, instructions: 'Unsaved edit' });
+  wrapper.findComponent(AgentEditor).vm.$emit('dirtyChange', true);
   await router.push('/app/accounts/1/captain/overview');
   await flushPromises();
   expect(router.currentRoute.value.query.agent).toBe('1');

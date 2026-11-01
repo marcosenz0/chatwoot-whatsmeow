@@ -54,6 +54,7 @@ const emit = defineEmits([
   'cancel',
   'delete',
   'change',
+  'dirtyChange',
   'saveConnection',
   'testConnection',
   'refreshModels',
@@ -344,6 +345,12 @@ watch(
   }
 );
 watch(form, value => emit('change', value), { deep: true });
+watch(
+  () =>
+    hasUnsavedChanges.value ||
+    Object.values(connectionDrafts.value).some(draft => draft.dirty),
+  value => emit('dirtyChange', value)
+);
 const modelOptions = computed(
   () =>
     (

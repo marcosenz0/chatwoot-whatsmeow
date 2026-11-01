@@ -716,9 +716,7 @@ const testConnection = async (provider, credentialId = null, model = null) => {
         @save="saveAgent"
         @cancel="cancelAgent"
         @delete="deleteAgent"
-        @change="
-          form => (dirty = JSON.stringify(form) !== JSON.stringify(editing))
-        "
+        @dirty-change="dirty = $event"
         @save-connection="saveConnection"
         @test-connection="testConnection"
         @refresh-models="(provider, id) => loadModels(provider, true, id)"

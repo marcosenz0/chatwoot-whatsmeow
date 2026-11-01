@@ -75,6 +75,25 @@ const props = {
 };
 
 describe('MarcoXIA agent configuration', () => {
+  it('reports real edits and clears the dirty state after the normalized form is saved', async () => {
+    const wrapper = mount(AgentEditor, {
+      props: { ...props, initialSection: 'prompt' },
+    });
+    await flushPromises();
+    await wrapper.get('#ai-system-prompt').setValue('Changed instructions');
+    expect(wrapper.emitted('dirtyChange').at(-1)).toEqual([true]);
+    const saved = JSON.parse(
+      JSON.stringify(wrapper.emitted('change').at(-1)[0])
+    );
+    saved.config = Object.fromEntries(Object.entries(saved.config).reverse());
+    await wrapper.setProps({ agent: saved });
+    await flushPromises();
+    expect(wrapper.emitted('dirtyChange').at(-1)).toEqual([false]);
+    expect(wrapper.get('#ai-system-prompt').element.value).toBe(
+      'Changed instructions'
+    );
+    wrapper.unmount();
+  });
   it('edits the splitting target and greeting separation from the conversation settings', async () => {
     const wrapper = mount(AgentEditor, {
       props: { ...props, initialSection: 'behavior' },
