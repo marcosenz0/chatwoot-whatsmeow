@@ -194,7 +194,8 @@ onBeforeUnmount(() => {
     variant="ghost"
     color="slate"
     icon="i-lucide-message-square-text"
-    :label="`${text('TITLE')} ${total === null ? '…' : total}`"
+    :aria-label="`${text('TITLE')} ${total === null ? '…' : total}`"
+    :title="`${text('TITLE')} ${total === null ? '…' : total}`"
     @click="open"
   />
   <Dialog

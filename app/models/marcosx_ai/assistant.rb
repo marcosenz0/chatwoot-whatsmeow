@@ -140,6 +140,56 @@ class MarcosxAi::Assistant < ApplicationRecord
     ActiveModel::Type::Boolean.new.cast(resolved_config[:auto_response_enabled])
   end
 
+  def attending_states(manual_only: false)
+    states = conversation_states.joins(conversation: :contact)
+    active = states.where(status: 'active')
+                   .or(states.where(status: 'paused_by_human').where('paused_until <= ?', Time.current))
+                   .or(states.where(status: 'error').where("NULLIF(metadata ->> 'last_error', '') IS NOT NULL"))
+    if human_pause_minutes.zero?
+      active = active.or(states.where(status: 'paused_by_human', paused_until: nil).where("COALESCE(metadata ->> 'human_wait', 'false') != 'true'"))
+    end
+    states = active.where(conversations: { status: [Conversation.statuses[:open], Conversation.statuses[:pending]] }, contacts: { blocked: false })
+    states = states.where("metadata ->> 'conversation_override' = 'true'").or(states.where(inbox_id: inboxes.select(:id)))
+    states = states.where("metadata ->> 'manual_activation' = 'true'") if manual_only || !auto_response_enabled?
+    if !auto_response_enabled? && !feature_enabled?(:manual_sessions_enabled)
+      states = states.where("metadata ->> 'manual_session_override' = 'true'")
+    end
+    states
+  end
+
+  def manual_sessions_summary
+    paused = conversation_states.where(status: 'paused_by_agent').where("metadata ->> 'paused_reason' = 'manual_sessions'")
+    if !auto_response_enabled? && !feature_enabled?(:manual_sessions_enabled)
+      paused = paused.or(conversation_states.where(status: 'active').where("COALESCE(metadata ->> 'manual_session_override', 'false') != 'true'"))
+    end
+    paused = paused.joins(conversation: :contact).where("metadata ->> 'manual_activation' = 'true'")
+                   .where(conversations: { status: [Conversation.statuses[:open], Conversation.statuses[:pending]] }, contacts: { blocked: false })
+    { manual_sessions_count: attending_states(manual_only: true).count, manual_sessions_paused_count: paused.count }
+  end
+
+  def set_manual_sessions!(enabled:)
+    with_lock do
+      ids = attending_states(manual_only: true).pluck(:id) unless enabled
+      update!(config: resolved_config.merge(manual_sessions_enabled: enabled))
+      states = enabled ? conversation_states.where(status: 'paused_by_agent').where("metadata ->> 'paused_reason' = 'manual_sessions'") :
+                         conversation_states.where(id: ids).or(conversation_states.where("metadata ->> 'manual_session_override' = 'true'"))
+      if enabled
+        states = states.joins(conversation: :contact)
+                       .where(conversations: { status: Conversation.statuses.values_at('open', 'pending') }, contacts: { blocked: false })
+      end
+      states.find_each do |state|
+        state.with_lock do
+          if enabled
+            state.resume!
+          else
+            state.pause_by_agent!(reason: 'manual_sessions') if ids.include?(state.id)
+            state.update!(metadata: state.metadata.except('manual_session_override')) if state.metadata.key?('manual_session_override')
+          end
+        end
+      end
+    end
+  end
+
   def available?
     MarcosxAi::ConnectionPlan.new(assistant: self, feature: 'chat').endpoints.any? do |endpoint|
       endpoint[:credential]&.enabled && endpoint[:credential].configured?

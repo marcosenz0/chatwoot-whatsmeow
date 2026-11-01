@@ -13,7 +13,7 @@ class Api::V1::Accounts::MarcosxAi::CredentialsController < Api::V1::Accounts::M
   def health
     render json: { credentials: MarcosxAi::Credential.connections_for(Current.account),
                    assistants: Current.account.marcosx_ai_assistants.map { |assistant|
-                     { id: assistant.id, connection_status: assistant.connection_status }
+                     { id: assistant.id, connection_status: assistant.connection_status, **assistant.manual_sessions_summary }
                    } }
   end
 

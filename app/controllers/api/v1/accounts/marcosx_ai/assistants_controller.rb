@@ -1,6 +1,6 @@
 class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::MarcosxAi::BaseController
   before_action :ensure_admin!, except: [:index, :show, :playground]
-  before_action :set_assistant, only: [:show, :update, :destroy, :playground, :coverage, :prompt, :test_notification]
+  before_action :set_assistant, only: [:show, :update, :destroy, :playground, :coverage, :prompt, :test_notification, :manual_sessions]
 
   def index
     render json: { assistants: Current.account.marcosx_ai_assistants.ordered.map { |assistant| serialize(assistant) } }
@@ -34,6 +34,14 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
   def destroy
     @assistant.destroy!
     head :no_content
+  end
+
+  def manual_sessions
+    enabled = params[:enabled]
+    return render json: { error: 'Invalid manual sessions setting' }, status: :unprocessable_entity unless [true, false].include?(enabled)
+
+    @assistant.set_manual_sessions!(enabled: enabled)
+    render json: { assistant: serialize(@assistant) }
   end
 
   def notification_options
@@ -74,11 +82,12 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
   end
 
   def coverage
-    if @assistant.auto_response_enabled? && @assistant.feature_enabled?(:auto_start) && @assistant.inboxes.exists?
+    manual_only = params[:manual] == 'true'
+    if !manual_only && @assistant.auto_response_enabled? && @assistant.feature_enabled?(:auto_start) && @assistant.inboxes.exists?
       return render json: { mode: 'automatic', conversations: [], total: nil }
     end
 
-    states = attending_states
+    states = @assistant.attending_states(manual_only: manual_only)
     page = params[:page].to_i.clamp(1, 100_000)
     conversations = states.includes(conversation: [:contact, :inbox]).order(updated_at: :desc).offset((page - 1) * 25).limit(25).map do |state|
       conversation = state.conversation
@@ -157,15 +166,6 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
   end
 
   private
-
-  def attending_states
-    states = @assistant.conversation_states.joins(conversation: :contact)
-    states = states.where(status: 'active').or(states.where(status: 'paused_by_human').where('paused_until <= ?', Time.current))
-    states = states.where(conversations: { status: [Conversation.statuses[:open], Conversation.statuses[:pending]] }, contacts: { blocked: false })
-    states = states.where("metadata ->> 'conversation_override' = 'true'").or(states.where(inbox_id: @assistant.inboxes.select(:id)))
-    states = states.where("metadata ->> 'manual_activation' = 'true'") unless @assistant.auto_response_enabled?
-    states
-  end
 
   def sync_inboxes(assistant)
     return unless params[:assistant].key?(:inbox_ids)
@@ -251,7 +251,7 @@ class Api::V1::Accounts::MarcosxAi::AssistantsController < Api::V1::Accounts::Ma
       guardrails: assistant.guardrails || [],
       inboxes_count: assistant.marcosx_ai_inboxes.count,
       inbox_ids: assistant.marcosx_ai_inboxes.pluck(:inbox_id),
-      manual_sessions_count: assistant.conversation_states.where("metadata ->> 'manual_activation' = 'true'").count,
+      **assistant.manual_sessions_summary,
       created_at: assistant.created_at,
       updated_at: assistant.updated_at
     }

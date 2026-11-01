@@ -202,9 +202,9 @@ const fields = [
           {{ t('MARCOX_AI.VISION.INSTRUCTIONS') }}
           <textarea
             v-model="settings.instructions"
-            rows="3"
+            rows="8"
             maxlength="4000"
-            class="reset-base !mb-0 mt-2 w-full rounded-lg border border-n-weak bg-n-background p-3 text-sm"
+            class="reset-base !mb-0 mt-2 !min-h-[13rem] w-full resize-y rounded-xl border border-n-weak bg-n-background p-4 text-sm leading-6"
           />
         </label>
         <p class="m-0 text-xs leading-5 text-n-slate-11">

@@ -12,6 +12,7 @@ import MarcosxAiAPI from 'dashboard/api/marcosxAi';
 const props = defineProps({
   agent: { type: Object, required: true },
   inboxes: { type: Array, default: () => [] },
+  manualOnly: { type: Boolean, default: false },
 });
 const { t } = useI18n();
 const route = useRoute();
@@ -35,7 +36,10 @@ const load = async (page = 1) => {
   failed.value = false;
   try {
     const result = await run(signal =>
-      MarcosxAiAPI.getAssistantCoverage(id, page, { signal })
+      MarcosxAiAPI.getAssistantCoverage(id, page, {
+        signal,
+        ...(props.manualOnly ? { params: { manual: true } } : {}),
+      })
     );
     if (result && current === request) coverage.value = result.data;
   } catch (error) {
@@ -50,6 +54,7 @@ watch(
     props.agent.config.auto_response_enabled,
     props.agent.config.auto_start,
     props.agent.updated_at,
+    props.manualOnly,
   ],
   () => {
     coverage.value = null;
