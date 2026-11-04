@@ -106,6 +106,7 @@ RSpec.describe MarcosxAi::ConnectionRouter do
   end
 
   it 'can use the reserve again for repeated primary limits while testing the primary on every new execution' do
+    assistant.update!(config: assistant.resolved_config.merge(retry_rate_limits: false))
     stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').to_return(
       status: 429, body: { error: { message: 'Minute quota', } }.to_json, headers: { 'Content-Type' => 'application/json', 'retry-after' => '60' }
     )
