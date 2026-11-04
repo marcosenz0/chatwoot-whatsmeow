@@ -114,14 +114,14 @@ it('places thinking immediately after provider and model in both primary and res
   });
   const thoughts = wrapper.findAllComponents(AgentThinking).slice(0, 2);
   expect(thoughts).toHaveLength(2);
-  for (const control of thoughts) {
+  thoughts.forEach(control => {
     expect(control.element.previousElementSibling.className).toContain('grid');
     expect(
       control.element.previousElementSibling.querySelectorAll(
         'button[aria-haspopup]'
       )
     ).toHaveLength(2);
-  }
+  });
   thoughts[0].findComponent(AiSelect).vm.$emit('update:modelValue', 'none');
   thoughts[1].findComponent(AiSelect).vm.$emit('update:modelValue', 'low');
   const retry = wrapper.findAllComponents(AgentRateLimitRetry)[0];

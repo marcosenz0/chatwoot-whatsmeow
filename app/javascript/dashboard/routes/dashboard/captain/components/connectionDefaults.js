@@ -34,19 +34,14 @@ export const invertConnections = (primary, fallback, inherited = {}) => {
     'reasoning_effort',
     'retry_rate_limits',
   ];
+  const defaults = {
+    retry_rate_limits: true,
+    reasoning_effort:
+      inherited.reasoning_effort || primary.reasoning_effort || 'medium',
+  };
   const route = source =>
     Object.fromEntries(
-      fields.map(field => [
-        field,
-        source[field] ??
-          (field === 'retry_rate_limits'
-            ? true
-            : field === 'reasoning_effort'
-              ? inherited.reasoning_effort ||
-                primary.reasoning_effort ||
-                'medium'
-              : null),
-      ])
+      fields.map(field => [field, source[field] ?? defaults[field] ?? null])
     );
   const previous = route(primary.provider === 'agent' ? inherited : primary);
   const next = route(fallback);
