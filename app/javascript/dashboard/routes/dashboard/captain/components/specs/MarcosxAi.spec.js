@@ -363,7 +363,7 @@ describe('MarcoXIA agent configuration', () => {
   it('updates reasoning without changing the provider or model', async () => {
     const wrapper = shallowMount(AgentEditor, {
       props,
-      global: { stubs: { AgentSection: false } },
+      global: { stubs: { AgentSection: false, AgentThinking: false } },
     });
     wrapper
       .findAllComponents(AiSelect)
