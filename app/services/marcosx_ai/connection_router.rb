@@ -9,7 +9,6 @@ class MarcosxAi::ConnectionRouter
     @feature = feature
     @conversation = conversation
     @temperature = temperature
-    @reasoning_effort = reasoning_effort
     @purpose = purpose
     plan = MarcosxAi::ConnectionPlan.new(assistant: assistant, feature: feature)
     @endpoints = plan.endpoints
@@ -27,8 +26,8 @@ class MarcosxAi::ConnectionRouter
       begin
         @client = MarcosxAi::ProviderClient.new(account: @assistant.account, assistant: @assistant, conversation: @conversation,
                                                 provider: endpoint[:provider], model: endpoint[:model], credential: endpoint[:credential],
-                                                temperature: @temperature, reasoning_effort: @reasoning_effort, purpose: @purpose,
-                                                routing: false, retry_rate_limits: @endpoints.one?, max_output_tokens: endpoint[:max_output_tokens])
+                                                temperature: @temperature, reasoning_effort: endpoint[:reasoning_effort], purpose: @purpose,
+                                                routing: false, retry_rate_limits: endpoint[:retry_rate_limits], max_output_tokens: endpoint[:max_output_tokens])
         result = @client.public_send(task, **arguments)
         record_outcome(endpoint)
         return result

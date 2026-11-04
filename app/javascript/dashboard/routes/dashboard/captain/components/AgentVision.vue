@@ -9,6 +9,8 @@ import AgentConnection from './AgentConnection.vue';
 import AgentConnectionPicker from './AgentConnectionPicker.vue';
 import AgentFallback from './AgentFallback.vue';
 import AgentOutputLimit from './AgentOutputLimit.vue';
+import AgentThinking from './AgentThinking.vue';
+import AgentRateLimitRetry from './AgentRateLimitRetry.vue';
 import { connectionActive, invertConnections } from './connectionDefaults';
 
 const props = defineProps({
@@ -118,6 +120,16 @@ const fields = [
           />
         </label>
       </div>
+      <AgentThinking
+        v-if="settings.provider !== 'agent'"
+        v-model="settings.reasoning_effort"
+        :model="currentModel"
+        :inherited-effort="agentConfig.reasoning_effort"
+        :disabled="!canEdit"
+      />
+      <p v-else class="m-0 text-xs text-n-slate-11">
+        {{ t('MARCOX_AI.THINKING.INHERITED') }}
+      </p>
       <p
         v-if="!currentModel?.vision"
         role="status"
@@ -134,6 +146,10 @@ const fields = [
         v-if="settings.provider !== 'agent'"
         v-model="settings.max_output_tokens"
         :provider="provider"
+        :disabled="!canEdit"
+      />
+      <AgentRateLimitRetry
+        v-model="settings.retry_rate_limits"
         :disabled="!canEdit"
       />
       <AgentConnection
@@ -221,6 +237,7 @@ const fields = [
       :can-edit="canEdit"
       :busy-provider="busyProvider"
       :status="status"
+      :inherited-effort="agentConfig.reasoning_effort"
       vision
       @swap="
         invertConnections(settings, settings.fallback, {

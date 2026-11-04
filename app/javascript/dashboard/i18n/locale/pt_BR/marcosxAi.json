@@ -104,7 +104,7 @@
       "BEHAVIOR": "Conversa",
       "PROVIDER": "Provedor",
       "MODEL": "Modelo de IA",
-      "REASONING": "Profundidade de análise",
+      "REASONING": "Pensamento",
       "LOW": "Rápida",
       "MEDIUM": "Equilibrada",
       "HIGH": "Detalhada",
@@ -792,6 +792,28 @@
         "CURRENT_REQUEST": "Foco no pedido atual",
         "MEMORY": "Instruções para resumir a memória"
       }
+    },
+    "THINKING": {
+      "TITLE": "Pensamento",
+      "HINT": "Escolha quanto o modelo pode pensar. Sem pensamento (none) desliga o raciocínio; os outros níveis consomem tokens de saída.",
+      "REQUIRED": "Este modelo sempre usa pensamento. O provedor não permite desligá-lo.",
+      "UNSUPPORTED": "Este modelo não tem pensamento configurável.",
+      "UNKNOWN": "Níveis de pensamento não informados para este modelo.",
+      "INHERITED": "Pensamento: usa a configuração do modelo principal do atendimento.",
+      "LEVELS": {
+        "NONE": "Sem pensamento (none)",
+        "DEFAULT": "Padrão do provedor",
+        "MINIMAL": "Mínimo",
+        "LOW": "Baixo",
+        "MEDIUM": "Médio",
+        "HIGH": "Alto",
+        "XHIGH": "Muito alto",
+        "MAX": "Máximo"
+      }
+    },
+    "RATE_RETRY": {
+      "TITLE": "Retentar após limite do provedor",
+      "HINT": "Ligado: em erro 429, aguarda o prazo informado e repete esta mesma tarefa antes de usar a reserva (até 2 retentativas e 60 s de espera total por conexão). Sem prazo válido ou com espera maior, usa a reserva. Desligado: passa direto à reserva. Sem reserva disponível, informa a falha."
     }
   }
 }

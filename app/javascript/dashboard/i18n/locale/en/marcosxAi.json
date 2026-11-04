@@ -104,7 +104,7 @@
       "BEHAVIOR": "Conversation",
       "PROVIDER": "Provider",
       "MODEL": "AI model",
-      "REASONING": "Thinking depth",
+      "REASONING": "Thinking",
       "LOW": "Quick",
       "MEDIUM": "Balanced",
       "HIGH": "Thorough",
@@ -792,6 +792,28 @@
         "CURRENT_REQUEST": "Focus on the current request",
         "MEMORY": "Instructions for summarizing memory"
       }
+    },
+    "THINKING": {
+      "TITLE": "Thinking",
+      "HINT": "Choose how much the model can think. No thinking (none) disables reasoning; other levels consume output tokens.",
+      "REQUIRED": "This model always uses thinking. The provider does not support disabling it.",
+      "UNSUPPORTED": "This model has no configurable thinking.",
+      "UNKNOWN": "Thinking levels are unavailable for this model.",
+      "INHERITED": "Thinking: uses the primary support model setting.",
+      "LEVELS": {
+        "NONE": "No thinking (none)",
+        "DEFAULT": "Provider default",
+        "MINIMAL": "Minimal",
+        "LOW": "Low",
+        "MEDIUM": "Medium",
+        "HIGH": "High",
+        "XHIGH": "Extra high",
+        "MAX": "Maximum"
+      }
+    },
+    "RATE_RETRY": {
+      "TITLE": "Retry after provider rate limits",
+      "HINT": "On: after HTTP 429, waits the reported delay and retries this same task before using the reserve (up to 2 retries and 60 s total wait per connection). Missing, invalid or longer delays use the reserve immediately. Off: goes straight to the reserve. Reports failure if no reserve is available."
     }
   }
 }

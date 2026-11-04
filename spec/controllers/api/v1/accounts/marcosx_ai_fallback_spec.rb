@@ -25,6 +25,45 @@ RSpec.describe 'MarcoXIA named fallback connections API', type: :request do
     expect(response.body).not_to include('third-secret')
   end
 
+  it 'persists separate thinking and strict retry switches without changing keys or general activation' do
+    settings = { reasoning_effort: 'none', retry_rate_limits: false,
+                 fallback: { reasoning_effort: 'high', retry_rate_limits: true },
+                 vision: { provider: 'groq', model: 'qwen/qwen3.8-27b', reasoning_effort: 'low', retry_rate_limits: true,
+                           fallback: { reasoning_effort: 'none', retry_rate_limits: false } },
+                 transcription: { retry_rate_limits: false, fallback: { retry_rate_limits: true } } }
+    put "#{endpoint}/assistants/#{assistant.id}", params: { assistant: { config: settings } }, headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:ok), response.body
+    saved = assistant.reload.resolved_config
+    expect(saved).to include('reasoning_effort' => 'none', 'retry_rate_limits' => false, 'auto_response_enabled' => false)
+    expect(saved[:fallback]).to include('reasoning_effort' => 'high', 'retry_rate_limits' => true)
+    expect(saved[:vision]).to include('reasoning_effort' => 'low', 'retry_rate_limits' => true)
+    expect(saved[:vision][:fallback]).to include('reasoning_effort' => 'none', 'retry_rate_limits' => false)
+    expect(saved[:transcription][:retry_rate_limits]).to be(false)
+    expect(primary.reload.api_key).to eq('private-main-key')
+    expect(reserve.reload.api_key).to eq('private-reserve-key')
+  end
+
+  [nil, 'false', 1].each do |bad|
+    it "rejects a non-boolean retry switch #{bad.inspect} without altering the saved profile" do
+      before = assistant.attributes
+      put "#{endpoint}/assistants/#{assistant.id}", params: { assistant: { config: { retry_rate_limits: bad } } },
+                                                  headers: admin.create_new_auth_token, as: :json
+      expect(response).to have_http_status(:unprocessable_entity)
+      expect(assistant.reload.attributes).to eq(before)
+    end
+  end
+
+  it 'rejects invalid thinking in the reserve and protects retry settings from non-administrators' do
+    before = assistant.attributes
+    put "#{endpoint}/assistants/#{assistant.id}", params: { assistant: { config: { fallback: { reasoning_effort: 'invented' } } } },
+                                                headers: admin.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unprocessable_entity)
+    put "#{endpoint}/assistants/#{assistant.id}", params: { assistant: { config: { retry_rate_limits: false } } },
+                                                headers: operator.create_new_auth_token, as: :json
+    expect(response).to have_http_status(:unauthorized)
+    expect(assistant.reload.attributes).to eq(before)
+  end
+
   it 'requires a separate key for a newly named account instead of silently copying the main key' do
     expect {
       post "#{endpoint}/credentials", params: { credential: { provider: 'groq', name: 'Unconfigured reserve', api_key: '' } },

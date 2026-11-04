@@ -8,6 +8,7 @@ import AgentSection from './AgentSection.vue';
 import AiToggleRow from './AiToggleRow.vue';
 import AgentFallback from './AgentFallback.vue';
 import AgentConnectionPicker from './AgentConnectionPicker.vue';
+import AgentRateLimitRetry from './AgentRateLimitRetry.vue';
 import { invertConnections } from './connectionDefaults';
 
 const props = defineProps({
@@ -167,6 +168,7 @@ const transcriptionProviders = computed(() => [
 const changeTranscriptionProvider = provider => {
   if (provider === transcription.value.provider) return;
   transcription.value = {
+    retry_rate_limits: transcription.value.retry_rate_limits ?? true,
     provider,
     connection_id: null,
     model: transcriptionOptions.value.models[provider]?.[0] || '',
@@ -234,6 +236,10 @@ const swapTranscription = () => {
           />
         </label>
       </div>
+      <AgentRateLimitRetry
+        v-model="transcription.retry_rate_limits"
+        :disabled="!canEdit"
+      />
       <p
         v-if="transcription.provider !== 'agent'"
         class="text-xs"

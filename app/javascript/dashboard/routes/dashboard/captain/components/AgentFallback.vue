@@ -9,6 +9,8 @@ import AiModelSelect from './AiModelSelect.vue';
 import AgentConnection from './AgentConnection.vue';
 import AgentConnectionPicker from './AgentConnectionPicker.vue';
 import AgentOutputLimit from './AgentOutputLimit.vue';
+import AgentThinking from './AgentThinking.vue';
+import AgentRateLimitRetry from './AgentRateLimitRetry.vue';
 import { connectionActive, providerChoices } from './connectionDefaults';
 
 const props = defineProps({
@@ -21,6 +23,7 @@ const props = defineProps({
   status: { type: Object, default: () => ({}) },
   feature: { type: String, default: 'chat' },
   canSwap: { type: Boolean, default: false },
+  inheritedEffort: { type: String, default: 'medium' },
 });
 const emit = defineEmits([
   'saveConnection',
@@ -151,10 +154,21 @@ watch(
           />
         </label>
       </div>
+      <AgentThinking
+        v-if="feature !== 'transcription'"
+        v-model="settings.reasoning_effort"
+        :model="models.find(item => item.id === settings.model)"
+        :inherited-effort="inheritedEffort"
+        :disabled="!canEdit"
+      />
       <AgentOutputLimit
         v-if="feature !== 'transcription'"
         v-model="settings.max_output_tokens"
         :provider="settings.provider"
+        :disabled="!canEdit"
+      />
+      <AgentRateLimitRetry
+        v-model="settings.retry_rate_limits"
         :disabled="!canEdit"
       />
       <AgentConnectionPicker

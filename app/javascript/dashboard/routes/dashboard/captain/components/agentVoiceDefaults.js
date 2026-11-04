@@ -1,4 +1,8 @@
-export const transcriptionDefaults = { provider: 'agent', model: '' };
+export const transcriptionDefaults = {
+  provider: 'agent',
+  model: '',
+  retry_rate_limits: true,
+};
 
 export const voiceDefaults = {
   enabled: false,
