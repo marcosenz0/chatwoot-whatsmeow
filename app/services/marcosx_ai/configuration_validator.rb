@@ -71,10 +71,12 @@ class MarcosxAi::ConfigurationValidator
                (target[:reasoning_effort].nil? || MarcosxAi::ReasoningPolicy::VALUES.include?(target[:reasoning_effort]))
           raise ArgumentError, 'Invalid thinking or rate-limit retry settings'
         end
+
         levels = MarcosxAi::ReasoningPolicy.levels(target[:provider], target[:model])
         if target[:reasoning_effort] && levels.any? && !levels.include?(target[:reasoning_effort])
           raise ArgumentError, 'Thinking level is not supported by this model'
         end
+
         limit = target[:max_output_tokens] if target.is_a?(Hash)
         next if limit.nil? || (limit.is_a?(Integer) && limit.between?(128, 32_768))
 

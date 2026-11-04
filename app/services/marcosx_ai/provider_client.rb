@@ -93,7 +93,7 @@ class MarcosxAi::ProviderClient
 
   def routed(task, feature, **arguments)
     router = MarcosxAi::ConnectionRouter.new(assistant: @assistant, feature: feature, conversation: @conversation,
-                                             temperature: @temperature, reasoning_effort: @reasoning_effort, purpose: @purpose)
+                                             temperature: @temperature, purpose: @purpose)
     result = router.perform(task, **arguments)
     @usage = router.client.usage
     @actual_provider = router.client.provider

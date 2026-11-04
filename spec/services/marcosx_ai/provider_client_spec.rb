@@ -24,6 +24,30 @@ RSpec.describe MarcosxAi::ProviderClient do
     expect(a_request(:post, 'https://api.openai.com/v1/responses').with { |r| JSON.parse(r.body)['temperature'] == 0.7 }).to have_been_made
   end
 
+  %w[none low medium high xhigh max].each do |effort|
+    it "sends Luna thinking #{effort} using Responses without incompatible temperature" do
+      described_class.new(account: account, provider: 'openai', model: 'gpt-6-luna', reasoning_effort: effort).chat(messages: messages)
+      expect(a_request(:post, 'https://api.openai.com/v1/responses').with { |request|
+        body = JSON.parse(request.body)
+        body['reasoning'] == { 'effort' => effort } && !body.key?('temperature')
+      }).to have_been_made.once
+    end
+  end
+
+  it 'disables Gemini Flash thinking with a zero budget and keeps Gemini Pro default thinking when none is inherited' do
+    account.marcosx_ai_credentials.create!(provider: 'gemini', api_key: 'gemini-test', enabled: true)
+    %w[flash pro].each do |variant|
+      stub_request(:post, "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-#{variant}:generateContent").with { |request|
+        thinking = JSON.parse(request.body).dig('generationConfig', 'thinkingConfig')
+        variant == 'flash' ? thinking == { 'thinkingBudget' => 0 } : thinking.nil?
+      }.to_return(status: 200, body: { candidates: [{ content: { parts: [{ text: 'Answer' }] } }] }.to_json,
+                  headers: { 'Content-Type' => 'application/json' })
+      result = described_class.new(account: account, provider: 'gemini', model: "gemini-2.5-#{variant}", reasoning_effort: 'none')
+                              .chat(messages: messages)
+      expect(result).to eq('Answer')
+    end
+  end
+
   it 'refuses a disabled connection' do
     credential.update!(enabled: false)
     expect { client.chat(messages: messages) }.to raise_error(CustomExceptions::MarcosxAi)

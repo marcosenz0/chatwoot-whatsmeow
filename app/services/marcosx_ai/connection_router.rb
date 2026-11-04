@@ -3,7 +3,7 @@ require 'digest'
 class MarcosxAi::ConnectionRouter
   attr_reader :client
 
-  def initialize(assistant:, feature:, conversation: nil, temperature: 0.7, reasoning_effort: 'medium', purpose: 'other')
+  def initialize(assistant:, feature:, conversation: nil, temperature: 0.7, purpose: 'other')
     @assistant = assistant
     @version = assistant.updated_at
     @feature = feature
@@ -27,7 +27,8 @@ class MarcosxAi::ConnectionRouter
         @client = MarcosxAi::ProviderClient.new(account: @assistant.account, assistant: @assistant, conversation: @conversation,
                                                 provider: endpoint[:provider], model: endpoint[:model], credential: endpoint[:credential],
                                                 temperature: @temperature, reasoning_effort: endpoint[:reasoning_effort], purpose: @purpose,
-                                                routing: false, retry_rate_limits: endpoint[:retry_rate_limits], max_output_tokens: endpoint[:max_output_tokens])
+                                                routing: false, retry_rate_limits: endpoint[:retry_rate_limits],
+                                                max_output_tokens: endpoint[:max_output_tokens])
         result = @client.public_send(task, **arguments)
         record_outcome(endpoint)
         return result
