@@ -1,5 +1,13 @@
 # Chatwoot Development Guidelines
 
+## Current MarcoXIA thinking and quota retries — November3,2026
+
+- Principal/MX/MD web and workers run fork-d671db661ea7ba77013cb2a9b52cdfd019791de7. Gate41752558204 passed1,006 targeted tests (471frontend/535Rails), scoped lint/build/image. Nine published HTTP/runtime rollback checks per installation,21source hashes, six served JS/label samples and health200 passed. Only six image pins changed among12configs; six bridges and all130states, profiles, credentials, stored data and hooks were preserved. No real provider tests or channel deliveries. PR59 is above58, unmerged.
+- Pensamento is immediately below provider/model in chat/vision primary and reserve. Use the shared documented ReasoningPolicy levels; Qwen3.8/Luna allow none, GPT-OSS20B/120B do not. Never equate hidden reasoning with disabled reasoning. Explicit effort/retry settings travel with route inversion; legacy missing effort inherits compatibly until configured. Keep existing HOT1 levels, prompts/presets/keys/generalOFF.
+- retry_rate_limits defaultsON per endpoint/service, separate from retry_primary. Retry only429 with a valid provider delay (numeric/HTTP-date Retry-After or Groq message when absent), rounded up: at most2retries/60s cumulative sleep per endpoint/task. Long/invalid/missing delays and other errors use fallback immediately. Same task/schema/audio; rewind transcription; never duplicate delivery or repeat successful generation after health-storage failure. This is bounded background waiting, not global organization scheduling or more quota.
+- Read docs/marcoxia-thinking-retry-2026-11-03.md and HOT operational record. Actual components/CSS reviewed1680/390px with menu/keyboard/Escape; preview stopped. Notion Acompanhamento/Ferramentas updated and read back preserving unrelated content.
+
+
 ## Current MarcoXIA panels and manual attendance — November 1, 2026
 
 - Principal/MX/MD web and workers run `fork-dccf3c2d1d7baf963acf389186e531ddc987dca5`. Gate 41345229412 passed 945 targeted tests (462 frontend and 483 Rails), scoped lint/build/image. Nine published HTTP checks per installation passed with rollback, no provider calls and no channel messages. Health 200, runtime source hashes and public JS/CSS samples matched. Only six image pins changed; six bridges, all 127 states, profiles, routes, credentials, stored data and hooks were preserved. PR58 is stacked on PR57, unmerged.
