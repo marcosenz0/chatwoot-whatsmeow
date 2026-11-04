@@ -28,7 +28,8 @@ RSpec.describe MarcosxAi::ConnectionRouter do
   end
 
   [401, 402, 403, 429, 500, 503].each do |status|
-    it "switches from Groq to OpenAI on provider HTTP#{status} without waiting through Groq retries" do
+    it "switches from Groq to OpenAI on provider HTTP#{status} without waiting when retry is disabled" do
+      assistant.update!(config: assistant.resolved_config.merge(retry_rate_limits: false))
       stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').to_return(
         status: status, body: { error: { message: 'Rejected primary-secret' } }.to_json,
         headers: { 'Content-Type' => 'application/json', 'retry-after' => '30' }
@@ -105,6 +106,7 @@ RSpec.describe MarcosxAi::ConnectionRouter do
   end
 
   it 'can use the reserve again for repeated primary limits while testing the primary on every new execution' do
+    assistant.update!(config: assistant.resolved_config.merge(retry_rate_limits: false))
     stub_request(:post, 'https://api.groq.com/openai/v1/chat/completions').to_return(
       status: 429, body: { error: { message: 'Minute quota', } }.to_json, headers: { 'Content-Type' => 'application/json', 'retry-after' => '60' }
     )

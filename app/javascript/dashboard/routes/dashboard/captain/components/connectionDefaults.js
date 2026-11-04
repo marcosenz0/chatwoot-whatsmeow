@@ -4,6 +4,8 @@ export const fallbackDefaults = {
   provider: 'openai',
   connection_id: null,
   max_output_tokens: null,
+  reasoning_effort: null,
+  retry_rate_limits: true,
   model: 'gpt-6-luna',
 };
 export const transcriptionFallbackDefaults = {
@@ -24,9 +26,23 @@ export const connectionActive = (status, credential, provider, role) =>
       : `integration:${provider}`);
 
 export const invertConnections = (primary, fallback, inherited = {}) => {
-  const fields = ['provider', 'model', 'connection_id', 'max_output_tokens'];
+  const fields = [
+    'provider',
+    'model',
+    'connection_id',
+    'max_output_tokens',
+    'reasoning_effort',
+    'retry_rate_limits',
+  ];
+  const defaults = {
+    retry_rate_limits: true,
+    reasoning_effort:
+      inherited.reasoning_effort || primary.reasoning_effort || 'medium',
+  };
   const route = source =>
-    Object.fromEntries(fields.map(field => [field, source[field] ?? null]));
+    Object.fromEntries(
+      fields.map(field => [field, source[field] ?? defaults[field] ?? null])
+    );
   const previous = route(primary.provider === 'agent' ? inherited : primary);
   const next = route(fallback);
   Object.assign(primary, next);

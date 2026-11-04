@@ -1,7 +1,5 @@
 class MarcosxAi::ProviderClient
   TIMEOUT = 120
-  MAX_RATE_LIMIT_RETRIES = 2
-  MAX_RATE_LIMIT_WAIT = 60
   OUTPUT_LIMITS = { 'groq' => 768, 'openai' => 8000, 'gemini' => 8192 }.freeze
   attr_reader :usage
 
@@ -17,7 +15,7 @@ class MarcosxAi::ProviderClient
 
     @model = model.presence || @credential&.resolved_model
     @temperature = temperature.to_f
-    @reasoning_effort = reasoning_effort
+    @reasoning_effort = MarcosxAi::ReasoningPolicy.resolve(@provider, @model, reasoning_effort)
     @routing = routing && assistant.present?
     @retry_rate_limits = retry_rate_limits
     @max_output_tokens = max_output_tokens || OUTPUT_LIMITS.fetch(@provider, 8000)
@@ -28,22 +26,15 @@ class MarcosxAi::ProviderClient
       feature = (purpose || @purpose) == 'media_description' ? 'vision' : 'chat'
       return routed(:chat, feature, messages: messages, schema: schema, purpose: purpose)
     end
-    rate_limit_retries ||= 0
     ensure_credential!
 
-    case @provider
-    when 'openai' then openai_response(messages, schema, purpose || @purpose)
-    when 'groq' then compatible_response(messages, schema)
-    when 'gemini' then gemini_response(messages, schema)
+    MarcosxAi::RateLimitRetry.new(enabled: @retry_rate_limits).perform do
+      case @provider
+      when 'openai' then openai_response(messages, schema, purpose || @purpose)
+      when 'groq' then compatible_response(messages, schema)
+      when 'gemini' then gemini_response(messages, schema)
+      end
     end
-  rescue Faraday::TooManyRequestsError => e
-    delay = Float(e.response&.dig(:headers, 'retry-after').to_s, exception: false)
-    if @retry_rate_limits && @provider == 'groq' && delay&.between?(0, MAX_RATE_LIMIT_WAIT) && rate_limit_retries < MAX_RATE_LIMIT_RETRIES
-      rate_limit_retries += 1
-      Kernel.sleep(delay.ceil)
-      retry
-    end
-    raise_provider_error(e)
   rescue Faraday::Error => e
     raise_provider_error(e)
   end
@@ -70,6 +61,12 @@ class MarcosxAi::ProviderClient
     return routed(:transcribe, 'transcription', audio: file) if @routing
 
     ensure_credential!
+    MarcosxAi::RateLimitRetry.new(enabled: @retry_rate_limits).perform { transcribe_file(file) }
+  rescue Faraday::Error => e
+    raise_provider_error(e)
+  end
+
+  def transcribe_file(file)
     file.rewind
     if @provider == 'gemini'
       return chat(messages: [{ role: 'user', content: [
@@ -82,8 +79,6 @@ class MarcosxAi::ProviderClient
     response = sdk.audio.transcribe(parameters: { model: model, file: file, response_format: 'json' })
     @usage = response['usage']
     response['text'].to_s.presence || raise_empty_response
-  rescue Faraday::Error => e
-    raise_provider_error(e)
   end
 
   def provider
@@ -98,7 +93,7 @@ class MarcosxAi::ProviderClient
 
   def routed(task, feature, **arguments)
     router = MarcosxAi::ConnectionRouter.new(assistant: @assistant, feature: feature, conversation: @conversation,
-                                             temperature: @temperature, reasoning_effort: @reasoning_effort, purpose: @purpose)
+                                             temperature: @temperature, purpose: @purpose)
     result = router.perform(task, **arguments)
     @usage = router.client.usage
     @actual_provider = router.client.provider
@@ -141,12 +136,12 @@ class MarcosxAi::ProviderClient
   end
 
   def reasoning_model?
-    @model.start_with?('gpt-5', 'gpt-6', 'o3', 'o4')
+    @reasoning_effort.present?
   end
 
   def compatible_response(messages, schema)
     parameters = { model: @model, messages: compatible_messages(messages), temperature: @temperature, max_tokens: @max_output_tokens }
-    parameters[:reasoning_effort] = @reasoning_effort if MarcosxAi::ModelCatalog.describe(@model, @provider)[:reasoning]
+    parameters[:reasoning_effort] = @reasoning_effort if @reasoning_effort
     if schema
       parameters[:response_format] = if MarcosxAi::ModelCatalog.describe(@model, @provider)[:structured_outputs]
                                        { type: 'json_schema', json_schema: { name: 'customer_reply', strict: true, schema: schema } }
@@ -186,7 +181,9 @@ class MarcosxAi::ProviderClient
           parts: item[:content].is_a?(Array) ? item[:content].map { |part| gemini_part(part) } : [{ text: item[:content] }]
         }
       end,
-      generationConfig: { temperature: @temperature, maxOutputTokens: @max_output_tokens }
+      generationConfig: { temperature: @temperature, maxOutputTokens: @max_output_tokens }.merge(
+        MarcosxAi::ReasoningPolicy.gemini_config(@reasoning_effort)
+      )
     }
     body[:generationConfig].merge!(responseMimeType: 'application/json', responseJsonSchema: schema) if schema
     response = gemini_request(:post, "models/#{@model}:generateContent", body)
@@ -220,7 +217,7 @@ class MarcosxAi::ProviderClient
     message = error.response&.dig(:body, 'error', 'message') if error.response&.dig(:body).is_a?(Hash)
     message = message.to_s.gsub(@credential.api_key.to_s, '[redacted]').gsub(/(?:sk-|gsk_)[\w-]+/, '[redacted]')
     detail = I18n.t('marcosx_ai.errors.provider', provider: @credential.display_name, status: status || 'timeout', detail: message.truncate(300))
-    delay = Float(error.response&.dig(:headers, 'retry-after').to_s, exception: false)
+    delay = MarcosxAi::RateLimitRetry.delay(error)
     raise CustomExceptions::MarcosxAi.new(detail, provider_failure: true, provider_status: status, retry_after: delay)
   end
 

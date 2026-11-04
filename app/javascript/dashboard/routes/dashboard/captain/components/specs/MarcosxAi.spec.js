@@ -56,6 +56,8 @@ const catalogs = {
         vision: true,
         files: true,
         reasoning: true,
+        reasoning_levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+        reasoning_default: 'medium',
       },
       { id: 'gpt-4.1', name: 'gpt-4.1' },
     ],
@@ -361,11 +363,11 @@ describe('MarcoXIA agent configuration', () => {
   it('updates reasoning without changing the provider or model', async () => {
     const wrapper = shallowMount(AgentEditor, {
       props,
-      global: { stubs: { AgentSection: false } },
+      global: { stubs: { AgentSection: false, AgentThinking: false } },
     });
     wrapper
       .findAllComponents(AiSelect)
-      .find(item => item.props('label') === 'MARCOX_AI.EDITOR.REASONING')
+      .find(item => item.props('label') === 'MARCOX_AI.THINKING.TITLE')
       .vm.$emit('update:modelValue', 'high');
     await flushPromises();
     await wrapper.get('form').trigger('submit');

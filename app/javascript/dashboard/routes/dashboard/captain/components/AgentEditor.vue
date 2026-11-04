@@ -13,6 +13,8 @@ import AgentConnection from './AgentConnection.vue';
 import AgentVision from './AgentVision.vue';
 import AgentFallback from './AgentFallback.vue';
 import AgentOutputLimit from './AgentOutputLimit.vue';
+import AgentThinking from './AgentThinking.vue';
+import AgentRateLimitRetry from './AgentRateLimitRetry.vue';
 import AgentConnectionPicker from './AgentConnectionPicker.vue';
 import {
   fallbackDefaults,
@@ -261,6 +263,7 @@ watch(
   (agent, previous) => {
     form.value = JSON.parse(JSON.stringify(agent));
     form.value.config = {
+      retry_rate_limits: true,
       memory_mode: 'legacy',
       emoji_usage: 'occasional',
       message_target_characters: 160,
@@ -284,6 +287,8 @@ watch(
       ...form.value.config.prompt_cache,
     };
     form.value.config.vision = {
+      reasoning_effort: null,
+      retry_rate_limits: true,
       provider: 'agent',
       model: '',
       connection_id: null,
@@ -689,6 +694,11 @@ const channelLabel = inbox =>
                         />
                       </label>
                     </div>
+                    <AgentThinking
+                      v-model="form.config.reasoning_effort"
+                      :model="model"
+                      :disabled="!canEdit"
+                    />
                     <p
                       class="m-0 flex items-center gap-2 text-xs text-n-slate-11"
                     >
@@ -702,6 +712,10 @@ const channelLabel = inbox =>
                     <AgentOutputLimit
                       v-model="form.config.max_output_tokens"
                       :provider="form.config.provider"
+                      :disabled="!canEdit"
+                    />
+                    <AgentRateLimitRetry
+                      v-model="form.config.retry_rate_limits"
                       :disabled="!canEdit"
                     />
                     <AgentConnection
@@ -763,25 +777,7 @@ const channelLabel = inbox =>
                     />
 
                     <label
-                      v-if="model?.reasoning"
-                      class="block text-sm font-medium text-n-slate-12"
-                    >
-                      {{ t('MARCOX_AI.EDITOR.REASONING') }}
-                      <AiSelect
-                        v-model="form.config.reasoning_effort"
-                        :options="
-                          ['low', 'medium', 'high'].map(value => ({
-                            value,
-                            label: t(`MARCOX_AI.EDITOR.${value.toUpperCase()}`),
-                          }))
-                        "
-                        :label="t('MARCOX_AI.EDITOR.REASONING')"
-                        :disabled="!canEdit"
-                        class="mt-2"
-                      />
-                    </label>
-                    <label
-                      v-else
+                      v-if="model?.reasoning === false"
                       class="block text-sm font-medium text-n-slate-12"
                     >
                       {{ t('MARCOX_AI.EDITOR.TEMPERATURE') }}
@@ -804,6 +800,7 @@ const channelLabel = inbox =>
                     :can-edit="canEdit"
                     :busy-provider="busyProvider"
                     :status="connectionStatus.chat"
+                    :inherited-effort="form.config.reasoning_effort"
                     @swap="invertConnections(form.config, form.config.fallback)"
                     @save-connection="
                       (provider, connection) =>

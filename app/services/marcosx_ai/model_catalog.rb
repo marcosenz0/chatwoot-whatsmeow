@@ -30,8 +30,9 @@ class MarcosxAi::ModelCatalog
       id: id, name: id,
       recommended: id == SUGGESTED.fetch(provider).first,
       vision: provider != 'groq' || id.match?(/llama-4|vision|qwen3\.[68]-27b|qwen3-vl|muse-spark/),
-      reasoning: (provider == 'openai' && id.match?(/\A(gpt-[5-9]|o[3-9])/)) ||
-        (provider == 'groq' && id.match?(/gpt-oss|qwen3\.[68]-27b/)),
+      reasoning: MarcosxAi::ReasoningPolicy.levels(provider, id).any?,
+      reasoning_levels: MarcosxAi::ReasoningPolicy.levels(provider, id),
+      reasoning_default: MarcosxAi::ReasoningPolicy.resolve(provider, id, nil),
       files: provider != 'groq',
       structured_outputs: provider == 'groq' && %w[qwen/qwen3.8-27b openai/gpt-oss-120b openai/gpt-oss-20b].include?(id),
       max_images: provider == 'groq' && id.match?(/qwen3\.[68]-27b/) ? 3 : 6

@@ -4,8 +4,9 @@ class MarcosxAi::Assistant < ApplicationRecord
   DEFAULT_CONFIG = {
     provider: 'openai',
     model: 'gpt-6.1-sol',
-    connection_id: nil, max_output_tokens: nil,
-    fallback: { enabled: false, retry_primary: true, provider: 'openai', connection_id: nil, max_output_tokens: nil, model: 'gpt-6-luna' },
+    connection_id: nil, max_output_tokens: nil, retry_rate_limits: true,
+    fallback: { enabled: false, retry_primary: true, provider: 'openai', connection_id: nil, max_output_tokens: nil,
+                reasoning_effort: nil, retry_rate_limits: true, model: 'gpt-6-luna' },
     temperature: 0.7,
     reasoning_effort: 'medium',
     response_delay_seconds: 8,
@@ -46,14 +47,15 @@ class MarcosxAi::Assistant < ApplicationRecord
     message_interval_seconds: 2,
     allow_reactions: true,
     process_images: true,
-    vision: { provider: 'agent', model: '', connection_id: nil, max_output_tokens: nil, max_dimension: 1600, video_frames: 3,
+    vision: { provider: 'agent', model: '', connection_id: nil, max_output_tokens: nil, reasoning_effort: nil, retry_rate_limits: true,
+              max_dimension: 1600, video_frames: 3,
               video_interval_seconds: 5, instructions: '',
               fallback: { enabled: false, retry_primary: true, provider: 'openai', connection_id: nil, max_output_tokens: nil,
-                          model: 'gpt-6-luna' } },
+                          reasoning_effort: nil, retry_rate_limits: true, model: 'gpt-6-luna' } },
     process_audio: true,
-    transcription: { provider: 'agent', model: '', connection_id: nil, max_output_tokens: nil,
+    transcription: { provider: 'agent', model: '', connection_id: nil, max_output_tokens: nil, retry_rate_limits: true,
                      fallback: { enabled: false, retry_primary: true, provider: 'openai', connection_id: nil, max_output_tokens: nil,
-                                 model: 'gpt-4o-transcribe' } },
+                                 retry_rate_limits: true, model: 'gpt-4o-transcribe' } },
     process_files: true,
     process_video: true,
     respond_to_groups: false,
@@ -287,7 +289,7 @@ class MarcosxAi::Assistant < ApplicationRecord
   def valid_configuration
     errors.add(:config, 'has an invalid provider') unless MarcosxAi::Credential::PROVIDERS.key?(provider)
     errors.add(:config, 'requires a model') if model.blank?
-    errors.add(:config, 'has an invalid reasoning effort') unless %w[low medium high].include?(reasoning_effort)
+    errors.add(:config, 'has an invalid reasoning effort') unless MarcosxAi::ReasoningPolicy::VALUES.include?(reasoning_effort)
     timezone = resolved_config[:timezone]
     errors.add(:config, 'has an invalid timezone') if timezone.present? && ActiveSupport::TimeZone[timezone].nil?
     return unless auto_response_enabled?
