@@ -65,10 +65,11 @@ class MarcosxAi::ConversationResponderService
       plan = MarcosxAi::AlertService.prepare_delivery(state: @state, plan: plan, token: @token)
       return unless plan
 
-      @state.update!(metadata: @state.metadata.merge('pending_response' => plan.merge('next_part' => 0)))
+      generation = { 'provider' => client.provider, 'model' => client.model,
+                     'configured_provider' => @assistant.provider, 'configured_model' => @assistant.model }
+      @state.update!(metadata: @state.metadata.merge('pending_response' => plan.merge('next_part' => 0, 'generation' => generation)))
       MarcosxAi::Log.create!(account: @conversation.account, assistant: @assistant, conversation: @conversation, event: 'response_generated',
-                             response: { provider: @assistant.provider, model: @assistant.model, parts: plan['messages'].size,
-                                         handoff: plan['handoff'], usage: client.usage })
+                             response: generation.merge(parts: plan['messages'].size, handoff: plan['handoff'], usage: client.usage))
     end
     MarcosxAi::DeliveryJob.perform_later(@conversation.id, @token, 0)
     plan

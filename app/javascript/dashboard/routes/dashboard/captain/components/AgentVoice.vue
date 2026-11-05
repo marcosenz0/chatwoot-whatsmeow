@@ -402,39 +402,9 @@ const swapTranscription = () => {
             :label="t('MARCOX_AI.VOICE.SEND_TEXT')"
             :description="t('MARCOX_AI.VOICE.SEND_TEXT_HINT')"
           />
-          <div
-            v-if="settings.mode === 'contextual'"
-            class="grid gap-4 sm:grid-cols-2"
-          >
-            <label class="block min-w-0 text-sm font-medium">
-              {{ t('MARCOX_AI.VOICE.MIN_TEXT_TURNS') }}
-              <input
-                v-model.number="settings.min_text_turns"
-                type="number"
-                min="1"
-                max="30"
-                class="reset-base !mb-0 mt-2 !h-10 w-full rounded-lg border border-n-weak bg-n-background px-3 py-2 text-sm leading-5"
-              />
-              <span
-                class="mt-2 block text-xs font-normal leading-5 text-n-slate-11"
-                >{{ t('MARCOX_AI.VOICE.MIN_TEXT_TURNS_HINT') }}</span
-              >
-            </label>
-            <label class="block min-w-0 text-sm font-medium">
-              {{ t('MARCOX_AI.VOICE.LONG_MESSAGE') }}
-              <input
-                v-model.number="settings.long_message_characters"
-                type="number"
-                min="100"
-                max="2000"
-                class="reset-base !mb-0 mt-2 !h-10 w-full rounded-lg border border-n-weak bg-n-background px-3 py-2 text-sm leading-5"
-              />
-              <span
-                class="mt-2 block text-xs font-normal leading-5 text-n-slate-11"
-                >{{ t('MARCOX_AI.VOICE.LONG_MESSAGE_HINT') }}</span
-              >
-            </label>
-          </div>
+          <p class="text-sm leading-6 text-n-slate-11">
+            {{ t('MARCOX_AI.VOICE.MODE_HINT') }}
+          </p>
         </AgentSection>
         <AgentSection
           :title="t('MARCOX_AI.DESIGN.SPOKEN_TEXT')"
