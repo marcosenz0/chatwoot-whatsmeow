@@ -1,0 +1,33 @@
+# MarcoXIA — formato da última mensagem — 04/11/2026
+
+Marco pediu corrigir o atendimento automático do MD para acompanhar a pessoa: texto recebe texto e áudio recebe áudio. Os prints foram examinados visualmente; o primeiro mostra MX, mas Marco indicou expressamente o MD como alvo. A consulta somente leitura no MD confirmou o problema na conversa de teste do dono: uma preferência antiga tinha mode=audio/persistent=true, enquanto a última mensagem era texto. VoicePolicy ainda devolvia voice_allowed=true/voice_requested=true. O problema era política do servidor, além da instrução contextual que permitia áudio espontâneo.
+
+## Comportamento implementado
+
+No modo contextual, a mensagem pública recebida mais recente determina o formato. Texto bloqueia voice_text, mesmo quando proposto pelo modelo; áudio solicita uma alternativa falada, inclusive se o modelo respondeu só em messages. Um pedido explícito no turno atual tem prioridade, usando a transcrição já existente quando a mensagem é áudio. A próxima mensagem comum volta a determinar o formato. Preferências antigas, inclusive leitura difícil, deixam de forçar voz após novo texto. Não é necessário apagar metadados de clientes.
+
+A seleção usa a última entrada pública por created_at e id, com consulta independente da janela de respostas da modelo. Mensagens privadas/excluídas e áudios de saída não escolhem o formato. Sem entrada ou voz indisponível, usar texto. O modo solicitado continua exigindo pedido atual. Links permanecem por texto; limite de voz, encaminhamento humano e alternativa por texto em falha de síntese continuam vigentes. Não há garantia de áudio se voz/canal estiver indisponível ou o limite não permitir uma fala válida.
+
+O painel chama contextual de **Acompanhar texto ou áudio do contato**, explica a prioridade do pedido atual e remove os controles de intervalo/iniciativa que deixaram de determinar o formato. Seus valores antigos e marcadores de presets permanecem armazenados por compatibilidade. As instruções padrão de voz descrevem a política nova. Prompts personalizados e presets salvos não foram regravados; a validação do plano impõe o formato mesmo se um prompt antigo tentar propor áudio para texto. Preparar/Gerar/Enviar áudio do operador permanece independente.
+
+## Pendência de provedor efetivo
+
+Atendida a orientação expressa da auditoria de 04/11 para a próxima modificação: o log response_generated e o plano pendente guardam provider/model efetivos, configured_provider/configured_model separados e usage da geração final. Textos/áudios gerados carregam a mesma rota nas partes atrasadas. Planos manuais/anteriores sem evidência não recebem um provedor efetivo inventado; histórico não é reatribuído. O provedor anotado no áudio refere-se à geração do conteúdo, não à síntese de voz, que continua separada.
+
+## Validação e publicação
+
+Publicado na principal, MX e MD e nos seis web/workers, imagem fork-0bf1059c9b50560718d827568e194b1585b53ef9. Gate41948769030 aprovado: **471 testes frontend + 546 Rails = 1.017**, lint JS/Ruby direcionado, build e imagem. Seis verificações nativas por instalação com rollback (18 total), quatro fontes do runtime e amostras de código/rótulos JS públicos conferidas, saúde200. Os seis serviços usam a mesma imagem; apenas seus seis pinos mudaram entre12configurações. Seis bridges e estados das sessões, perfis/prompts/presets, chaves, dados, hooks, preferências dos usuários e todos132estados foram preservados por comparação. Nenhuma migração, chamada real de provedor ou mensagem de canal de teste.
+
+No MD publicado, consultaREADONLY da mesma conversa existente devolveu latest_contact_medium=text, voice_allowed=false e voice_requested=false, mesmo com o metadado legado audio/persistent=true ainda presente. A regra já funciona sem regravar esse estado nem ativar uma IA pausada. A próxima resposta normal atualiza a preferência do turno. O atendimento geral do HOT1 continua desligado; a ativação individual existente foi preservada.
+
+O contrato publicado em cada instalação executou scheduler/responder/parser/delivery com texto/áudio/texto/áudio/texto, preferência antiga, planos contraditórios do modelo, duas sínteses e cinco falhas/reservas **simuladas**. Conferiu formato, logs/usage/rota efetiva, deduplicação, pedidos atuais e pausa. Conta/conversa/mensagens sintéticas foram revertidas. Não houve teste de recebimento real no WhatsApp; a voz/cota dos provedores não foi retestada.
+
+O primeiro gate teve545/546Rails por uma associação em cache no teste novo após alterar a configuração; ajustado recarregamento e asserções do teste. O segundo aprovou546/546 e falhou somente em cinco apontamentos de alinhamento Ruby. Corrigidos; o terceiro gate aprovou tudo. Nenhuma candidata reprovada foi publicada. Windows não tinha as gems Rails deste lock; os testes Rails foram executados no Linux da CI. Além do gate,110testes locais de interface passaram. O contrato candidato também exigiu corrigir configuração de memória/encoding do próprio script de QA, sem mudar o aplicativo publicado.
+
+Recarregar a página comCtrl+F5 para ver o novo nome **Acompanhar texto ou áudio do contato** emVoz e áudio. Não é preciso alterar os prompts nem salvar novamente o perfil para a regra começar a valer. Revisões/envios manuais de áudio, assinatura da gravação, pausas e idempotência permanecem independentes. Valores antigos de intervalo/iniciativa permanecem guardados por compatibilidade, sem decidir o formato.
+
+[CI41948769030](https://github.com/marcosenz0/chatwoot-whatsmeow/actions/runs/41948769030) · [PR60](https://github.com/marcosenz0/chatwoot-whatsmeow/pull/60), sobrePR59, sem merge. Verificação operacional e reciboNotion no registroHOT equivalente. O conectorEasyPanel retornou erro/fallback na leitura de usuário; publicação feita pelo acessoTRPC/WebSocket operacional existente, sem imprimir credenciais.
+
+Nas trocas de MX e MD, o painel retornou404 após atualizar a web e antes de alterar o worker. O estado real foi consultado: web nova/worker antigo. Somente o worker restante foi atualizado em cada caso; depois ambos ficaram na imagem final e saúde200. Não foi reiniciada a web já atualizada nem alterada outra configuração para contornar o404.
+
+Notion Acompanhamento do Codex e Ferramentas atualizado no workspace MARCOS ENZO's Notion, usuário MARCOS ENZO. Leitura de retorno confirmou as duas entregas e a presença integral do conteúdo anterior. Notas manuais e compartilhamento preservados; recibo NOTION-SYNC.json no registroHOT. Inspeção posterior de objetos sintéticos exatos sem referência no armazenamento MD encontrou zero; contratos publicados limpam seus próprios arquivos após rollback.
