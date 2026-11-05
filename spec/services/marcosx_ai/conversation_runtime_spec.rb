@@ -221,6 +221,8 @@ RSpec.describe 'MarcoXIA conversation runtime' do
 
   it 'delivers audio, text, audio and text without inheriting a legacy preference or duplicating retries' do
     assistant.update!(config: assistant.resolved_config.deep_merge(voice: { enabled: true, mode: 'contextual' }))
+    conversation.reload
+    inbox.reload
     allow_any_instance_of(MarcosxAi::Assistant).to receive(:voice_ready?).and_return(true)
     voice_client = instance_double(MarcosxAi::VoiceClient, synthesize: 'ID3')
     allow(MarcosxAi::VoiceClient).to receive(:new).and_return(voice_client)
@@ -232,7 +234,9 @@ RSpec.describe 'MarcoXIA conversation runtime' do
       plan.merge!(messages: ['Estou bem.'], voice_text: audio ? nil : 'Áudio indevido do modelo')
       MarcosxAi::ResponseScheduler.perform(message: current)
       token = state.reload.metadata['run_token']
+      expect(state.current_run?(token)).to be(true)
       MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, current.id, token)
+      expect(state.reload.metadata['pending_response']).to be_present, state.metadata['last_error']
       MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
       count = conversation.messages.outgoing.where(private: false).count
       MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
