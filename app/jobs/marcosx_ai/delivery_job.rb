@@ -85,7 +85,7 @@ class MarcosxAi::DeliveryJob < ApplicationJob
       message_type: :outgoing, account: @state.account, inbox: @state.inbox, sender: @state.assistant,
       content_attributes: { whatsmeow_recorded_audio: true, marcosx_ai_voice_transcript: transcript },
       additional_attributes: generation_attributes.merge(marcosx_ai: true, assistant_name: @state.assistant.name,
-                                                        trigger_message_id: @state.metadata['trigger_message_id'])
+                                                         trigger_message_id: @state.metadata['trigger_message_id'])
     )
     attachment = message.attachments.build(account: @state.account, file_type: :audio, meta: { is_voice_message: true, transcribed_text: transcript })
     attachment.file.attach(io: StringIO.new(@audio), filename: 'agent-voice.mp3', content_type: 'audio/mpeg')
@@ -115,7 +115,7 @@ class MarcosxAi::DeliveryJob < ApplicationJob
     @state.conversation.messages.create!(
       message_type: :outgoing, account: @state.account, inbox: @state.inbox, sender: @state.assistant, content: content,
       additional_attributes: generation_attributes.merge(marcosx_ai: true, assistant_name: @state.assistant.name,
-                                                        trigger_message_id: @state.metadata['trigger_message_id'])
+                                                         trigger_message_id: @state.metadata['trigger_message_id'])
                                                   .merge(resource ? resource_attributes(resource) : {})
     )
   ensure

@@ -18,7 +18,7 @@ class MarcosxAi::VoicePolicy
                                              .reorder(created_at: :desc, id: :desc).limit(limit).to_a
     # Resolve from the latest contact message, even when old audio preferences were persisted.
     latest = MarcosxAi::ConversationContext.public_history(conversation).incoming.includes(:attachments)
-                                          .reorder(created_at: :desc, id: :desc).first
+                                           .reorder(created_at: :desc, id: :desc).first
     medium = latest&.attachments&.any?(&:audio?) ? 'audio' : 'text'
     text = latest ? message_text(latest) : ''
     requested = !declined?(text) && (requested?(text) || (settings[:mode] == 'contextual' && medium == 'audio'))
