@@ -12,7 +12,7 @@ RSpec.describe 'MarcoXIA conversation runtime' do
   let(:conversation) { create(:conversation, account: account, inbox: inbox) }
   let(:message) { create(:message, account: account, inbox: inbox, conversation: conversation, sender: conversation.contact, content: 'Hello') }
   let(:state) { MarcosxAi::ConversationState.for_conversation!(conversation, assistant: assistant) }
-  let(:client) { instance_double(MarcosxAi::ProviderClient, usage: {}) }
+  let(:client) { instance_double(MarcosxAi::ProviderClient, usage: {}, provider: assistant.provider, model: assistant.model) }
   let(:plan) { { messages: ['Hello', 'How can I help?'], reaction: nil, reaction_message_id: nil, handoff: false, handoff_reason: nil } }
 
   before do
@@ -217,6 +217,53 @@ RSpec.describe 'MarcoXIA conversation runtime' do
     MarcosxAi::ResponseScheduler.perform(message: next_message)
     MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 1)
     expect(conversation.messages.outgoing.where(private: false).count).to eq(1)
+  end
+
+  it 'delivers audio, text, audio and text without inheriting a legacy preference or duplicating retries' do
+    assistant.update!(config: assistant.resolved_config.deep_merge(voice: { enabled: true, mode: 'contextual' }))
+    conversation.reload
+    inbox.reload
+    allow_any_instance_of(MarcosxAi::Assistant).to receive(:voice_ready?).and_return(true)
+    voice_client = instance_double(MarcosxAi::VoiceClient, synthesize: 'ID3')
+    allow(MarcosxAi::VoiceClient).to receive(:new).and_return(voice_client)
+    state.update!(metadata: state.metadata.merge('voice_preference' => { 'mode' => 'audio', 'message_id' => message.id, 'persistent' => true }))
+    [true, false, true, false].each do |audio|
+      current = create(:message, account: account, inbox: inbox, conversation: conversation,
+                                content: audio ? nil : 'Como você está?')
+      current.attachments.create!(account: account, file_type: :audio, meta: { transcribed_text: 'Como você está?' }) if audio
+      plan.merge!(messages: ['Estou bem.'], voice_text: audio ? nil : 'Áudio indevido do modelo')
+      MarcosxAi::ResponseScheduler.perform(message: current)
+      token = state.reload.metadata['run_token']
+      expect(state.current_run?(token)).to be(true)
+      MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, current.id, token)
+      expect(state.reload.metadata['pending_response']).to be_present, state.metadata['last_error']
+      MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
+      count = conversation.messages.outgoing.where(private: false).count
+      MarcosxAi::DeliveryJob.perform_now(conversation.id, token, 0)
+      expect(conversation.messages.outgoing.where(private: false).count).to eq(count)
+      reply = conversation.messages.outgoing.where(private: false).order(:id).last
+      expect(reply.attachments.any?(&:audio?)).to be(audio)
+      expect(reply.content).to eq('Estou bem.') unless audio
+      expect(state.reload.status).to eq('active')
+    end
+    expect(voice_client).to have_received(:synthesize).twice
+  end
+
+  it 'records the effective provider, configured provider and matching usage through delayed delivery' do
+    allow(client).to receive_messages(provider: 'groq', model: 'qwen/qwen3.8-27b', usage: { 'input_tokens' => 42 })
+    MarcosxAi::ResponseScheduler.perform(message: message)
+    token = state.reload.metadata['run_token']
+    MarcosxAi::ResponseJob.perform_now(conversation.id, assistant.id, message.id, token)
+    generated = assistant.logs.find_by!(event: 'response_generated').response
+    expect(generated).to include('provider' => 'groq', 'model' => 'qwen/qwen3.8-27b',
+                                'configured_provider' => assistant.provider, 'configured_model' => assistant.model,
+                                'usage' => { 'input_tokens' => 42 })
+    allow(client).to receive_messages(provider: 'openai', model: 'a later call')
+    2.times { |part| MarcosxAi::DeliveryJob.perform_now(conversation.id, token, part) }
+    conversation.messages.outgoing.where(private: false).each do |reply|
+      expect(reply.additional_attributes).to include('provider' => 'groq', 'model' => 'qwen/qwen3.8-27b',
+                                                    'configured_provider' => assistant.provider, 'configured_model' => assistant.model)
+    end
   end
 
   it 'sends requested audio with a stored transcript and retains links as separate text without duplicate sends' do

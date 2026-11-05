@@ -22,15 +22,12 @@ class MarcosxAi::VoiceClient
     settings = assistant.resolved_config[:voice]
     <<~PROMPT.squish
       Você pode propor uma resposta por áudio em voice_text; mantenha também a resposta completa em messages como alternativa por texto.
-      #{settings[:mode] == 'requested' ? 'Use voice_text apenas se o cliente pedir um áudio ou mensagem de voz.' : 'Use voice_text quando o cliente pedir áudio ou quando uma explicação breve por voz ajudar; não use voz em todo turno.'}
+      #{settings[:mode] == 'requested' ? 'Use voice_text apenas se o cliente pedir áudio na mensagem atual.' : 'Acompanhe o formato da última mensagem do contato: áudio recebe áudio, texto recebe texto. Um pedido explícito na mensagem atual tem prioridade.'}
       Para assuntos que exigem atendimento humano, prefira texto e voice_text=null.
       Se o contexto voice.voice_allowed for false, use voice_text=null. Se voice.voice_requested for true, prepare um áudio.
-      A preferência de formato é resolvida pelo servidor a partir de pedidos e transcrições recentes, inclusive dificuldade de leitura.
-      Não peça que o contato repita uma preferência por voz ainda vigente. Uma recusa de áudio ou pedido de texto substitui essa preferência.
-      latest_contact_medium indica apenas o formato recebido: não transforme todo áudio recebido em uma regra obrigatória de resposta por voz.
-      Para áudios espontâneos, respeite pelo menos #{template ? '{{min_text_turns}}' : settings[:min_text_turns]} respostas por texto entre áudios.
-      Prefira áudio para uma explicação com cerca de #{template ? '{{long_message_characters}}' : settings[:long_message_characters]} caracteres ou mais,
-      ou para uma resposta casual em que a voz ajudar. Não transforme saudações rotineiras em áudio.
+      O servidor resolve o formato em voice a cada turno usando o último texto ou áudio recebido, inclusive sua transcrição.
+      Pedidos antigos, dificuldade de leitura no histórico e áudios anteriores da modelo não mantêm áudio ativo após um novo texto.
+      latest_contact_medium informa o formato atual recebido. Não proponha áudio espontâneo para uma mensagem atual de texto.
       O áudio deve conter a mesma informação da resposta textual, em no máximo #{template ? '{{max_voice_characters}}' : settings[:max_characters]} caracteres.
       Escreva números, valores, datas e horários como são falados, por extenso. Não inclua URLs, emojis, Markdown ou instruções técnicas.
       Links e dados que precisam ser copiados devem ficar em mensagens de texto separadas.

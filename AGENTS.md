@@ -1,5 +1,11 @@
 # Chatwoot Development Guidelines
 
+## Current MarcoXIA contact format — November4,2026
+
+- Principal/MX/MD web/workers run fork-0bf1059c9b50560718d827568e194b1585b53ef9. Gate41948769030 passed1,017 targeted tests (471frontend/546Rails), lint/build/image. Six rollback native checks per installation, four runtime hashes, public JS code/PT-BR labels and health200 passed. Only six image pins changed; six bridges/session states, all132conversation states, profiles/prompts/presets, credentials/data/hooks and user preferences matched. PR60 stacked on59, unmerged. No real provider calls or channel test delivery.
+- Contextual voice now follows the latest public incoming message by timestamp/ID: text replies in text; received audio requests audio. Explicit current requests, including cached transcripts, override that turn only. Ignore legacy permanent reading/voice preferences after a new text; no data migration needed. ReplyPlan blocks contrary model voice and supplies a spoken alternative for received audio. Requested-only mode remains explicit; manual reviewed voice, pause, links/text fallback and idempotency stay separate.
+- UI calls this Acompanhar texto ou áudio do contato. Interval/initiative controls removed; stored legacy fields/preset placeholders retained for compatibility, saved custom prompts untouched. Actual/configured provider and model travel with generated pending plans into logs/text/audio metadata; usage belongs to the final effective generation. Never invent effective routing for older/manual plans or rewrite history. Read docs/marcoxia-contact-format-2026-11-04.md and HOT record; Notion sync receipt is in that record.
+
 ## Current MarcoXIA thinking and quota retries — November3,2026
 
 - Principal/MX/MD web and workers run fork-d671db661ea7ba77013cb2a9b52cdfd019791de7. Gate41752558204 passed1,006 targeted tests (471frontend/535Rails), scoped lint/build/image. Nine published HTTP/runtime rollback checks per installation,21source hashes, six served JS/label samples and health200 passed. Only six image pins changed among12configs; six bridges and all130states, profiles, credentials, stored data and hooks were preserved. No real provider tests or channel deliveries. PR59 is above58, unmerged.

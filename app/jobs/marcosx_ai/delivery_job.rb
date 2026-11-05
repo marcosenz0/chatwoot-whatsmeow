@@ -84,8 +84,8 @@ class MarcosxAi::DeliveryJob < ApplicationJob
     message = @state.conversation.messages.new(
       message_type: :outgoing, account: @state.account, inbox: @state.inbox, sender: @state.assistant,
       content_attributes: { whatsmeow_recorded_audio: true, marcosx_ai_voice_transcript: transcript },
-      additional_attributes: { marcosx_ai: true, assistant_name: @state.assistant.name,
-                               trigger_message_id: @state.metadata['trigger_message_id'] }
+      additional_attributes: generation_attributes.merge(marcosx_ai: true, assistant_name: @state.assistant.name,
+                                                         trigger_message_id: @state.metadata['trigger_message_id'])
     )
     attachment = message.attachments.build(account: @state.account, file_type: :audio, meta: { is_voice_message: true, transcribed_text: transcript })
     attachment.file.attach(io: StringIO.new(@audio), filename: 'agent-voice.mp3', content_type: 'audio/mpeg')
@@ -114,9 +114,9 @@ class MarcosxAi::DeliveryJob < ApplicationJob
     Current.executed_by = @state.assistant
     @state.conversation.messages.create!(
       message_type: :outgoing, account: @state.account, inbox: @state.inbox, sender: @state.assistant, content: content,
-      additional_attributes: { marcosx_ai: true, provider: @state.assistant.provider, model: @state.assistant.model,
-                               assistant_name: @state.assistant.name,
-                               trigger_message_id: @state.metadata['trigger_message_id'] }.merge(resource ? resource_attributes(resource) : {})
+      additional_attributes: generation_attributes.merge(marcosx_ai: true, assistant_name: @state.assistant.name,
+                                                         trigger_message_id: @state.metadata['trigger_message_id'])
+                                                  .merge(resource ? resource_attributes(resource) : {})
     )
   ensure
     Current.executed_by = executed_by
@@ -185,5 +185,12 @@ class MarcosxAi::DeliveryJob < ApplicationJob
 
   def resource_attributes(resource)
     { marcosx_ai_resource_id: resource.id, marcosx_ai_resource: resource.catalog_data }
+  end
+
+  def generation_attributes
+    generation = @state.metadata.dig('pending_response', 'generation')
+    return generation.slice('provider', 'model', 'configured_provider', 'configured_model').symbolize_keys if generation.is_a?(Hash)
+
+    { configured_provider: @state.assistant.provider, configured_model: @state.assistant.model }
   end
 end

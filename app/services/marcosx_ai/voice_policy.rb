@@ -16,25 +16,13 @@ class MarcosxAi::VoicePolicy
     limit = (settings[:min_text_turns] + 1) * 9
     messages = MarcosxAi::ConversationContext.public_history(conversation).includes(:attachments)
                                              .reorder(created_at: :desc, id: :desc).limit(limit).to_a
-    incoming = messages.select(&:incoming?)
-    preference = conversation.marcosx_ai_conversation_state&.metadata&.fetch('voice_preference', nil) || {}
-    incoming.reverse_each do |message|
-      next if message.id <= preference.fetch('message_id', 0)
-
-      text = message_text(message)
-      if declined?(text)
-        preference = { 'mode' => 'text', 'message_id' => message.id, 'persistent' => true }
-      elsif requested?(text)
-        persistent = text.match?(READING_DIFFICULTY) || (preference['mode'] == 'audio' && preference['persistent'])
-        preference = { 'mode' => 'audio', 'message_id' => message.id, 'persistent' => !!persistent }
-      elsif preference['mode'] == 'audio' && !preference['persistent'] && message.content.present? && message.attachments.none?(&:audio?) &&
-            messages.any? { |reply| reply.outgoing? && reply.id > preference['message_id'] && reply.id < message.id }
-        preference = { 'mode' => 'text', 'message_id' => message.id, 'persistent' => false }
-      elsif preference['mode'] == 'text' && !preference['persistent'] && message.attachments.any?(&:audio?)
-        preference = { 'mode' => 'contextual', 'message_id' => message.id, 'persistent' => false }
-      end
-    end
-    requested = preference['mode'] == 'audio'
+    # Resolve from the latest contact message, even when old audio preferences were persisted.
+    latest = MarcosxAi::ConversationContext.public_history(conversation).incoming.includes(:attachments)
+                                           .reorder(created_at: :desc, id: :desc).first
+    medium = latest&.attachments&.any?(&:audio?) ? 'audio' : 'text'
+    text = latest ? message_text(latest) : ''
+    requested = !declined?(text) && (requested?(text) || (settings[:mode] == 'contextual' && medium == 'audio'))
+    preference = latest ? { 'mode' => requested ? 'audio' : 'text', 'message_id' => latest.id, 'persistent' => false } : {}
     outgoing = messages.select { |message| message.outgoing? && message.sender_type == 'MarcosxAi::Assistant' && message.sender_id == assistant.id }
     voice_index = outgoing.index { |message| message.content_attributes['marcosx_ai_voice_transcript'].present? }
     turns = if voice_index
@@ -44,9 +32,8 @@ class MarcosxAi::VoicePolicy
             else
               settings[:min_text_turns]
             end
-    allowed = requested || (settings[:mode] == 'contextual' && turns >= settings[:min_text_turns] && preference['mode'] != 'text')
-    { voice_allowed: assistant.voice_ready? && allowed, voice_requested: requested, text_turns_since_audio: turns,
-      voice_preference: preference, latest_contact_medium: incoming.first&.attachments&.any?(&:audio?) ? 'audio' : 'text' }
+    { voice_allowed: requested, voice_requested: requested, text_turns_since_audio: turns,
+      voice_preference: preference, latest_contact_medium: medium }
   end
 
   def self.message_text(message)

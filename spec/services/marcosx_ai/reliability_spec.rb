@@ -98,7 +98,7 @@ RSpec.describe 'MarcoXIA activation and media continuity' do
     photo = assistant.resources.new(account: account, title: 'Reference photo', description: 'Send when the person asks for this photo', kind: 'image')
     photo.file.attach(io: File.open(Rails.root.join('spec/assets/sample.png')), filename: 'photo.png', content_type: 'image/png')
     photo.save!
-    client = instance_double(MarcosxAi::ProviderClient, usage: {})
+    client = instance_double(MarcosxAi::ProviderClient, usage: {}, provider: assistant.provider, model: assistant.model)
     allow(MarcosxAi::ProviderClient).to receive(:new).and_return(client)
     allow(client).to receive(:chat).and_return({ messages: [], resource_ids: [photo.id], reaction: nil, reaction_message_id: nil,
                                                handoff: false, handoff_reason: nil }.to_json)

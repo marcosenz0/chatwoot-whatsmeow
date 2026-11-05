@@ -11,7 +11,7 @@ RSpec.describe 'MarcoXIA native Pix delivery' do
   let(:state) { MarcosxAi::ConversationState.for_conversation!(conversation, assistant: assistant) }
   let!(:key) { assistant.pix_keys.create!(account: account, title: 'Main', key_type: 'EMAIL', key: 'test@example.com', merchant_name: 'Test holder', position: 1) }
   let(:plan) { { messages: ['Here is the Pix card'], reaction: nil, reaction_message_id: nil, handoff: false, handoff_reason: nil, pix_key_id: key.id } }
-  let(:client) { instance_double(MarcosxAi::ProviderClient, usage: {}) }
+  let(:client) { instance_double(MarcosxAi::ProviderClient, usage: {}, provider: assistant.provider, model: assistant.model) }
 
   before do
     assistant.marcosx_ai_inboxes.create!(account: account, inbox: inbox)
