@@ -1,5 +1,12 @@
 # Chatwoot Development Guidelines
 
+## Current WhatsApp first-contact resolution — November6,2026
+
+- Principal/MX/MD web/workers run fork-aaac4befc9d46355dd75424f90c5798d46ebc63f, image IDbf6f68c39e57. Gate42283971885 passed1,017 tests (471frontend/546Rails), scoped lint/build/image;16published sender contracts per installation passed, source hashes match and health200. PR61 is above60, unmerged. Read docs/whatsmeow-first-contact-lid-2026-11-06.md.
+- Valid new phone recipients can fail GetUserInfo LID resolution while interactive registration returns a valid canonical JID. Recover only the exact pre-send missing-LID error for the authoritative source phone, using that same number's registered canonical recipient once. Keep contact_inbox authority, exact payload/media/caption and existing-source idempotency. Never guess phone digits, use another contact field or retry timeouts/uncertain sends.
+- Old-version owner text3080/280833 reproduced the real error with the ninth-digit form; the same message delivered after native retry on the published image. Owner image/caption3081/280835 delivered with exact stored bytes/caption. The owner then authorized one original company message: EcoSol3078/280815 delivered unchanged. Suno3079 remains failed/untouched; no second company was messaged.
+- All31service configurations match except six app pins; six bridge identities/sessions and user preferences are preserved. Principal's14existing AI states match, with two new paused owner-test states; MX has none. MD has131identical hashes and one live state/provider-health update at20:14:45UTC, before image publication20:29:13UTC. Do not roll it back: configuration/credential versions are unchanged, and the existing response_failed/413 is outside this fix. MD general was alreadyON in the fresh baseline and remainsON. Older OFF notes below are historical.
+
 ## Current MarcoXIA contact format — November4,2026
 
 - Principal/MX/MD web/workers run fork-0bf1059c9b50560718d827568e194b1585b53ef9. Gate41948769030 passed1,017 targeted tests (471frontend/546Rails), lint/build/image. Six rollback native checks per installation, four runtime hashes, public JS code/PT-BR labels and health200 passed. Only six image pins changed; six bridges/session states, all132conversation states, profiles/prompts/presets, credentials/data/hooks and user preferences matched. PR60 stacked on59, unmerged. No real provider calls or channel test delivery.
