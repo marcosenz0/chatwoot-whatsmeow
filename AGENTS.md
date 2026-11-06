@@ -1,5 +1,12 @@
 # Chatwoot Development Guidelines
 
+## Current WhatsApp profile fields and sidebar shortcut — November6,2026
+
+- Principal/MX/MD web/workers run fork-954f4a82500d21e89d2210eec9b378a2ef3e113e, image IDbbe9bc3a758f. Gate42310806760 passed1,047 tests (501frontend/546Rails), scoped lint/build/image. Source hashes, six served JS/CSS samples, unchanged live principal inbox15 profile data and health200 passed. PR62 is above61, ready/unmerged. Read docs/whatsapp-profile-fields-shortcut-2026-11-06.md.
+- Business description uses the same field background as email/websites with min-height96px; address explicitly uses type=text to receive the shared40px input styling. Preserve the global input/textarea styles. Sidebar right-click adds Perfil only for Whatsmeow, opening that inbox's existing whatsapp-profile tab under the existing administrator/settings policy. Escape returns focus to the originating channel. Reuse existing PT-BR labels, installed Lucide icon and ContextMenu.
+- Local actual Vue/CSS checks passed desktop/390px, empty address, typing/Tab, menu bounds, Perfil navigation with Tab/Enter, Escape focus return, non-WhatsApp omission and agent permissions. Native Windows automation later stopped because it could not establish the browser URL; do not claim post-rollout browser clicks. Published checks used live read-only profile API and matching source/public assets. No profile saves or channel deliveries were used.
+- All31service configurations match except six app pins; all six bridge identities/sessions,152AI states (principal20/MX0/MD132), profiles/configuration versions, stored credentials/data and user preferences are preserved. No migration, customer batch action, bridge replacement or session reset. Refresh with Ctrl+F5. The previous first-contact sending fix remains included.
+
 ## Current WhatsApp first-contact resolution — November6,2026
 
 - Principal/MX/MD web/workers run fork-aaac4befc9d46355dd75424f90c5798d46ebc63f, image IDbf6f68c39e57. Gate42283971885 passed1,017 tests (471frontend/546Rails), scoped lint/build/image;16published sender contracts per installation passed, source hashes match and health200. PR61 is above60, unmerged. Read docs/whatsmeow-first-contact-lid-2026-11-06.md.
