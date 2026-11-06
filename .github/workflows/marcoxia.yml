@@ -1,7 +1,7 @@
 name: MarcoXIA validation and image
 on:
   push:
-    branches: [codex/marcoxia-contact-format, codex/marcoxia-thinking-retry, codex/marcoxia-interface-manual, codex/marcoxia-prompt-presets, codex/marcoxia-groq-vision, codex/marcoxia-audio-draft-fix, codex/marcoxia-prompt-cache, codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context, codex/marcoxia-audio-delivery, codex/marcoxia-pix-keys, codex/marcoxia-pix-selector, codex/marcoxia-panel-audience, codex/marcoxia-resource-library, codex/marcoxia-pending-replies, codex/marcoxia-reliability]
+    branches: [codex/whatsmeow-canonical-recipient, codex/marcoxia-contact-format, codex/marcoxia-thinking-retry, codex/marcoxia-interface-manual, codex/marcoxia-prompt-presets, codex/marcoxia-groq-vision, codex/marcoxia-audio-draft-fix, codex/marcoxia-prompt-cache, codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context, codex/marcoxia-audio-delivery, codex/marcoxia-pix-keys, codex/marcoxia-pix-selector, codex/marcoxia-panel-audience, codex/marcoxia-resource-library, codex/marcoxia-pending-replies, codex/marcoxia-reliability]
     paths: ['app/**', 'spec/**', 'db/**', 'config/**', 'lib/**', 'Dockerfile', '.github/workflows/marcoxia.yml']
   workflow_dispatch:
 permissions:
@@ -150,6 +150,7 @@ jobs:
           app/jobs/marcosx_ai
           app/listeners/marcosx_ai_listener.rb
           app/services/whatsmeow/typing_status_service.rb
+          app/services/whatsmeow/send_on_whatsmeow_service.rb
           app/services/whatsmeow/call_event_service.rb
           app/models/notification.rb
           app/jobs/notification/remove_duplicate_notification_job.rb

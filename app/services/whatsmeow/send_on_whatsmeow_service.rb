@@ -21,24 +21,21 @@ class Whatsmeow::SendOnWhatsmeowService
   end
 
   def dispatch_message
-    targets = target_identifiers
+    outgoing_payload = payload
+    result = begin
+      Whatsmeow::SessionClient.request(:post, '/messages', body: outgoing_payload)
+    rescue Whatsmeow::SessionClient::Error => e
+      raise unless unresolved_phone_target?(e)
 
-    targets.each_with_index do |identifier, index|
-      @target_identifier = identifier
-      begin
-        Rails.logger.info("Whatsmeow: Sending outgoing message to #{target_identifier} on inbox #{inbox.id} via Go API...")
+      resolved = Whatsmeow::SessionClient.new(inbox: inbox).check_number("+#{target_identifier.split('@').first}")
+      canonical_target = resolved['jid'].to_s
+      raise e unless resolved['is_on_whatsapp'] == true && canonical_target.match?(/\A[1-9]\d+@(lid|s\.whatsapp\.net)\z/)
+      raise e if canonical_target == target_identifier
 
-        result = Whatsmeow::SessionClient.request(:post, '/messages', body: payload)
-        update_source_id(result)
-        return
-      rescue Whatsmeow::SessionClient::Error => e
-        raise e unless retryable_target_error?(e) && index < targets.length - 1
-
-        Rails.logger.warn(
-          "Whatsmeow: Send to #{target_identifier} failed with #{e.message}; trying alternate participant JID..."
-        )
-      end
+      Rails.logger.info("Whatsmeow: Using WhatsApp's resolved recipient for conversation #{message.conversation_id}")
+      Whatsmeow::SessionClient.request(:post, '/messages', body: outgoing_payload.merge(to: canonical_target))
     end
+    update_source_id(result)
   end
 
   def payload
@@ -199,15 +196,7 @@ class Whatsmeow::SendOnWhatsmeowService
   end
 
   def target_identifier
-    @target_identifier ||= target_identifiers.first
-  end
-
-  def target_identifiers
-    @target_identifiers ||= resolve_target_identifiers
-  end
-
-  def resolve_target_identifiers
-    [Whatsmeow::ConversationTargetResolver.new(conversation: message.conversation).perform]
+    @target_identifier ||= Whatsmeow::ConversationTargetResolver.new(conversation: message.conversation).perform
   end
 
   def source_id
@@ -238,8 +227,9 @@ class Whatsmeow::SendOnWhatsmeowService
     Rails.logger.info("Whatsmeow: Message dispatched successfully. External ID: #{result['id']}")
   end
 
-  def retryable_target_error?(error)
-    error.message.include?('server returned error 403')
+  def unresolved_phone_target?(error)
+    target_identifier.end_with?('@s.whatsapp.net') &&
+      error.message == "Failed to send message: failed to resolve LID for PN #{target_identifier}: USync returned no LID for #{target_identifier}"
   end
 
   def mark_failed(error_message)
