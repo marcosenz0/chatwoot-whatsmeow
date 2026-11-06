@@ -104,13 +104,14 @@ const save = () => {
         maxlength="1024"
         rows="3"
         :disabled="saving"
-        class="!mb-0 mt-2 w-full rounded-lg bg-n-solid-1 text-sm"
+        class="!mb-0 mt-2 min-h-24 w-full rounded-lg !bg-n-alpha-black2 text-sm"
       />
     </label>
     <label class="block text-sm font-medium text-n-slate-12">
       {{ t('WHATSAPP_PROFILE.ADDRESS') }}
       <input
         v-model="form.address"
+        type="text"
         maxlength="512"
         :disabled="saving"
         class="!mb-0 mt-2 w-full rounded-lg bg-n-solid-1 text-sm"

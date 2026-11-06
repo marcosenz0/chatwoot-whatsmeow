@@ -1,7 +1,7 @@
 name: MarcoXIA validation and image
 on:
   push:
-    branches: [codex/whatsmeow-canonical-recipient, codex/marcoxia-contact-format, codex/marcoxia-thinking-retry, codex/marcoxia-interface-manual, codex/marcoxia-prompt-presets, codex/marcoxia-groq-vision, codex/marcoxia-audio-draft-fix, codex/marcoxia-prompt-cache, codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context, codex/marcoxia-audio-delivery, codex/marcoxia-pix-keys, codex/marcoxia-pix-selector, codex/marcoxia-panel-audience, codex/marcoxia-resource-library, codex/marcoxia-pending-replies, codex/marcoxia-reliability]
+    branches: [codex/whatsapp-profile-fields-shortcut, codex/whatsmeow-canonical-recipient, codex/marcoxia-contact-format, codex/marcoxia-thinking-retry, codex/marcoxia-interface-manual, codex/marcoxia-prompt-presets, codex/marcoxia-groq-vision, codex/marcoxia-audio-draft-fix, codex/marcoxia-prompt-cache, codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context, codex/marcoxia-audio-delivery, codex/marcoxia-pix-keys, codex/marcoxia-pix-selector, codex/marcoxia-panel-audience, codex/marcoxia-resource-library, codex/marcoxia-pending-replies, codex/marcoxia-reliability]
     paths: ['app/**', 'spec/**', 'db/**', 'config/**', 'lib/**', 'Dockerfile', '.github/workflows/marcoxia.yml']
   workflow_dispatch:
 permissions:
@@ -35,11 +35,15 @@ jobs:
           app/javascript/dashboard/components/widgets/conversation/specs/ConversationVoiceDraft.spec.js
           app/javascript/dashboard/composables/spec/useMarcosxAiDraft.spec.js
           app/javascript/dashboard/components/widgets/conversation/specs/ReplyBatchProgress.spec.js
+          app/javascript/dashboard/routes/dashboard/settings/inbox/settingsPage/specs/WhatsmeowProfile.spec.js
+          app/javascript/dashboard/components-next/sidebar/specs
       - name: Lint agent interface
         run: >-
           pnpm exec eslint
           --ext .js,.vue
           app/javascript/dashboard/routes/dashboard/captain/components
+          app/javascript/dashboard/components-next/sidebar/Sidebar.vue
+          app/javascript/dashboard/routes/dashboard/settings/inbox/settingsPage/WhatsmeowBusinessProfile.vue
           app/javascript/dashboard/components/ChatList.vue
           app/javascript/dashboard/App.vue
           app/javascript/dashboard/composables/useMarcosxAiBatches.js
