@@ -103,7 +103,13 @@ const openInboxContextMenu = (event, inbox) => {
   if (!shouldShow(featureFlag, permissions)) return;
 
   event.preventDefault();
-  inboxContextMenu.value = { x: event.clientX, y: event.clientY, to, inbox };
+  inboxContextMenu.value = {
+    x: event.clientX,
+    y: event.clientY,
+    to,
+    inbox,
+    trigger: event.currentTarget,
+  };
 };
 
 const openInboxConfiguration = () => {
@@ -154,7 +160,11 @@ const confirmInboxDeletion = async () => {
 
 watch(() => router.currentRoute.value.fullPath, closeInboxContextMenu);
 useEventListener('keydown', event => {
-  if (event.key === 'Escape') closeInboxContextMenu();
+  if (event.key !== 'Escape') return;
+
+  const trigger = inboxContextMenu.value?.trigger;
+  closeInboxContextMenu();
+  trigger?.focus();
 });
 
 const isACustomBrandedInstance = useMapGetter(
