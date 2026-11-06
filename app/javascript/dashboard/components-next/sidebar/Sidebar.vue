@@ -112,6 +112,17 @@ const openInboxConfiguration = () => {
   router.push(to);
 };
 
+const openInboxProfile = () => {
+  const { inbox } = inboxContextMenu.value;
+  closeInboxContextMenu();
+  router.push(
+    accountScopedRoute('settings_inbox_show', {
+      inboxId: inbox.id,
+      tab: 'whatsapp-profile',
+    })
+  );
+};
+
 const openInboxDeletion = () => {
   if (!isAdmin.value) return;
 
@@ -1268,6 +1279,16 @@ const menuItems = computed(() => [
         >
           <span class="i-lucide-settings size-4" />
           {{ t('INBOX_MGMT.TABS.CONFIGURATION') }}
+        </button>
+        <button
+          v-if="inboxContextMenu.inbox.channel_type === 'Channel::Whatsmeow'"
+          type="button"
+          class="flex w-full items-center gap-2 px-3 py-2 rounded-md text-sm text-n-slate-12 hover:bg-n-alpha-2"
+          @mousedown.prevent
+          @click="openInboxProfile"
+        >
+          <span class="i-lucide-contact-round size-4 shrink-0" />
+          {{ t('WHATSAPP_PROFILE.TAB') }}
         </button>
         <button
           v-if="isAdmin"
