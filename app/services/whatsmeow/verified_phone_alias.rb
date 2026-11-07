@@ -34,4 +34,3 @@ class Whatsmeow::VerifiedPhoneAlias
     jid if result['is_on_whatsapp'] == true && jid.match?(/\A[1-9]\d+@(lid|s\.whatsapp\.net)\z/)
   end
 end
-
