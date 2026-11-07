@@ -1,11 +1,12 @@
 class Whatsmeow::OpenConversationMergeService
-  pattr_initialize [:inbox!, :contact!, :contact_inbox!, :source_ids!]
+  pattr_initialize [:inbox!, :contact!, :contact_inbox!, :source_ids!, { preserve_earliest: false }]
 
   def perform
     conversations = open_identity_conversations
-    return if conversations.size < 2
+    return if conversations.empty? || (conversations.one? && !preserve_earliest)
 
-    target = canonical_conversation(conversations)
+    target = preserve_earliest ? conversations.first : canonical_conversation(conversations)
+    target.update!(contact_inbox: contact_inbox) if preserve_earliest && target.contact_inbox_id != contact_inbox.id
     conversations.reject { |conversation| conversation.id == target.id }.each do |source|
       merge_conversation(target, source)
     end
@@ -17,7 +18,7 @@ class Whatsmeow::OpenConversationMergeService
   def open_identity_conversations
     contact_inbox_ids = inbox.contact_inboxes.where(source_id: source_ids).select(:id)
     contact.conversations.where(inbox_id: inbox.id, contact_inbox_id: contact_inbox_ids)
-           .where.not(status: :resolved).order(:created_at).to_a
+           .where.not(status: :resolved).order(:created_at, :id).to_a
   end
 
   def canonical_conversation(conversations)
