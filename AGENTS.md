@@ -1,5 +1,12 @@
 # Chatwoot Development Guidelines
 
+## Current WhatsApp conversation media and verified phone aliases — November 7, 2026
+
+- Principal, MX and MD web/workers run `fork-5b7859f9f6a1014a2dbbb43895d20f8814b4c2ff`, image ID `sha256:27f797fb26a6df8993e2c79a1b8109c58f7642f764459c643217d700673a28fa`. Gate 42374579382 passed 1,061 targeted tests (505 frontend and 556 Rails), scoped lint/build/image. Principal was validated first. All three health endpoints and six served JS/CSS samples matched. PR63 is stacked on PR62. Read `docs/whatsapp-conversation-media-2026-11-07.md`.
+- Conversation media uses a large aspect-preserving preview with the caption below in the same card. Normal bubbles show the existing date/time format for consecutive messages; grouped photo tiles retain their dates. Inline and expanded video use the same accessible controls, vertical volume and exact volume restoration after mute. The composer Pix control uses a 16 px currentColor icon and the neighboring slate style.
+- Only trust Brazilian phone variants verified by the provider within the same Whatsmeow inbox. Keep the oldest open display ID when reconciling a verified pair. The principal's two reported pairs were repaired after a rollback rehearsal; both directions, attachments, delivery states and assignments were verified by the API. Published composer checks reused both conversations without sending. MX and MD had no candidate open pairs.
+- The rollout preserved all 31 service configurations apart from six app image pins, six bridge containers and session states, profiles, preferences and all 153 AI states from the baseline taken after the two targeted history repairs. No migration or channel message was used for validation.
+
 ## Current WhatsApp profile fields and sidebar shortcut — November6,2026
 
 - Principal/MX/MD web/workers run fork-954f4a82500d21e89d2210eec9b378a2ef3e113e, image IDbbe9bc3a758f. Gate42310806760 passed1,047 tests (501frontend/546Rails), scoped lint/build/image. Source hashes, six served JS/CSS samples, unchanged live principal inbox15 profile data and health200 passed. PR62 is above61, ready/unmerged. Read docs/whatsapp-profile-fields-shortcut-2026-11-06.md.

@@ -68,4 +68,3 @@ RSpec.describe Whatsmeow::IncomingMessageService do
     end
   end
 end
-
