@@ -1,7 +1,7 @@
 name: MarcoXIA validation and image
 on:
   push:
-    branches: [codex/whatsapp-profile-fields-shortcut, codex/whatsmeow-canonical-recipient, codex/marcoxia-contact-format, codex/marcoxia-thinking-retry, codex/marcoxia-interface-manual, codex/marcoxia-prompt-presets, codex/marcoxia-groq-vision, codex/marcoxia-audio-draft-fix, codex/marcoxia-prompt-cache, codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context, codex/marcoxia-audio-delivery, codex/marcoxia-pix-keys, codex/marcoxia-pix-selector, codex/marcoxia-panel-audience, codex/marcoxia-resource-library, codex/marcoxia-pending-replies, codex/marcoxia-reliability]
+    branches: [codex/chat-media-presentation, codex/whatsapp-profile-fields-shortcut, codex/whatsmeow-canonical-recipient, codex/marcoxia-contact-format, codex/marcoxia-thinking-retry, codex/marcoxia-interface-manual, codex/marcoxia-prompt-presets, codex/marcoxia-groq-vision, codex/marcoxia-audio-draft-fix, codex/marcoxia-prompt-cache, codex/marcoxia-agents, codex/marcoxia-continuity, codex/marcoxia-presence, codex/marcoxia-memory-human, codex/marcoxia-ui-voice, codex/marcoxia-replies-voice, codex/marcoxia-design-refinement, codex/marcoxia-voice-files, codex/marcoxia-media-audio-fixes, codex/marcoxia-resource-batch, codex/marcoxia-audio-context, codex/marcoxia-audio-delivery, codex/marcoxia-pix-keys, codex/marcoxia-pix-selector, codex/marcoxia-panel-audience, codex/marcoxia-resource-library, codex/marcoxia-pending-replies, codex/marcoxia-reliability]
     paths: ['app/**', 'spec/**', 'db/**', 'config/**', 'lib/**', 'Dockerfile', '.github/workflows/marcoxia.yml']
   workflow_dispatch:
 permissions:
@@ -61,8 +61,16 @@ jobs:
           app/javascript/dashboard/components-next/Conversation/ConversationCard/ConversationCardExpanded.vue
           app/javascript/dashboard/components-next/dropdown-menu/base/DropdownContainer.vue
           app/javascript/dashboard/components-next/message/Message.vue
+          app/javascript/dashboard/components-next/message/MessageList.vue
           app/javascript/dashboard/components-next/message/MessageMeta.vue
           app/javascript/dashboard/components-next/message/bubbles/Base.vue
+          app/javascript/dashboard/components-next/message/VideoPlayer.vue
+          app/javascript/dashboard/components-next/message/bubbles/Image.vue
+          app/javascript/dashboard/components-next/message/bubbles/Sticker.vue
+          app/javascript/dashboard/components-next/message/bubbles/Text/Index.vue
+          app/javascript/dashboard/components-next/message/bubbles/Video.vue
+          app/javascript/dashboard/components/widgets/conversation/components/GalleryView.vue
+          app/javascript/dashboard/components/widgets/WootWriter/ReplyBottomPanel.vue
           app/javascript/dashboard/components/widgets/conversation/ConversationHeader.vue
           app/javascript/dashboard/components/widgets/conversation/MoreActions.vue
           app/javascript/dashboard/components-next/sidebar/Sidebar.vue

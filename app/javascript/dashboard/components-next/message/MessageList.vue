@@ -1,4 +1,5 @@
 <script setup>
+import { isWhatsmeowSticker } from 'dashboard/helper/whatsmeowStickerHelper';
 import { computed, reactive } from 'vue';
 import { useCamelCase } from 'dashboard/composables/useTransformKeys';
 import { useMapGetter } from 'dashboard/composables/store.js';
@@ -69,7 +70,8 @@ const imageGroups = computed(() => {
     !message.private &&
     !message.content &&
     message.attachments?.length === 1 &&
-    message.attachments[0].fileType === 'image';
+    message.attachments[0].fileType === 'image' &&
+    !isWhatsmeowSticker(message.attachments[0]);
 
   for (let index = 0; index < allMessages.value.length; index += 1) {
     const first = allMessages.value[index];

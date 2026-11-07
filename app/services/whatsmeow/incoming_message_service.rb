@@ -298,7 +298,8 @@ class Whatsmeow::IncomingMessageService
         source_ids,
         phone_number,
         contact_attributes,
-        trusted_lid_source_ids: explicit_contact_contract? ? [params[:contact_lid_jid]] : []
+        trusted_lid_source_ids: explicit_contact_contract? ? [params[:contact_lid_jid]] : [],
+        verified_phone_alias: verified_direct_phone_alias
       )
     end
     @contact_inbox = contact_inbox
@@ -340,7 +341,16 @@ class Whatsmeow::IncomingMessageService
     group_profile?(contact_inbox.contact) && (!group_message? || contact_inbox.source_id != group_jid)
   end
 
-  def resolve_direct_identity(contact_inbox, identity_source_ids, identity_phone_number, attributes_for_contact, trusted_lid_source_ids: [])
+  def verified_direct_phone_alias
+    return if self_chat?
+
+    Whatsmeow::VerifiedPhoneAlias.new(
+      inbox: @inbox, phone_number: phone_number, peer_lid: explicit_contact_contract? ? params[:contact_lid_jid] : nil
+    ).perform
+  end
+
+  def resolve_direct_identity(contact_inbox, identity_source_ids, identity_phone_number, attributes_for_contact,
+                              trusted_lid_source_ids: [], verified_phone_alias: nil)
     return contact_inbox if identity_phone_number.blank?
 
     Whatsmeow::ContactIdentityResolver.new(
@@ -348,7 +358,8 @@ class Whatsmeow::IncomingMessageService
       source_ids: identity_source_ids,
       phone_number: identity_phone_number,
       contact_attributes: attributes_for_contact,
-      trusted_lid_source_ids: trusted_lid_source_ids
+      trusted_lid_source_ids: trusted_lid_source_ids,
+      verified_phone_alias: verified_phone_alias
     ).perform
   end
 
