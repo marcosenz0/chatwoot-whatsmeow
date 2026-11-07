@@ -37,10 +37,9 @@ const togglePlayback = () => {
   }
 };
 
-const syncDuration = () => {
-  duration.value = Number.isFinite(video.value.duration)
-    ? video.value.duration
-    : 0;
+const syncDuration = event => {
+  const seconds = event.currentTarget.duration;
+  duration.value = Number.isFinite(seconds) ? seconds : 0;
 };
 
 const seek = event => {
@@ -54,22 +53,22 @@ const changePlaybackRate = () => {
   video.value.playbackRate = playbackRate.value;
 };
 
-const syncVolume = () => {
-  volume.value = video.value.volume;
-  isMuted.value = video.value.muted || volume.value === 0;
+const syncVolume = element => {
+  volume.value = element.volume;
+  isMuted.value = element.muted || volume.value === 0;
   if (volume.value > 0) previousVolume = volume.value;
 };
 
 const changeVolume = event => {
   video.value.volume = Number(event.target.value);
   video.value.muted = false;
-  syncVolume();
+  syncVolume(video.value);
 };
 
 const toggleMute = () => {
   if (isMuted.value && volume.value === 0) video.value.volume = previousVolume;
   video.value.muted = !isMuted.value;
-  syncVolume();
+  syncVolume(video.value);
 };
 
 const displayTime = seconds => formatDuration(Math.floor(seconds));
@@ -103,8 +102,8 @@ const displayTime = seconds => formatDuration(Math.floor(seconds));
       @pause="isPlaying = false"
       @ended="isPlaying = false"
       @durationchange="syncDuration"
-      @timeupdate="currentTime = video.currentTime"
-      @volumechange="syncVolume"
+      @timeupdate="currentTime = $event.currentTarget.currentTime"
+      @volumechange="syncVolume($event.currentTarget)"
       @error="hasError = true"
     />
     <button
