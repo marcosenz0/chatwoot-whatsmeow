@@ -472,7 +472,6 @@ onMounted(() => {
               :src="activeAttachment.data_url"
               :poster="activeAttachment.thumb_url"
               :autoplay="autoPlay"
-              expanded
             />
 
             <audio
