@@ -24,11 +24,9 @@ const {
   orientation,
   inReplyTo,
   contentAttributes,
-  shouldGroupWithNext,
   id,
   sender,
   senderType,
-  isMarcoxMessage,
 } = useMessageContext();
 const { t } = useI18n();
 
@@ -100,10 +98,7 @@ const scrollToMessage = () => {
 };
 
 const shouldShowMeta = computed(
-  () =>
-    !props.hideMeta &&
-    (isMarcoxMessage?.value || !shouldGroupWithNext.value) &&
-    variant.value !== MESSAGE_VARIANTS.ACTIVITY
+  () => !props.hideMeta && variant.value !== MESSAGE_VARIANTS.ACTIVITY
 );
 
 const isMessageDeleted = computed(() => !!contentAttributes.value?.deleted);

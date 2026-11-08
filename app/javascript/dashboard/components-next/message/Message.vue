@@ -409,20 +409,32 @@ const componentToRender = computed(() => {
     return InstagramStoryBubble;
   }
 
+  if (
+    props.attachments?.length > 1 &&
+    props.attachments.every(
+      item =>
+        item.fileType === ATTACHMENT_TYPES.IMAGE && !isWhatsmeowSticker(item)
+    )
+  ) {
+    return ImageBubble;
+  }
+
   if (Array.isArray(props.attachments) && props.attachments.length === 1) {
     const attachment = props.attachments[0];
     const { fileType } = attachment;
 
     if (fileType === ATTACHMENT_TYPES.FALLBACK) return FallbackBubble;
 
+    if (fileType === ATTACHMENT_TYPES.IMAGE && !isWhatsmeowSticker(attachment))
+      return ImageBubble;
+
+    if ([ATTACHMENT_TYPES.VIDEO, ATTACHMENT_TYPES.IG_REEL].includes(fileType))
+      return VideoBubble;
+
     if (!props.content) {
-      if (fileType === ATTACHMENT_TYPES.IMAGE && isWhatsmeowSticker(attachment))
-        return StickerBubble;
-      if (fileType === ATTACHMENT_TYPES.IMAGE) return ImageBubble;
+      if (fileType === ATTACHMENT_TYPES.IMAGE) return StickerBubble;
       if (fileType === ATTACHMENT_TYPES.FILE) return FileBubble;
       if (fileType === ATTACHMENT_TYPES.AUDIO) return AudioBubble;
-      if (fileType === ATTACHMENT_TYPES.VIDEO) return VideoBubble;
-      if (fileType === ATTACHMENT_TYPES.IG_REEL) return VideoBubble;
       if (fileType === ATTACHMENT_TYPES.EMBED) return EmbedBubble;
       if (fileType === ATTACHMENT_TYPES.LOCATION) return LocationBubble;
     }
@@ -715,7 +727,7 @@ function isInteractiveSelectionTarget(target) {
   );
 }
 
-const HOLD_DURATION_MS = 900;
+const HOLD_DURATION_MS = 500;
 const isHolding = ref(false);
 let holdTimer;
 let holdStart;
@@ -962,9 +974,7 @@ provideMessageContext({
     >
       <span
         class="block h-full origin-left bg-n-brand transition-transform ease-linear motion-reduce:transition-none"
-        :class="
-          isHolding ? 'scale-x-100 duration-[900ms]' : 'scale-x-0 duration-0'
-        "
+        :class="isHolding ? 'scale-x-100 duration-500' : 'scale-x-0 duration-0'"
       />
     </div>
     <Transition

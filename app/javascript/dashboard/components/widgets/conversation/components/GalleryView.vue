@@ -11,6 +11,7 @@ import { messageTimestamp } from 'shared/helpers/timeHelper';
 import { downloadFile } from '@chatwoot/utils';
 import { getInstagramPreviewUrl } from 'dashboard/helper/instagramMediaHelper';
 
+import VideoPlayer from 'next/message/VideoPlayer.vue';
 import InstagramPreview from 'dashboard/components-next/message/InstagramPreview.vue';
 import NextButton from 'dashboard/components-next/button/Button.vue';
 import Avatar from 'next/avatar/Avatar.vue';
@@ -72,6 +73,7 @@ const isDownloading = ref(false);
 const showReactionPicker = ref(false);
 const showMoreMenu = ref(false);
 const activeAttachment = ref({});
+const shouldLoadVideoThumbnails = ref(false);
 const activeFileType = ref('');
 const activeImageIndex = ref(
   Math.max(
@@ -171,6 +173,7 @@ const setImageAndVideoSrc = attachment => {
 
   activeAttachment.value = attachment;
   activeFileType.value = type;
+  if (!isVideo.value) shouldLoadVideoThumbnails.value = true;
 };
 
 const onClickChangeAttachment = (attachment, index) => {
@@ -264,12 +267,12 @@ onMounted(() => {
         @click="onClose"
       >
         <header
-          class="z-10 flex items-center justify-between w-full h-16 px-6 py-2 bg-n-background border-b border-n-weak"
+          class="z-10 flex items-center justify-between w-full h-16 gap-2 px-2 py-2 sm:px-6 bg-n-background border-b border-n-weak"
           @click.stop
         >
           <div
             v-if="senderDetails"
-            class="flex items-center min-w-[15rem] shrink-0"
+            class="flex min-w-0 flex-1 items-center sm:min-w-[15rem] sm:flex-none"
           >
             <Avatar
               v-if="senderDetails.avatar"
@@ -281,9 +284,7 @@ onMounted(() => {
             />
             <div class="flex flex-col ms-2 overflow-hidden">
               <h3 class="text-base leading-5 m-0 font-medium">
-                <span
-                  class="overflow-hidden text-n-slate-12 whitespace-nowrap text-ellipsis"
-                >
+                <span class="block truncate text-n-slate-12">
                   {{ senderDetails.name }}
                 </span>
               </h3>
@@ -296,12 +297,12 @@ onMounted(() => {
           </div>
 
           <div
-            class="flex-1 mx-2 px-2 truncate text-sm font-medium text-center text-n-slate-12"
+            class="hidden flex-1 truncate text-center text-sm font-medium text-n-slate-12 sm:block"
           >
             <span v-dompurify-html="fileNameFromDataUrl" class="truncate" />
           </div>
 
-          <div class="flex items-center gap-2 ml-2 shrink-0">
+          <div class="flex shrink-0 items-center sm:gap-2">
             <div v-if="conversationId" class="relative">
               <NextButton
                 v-tooltip.bottom="t('GALLERY_VIEW.REACT')"
@@ -413,7 +414,7 @@ onMounted(() => {
         </header>
 
         <main class="flex items-stretch flex-1 h-full overflow-hidden">
-          <div class="flex items-center justify-center w-16 shrink-0">
+          <div class="flex items-center justify-center w-8 shrink-0 sm:w-16">
             <NextButton
               v-if="hasMoreThanOneAttachment"
               icon="ltr:i-lucide-chevron-left rtl:i-lucide-chevron-right"
@@ -431,7 +432,9 @@ onMounted(() => {
             />
           </div>
 
-          <div class="flex-1 flex items-center justify-center overflow-hidden">
+          <div
+            class="flex-1 min-w-0 flex items-center justify-center overflow-hidden"
+          >
             <InstagramPreview
               v-if="instagramMedia"
               :url="instagramMedia.permalink"
@@ -465,15 +468,13 @@ onMounted(() => {
               />
             </div>
 
-            <video
+            <VideoPlayer
               v-if="isVideo"
-              :key="activeAttachment.message_id"
+              :key="activeAttachment.data_url"
               :src="activeAttachment.data_url"
-              controls
-              playsInline
+              :poster="activeAttachment.thumb_url"
               :autoplay="autoPlay"
-              class="size-full object-contain"
-              @click.stop
+              @settled="shouldLoadVideoThumbnails = true"
             />
 
             <audio
@@ -488,7 +489,7 @@ onMounted(() => {
             </audio>
           </div>
 
-          <div class="flex items-center justify-center w-16 shrink-0">
+          <div class="flex items-center justify-center w-8 shrink-0 sm:w-16">
             <NextButton
               v-if="hasMoreThanOneAttachment"
               icon="ltr:i-lucide-chevron-right rtl:i-lucide-chevron-left"
@@ -540,6 +541,8 @@ onMounted(() => {
                   isImageAttachment(item)
                 "
                 :src="item.thumb_url || item.data_url"
+                loading="lazy"
+                fetchpriority="low"
                 class="size-full object-cover"
               />
               <video
@@ -547,7 +550,8 @@ onMounted(() => {
                   !getInstagramPreviewUrl(item.data_url) &&
                   isVideoAttachment(item)
                 "
-                :src="item.data_url"
+                :src="shouldLoadVideoThumbnails ? item.data_url : undefined"
+                :poster="item.thumb_url || undefined"
                 class="size-full object-cover"
                 muted
                 preload="metadata"

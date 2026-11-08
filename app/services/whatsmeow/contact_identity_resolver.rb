@@ -1,5 +1,5 @@
 class Whatsmeow::ContactIdentityResolver
-  pattr_initialize [:inbox!, :source_ids!, :phone_number!, :contact_attributes!, { trusted_lid_source_ids: [] }]
+  pattr_initialize [:inbox!, :source_ids!, :phone_number!, :contact_attributes!, { trusted_lid_source_ids: [], verified_phone_alias: nil }]
 
   def perform
     raise ArgumentError, 'Missing WhatsApp phone identity' if normalized_phone_number.blank?
@@ -48,7 +48,7 @@ class Whatsmeow::ContactIdentityResolver
   end
 
   def normalized_source_ids
-    @normalized_source_ids ||= ([phone_source_id] + safe_source_ids).filter_map do |source_id|
+    @normalized_source_ids ||= ([phone_source_id, verified_phone_alias] + safe_source_ids).filter_map do |source_id|
       normalize_source_id(source_id)
     end.uniq
   end
@@ -177,7 +177,8 @@ class Whatsmeow::ContactIdentityResolver
       inbox: inbox,
       contact: contact,
       contact_inbox: contact_inbox,
-      source_ids: lookup_source_ids
+      source_ids: lookup_source_ids,
+      preserve_earliest: verified_phone_alias.present?
     ).perform
   end
 end

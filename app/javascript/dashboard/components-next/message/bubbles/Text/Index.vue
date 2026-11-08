@@ -11,6 +11,10 @@ import { MESSAGE_TYPES } from '../../constants';
 import { useMessageContext } from '../../provider.js';
 import FormattedContent from './FormattedContent.vue';
 
+defineProps({
+  bubbleName: { type: String, default: 'text' },
+});
+
 const { content, attachments, contentAttributes, messageType, status } =
   useMessageContext();
 const { t } = useI18n();
@@ -108,8 +112,16 @@ const toggleEditedContent = () => {
 </script>
 
 <template>
-  <BaseBubble class="px-4 py-3" data-bubble-name="text">
-    <div class="gap-3 flex flex-col">
+  <BaseBubble
+    :class="$slots.media ? 'p-1.5' : 'px-4 py-3'"
+    :data-bubble-name="bubbleName"
+  >
+    <slot name="media" />
+    <div
+      v-if="!$slots.media || renderContent || isWhatsmeowEdited"
+      class="gap-3 flex flex-col"
+      :class="{ 'px-2 pt-2 [overflow-wrap:anywhere]': $slots.media }"
+    >
       <span v-if="isEmpty" class="text-n-slate-11">
         {{ $t('CONVERSATION.NO_CONTENT') }}
       </span>
@@ -187,7 +199,11 @@ const toggleEditedContent = () => {
         :showing-original="renderOriginal"
         @toggle="handleSeeOriginal"
       />
-      <AttachmentChips :attachments="attachments" class="gap-2" />
+      <AttachmentChips
+        v-if="!$slots.media"
+        :attachments="attachments"
+        class="gap-2"
+      />
       <template v-if="isTemplate">
         <div
           v-if="contentAttributes.submittedEmail"
