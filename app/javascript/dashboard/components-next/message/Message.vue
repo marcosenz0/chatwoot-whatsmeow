@@ -727,7 +727,7 @@ function isInteractiveSelectionTarget(target) {
   );
 }
 
-const HOLD_DURATION_MS = 900;
+const HOLD_DURATION_MS = 500;
 const isHolding = ref(false);
 let holdTimer;
 let holdStart;
@@ -974,9 +974,7 @@ provideMessageContext({
     >
       <span
         class="block h-full origin-left bg-n-brand transition-transform ease-linear motion-reduce:transition-none"
-        :class="
-          isHolding ? 'scale-x-100 duration-[900ms]' : 'scale-x-0 duration-0'
-        "
+        :class="isHolding ? 'scale-x-100 duration-500' : 'scale-x-0 duration-0'"
       />
     </div>
     <Transition

@@ -4,12 +4,15 @@ import { useElementSize } from '@vueuse/core';
 import { useI18n } from 'vue-i18n';
 import { formatDuration } from 'shared/helpers/timeHelper';
 import Icon from 'next/icon/Icon.vue';
+import Spinner from 'next/spinner/Spinner.vue';
 
 defineProps({
   src: { type: String, required: true },
   poster: { type: String, default: '' },
   autoplay: { type: Boolean, default: false },
 });
+
+const emit = defineEmits(['settled']);
 
 const { t } = useI18n();
 const video = useTemplateRef('video');
@@ -23,6 +26,7 @@ const updateAspectRatio = ({ currentTarget }) => {
   const { videoWidth, videoHeight } = currentTarget;
   if (videoWidth && videoHeight) aspectRatio.value = videoWidth / videoHeight;
 };
+const hasFrame = ref(false);
 const isPlaying = ref(false);
 const hasError = ref(false);
 const currentTime = ref(0);
@@ -33,6 +37,18 @@ const isMuted = ref(false);
 let previousVolume = 1;
 
 const playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+const showFirstFrame = () => {
+  if (hasFrame.value) return;
+
+  hasFrame.value = true;
+  emit('settled');
+};
+
+const handleError = () => {
+  hasError.value = true;
+  emit('settled');
+};
 
 const togglePlayback = () => {
   if (video.value.paused) {
@@ -84,8 +100,16 @@ const displayTime = seconds => formatDuration(Math.floor(seconds));
 <template>
   <div
     ref="stage"
-    class="flex size-full min-h-0 min-w-0 items-center justify-center"
+    class="relative flex size-full min-h-0 min-w-0 items-center justify-center"
   >
+    <div
+      v-if="!hasFrame && !hasError"
+      role="status"
+      class="pointer-events-none absolute inset-0 grid place-content-center text-n-slate-11"
+    >
+      <Spinner :size="32" class="motion-reduce:animate-none" />
+      <span class="sr-only">{{ t('MARCOX_AI.LOADING') }}</span>
+    </div>
     <div
       v-if="hasError"
       class="flex items-center justify-center gap-2 p-5 text-sm text-n-slate-11"
@@ -96,6 +120,7 @@ const displayTime = seconds => formatDuration(Math.floor(seconds));
     <div
       v-else
       class="group/player relative w-fit max-w-full min-w-0 overflow-hidden rounded-lg bg-black text-white"
+      :class="{ invisible: !hasFrame }"
       dir="ltr"
       @click.stop
     >
@@ -105,7 +130,7 @@ const displayTime = seconds => formatDuration(Math.floor(seconds));
         :poster="poster || undefined"
         :autoplay="autoplay"
         :width="fittedWidth"
-        preload="metadata"
+        preload="auto"
         playsinline
         class="skip-context-menu block h-auto max-w-full object-contain"
         @click="togglePlayback"
@@ -114,13 +139,15 @@ const displayTime = seconds => formatDuration(Math.floor(seconds));
         @ended="isPlaying = false"
         @durationchange="syncDuration"
         @loadedmetadata="updateAspectRatio"
+        @loadeddata="showFirstFrame"
+        @canplay="showFirstFrame"
         @resize="updateAspectRatio"
         @timeupdate="currentTime = $event.currentTarget.currentTime"
         @volumechange="syncVolume($event.currentTarget)"
-        @error="hasError = true"
+        @error="handleError"
       />
       <button
-        v-if="!isPlaying"
+        v-if="hasFrame && !isPlaying"
         type="button"
         class="absolute left-1/2 top-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-black/60 hover:bg-black/80 focus-visible:outline focus-visible:outline-white"
         :aria-label="t('MARCOX_AI.RESOURCES.PLAY_VIDEO')"
@@ -129,6 +156,7 @@ const displayTime = seconds => formatDuration(Math.floor(seconds));
         <Icon icon="i-lucide-play" class="size-5 fill-current" />
       </button>
       <div
+        v-if="hasFrame"
         class="absolute inset-x-0 bottom-0 flex flex-col gap-1 bg-gradient-to-t from-black/85 to-transparent px-2 pb-1 pt-5 transition-opacity group-focus-within/player:pointer-events-auto group-focus-within/player:opacity-100 group-hover/player:pointer-events-auto group-hover/player:opacity-100 motion-reduce:transition-none"
         :class="{
           '[@media(hover:hover)]:pointer-events-none [@media(hover:hover)]:opacity-0':

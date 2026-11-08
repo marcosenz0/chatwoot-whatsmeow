@@ -73,6 +73,7 @@ const isDownloading = ref(false);
 const showReactionPicker = ref(false);
 const showMoreMenu = ref(false);
 const activeAttachment = ref({});
+const shouldLoadVideoThumbnails = ref(false);
 const activeFileType = ref('');
 const activeImageIndex = ref(
   Math.max(
@@ -172,6 +173,7 @@ const setImageAndVideoSrc = attachment => {
 
   activeAttachment.value = attachment;
   activeFileType.value = type;
+  if (!isVideo.value) shouldLoadVideoThumbnails.value = true;
 };
 
 const onClickChangeAttachment = (attachment, index) => {
@@ -472,6 +474,7 @@ onMounted(() => {
               :src="activeAttachment.data_url"
               :poster="activeAttachment.thumb_url"
               :autoplay="autoPlay"
+              @settled="shouldLoadVideoThumbnails = true"
             />
 
             <audio
@@ -538,6 +541,8 @@ onMounted(() => {
                   isImageAttachment(item)
                 "
                 :src="item.thumb_url || item.data_url"
+                loading="lazy"
+                fetchpriority="low"
                 class="size-full object-cover"
               />
               <video
@@ -545,7 +550,8 @@ onMounted(() => {
                   !getInstagramPreviewUrl(item.data_url) &&
                   isVideoAttachment(item)
                 "
-                :src="item.data_url"
+                :src="shouldLoadVideoThumbnails ? item.data_url : undefined"
+                :poster="item.thumb_url || undefined"
                 class="size-full object-cover"
                 muted
                 preload="metadata"
