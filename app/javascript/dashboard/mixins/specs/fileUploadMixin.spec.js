@@ -62,20 +62,26 @@ describe('FileUploadMixin', () => {
   it('should call onDirectFileUpload when direct uploads are enabled', () => {
     wrapper.vm.onDirectFileUpload = vi.fn();
     wrapper.vm.onFileUpload({});
-    expect(wrapper.vm.onDirectFileUpload).toHaveBeenCalledWith({});
+    expect(wrapper.vm.onDirectFileUpload).toHaveBeenCalledWith(
+      {},
+      wrapper.vm.attachFile
+    );
   });
 
   it('should call onIndirectFileUpload when direct uploads are disabled', () => {
     wrapper.vm.globalConfig.directUploadsEnabled = false;
     wrapper.vm.onIndirectFileUpload = vi.fn();
     wrapper.vm.onFileUpload({});
-    expect(wrapper.vm.onIndirectFileUpload).toHaveBeenCalledWith({});
+    expect(wrapper.vm.onIndirectFileUpload).toHaveBeenCalledWith(
+      {},
+      wrapper.vm.attachFile
+    );
   });
 
   describe('onDirectFileUpload', () => {
     it('returns early if no file is provided', () => {
       const returnValue = wrapper.vm.onDirectFileUpload(null);
-      expect(returnValue).toBeUndefined();
+      expect(returnValue).toBe(false);
     });
 
     it('shows an alert if the file size exceeds the maximum limit', () => {
@@ -89,7 +95,7 @@ describe('FileUploadMixin', () => {
   describe('onIndirectFileUpload', () => {
     it('returns early if no file is provided', () => {
       const returnValue = wrapper.vm.onIndirectFileUpload(null);
-      expect(returnValue).toBeUndefined();
+      expect(returnValue).toBe(false);
     });
 
     it('shows an alert if the file size exceeds the maximum limit', () => {

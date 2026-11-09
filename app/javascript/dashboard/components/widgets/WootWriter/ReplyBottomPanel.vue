@@ -89,6 +89,10 @@ export default {
       type: Boolean,
       default: false,
     },
+    isAudioRecorderBusy: {
+      type: Boolean,
+      default: false,
+    },
     recordingAudioState: {
       type: String,
       default: '',
@@ -350,7 +354,7 @@ export default {
           direct_upload_url: '/rails/active_storage/direct_uploads',
           direct_upload: true,
         }"
-        @input-file="onFileUpload"
+        @input-file="onFileUpload($event)"
       >
         <NextButton
           v-if="showAttachButton"
@@ -363,7 +367,11 @@ export default {
       </FileUpload>
       <NextButton
         v-if="showAudioRecorderButton"
-        v-tooltip.top-end="$t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_ICON')"
+        v-tooltip.top-end="
+          isRecordingAudio
+            ? $t('CONVERSATION.CANCEL')
+            : $t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_ICON')
+        "
         :icon="!isRecordingAudio ? 'i-ph-microphone' : 'i-ph-microphone-slash'"
         slate
         faded
@@ -407,6 +415,7 @@ export default {
         slate
         faded
         sm
+        :disabled="isAudioRecorderBusy"
         :label="recordingAudioDurationText"
         @click="toggleAudioRecorderPlayPause"
       />

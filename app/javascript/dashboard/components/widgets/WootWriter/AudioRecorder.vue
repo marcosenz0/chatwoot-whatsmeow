@@ -1,6 +1,6 @@
 <script setup>
 import getUuid from 'widget/helpers/uuid';
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onBeforeUnmount } from 'vue';
 import WaveSurfer from 'wavesurfer.js';
 import RecordPlugin from 'wavesurfer.js/dist/plugins/record.js';
 import { format, intervalToDuration } from 'date-fns';
@@ -15,6 +15,7 @@ const props = defineProps({
 
 const emit = defineEmits([
   'recorderProgressChanged',
+  'recordStarted',
   'finishRecord',
   'pause',
   'play',
@@ -22,12 +23,11 @@ const emit = defineEmits([
 ]);
 
 const waveformContainer = ref(null);
-const wavesurfer = ref(null);
-const record = ref(null);
-const isRecording = ref(false);
-const isPlaying = ref(false);
-const hasRecording = ref(false);
-const recordedAudioUrl = ref(null);
+let wavesurfer;
+let record;
+let isStarting = true;
+let discarded = false;
+let recordedAudioUrl;
 
 const formatTimeProgress = time => {
   const duration = intervalToDuration({ start: 0, end: time });
@@ -60,7 +60,7 @@ const getRecordPluginOptions = audioFormat => {
 };
 
 const initWaveSurfer = () => {
-  wavesurfer.value = WaveSurfer.create({
+  wavesurfer = WaveSurfer.create({
     container: waveformContainer.value,
     waveColor: '#1F93FF',
     progressColor: '#6E6F73',
@@ -73,86 +73,85 @@ const initWaveSurfer = () => {
     ],
   });
 
-  wavesurfer.value.on('pause', () => emit('pause'));
-  wavesurfer.value.on('play', () => emit('play'));
+  [record] = wavesurfer.plugins;
 
-  record.value = wavesurfer.value.plugins[0];
+  record.on('record-end', async blob => {
+    if (discarded) return;
 
-  wavesurfer.value.on('finish', () => {
-    isPlaying.value = false;
-  });
-
-  record.value.on('record-end', async blob => {
     try {
       const audioBlob = await convertAudio(blob, props.audioRecordFormat);
+      if (discarded) return;
+      if (!audioBlob.size) throw new Error('Empty recording');
       // Use the converted blob's actual type, which may differ from the
       // requested format when the browser can't produce it (e.g. Safari falls
       // back to MP3 instead of OGG). This keeps the filename, content type, and
       // voice-note flag consistent with the real bytes.
-      const audioType = audioBlob.type || props.audioRecordFormat;
+      const audioType =
+        audioBlob.type.split(';')[0].trim() || props.audioRecordFormat;
       const ext = AUDIO_EXTENSION_MAP[audioType] || 'mp3';
       const fileName = `${getUuid()}.${ext}`;
       const file = new File([audioBlob], fileName, {
         type: audioType,
       });
-      if (recordedAudioUrl.value) URL.revokeObjectURL(recordedAudioUrl.value);
-      recordedAudioUrl.value = URL.createObjectURL(audioBlob);
-      wavesurfer.value.load(recordedAudioUrl.value);
+      recordedAudioUrl = URL.createObjectURL(audioBlob);
+      await wavesurfer.load(recordedAudioUrl);
+      if (discarded) return;
+
+      wavesurfer.on('pause', () => emit('pause'));
+      wavesurfer.on('play', () => emit('play'));
+      wavesurfer.on('finish', () => emit('pause'));
       emit('finishRecord', {
         name: file.name,
         type: file.type,
         size: file.size,
         file,
       });
-      hasRecording.value = true;
-      isRecording.value = false;
     } catch (error) {
-      isRecording.value = false;
-      hasRecording.value = false;
-      emit('recordError', { error });
+      if (!discarded) emit('recordError', { error });
     }
   });
 
-  record.value.on('record-progress', time => {
-    emit('recorderProgressChanged', formatTimeProgress(time));
+  record.on('record-progress', time => {
+    if (!discarded) emit('recorderProgressChanged', formatTimeProgress(time));
   });
 };
 
-const stopRecording = () => {
-  if (isRecording.value) {
-    record.value.stopRecording();
-    isRecording.value = false;
+const stopRecording = () => record.stopRecording();
+const playPause = () => wavesurfer.playPause();
+
+const discardRecording = () => {
+  discarded = true;
+  // startMic can still resolve after cancellation. Destroy the plugin once it
+  // owns the stream so that it also releases a late microphone permission.
+  if (isStarting) return;
+
+  wavesurfer?.destroy();
+  wavesurfer = null;
+  if (recordedAudioUrl) {
+    URL.revokeObjectURL(recordedAudioUrl);
+    recordedAudioUrl = null;
   }
 };
 
-const startRecording = () => {
-  record.value.startRecording();
-  isRecording.value = true;
-};
+onMounted(async () => {
+  try {
+    initWaveSurfer();
+    await record.startMic();
+    if (discarded) return;
 
-const playPause = () => {
-  if (hasRecording.value) {
-    wavesurfer.value.playPause();
-    isPlaying.value = !isPlaying.value;
+    await record.startRecording();
+    if (!discarded) emit('recordStarted');
+  } catch (error) {
+    if (!discarded) emit('recordError', { error });
+  } finally {
+    isStarting = false;
+    if (discarded) discardRecording();
   }
-};
-
-onMounted(() => {
-  initWaveSurfer();
-  startRecording();
 });
 
-onUnmounted(() => {
-  if (recordedAudioUrl.value) {
-    URL.revokeObjectURL(recordedAudioUrl.value);
-    recordedAudioUrl.value = null;
-  }
-  if (wavesurfer.value) {
-    wavesurfer.value.destroy();
-  }
-});
+onBeforeUnmount(discardRecording);
 
-defineExpose({ playPause, stopRecording, record });
+defineExpose({ playPause, stopRecording, discardRecording });
 </script>
 
 <template>
