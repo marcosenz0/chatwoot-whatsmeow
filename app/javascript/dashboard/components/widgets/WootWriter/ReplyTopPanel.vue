@@ -168,8 +168,8 @@ export default {
     <div v-if="conversationId" class="flex items-center gap-2">
       <NextButton
         v-if="showDiscardRecording"
-        v-tooltip="$t('CONVERSATION.CANCEL')"
-        :aria-label="$t('CONVERSATION.CANCEL')"
+        v-tooltip="$t('DIALOG.BUTTONS.CANCEL')"
+        :aria-label="$t('DIALOG.BUTTONS.CANCEL')"
         ghost
         ruby
         sm

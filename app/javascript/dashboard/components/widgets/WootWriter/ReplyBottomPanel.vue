@@ -369,7 +369,7 @@ export default {
         v-if="showAudioRecorderButton"
         v-tooltip.top-end="
           isRecordingAudio
-            ? $t('CONVERSATION.CANCEL')
+            ? $t('DIALOG.BUTTONS.CANCEL')
             : $t('CONVERSATION.REPLYBOX.TIP_AUDIORECORDER_ICON')
         "
         :icon="!isRecordingAudio ? 'i-ph-microphone' : 'i-ph-microphone-slash'"
