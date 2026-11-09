@@ -1,6 +1,6 @@
 import { shallowMount } from '@vue/test-utils';
 import { REPLY_EDITOR_MODES } from 'dashboard/components/widgets/WootWriter/constants';
-import { nextTick } from 'vue';
+import { nextTick, reactive } from 'vue';
 import { createStore } from 'vuex';
 import ReplyBox from '../ReplyBox.vue';
 import WhatsappTemplates from '../WhatsappTemplates/Modal.vue';
@@ -40,6 +40,7 @@ const buildStore = ({
   drafts = {},
   inboxes,
   isMetaMessageSendingDisabled = false,
+  globalConfig = {},
 }) =>
   createStore({
     state: {
@@ -70,7 +71,7 @@ const buildStore = ({
       getMessageSignature: () => '',
       getUISettings: () => ({}),
       getLastEmailInSelectedChat: () => null,
-      'globalConfig/get': () => ({}),
+      'globalConfig/get': () => globalConfig,
       'globalConfig/isMetaMessageSendingDisabled': () =>
         isMetaMessageSendingDisabled,
       'inboxes/getInbox': () => inboxId => ({
@@ -95,6 +96,7 @@ const mountWith = ({
   drafts,
   inboxes,
   isMetaMessageSendingDisabled,
+  globalConfig,
 }) => {
   const store = buildStore({
     inbox,
@@ -103,6 +105,7 @@ const mountWith = ({
     drafts,
     inboxes,
     isMetaMessageSendingDisabled,
+    globalConfig,
   });
   const wrapper = shallowMount(ReplyBox, {
     global: {
@@ -110,7 +113,14 @@ const mountWith = ({
       mocks: { $t: key => key, $route: { params: {} } },
       // The bottom panel sits inside a <Transition>, which shallowMount stubs
       // without rendering its children.
-      stubs: { transition: false },
+      stubs: {
+        transition: false,
+        AudioRecorder: {
+          name: 'AudioRecorder',
+          template: '<div />',
+          methods: { stopRecording() {}, discardRecording() {} },
+        },
+      },
     },
   });
   return { wrapper, store };
@@ -124,6 +134,146 @@ const editor = wrapper =>
   wrapper.findComponent({ name: 'WootMessageEditor' }).props();
 
 describe('ReplyBox', () => {
+  describe('Microphone recordings', () => {
+    let wrapper;
+    let send;
+    let recorder;
+    let globalConfig;
+
+    const startRecording = async () => {
+      bottomPanel(wrapper).toggleAudioRecorder();
+      await nextTick();
+      recorder = wrapper.findComponent({ name: 'AudioRecorder' });
+      expect(bottomPanel(wrapper).isSendDisabled).toBe(true);
+      recorder.vm.$emit('recordStarted');
+      await nextTick();
+      expect(topPanel(wrapper).showDiscardRecording).toBe(true);
+      expect(bottomPanel(wrapper).isSendDisabled).toBe(false);
+    };
+
+    const audioFile = name => {
+      const file = new File([name], name, { type: 'audio/mp3' });
+      return { file, name, type: file.type, size: file.size };
+    };
+
+    beforeEach(() => {
+      globalConfig = reactive({ directUploadsEnabled: false });
+      ({ wrapper } = mountWith({
+        inbox: { channel_type: 'Channel::Whatsmeow' },
+        globalConfig,
+      }));
+      send = vi.spyOn(wrapper.vm, 'sendMessage').mockResolvedValue();
+    });
+
+    afterEach(() => wrapper.unmount());
+
+    it('sends just the final recording after multiple discards', async () => {
+      await startRecording();
+      bottomPanel(wrapper).toggleAudioRecorderPlayPause();
+      await wrapper.vm.onFinishRecorder(audioFile('discard-first.mp3'));
+      expect(wrapper.vm.attachedFiles).toHaveLength(1);
+      bottomPanel(wrapper).toggleAudioRecorder();
+
+      await startRecording();
+      bottomPanel(wrapper).toggleAudioRecorderPlayPause();
+      wrapper
+        .findComponent({ name: 'ReplyTopPanel' })
+        .vm.$emit('discardRecording');
+      await wrapper.vm.onFinishRecorder(audioFile('discard-second.mp3'));
+
+      await startRecording();
+      const finalFile = audioFile('send-this.mp3');
+      const stop = vi.spyOn(recorder.vm, 'stopRecording');
+      await bottomPanel(wrapper).onSend();
+      await bottomPanel(wrapper).onSend();
+      expect(stop).toHaveBeenCalledOnce();
+      expect(send).not.toHaveBeenCalled();
+
+      await wrapper.vm.onFinishRecorder(finalFile);
+
+      expect(send).toHaveBeenCalledOnce();
+      expect(send.mock.calls[0][0]).toMatchObject({
+        files: [finalFile.file],
+        contentAttributes: { whatsmeow_recorded_audio: true },
+      });
+      expect(topPanel(wrapper).showDiscardRecording).toBe(false);
+      expect(wrapper.vm.attachedFiles).toEqual([]);
+    });
+
+    it('ignores a discarded direct upload that finishes during the next recording', async () => {
+      globalConfig.directUploadsEnabled = true;
+      let completeUpload;
+      vi.spyOn(wrapper.vm, 'onFileUpload').mockImplementationOnce(
+        (file, attach) =>
+          new Promise(resolve => {
+            completeUpload = () => {
+              attach({ file, blob: { signed_id: 'discarded-upload' } });
+              resolve(true);
+            };
+          })
+      );
+
+      await startRecording();
+      await bottomPanel(wrapper).onSend();
+      const finishing = wrapper.vm.onFinishRecorder(audioFile('discard.mp3'));
+      wrapper
+        .findComponent({ name: 'ReplyTopPanel' })
+        .vm.$emit('discardRecording');
+      await startRecording();
+      completeUpload();
+      await finishing;
+
+      expect(wrapper.vm.attachedFiles).toEqual([]);
+      expect(wrapper.vm.recordingAudioState).toBe('recording');
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('preserves manually attached audio when the recorded preview is discarded', async () => {
+      const manual = {
+        resource: audioFile('manual.mp3'),
+        sendAsRecordedAudio: true,
+      };
+      await wrapper.setData({ attachedFiles: [manual] });
+      await startRecording();
+      bottomPanel(wrapper).toggleAudioRecorderPlayPause();
+      await wrapper.vm.onFinishRecorder(audioFile('discard.mp3'));
+      wrapper
+        .findComponent({ name: 'ReplyTopPanel' })
+        .vm.$emit('discardRecording');
+
+      expect(wrapper.vm.attachedFiles).toEqual([manual]);
+      expect(send).not.toHaveBeenCalled();
+    });
+
+    it('keeps send disabled until the stopped recording finishes uploading', async () => {
+      globalConfig.directUploadsEnabled = true;
+      let completeUpload;
+      vi.spyOn(wrapper.vm, 'onFileUpload').mockImplementationOnce(
+        (file, attach) =>
+          new Promise(resolve => {
+            completeUpload = () => {
+              attach({ file, blob: { signed_id: 'recorded-upload' } });
+              resolve(true);
+            };
+          })
+      );
+      await startRecording();
+      bottomPanel(wrapper).toggleAudioRecorderPlayPause();
+      const file = audioFile('preview.mp3');
+      const finishing = wrapper.vm.onFinishRecorder(file);
+      await nextTick();
+      expect(bottomPanel(wrapper).isSendDisabled).toBe(true);
+      completeUpload();
+      await finishing;
+      expect(bottomPanel(wrapper).isSendDisabled).toBe(false);
+      expect(send).not.toHaveBeenCalled();
+
+      await bottomPanel(wrapper).onSend();
+      expect(send).toHaveBeenCalledOnce();
+      expect(send.mock.calls[0][0].files).toEqual(['recorded-upload']);
+    });
+  });
+
   describe('Telegram personal audio send button', () => {
     it.each([true, false])(
       'sends selected audio with recorded mode %s through the send button',

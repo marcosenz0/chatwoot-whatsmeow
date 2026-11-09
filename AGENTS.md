@@ -1,6 +1,12 @@
 # Chatwoot Development Guidelines
 
-## Current video loading and message selection — November 7, 2026
+## Current conversation voice recording — November 9, 2026
+
+- Principal, MX and MD web and workers run `fork-10f60eae29b81d26ee9eb4cd8938ccbfce50bff1` with image ID `sha256:e881e7b3c5efe6924d929d0f3083c554a576494774d2fb627fd7d7a51aaa5ae7`. Gate 42623567982 passed 1,071 targeted tests, lint, build and image publication. Principal was validated first. All three health endpoints and 12 served asset samples matched. PR64 is stacked on PR63.
+- Enviar finalizes the current recording during capture. The square opens the preview. The red X beside MarcoXIA and the microphone toggle discard the recording and invalidate pending conversion or upload. Keep manually attached files available. Browser tests used synthetic capture and isolated sends. Read `docs/conversation-voice-recording-2026-11-09.md`.
+- The audit matched 31 service configurations apart from the six app image pins, six bridge containers and sessions, all 171 AI conversation states, both profiles, user preferences and the stored-data hashes.
+
+## Previous video loading and message selection — November 7, 2026
 
 - Principal, MX and MD web and workers run `fork-01750c07364fdfdd1c3efac0e13fb4be35e453bd` with image ID `sha256:e9cb5da1b52aad93efa49fe5ba5ea6c5c13034f26f199e88b77fbf9cdd308490`. Gate 42431221511 passed 1,061 tests, lint, build and image publication. The principal was validated first. All three public health endpoints and nine served asset samples matched. PR63 remains stacked on PR62.
 - The expanded video shows a centered spinner until its first frame. Playback controls appear with the frame. Gallery video thumbnails wait for the selected video when opening directly on a video. Image thumbnails use lazy loading and low fetch priority. Pressing a selectable message for 500 ms activates selection. See `docs/whatsapp-video-loading-selection-2026-11-07.md`.

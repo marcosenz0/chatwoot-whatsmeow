@@ -193,7 +193,8 @@ export default {
       showMacrosMenu: false,
       newConversationModalActive: false,
       showArticleSearchPopover: false,
-      hasRecordedAudio: false,
+      audioRecordingRun: 0,
+      sendAfterRecording: false,
       copilotAcceptedMessages: {},
     };
   },
@@ -346,7 +347,8 @@ export default {
     isReplyButtonDisabled() {
       if (this.isEditorDisabled) return true;
       if (this.isATwitterInbox) return true;
-      if (this.hasAttachments || this.hasRecordedAudio) return false;
+      if (this.isRecordingAudio) return this.isAudioRecorderBusy;
+      if (this.hasAttachments) return false;
 
       return (
         this.isMessageEmpty ||
@@ -443,6 +445,11 @@ export default {
     },
     showAudioRecorderEditor() {
       return this.showAudioRecorder && this.isRecordingAudio;
+    },
+    isAudioRecorderBusy() {
+      return ['starting', 'finalizing', 'uploading'].includes(
+        this.recordingAudioState
+      );
     },
     isOnExpandedLayout() {
       const {
@@ -637,6 +644,9 @@ export default {
     showContentTemplates(isAvailable) {
       if (!isAvailable) this.hideContentTemplatesModal();
     },
+    showAudioRecorder(isAvailable) {
+      if (!isAvailable && this.isRecordingAudio) this.discardAudioRecording();
+    },
     effectiveReplyMode(updatedReplyType) {
       this.$store.dispatch('draftMessages/setReplyEditorMode', {
         mode: updatedReplyType,
@@ -681,10 +691,10 @@ export default {
     );
     emitter.on(CMD_AI_ASSIST, this.executeCopilotAction);
   },
+  beforeUnmount() {
+    if (this.isRecordingAudio) this.discardAudioRecording();
+  },
   unmounted() {
-    if (this.isRecordingAudio) {
-      this.toggleTyping('off', 'audio');
-    }
     document.removeEventListener('paste', this.onPaste);
     emitter.off(BUS_EVENTS.TOGGLE_REPLY_TO_MESSAGE, this.onReplyToMessage);
     emitter.off(
@@ -1092,6 +1102,14 @@ export default {
           });
     },
     async onSendReply() {
+      if (this.isReplyButtonDisabled) return;
+      if (this.recordingAudioState === 'recording') {
+        this.sendAfterRecording = true;
+        this.finalizeAudioRecording();
+        return;
+      }
+
+      const { audioRecordingRun } = this;
       const undefinedVariables = getUndefinedVariablesInMessage({
         message: this.message,
         variables: this.messageVariables,
@@ -1108,7 +1126,7 @@ export default {
         );
 
         const ok = await this.$refs.confirmDialog.showConfirmation();
-        if (ok) {
+        if (ok && audioRecordingRun === this.audioRecordingRun) {
           this.confirmOnSendReply();
         }
       } else {
@@ -1160,7 +1178,7 @@ export default {
       this.$store.dispatch('draftMessages/setReplyEditorMode', { mode });
       if (this.canSendPublicReply) this.replyType = mode;
       if (this.isRecordingAudio) {
-        this.toggleAudioRecorder();
+        this.discardAudioRecording();
       }
     },
     clearEditorSelection() {
@@ -1193,7 +1211,6 @@ export default {
         );
       }
       this.attachedFiles = [];
-      this.isRecordingAudio = false;
       this.resetReplyToMessage();
       this.resetAudioRecorderInput();
     },
@@ -1207,21 +1224,31 @@ export default {
       this.showEmojiPicker = !this.showEmojiPicker;
     },
     toggleAudioRecorder() {
-      this.isRecordingAudio = !this.isRecordingAudio;
+      if (this.isRecordingAudio) {
+        this.discardAudioRecording();
+        return;
+      }
+
       this.lastRecordingPresenceAt = 0;
-      if (this.isAWhatsmeowChannel && !this.isRecordingAudio) {
+      this.recordingAudioState = 'starting';
+      this.isRecordingAudio = true;
+    },
+    discardAudioRecording() {
+      if (this.isAWhatsmeowChannel && this.isRecordingAudio) {
         this.toggleTyping('off', 'audio');
       }
-      if (!this.isRecordingAudio) {
-        this.resetAudioRecorderInput();
-      }
+      this.resetAudioRecorderInput();
+    },
+    finalizeAudioRecording() {
+      this.recordingAudioState = 'finalizing';
+      this.$refs.audioRecorderInput.stopRecording();
     },
     toggleAudioRecorderPlayPause() {
-      if (!this.$refs.audioRecorderInput) return;
-      if (!this.recordingAudioState) {
-        this.$refs.audioRecorderInput.stopRecording();
+      if (this.isAudioRecorderBusy) return;
+      if (this.recordingAudioState === 'recording') {
+        this.finalizeAudioRecording();
       } else {
-        this.$refs.audioRecorderInput.playPause();
+        this.$refs.audioRecorderInput?.playPause();
       }
     },
     hideEmojiPicker() {
@@ -1252,22 +1279,51 @@ export default {
         this.toggleTyping('on', 'audio');
       }
     },
-    onFinishRecorder(file) {
+    async onFinishRecorder(file) {
+      if (!['recording', 'finalizing'].includes(this.recordingAudioState))
+        return;
+      const { audioRecordingRun } = this;
+      const conversationId = this.currentChat.id;
+      const isCurrentRecording = () =>
+        this.audioRecordingRun === audioRecordingRun &&
+        this.currentChat.id === conversationId;
+
       if (this.isAWhatsmeowChannel) {
         this.toggleTyping('off', 'audio');
       }
+      this.recordingAudioState = 'uploading';
+
+      // The waveform owns the preview. Stage the attachment only when the
+      // current recording's upload is ready, without a deferred FileReader.
+      const uploaded = await this.onFileUpload(file, ({ blob }) => {
+        if (!isCurrentRecording()) return;
+
+        this.attachedFiles.push({
+          currentChatId: conversationId,
+          resource: blob || file,
+          isPrivate: this.isPrivate,
+          blobSignedId: blob?.signed_id,
+          isRecordedAudio: true,
+          isVoiceMessage:
+            this.isAWhatsAppCloudChannel && file.type === AUDIO_FORMATS.OGG,
+          isAudio: true,
+          sendAsRecordedAudio: false,
+        });
+      });
+
+      if (!isCurrentRecording()) return;
+      if (!uploaded) {
+        this.resetAudioRecorderInput();
+        return;
+      }
+
       this.recordingAudioState = 'stopped';
-      this.hasRecordedAudio = true;
-      const autoRecordedFile = {
-        ...file,
-        isRecordedAudio: true,
-        isVoiceMessage:
-          this.isAWhatsAppCloudChannel && file.type === AUDIO_FORMATS.OGG,
-      };
-      return file && this.onFileUpload(autoRecordedFile);
+      const shouldSend = this.sendAfterRecording;
+      this.sendAfterRecording = false;
+      if (shouldSend) this.onSendReply();
     },
     onRecordError() {
-      this.toggleAudioRecorder();
+      this.discardAudioRecording();
       useAlert(this.$t('CONVERSATION.REPLYBOX.AUDIO_CONVERSION_FAILED'));
     },
     toggleTyping(
@@ -1536,13 +1592,14 @@ export default {
       this.showArticleSearchPopover = !this.showArticleSearchPopover;
     },
     resetAudioRecorderInput() {
+      this.audioRecordingRun += 1;
+      this.$refs.audioRecorderInput?.discardRecording();
       this.recordingAudioDurationText = '00:00';
       this.isRecordingAudio = false;
       this.recordingAudioState = '';
-      this.hasRecordedAudio = false;
-      // Only clear the recorded audio when we click toggle button.
+      this.sendAfterRecording = false;
       this.attachedFiles = this.attachedFiles.filter(
-        file => !file?.isVoiceMessage
+        file => !file.isRecordedAudio
       );
     },
     toggleEditorSize() {
@@ -1575,11 +1632,13 @@ export default {
         showAudioRecorderEditor
       "
       :is-editor-disabled="isEditorDisabled"
+      :show-discard-recording="showAudioRecorderEditor"
       :is-message-length-reaching-threshold="isMessageLengthReachingThreshold"
       :characters-remaining="charactersRemaining"
       :editor-content="message"
       :has-content="hasMeaningfulEditorContent"
       @set-reply-mode="setReplyMode"
+      @discard-recording="discardAudioRecording"
       @toggle-editor-size="toggleEditorSize"
       @toggle-copilot="copilot.toggleEditor"
       @execute-copilot-action="executeCopilotAction"
@@ -1623,9 +1682,11 @@ export default {
         />
         <AudioRecorder
           v-if="showAudioRecorderEditor"
+          :key="audioRecordingRun"
           ref="audioRecorderInput"
           :audio-record-format="audioRecordFormat"
           @recorder-progress-changed="onRecordProgressChanged"
+          @record-started="recordingAudioState = 'recording'"
           @finish-record="onFinishRecorder"
           @record-error="onRecordError"
           @play="recordingAudioState = 'playing'"
@@ -1734,6 +1795,7 @@ export default {
         :inbox="inbox"
         :is-on-private-note="isOnPrivateNote"
         :is-recording-audio="isRecordingAudio"
+        :is-audio-recorder-busy="isAudioRecorderBusy"
         :is-send-disabled="isReplyButtonDisabled"
         :is-note="isPrivate"
         :is-editor-disabled="isEditorDisabled"

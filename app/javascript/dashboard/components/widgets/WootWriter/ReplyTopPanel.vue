@@ -34,6 +34,10 @@ export default {
       type: Boolean,
       default: false,
     },
+    showDiscardRecording: {
+      type: Boolean,
+      default: false,
+    },
     conversationId: {
       type: Number,
       default: null,
@@ -55,7 +59,12 @@ export default {
       default: false,
     },
   },
-  emits: ['setReplyMode', 'toggleEditorSize', 'executeCopilotAction'],
+  emits: [
+    'setReplyMode',
+    'toggleEditorSize',
+    'executeCopilotAction',
+    'discardRecording',
+  ],
   setup(props, { emit }) {
     const setReplyMode = mode => {
       emit('setReplyMode', mode);
@@ -157,6 +166,16 @@ export default {
       </div>
     </div>
     <div v-if="conversationId" class="flex items-center gap-2">
+      <NextButton
+        v-if="showDiscardRecording"
+        v-tooltip="$t('DIALOG.BUTTONS.CANCEL')"
+        :aria-label="$t('DIALOG.BUTTONS.CANCEL')"
+        ghost
+        ruby
+        sm
+        icon="i-lucide-x"
+        @click="$emit('discardRecording')"
+      />
       <div class="relative">
         <NextButton
           ref="copilotToggleRef"

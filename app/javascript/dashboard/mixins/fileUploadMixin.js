@@ -1,10 +1,10 @@
 import { mapGetters } from 'vuex';
 import { useAlert } from 'dashboard/composables';
-import { checkFileSizeLimit } from 'shared/helpers/FileHelper';
 import { getMaxUploadSizeByChannel } from '@chatwoot/utils';
 import { DirectUpload } from 'activestorage';
 import { setDirectUploadAuthHeaders } from 'dashboard/helper/directUploadsHelper';
 import {
+  checkFileSizeLimit,
   DEFAULT_MAXIMUM_FILE_UPLOAD_SIZE,
   resolveMaximumFileUploadSize,
 } from 'shared/helpers/FileHelper';
@@ -54,23 +54,23 @@ export default {
         })
       );
     },
-    onFileUpload(file) {
+    onFileUpload(file, attach = this.attachFile) {
       if (this.globalConfig.directUploadsEnabled) {
-        this.onDirectFileUpload(file);
-      } else {
-        this.onIndirectFileUpload(file);
+        return this.onDirectFileUpload(file, attach);
       }
+
+      return this.onIndirectFileUpload(file, attach);
     },
 
-    onDirectFileUpload(file) {
-      if (!file) return;
+    onDirectFileUpload(file, attach = this.attachFile) {
+      if (!file) return false;
 
       const mime = file.file?.type || file.type;
       const maxSizeMB = this.maxSizeFor(mime);
 
       if (!checkFileSizeLimit(file, maxSizeMB)) {
         this.alertOverLimit(maxSizeMB);
-        return;
+        return false;
       }
 
       const upload = new DirectUpload(
@@ -83,27 +83,32 @@ export default {
         }
       );
 
-      upload.create((error, blob) => {
-        if (error) {
-          useAlert(error);
-        } else {
-          this.attachFile({ file, blob });
-        }
+      return new Promise(resolve => {
+        upload.create((error, blob) => {
+          if (error) {
+            useAlert(error);
+            resolve(false);
+          } else {
+            attach({ file, blob });
+            resolve(true);
+          }
+        });
       });
     },
 
-    onIndirectFileUpload(file) {
-      if (!file) return;
+    onIndirectFileUpload(file, attach = this.attachFile) {
+      if (!file) return false;
 
       const mime = file.file?.type || file.type;
       const maxSizeMB = this.maxSizeFor(mime);
 
       if (!checkFileSizeLimit(file, maxSizeMB)) {
         this.alertOverLimit(maxSizeMB);
-        return;
+        return false;
       }
 
-      this.attachFile({ file });
+      attach({ file });
+      return true;
     },
   },
 };

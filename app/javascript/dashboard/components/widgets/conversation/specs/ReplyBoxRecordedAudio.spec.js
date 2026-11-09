@@ -60,6 +60,7 @@ describe('Audio recording presence', () => {
       isRecordingAudio: false,
       toggleTyping: vi.fn(),
       resetAudioRecorderInput: vi.fn(),
+      discardAudioRecording: ReplyBox.methods.discardAudioRecording,
     };
     ReplyBox.methods.toggleAudioRecorder.call(context);
     expect(context.toggleTyping).not.toHaveBeenCalled();
