@@ -1,5 +1,22 @@
 # Native WhatsApp Business Pago label
 
+**Live checkpoint, November14 at19:46 GMT-3:** implementation commit
+`08c66ddf81f0c9af9a9de9136aa8021f98cc7bec` passed GitHub run43648792032
+(including race/vet/Docker) and is running on the existing Alice service/session.
+The amd64 manifest is `sha256:9f6da303a8f914c040d1360f536a4d139872d43cceffc9cf48b60a28d48bf4bc`;
+runtime ImageID matches GHCR config `sha256:8da4789cc1cfdb170cee55fc9750337e68ea10c2e618876e93d7cf013bc20b89`.
+Read-only catalogue observed Pago ID4/preset4; one owner-only test returned202,
+readback observed the association and the user confirmed it visually in WhatsApp.
+No ledger payment or CAPI event was created. Other labels were preserved.
+The test mode/key/target were disabled/cleared and a new process was verified
+connected; production writes remain disabled at this checkpoint. Automatic
+payment integration is still being installed/reviewed separately.
+
+The existing bridge's `:channel_id` parameter is the **inbox ID**: Alice session
+scope15, while the Chatwoot database channel ID is7. Keep those scopes separate.
+The real-test evidence is in the Low Ticket project at
+`implementacao/etiqueta-whatsapp-poc-2026-11-14/prova-real-pessoal.json`.
+
 Work is isolated on `codex/whatsmeow-native-paid-labels`, based on the exact
 production service source `0632806ba01bdc63e6dd8ddc10af2d9466f0b60f`.
 It preserves the profile, status, call and native Pix dependency patches.
