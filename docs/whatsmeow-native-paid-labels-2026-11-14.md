@@ -5,7 +5,8 @@ with the dedicated signer key, verified scope/session and automatic identity
 resolver. The already bank-confirmed payment for conversation3147 (1490 cents)
 was submitted by the cloud worker once (`attempts=1`). An independent readback
 returned200 `observed_on_target`, after rechecking account/inbox/contact and the
-session's reversible aliases. No extra ledger payment was created. Outbox health
+session's reversible aliases. A separate PostgreSQL read confirmed the persisted
+job state `observed`, with `attempts=1`. No extra ledger payment was created. Outbox health
 showed zero pending, uncertain, review-required or missing-binding jobs. The
 20-minute cloud monitor includes this health. Restricted PostgreSQL credentials
 passed TLS with the official CA and hostname verification; n8n uses the private
