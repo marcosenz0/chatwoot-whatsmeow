@@ -195,6 +195,13 @@ func TestReadSyntheticAssociationOnlyForExactTarget(t *testing.T) {
 	if !cat.observedTargetLabels["synthetic-label"] || len(cat.observedTargetLabels) != 1 {
 		t.Fatal("target filtering failed")
 	}
+	// An association on either verified alias blocks a repeat write; both are
+	// decoded from the same MAC-checked snapshot, without touching live state.
+	alias := types.NewJID("123456789000", types.HiddenUserServer)
+	cat, err = readNativeLabelSnapshot(ctx, live, &alias, fetch, target)
+	if err != nil || !cat.observedTargetLabels["synthetic-label"] || len(cat.observedTargetLabels) != 1 {
+		t.Fatal("association on verified counterpart was missed", err)
+	}
 	if liveState.writes != 0 {
 		t.Fatal("live state changed")
 	}

@@ -24,7 +24,7 @@ type postgresNativePaidReceipts struct{ db *sql.DB }
 
 func initializeNativePaidReceipts(ctx context.Context, db *sql.DB) error {
 	// A read-only rollout does not create or modify the receipt table.
-	if !nativeLabelFeatureConfigured() || !nativePaidWriteEnabled() {
+	if !nativeLabelFeatureConfigured() || (!nativePaidWriteEnabled() && !nativePaidTestEnabled()) {
 		return nil
 	}
 	if db == nil {
@@ -41,8 +41,8 @@ func (s postgresNativePaidReceipts) reserve(ctx context.Context, channel string,
 	hash := paidRequestHash(req, channel)
 	var state string
 	err := s.db.QueryRowContext(ctx, `INSERT INTO whatsmeow_native_paid_receipts
-		(channel_id,order_id,nonce,request_hash,status) VALUES ($1,$2,$3,$4,'reserved')
-		ON CONFLICT DO NOTHING RETURNING status`, channel, req.OrderID, strings.ToLower(req.Nonce), hash).Scan(&state)
+		(channel_id,order_id,nonce,request_hash,purpose,status) VALUES ($1,$2,$3,$4,$5,'reserved')
+		ON CONFLICT DO NOTHING RETURNING status`, channel, req.OrderID, strings.ToLower(req.Nonce), hash, paidSignatureVersion(req)).Scan(&state)
 	if err == nil {
 		return state, true, nil
 	}

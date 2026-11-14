@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -11,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/polymorfa/hypermeow/store"
 )
 
 var paidOrderID = regexp.MustCompile(`^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$`)
@@ -31,6 +34,23 @@ func nativePaidWriteEnabled() bool {
 	return os.Getenv("NATIVE_PAID_WRITE_ENABLED") == "true"
 }
 
+func nativePaidTestEnabled() bool {
+	return os.Getenv("NATIVE_PAID_TEST_WRITE_ENABLED") == "true"
+}
+
+func paidSignatureVersion(req paidLabelRequest) string {
+	if req.purpose == "test" {
+		return "test-v1"
+	}
+	return "v1"
+}
+
+func nativePaidSessionMatches(device *store.Device) bool {
+	actual := nativePaidSessionIdentity(device)
+	expected := os.Getenv("NATIVE_PAID_EXPECTED_SESSION_IDENTITY")
+	return actual != "" && len(expected) == 64 && subtle.ConstantTimeCompare([]byte(actual), []byte(expected)) == 1
+}
+
 func verifyConfiguredPaidCatalogue(cat *nativeLabelCatalog, requestedID string) error {
 	configured, err := strconv.ParseInt(os.Getenv("NATIVE_PAID_PREDEFINED_ID"), 10, 32)
 	if err != nil || os.Getenv("NATIVE_PAID_LABEL_ID") != requestedID {
@@ -46,21 +66,26 @@ func verifyConfiguredPaidCatalogue(cat *nativeLabelCatalog, requestedID string) 
 }
 
 func paidPayload(req paidLabelRequest, channel string) string {
-	return fmt.Sprintf("v1\n%s\n%d\n%d\n%s\n%d\n%s\n%s\n%d\n%s", channel, req.AccountID, req.ConversationID, req.OrderID, req.AmountCents, req.LabelID, req.ChatJID, req.ExpiresUnix, req.Nonce)
+	return fmt.Sprintf("%s\n%s\n%d\n%d\n%s\n%d\n%s\n%s\n%d\n%s", paidSignatureVersion(req), channel, req.AccountID, req.ConversationID, req.OrderID, req.AmountCents, req.LabelID, req.ChatJID, req.ExpiresUnix, req.Nonce)
 }
 
 // The stable hash binds an order forever; rotating its nonce or expiry never
 // permits sending the same payment to another chat or applying it a second time.
 func paidRequestHash(req paidLabelRequest, channel string) string {
-	stable := fmt.Sprintf("v1\n%s\n%d\n%d\n%s\n%d\n%s\n%s", channel, req.AccountID, req.ConversationID, strings.ToLower(req.OrderID), req.AmountCents, req.LabelID, req.ChatJID)
+	stable := fmt.Sprintf("%s\n%s\n%d\n%d\n%s\n%d\n%s\n%s", paidSignatureVersion(req), channel, req.AccountID, req.ConversationID, strings.ToLower(req.OrderID), req.AmountCents, req.LabelID, req.ChatJID)
 	hash := sha256.Sum256([]byte(stable))
 	return hex.EncodeToString(hash[:])
 }
 
 func validatePaidLabelSignature(req paidLabelRequest, channel, signature string, now time.Time) error {
 	secret := os.Getenv("NATIVE_PAID_SIGNING_SECRET")
+	enabled := nativePaidWriteEnabled()
+	if req.purpose == "test" {
+		secret = os.Getenv("NATIVE_PAID_TEST_SIGNING_SECRET")
+		enabled = nativePaidTestEnabled() && os.Getenv("NATIVE_PAID_TEST_JID") != "" && req.ChatJID == os.Getenv("NATIVE_PAID_TEST_JID")
+	}
 	account, err := strconv.ParseInt(os.Getenv("NATIVE_PAID_ALLOWED_ACCOUNT"), 10, 64)
-	if !nativePaidWriteEnabled() || len(secret) < 32 || !nativeLabelChannelAllowed(channel) || err != nil || account <= 0 || req.AccountID != account || req.ConversationID <= 0 {
+	if !enabled || len(secret) < 32 || !nativeLabelChannelAllowed(channel) || err != nil || account <= 0 || req.AccountID != account || req.ConversationID <= 0 {
 		return errors.New("scope_invalid")
 	}
 	configuredLabel := os.Getenv("NATIVE_PAID_LABEL_ID")

@@ -20,6 +20,10 @@ All routes require the existing internal token. Only the explicitly configured
 - `POST /sessions/:channel_id/native-labels/check`: reads an exact individual
   target from the JSON body. A missing observation is not proof of failure,
   including when PN and LID aliases differ. It never sends an association.
+- `POST /sessions/:channel_id/native-labels/identity`: returns private PN/LID
+  aliases only after checking the current session's reversible mapping, and a
+  stable SHA256 session fingerprint. Missing aliases fail closed. The payment
+  resolver must independently bind the actual Chatwoot account/inbox/contact.
 - `POST /sessions/:channel_id/native-labels/paid`: also requires a dedicated,
   short-lived HMAC over account, channel, conversation, payment UUID, amount,
   exact target and label, nonce and expiry. The signing authority must independently
@@ -38,6 +42,21 @@ offer is restricted to1490 cents. Enabling writes initializes only the receipt
 table embedded from `whatsmeow-service/migrations/native_paid_receipts.sql`.
 An initialization error stops startup rather than continuing without replay
 protection. No customer JID or bank proof is stored in that table.
+
+Both write and reconciliation require `NATIVE_PAID_EXPECTED_SESSION_IDENTITY`
+to match the currently connected device fingerprint. A replacement pairing on
+the same channel therefore cannot silently receive an old authorization.
+Both PN and LID associations are read from one validated snapshot; a positive
+association on either alias blocks another write. Missing or contradictory
+mapping never means the label is absent.
+
+The owner-authorized smoke test uses `/native-labels/paid-test`, a separate
+`NATIVE_PAID_TEST_SIGNING_SECRET`, `test-v1` signature domain, an exact
+`NATIVE_PAID_TEST_JID` contact scope and `NATIVE_PAID_TEST_WRITE_ENABLED`.
+It creates only a purpose-tagged technical receipt, never a payment/ledger row.
+Production payment signing stays disabled for this test. Turn test writes off
+after the single observation. No CAPI or synthetic purchase event is sent by
+the service; WhatsApp's own activity sharing is a separate app setting.
 
 Before a write the catalogue and exact association are read again. An existing
 association returns `observed_on_target` without any IQ. A new association only

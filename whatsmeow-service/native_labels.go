@@ -3,6 +3,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -28,6 +30,7 @@ type paidLabelRequest struct {
 	AmountCents    int64  `json:"amount_cents"`
 	ExpiresUnix    int64  `json:"expires_unix"`
 	Nonce          string `json:"nonce"`
+	purpose        string
 }
 
 func prepareVerifiedPaidPatch(cat *nativeLabelCatalog, jid types.JID, requestedID string) (appstate.PatchInfo, error) {
@@ -55,9 +58,99 @@ func submitPaidPatchOnce(ctx context.Context, patch appstate.PatchInfo, send fun
 }
 
 func readLiveLabelCatalogue(ctx context.Context, client *whatsmeow.Client, target *types.JID) (*nativeLabelCatalog, error) {
+	var aliases []types.JID
+	if target != nil {
+		alias, err := verifiedNativePaidAlias(ctx, client.Store.LIDs, *target)
+		if err != nil || isCurrentClientJID(client, alias) {
+			return nil, errors.New("target_alias_unverified")
+		}
+		aliases = append(aliases, alias)
+	}
 	return readNativeLabelSnapshot(ctx, client.Store, target, func(ctx context.Context, version uint64, snapshot bool) (*appstate.PatchList, error) {
 		return client.FetchRegularLabelPageReadOnly(ctx, version, snapshot)
-	})
+	}, aliases...)
+}
+
+type nativePaidAliasStore interface {
+	GetPNForLID(context.Context, types.JID) (types.JID, error)
+	GetLIDForPN(context.Context, types.JID) (types.JID, error)
+}
+
+// The current session must know both directions. Missing/contradictory aliases
+// cannot turn a negative exact-JID observation into permission to relabel.
+func verifiedNativePaidAlias(ctx context.Context, ids nativePaidAliasStore, target types.JID) (types.JID, error) {
+	if ids == nil {
+		return types.JID{}, errors.New("identity_store_unavailable")
+	}
+	target = target.ToNonAD()
+	var alias, reverse types.JID
+	var err error
+	if target.Server == types.DefaultUserServer {
+		alias, err = ids.GetLIDForPN(ctx, target)
+		if err != nil || alias.Server != types.HiddenUserServer || alias.IsEmpty() {
+			return types.JID{}, errors.New("lid_alias_unverified")
+		}
+		reverse, err = ids.GetPNForLID(ctx, alias.ToNonAD())
+	} else if target.Server == types.HiddenUserServer {
+		alias, err = ids.GetPNForLID(ctx, target)
+		if err != nil || alias.Server != types.DefaultUserServer || alias.IsEmpty() {
+			return types.JID{}, errors.New("pn_alias_unverified")
+		}
+		reverse, err = ids.GetLIDForPN(ctx, alias.ToNonAD())
+	} else {
+		return types.JID{}, errors.New("invalid_individual_target")
+	}
+	if err != nil || reverse.ToNonAD() != target {
+		return types.JID{}, errors.New("identity_mapping_not_reversible")
+	}
+	return alias.ToNonAD(), nil
+}
+
+func handleNativePaidIdentity(c *gin.Context) {
+	if !nativeLabelChannelAllowed(c.Param("channel_id")) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "native_labels_scope_disabled"})
+		return
+	}
+	var req paidLabelRequest
+	if err := c.ShouldBindJSON(&req); err != nil || !paidJID.MatchString(req.ChatJID) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_individual_target"})
+		return
+	}
+	client, ok := clientForChannel(c.Param("channel_id"))
+	if !ok || client.Store == nil || client.Store.ID == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "session_not_connected"})
+		return
+	}
+	jid, ok := parseJID(req.ChatJID)
+	if !ok || isCurrentClientJID(client, jid) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_target"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+	alias, err := verifiedNativePaidAlias(ctx, client.Store.LIDs, jid)
+	if err != nil || isCurrentClientJID(client, alias) {
+		c.JSON(http.StatusConflict, gin.H{"error": "target_alias_unverified"})
+		return
+	}
+	pn, lid := jid.ToNonAD(), alias
+	if jid.Server == types.HiddenUserServer {
+		pn, lid = alias, jid.ToNonAD()
+	}
+	fingerprint := nativePaidSessionIdentity(client.Store)
+	if fingerprint == "" {
+		c.JSON(http.StatusConflict, gin.H{"error": "session_identity_unavailable"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "verified", "pn_jid": pn.String(), "lid_jid": lid.String(), "session_identity": fingerprint, "channel_id": c.Param("channel_id")})
+}
+
+func nativePaidSessionIdentity(device *store.Device) string {
+	if device == nil || device.ID == nil || device.ID.IsEmpty() || device.LID.IsEmpty() {
+		return ""
+	}
+	digest := sha256.Sum256([]byte(device.ID.ToNonAD().String() + "\n" + device.LID.ToNonAD().String()))
+	return hex.EncodeToString(digest[:])
 }
 
 func handleReadNativeLabels(c *gin.Context) {
@@ -85,17 +178,28 @@ func handleReadNativeLabels(c *gin.Context) {
 			labels = append(labels, gin.H{"id": v.id, "name": v.name, "predefined_id": v.predefinedID})
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"labels": labels, "source": "read_only_snapshot", "complete": cat.complete["snapshot"]})
+	c.JSON(http.StatusOK, gin.H{"labels": labels, "source": "read_only_snapshot", "complete": cat.complete["snapshot"], "session_identity": nativePaidSessionIdentity(client.Store)})
 }
 
 // The caller is responsible for independently confirming payment. A successful
 // patch submission does not prove the phone or Ads Manager has applied it.
 func handleApplyNativePaidLabel(c *gin.Context) {
+	handleNativePaidMutation(c, "payment")
+}
+
+// Owner-authorized smoke testing is separate from confirmed-payment signing.
+// Its separate key and exact contact scope cannot authorize a customer sale.
+func handleTestNativePaidLabel(c *gin.Context) {
+	handleNativePaidMutation(c, "test")
+}
+
+func handleNativePaidMutation(c *gin.Context, purpose string) {
 	var req paidLabelRequest
 	if err := c.ShouldBindJSON(&req); err != nil || strings.TrimSpace(req.LabelID) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid_request"})
 		return
 	}
+	req.purpose = purpose
 	if err := validatePaidLabelSignature(req, c.Param("channel_id"), c.GetHeader("X-Paid-Label-Signature"), time.Now()); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "paid_authorization_invalid"})
 		return
@@ -112,6 +216,10 @@ func handleApplyNativePaidLabel(c *gin.Context) {
 	client, ok := clientForChannel(c.Param("channel_id"))
 	if !ok {
 		c.JSON(http.StatusConflict, gin.H{"error": "session_not_connected"})
+		return
+	}
+	if !nativePaidSessionMatches(client.Store) {
+		c.JSON(http.StatusConflict, gin.H{"error": "session_identity_mismatch"})
 		return
 	}
 	if isCurrentClientJID(client, jid) {
@@ -158,6 +266,10 @@ func handleCheckNativePaidLabel(c *gin.Context) {
 	client, ok := clientForChannel(c.Param("channel_id"))
 	if !ok {
 		c.JSON(http.StatusConflict, gin.H{"error": "session_not_connected"})
+		return
+	}
+	if !nativePaidSessionMatches(client.Store) {
+		c.JSON(http.StatusConflict, gin.H{"error": "session_identity_mismatch"})
 		return
 	}
 	if isCurrentClientJID(client, jid) {
@@ -286,13 +398,20 @@ type nativeLabelCatalog struct {
 // Read a complete regular snapshot into isolated scratch state. The fetcher is
 // injected so tests cannot contact WhatsApp. Missing snapshots, interrupted or
 // excessively long pagination, and invalid MACs all fail closed.
-func readNativeLabelSnapshot(ctx context.Context, live *store.Device, target *types.JID, fetch func(context.Context, uint64, bool) (*appstate.PatchList, error)) (*nativeLabelCatalog, error) {
+func readNativeLabelSnapshot(ctx context.Context, live *store.Device, target *types.JID, fetch func(context.Context, uint64, bool) (*appstate.PatchList, error), aliases ...types.JID) (*nativeLabelCatalog, error) {
 	if live == nil || live.AppStateKeys == nil || fetch == nil {
 		return nil, errors.New("reader_unavailable")
 	}
 	processor := appstate.NewProcessor(&store.Device{AppStateKeys: readOnlySyncKeys{source: live.AppStateKeys}, AppState: &scratchAppState{}}, waLog.Noop)
 	state := appstate.HashState{}
 	catalog := newNativeLabelCatalog()
+	targets := map[types.JID]map[string]bool{}
+	if target != nil {
+		targets[target.ToNonAD()] = map[string]bool{}
+		for _, alias := range aliases {
+			targets[alias.ToNonAD()] = map[string]bool{}
+		}
+	}
 	for page := 0; page < 20; page++ {
 		list, err := fetch(ctx, state.Version, page == 0)
 		if err != nil {
@@ -312,17 +431,18 @@ func readNativeLabelSnapshot(ctx context.Context, live *store.Device, target *ty
 		for _, m := range mutations {
 			if target != nil && len(m.Index) == 3 && m.Index[0] == appstate.IndexLabelAssociationChat {
 				jid, parseErr := types.ParseJID(m.Index[2])
-				if parseErr != nil || jid.ToNonAD() != target.ToNonAD() {
+				labels, relevant := targets[jid.ToNonAD()]
+				if parseErr != nil || !relevant {
 					continue
 				}
 				if m.Operation == waServerSync.SyncdMutation_REMOVE {
-					delete(catalog.observedTargetLabels, m.Index[1])
+					delete(labels, m.Index[1])
 					continue
 				}
 				if m.Operation != waServerSync.SyncdMutation_SET || m.Action == nil || m.Action.GetLabelAssociationAction() == nil {
 					return nil, errors.New("invalid_association_mutation")
 				}
-				catalog.observedTargetLabels[m.Index[1]] = m.Action.GetLabelAssociationAction().GetLabeled()
+				labels[m.Index[1]] = m.Action.GetLabelAssociationAction().GetLabeled()
 				continue
 			}
 			if len(m.Index) != 2 || m.Index[0] != appstate.IndexLabelEdit {
@@ -338,6 +458,11 @@ func readNativeLabelSnapshot(ctx context.Context, live *store.Device, target *ty
 			catalog.observe("snapshot", &events.LabelEdit{LabelID: m.Index[1], Action: m.Action.GetLabelEditAction(), Timestamp: time.Now()})
 		}
 		if !list.HasMorePatches {
+			for _, labels := range targets {
+				for label, present := range labels {
+					catalog.observedTargetLabels[label] = catalog.observedTargetLabels[label] || present
+				}
+			}
 			catalog.complete["snapshot"] = true
 			return catalog, nil
 		}

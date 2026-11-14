@@ -66,3 +66,32 @@ func TestStablePaidOrderHashIgnoresAuthorizationRenewalButNotTarget(t *testing.T
 		t.Fatal("target not bound to receipt")
 	}
 }
+
+func TestOwnerSmokeTestCannotAuthorizeCustomerOrProductionSale(t *testing.T) {
+	req := syntheticPaidRequest(t)
+	req.purpose = "test"
+	t.Setenv("NATIVE_PAID_WRITE_ENABLED", "false")
+	t.Setenv("NATIVE_PAID_TEST_WRITE_ENABLED", "true")
+	t.Setenv("NATIVE_PAID_TEST_JID", req.ChatJID)
+	t.Setenv("NATIVE_PAID_TEST_SIGNING_SECRET", "different-synthetic-secret-dedicated-to-smoke-test")
+	mac := hmac.New(sha256.New, []byte("different-synthetic-secret-dedicated-to-smoke-test"))
+	mac.Write([]byte(paidPayload(req, "demo")))
+	sig := hex.EncodeToString(mac.Sum(nil))
+	if err := validatePaidLabelSignature(req, "demo", sig, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	wrong := req
+	wrong.purpose = "payment"
+	if validatePaidLabelSignature(wrong, "demo", sig, time.Now()) == nil {
+		t.Fatal("smoke test authorized a sale")
+	}
+	wrong = req
+	wrong.ChatJID = "555000000001@s.whatsapp.net"
+	if validatePaidLabelSignature(wrong, "demo", sig, time.Now()) == nil {
+		t.Fatal("smoke test escaped owner contact")
+	}
+	t.Setenv("NATIVE_PAID_TEST_WRITE_ENABLED", "false")
+	if validatePaidLabelSignature(req, "demo", sig, time.Now()) == nil {
+		t.Fatal("disabled smoke test accepted")
+	}
+}
