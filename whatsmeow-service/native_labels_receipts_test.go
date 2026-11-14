@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/polymorfa/hypermeow/appstate"
 )
@@ -85,6 +86,16 @@ func TestAlreadyObservedPaidLabelNeverWrites(t *testing.T) {
 	receipts := &fakePaidReceipts{}
 	status, state := applyNativePaidOnce(context.Background(), receipts, "demo", req, appstate.PatchInfo{}, true, func(context.Context, appstate.PatchInfo) error { t.Fatal("relabelled existing purchase"); return nil })
 	if status != http.StatusOK || state != "observed_on_target" || receipts.state != "observed_on_target" {
+		t.Fatal(status, state)
+	}
+}
+
+func TestExpiredAuthorizationAfterReservationNeverWrites(t *testing.T) {
+	req := syntheticPaidRequest(t)
+	req.ExpiresUnix = time.Now().Add(-time.Second).Unix()
+	receipts := &fakePaidReceipts{}
+	status, state := applyNativePaidOnce(context.Background(), receipts, "demo", req, appstate.PatchInfo{}, false, func(context.Context, appstate.PatchInfo) error { t.Fatal("sent expired authorization"); return nil })
+	if status != http.StatusConflict || state != "rejected_expired" || receipts.state != "rejected_expired" {
 		t.Fatal(status, state)
 	}
 }

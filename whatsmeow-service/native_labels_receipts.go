@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/polymorfa/hypermeow/appstate"
 )
@@ -88,7 +89,9 @@ func applyNativePaidOnce(ctx context.Context, receipts nativePaidReceiptStore, c
 		return http.StatusConflict, state
 	}
 	status, outcome := http.StatusOK, "observed_on_target"
-	if !alreadyObserved {
+	if req.ExpiresUnix <= time.Now().Unix() {
+		status, outcome = http.StatusConflict, "rejected_expired"
+	} else if !alreadyObserved {
 		status, outcome = submitPaidPatchOnce(ctx, patch, send)
 	}
 	// Persisting the outcome is part of completing a write. If this fails, the
