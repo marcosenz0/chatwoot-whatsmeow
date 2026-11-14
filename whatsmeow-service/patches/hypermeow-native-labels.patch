@@ -1,0 +1,146 @@
+--- /dev/null
++++ b/native_labels.go
+@@ -0,0 +1,88 @@
++// Project extension: read labels and submit exactly once on the existing session.
++package whatsmeow
++
++import (
++	"context"
++	"errors"
++	"fmt"
++
++	"github.com/polymorfa/hypermeow/appstate"
++	waBinary "github.com/polymorfa/hypermeow/binary"
++	"github.com/polymorfa/hypermeow/types"
++)
++
++// FetchRegularLabelPageReadOnly requests one regular app-state page through the
++// already connected client. It neither deletes nor updates the app-state store.
++// Its caller must authenticate and validate/decode into a scratch store, handle
++// pagination, rate limits, freshness, cancellation and incomplete snapshots.
++func (cli *Client) FetchRegularLabelPageReadOnly(ctx context.Context, version uint64, snapshot bool) (*appstate.PatchList, error) {
++	if cli == nil {
++		return nil, ErrClientIsNil
++	}
++	cli.appStateSyncLock.Lock()
++	defer cli.appStateSyncLock.Unlock()
++	return cli.fetchAppStatePatches(ctx, appstate.WAPatchRegular, version, snapshot)
++}
++
++var ErrPaidLabelConflict = errors.New("paid_label_conflict")
++
++// SubmitPaidLabelOnce performs exactly one IQ write; unlike SendAppState it
++// does not auto-retry a 409. A sync failure after a successful IQ is uncertain.
++// The state lock is released before FetchAppState to avoid reentrant deadlock.
++func (cli *Client) SubmitPaidLabelOnce(ctx context.Context, patch appstate.PatchInfo) error {
++	if cli == nil {
++		return ErrClientIsNil
++	}
++	if patch.Type != appstate.WAPatchRegular {
++		return errors.New("unsupported_patch_type")
++	}
++	if err := cli.submitPaidLabelIQOnce(ctx, patch); err != nil {
++		return err
++	}
++	if err := cli.FetchAppState(ctx, patch.Type, false, false); err != nil {
++		return fmt.Errorf("post_submission_sync_uncertain: %w", err)
++	}
++	return nil
++}
++
++func (cli *Client) submitPaidLabelIQOnce(ctx context.Context, patch appstate.PatchInfo) error {
++	cli.appStateSyncLock.Lock()
++	defer cli.appStateSyncLock.Unlock()
++	version, hash, err := cli.Store.AppState.GetAppStateVersion(ctx, string(patch.Type))
++	if err != nil {
++		return err
++	}
++	keyID, err := cli.Store.AppStateKeys.GetLatestAppStateSyncKeyID(ctx)
++	if err != nil {
++		return err
++	}
++	if keyID == nil {
++		return errors.New("app_state_key_missing")
++	}
++	encoded, err := cli.appStateProc.EncodePatch(ctx, keyID, appstate.HashState{Version: version, Hash: hash}, patch)
++	if err != nil {
++		return err
++	}
++	return sendNativePaidLabelPatchOnce(ctx, patch.Type, version, encoded, cli.sendIQ)
++}
++
++func sendNativePaidLabelPatchOnce(ctx context.Context, patchType appstate.WAPatchName, version uint64, encoded []byte, send func(context.Context, infoQuery) (*waBinary.Node, error)) error {
++	resp, err := send(ctx, infoQuery{Namespace: "w:sync:app:state", Type: iqSet, To: types.ServerJID, Content: []waBinary.Node{{Tag: "sync", Content: []waBinary.Node{{Tag: "collection", Attrs: waBinary.Attrs{"name": string(patchType), "version": version, "return_snapshot": false}, Content: []waBinary.Node{{Tag: "patch", Content: encoded}}}}}}})
++	if err != nil {
++		return fmt.Errorf("submission_uncertain: %w", err)
++	}
++	if resp == nil {
++		return errors.New("submission_response_missing_uncertain")
++	}
++	collection, ok := resp.GetOptionalChildByTag("sync", "collection")
++	if !ok {
++		return errors.New("submission_response_missing_uncertain")
++	}
++	if collection.AttrGetter().OptionalString("type") == "error" {
++		if node, ok := collection.GetOptionalChildByTag("error"); ok && node.AttrGetter().Int("code") == 409 {
++			return ErrPaidLabelConflict
++		}
++		return errors.New("submission_rejected")
++	}
++	return nil
++}
+--- /dev/null
++++ b/native_labels_transport_test.go
+@@ -0,0 +1,52 @@
++package whatsmeow
++
++import (
++	"context"
++	"errors"
++	"testing"
++
++	"github.com/polymorfa/hypermeow/appstate"
++	waBinary "github.com/polymorfa/hypermeow/binary"
++)
++
++func TestNativePaidLabelTransportWritesOnceWithoutRetry(t *testing.T) {
++	for _, kind := range []string{"success", "conflict", "timeout", "missing", "nil"} {
++		t.Run(kind, func(t *testing.T) {
++			calls := 0
++			send := func(_ context.Context, query infoQuery) (*waBinary.Node, error) {
++				calls++
++				if query.Namespace != "w:sync:app:state" || query.Type != iqSet {
++					t.Fatal("unexpected transport")
++				}
++				if kind == "timeout" {
++					return nil, context.DeadlineExceeded
++				}
++				if kind == "nil" {
++					return nil, nil
++				}
++				if kind == "missing" {
++					return &waBinary.Node{Tag: "iq"}, nil
++				}
++				collection := waBinary.Node{Tag: "collection"}
++				if kind == "conflict" {
++					collection.Attrs = waBinary.Attrs{"type": "error"}
++					collection.Content = []waBinary.Node{{Tag: "error", Attrs: waBinary.Attrs{"code": "409"}}}
++				}
++				return &waBinary.Node{Tag: "iq", Content: []waBinary.Node{{Tag: "sync", Content: []waBinary.Node{collection}}}}, nil
++			}
++			err := sendNativePaidLabelPatchOnce(context.Background(), appstate.WAPatchRegular, 7, []byte("synthetic"), send)
++			if calls != 1 {
++				t.Fatalf("transport wrote %d times", calls)
++			}
++			if kind == "success" && err != nil {
++				t.Fatal(err)
++			}
++			if kind != "success" && err == nil {
++				t.Fatal("invalid response accepted")
++			}
++			if kind == "conflict" && !errors.Is(err, ErrPaidLabelConflict) {
++				t.Fatal("lost definite conflict classification")
++			}
++		})
++	}
++}

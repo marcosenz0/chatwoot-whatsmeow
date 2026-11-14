@@ -1,0 +1,33 @@
+// Executes the exact migration and Go query strings against local PostgreSQL WASM.
+// No network, real session or customer data. This does not test multi-backend locks.
+import assert from 'node:assert/strict';
+import { readFile, mkdir } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+const { PGlite } = await import(pathToFileURL(join(homedir(), '.codex/private/low-ticket-tools/node_modules/@electric-sql/pglite/dist/index.js')).href);
+const source=await readFile(new URL('../native_labels_receipts.go',import.meta.url),'utf8');
+const statements=[...source.matchAll(/`([^`]+)`/g)].map(m=>m[1]);
+const insert=statements.find(s=>s.startsWith('INSERT'));
+const select=statements.find(s=>s.startsWith('SELECT'));
+const update=statements.find(s=>s.startsWith('UPDATE'));
+assert.ok(insert && select && update);
+const dataDir=join(homedir(),'.codex/private/low-ticket-paid-label-build/receipts-test-'+Date.now());
+await mkdir(dataDir,{recursive:true});
+let db=await PGlite.create(dataDir);
+await db.exec(await readFile(new URL('../migrations/native_paid_receipts.sql',import.meta.url),'utf8'));
+const order='00000000-0000-0000-0000-000000000001',nonce='0123456789abcdef0123456789abcdef',hash='a'.repeat(64);
+assert.equal((await db.query(insert,['demo',order,nonce,hash])).rows[0].status,'reserved');
+assert.equal((await db.query(insert,['demo',order,'1'.repeat(32),hash])).rows.length,0);
+assert.equal((await db.query(insert,['demo','00000000-0000-0000-0000-000000000002',nonce,hash])).rows.length,0);
+assert.equal((await db.query(select,['demo',order])).rows[0].status,'reserved');
+assert.equal((await db.query(update,['demo',order,'b'.repeat(64),'submitted'])).affectedRows,0);
+assert.equal((await db.query(update,['demo',order,hash,'uncertain'])).affectedRows,1);
+assert.equal((await db.query(update,['demo',order,hash,'submitted'])).affectedRows,0);
+await assert.rejects(db.query(insert,['demo','not-a-uuid','2'.repeat(32),hash]));
+await db.close();
+db=await PGlite.create(dataDir);
+assert.equal((await db.query(select,['demo',order])).rows[0].status,'uncertain');
+assert.equal((await db.query(insert,['demo',order,'3'.repeat(32),hash])).rows.length,0);
+await db.close();
+console.log('10 PostgreSQL query/persistence assertions passed (isolated local PGlite).');

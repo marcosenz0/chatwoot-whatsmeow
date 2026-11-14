@@ -417,6 +417,9 @@ func main() {
 	}
 	statusLookupDB.SetMaxOpenConns(5)
 	statusLookupDB.SetMaxIdleConns(2)
+	if err = initializeNativePaidReceipts(context.Background(), statusLookupDB); err != nil {
+		log.Fatal("Failed to initialize native paid receipts; refusing unsafe replay protection")
+	}
 
 	configureHistorySync()
 	startHistoryWorker()
@@ -443,6 +446,9 @@ func main() {
 	r.GET("/sessions/:channel_id/qr", internalTokenMiddleware(), handleGetQR)
 	r.GET("/sessions/:channel_id/status", handleGetStatus)
 	r.GET("/sessions/:channel_id/groups", internalTokenMiddleware(), handleGetGroups)
+	r.GET("/sessions/:channel_id/native-labels", internalTokenMiddleware(), handleReadNativeLabels)
+	r.POST("/sessions/:channel_id/native-labels/paid", internalTokenMiddleware(), handleApplyNativePaidLabel)
+	r.POST("/sessions/:channel_id/native-labels/check", internalTokenMiddleware(), handleCheckNativePaidLabel)
 	r.GET("/sessions/:channel_id/group_invite", internalTokenMiddleware(), handleGetGroupInvite)
 	r.POST("/sessions/:channel_id/group_invite", internalTokenMiddleware(), handleJoinGroupInvite)
 	r.GET("/sessions/:channel_id/group_members", internalTokenMiddleware(), handleGetGroupMembers)
