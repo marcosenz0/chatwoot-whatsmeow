@@ -1,5 +1,19 @@
 # Native WhatsApp Business Pago label
 
+**Production checkpoint, November14 at20:16 GMT-3:** production writes are enabled
+with the dedicated signer key, verified scope/session and automatic identity
+resolver. The already bank-confirmed payment for conversation3147 (1490 cents)
+was submitted by the cloud worker once (`attempts=1`). An independent readback
+returned200 `observed_on_target`, after rechecking account/inbox/contact and the
+session's reversible aliases. No extra ledger payment was created. Outbox health
+showed zero pending, uncertain, review-required or missing-binding jobs. The
+20-minute cloud monitor includes this health. Restricted PostgreSQL credentials
+passed TLS with the official CA and hostname verification; n8n uses the private
+bridge origin. Test writes remain off and their key/target are empty.
+See Low Ticket's `prova-producao-bancaria.json` for sanitized evidence. This does
+not prove attribution in Meta Ads Manager. The separately authorized receipt-name
+approval rule is being added independently; it was not used for this bank payment.
+
 **Live checkpoint, November14 at19:46 GMT-3:** implementation commit
 `08c66ddf81f0c9af9a9de9136aa8021f98cc7bec` passed GitHub run43648792032
 (including race/vet/Docker) and is running on the existing Alice service/session.
@@ -20,7 +34,7 @@ The real-test evidence is in the Low Ticket project at
 Work is isolated on `codex/whatsmeow-native-paid-labels`, based on the exact
 production service source `0632806ba01bdc63e6dd8ddc10af2d9466f0b60f`.
 It preserves the profile, status, call and native Pix dependency patches.
-This document describes prepared code, not proof of a deployed label.
+The dated checkpoints above distinguish shipped behavior from historical setup.
 
 The historical n8n flow used Evo Go `/label/chat` with a numeric label ID.
 Current n8n originals still contain that request but are inactive; the current
@@ -117,7 +131,7 @@ the exact embedded SQL/Go query strings in local PostgreSQL WASM, including disk
 close/reopen deduplication. This is not a real multi-backend PostgreSQL stress test
 or proof of a phone/Meta action. GitHub CI adds race and clean Docker verification.
 
-Still required before claiming end-to-end completion: successful published-image
-CI, verified runtime digest and reconnect, real catalogue/target identity, trusted
-signer/outbox provisioning, actual label observation, and separate Meta attribution
-verification. No label was applied by local tests.
+Published-image CI, runtime digest/reconnect, real catalogue/identity, signer/outbox
+provisioning and actual label observation passed as described above. Local tests
+alone applied no labels. Meta attribution and the separate receipt-name policy
+must still be assessed independently; do not treat either as bank confirmation.
