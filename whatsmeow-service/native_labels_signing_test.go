@@ -67,6 +67,30 @@ func TestStablePaidOrderHashIgnoresAuthorizationRenewalButNotTarget(t *testing.T
 	}
 }
 
+func TestPaidAuthorizationForSchoolLabelsRequiresMatchingAmount(t *testing.T) {
+	req := syntheticPaidRequest(t)
+	t.Setenv("NATIVE_PAID_ALLOWED_AMOUNTS_CENTS", "")
+	sign := func(value paidLabelRequest) string {
+		mac := hmac.New(sha256.New, []byte("synthetic-secret-not-used-in-production-32-bytes"))
+		mac.Write([]byte(paidPayload(value, "demo")))
+		return hex.EncodeToString(mac.Sum(nil))
+	}
+	legacy := sign(req)
+	req.AmountCents = 1290
+	if err := validatePaidLabelSignature(req, "demo", sign(req), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if validatePaidLabelSignature(req, "demo", legacy, time.Now()) == nil {
+		t.Fatal("a different offer's signature authorized this sale")
+	}
+	for _, values := range []string{"1490", "1290,invalid", "1290,-1"} {
+		t.Setenv("NATIVE_PAID_ALLOWED_AMOUNTS_CENTS", values)
+		if validatePaidLabelSignature(req, "demo", sign(req), time.Now()) == nil {
+			t.Fatalf("ineligible amount policy accepted: %q", values)
+		}
+	}
+}
+
 func TestOwnerSmokeTestCannotAuthorizeCustomerOrProductionSale(t *testing.T) {
 	req := syntheticPaidRequest(t)
 	req.purpose = "test"

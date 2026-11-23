@@ -38,6 +38,22 @@ func nativePaidTestEnabled() bool {
 	return os.Getenv("NATIVE_PAID_TEST_WRITE_ENABLED") == "true"
 }
 
+func nativePaidAmountAllowed(amount int64) bool {
+	configured := os.Getenv("NATIVE_PAID_ALLOWED_AMOUNTS_CENTS")
+	if configured == "" {
+		configured = "1490,1290"
+	}
+	allowed := false
+	for _, entry := range strings.Split(configured, ",") {
+		value, err := strconv.ParseInt(strings.TrimSpace(entry), 10, 64)
+		if err != nil || value <= 0 {
+			return false
+		}
+		allowed = allowed || value == amount
+	}
+	return allowed
+}
+
 func paidSignatureVersion(req paidLabelRequest) string {
 	if req.purpose == "test" {
 		return "test-v1"
@@ -89,7 +105,7 @@ func validatePaidLabelSignature(req paidLabelRequest, channel, signature string,
 		return errors.New("scope_invalid")
 	}
 	configuredLabel := os.Getenv("NATIVE_PAID_LABEL_ID")
-	if configuredLabel == "" || req.LabelID != configuredLabel || req.AmountCents != 1490 || !paidOrderID.MatchString(req.OrderID) || !paidNonce.MatchString(req.Nonce) || !paidLabelID.MatchString(req.LabelID) || !paidJID.MatchString(req.ChatJID) {
+	if configuredLabel == "" || req.LabelID != configuredLabel || !nativePaidAmountAllowed(req.AmountCents) || !paidOrderID.MatchString(req.OrderID) || !paidNonce.MatchString(req.Nonce) || !paidLabelID.MatchString(req.LabelID) || !paidJID.MatchString(req.ChatJID) {
 		return errors.New("input_invalid")
 	}
 	if req.ExpiresUnix <= now.Unix() || req.ExpiresUnix > now.Add(90*time.Second).Unix() {
